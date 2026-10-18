@@ -1,0 +1,17 @@
+name: claude-code-acp
+description: Install the pinned Claude Agent ACP adapter (Node runtime required)
+
+steps:
+  - name: Install Node (macOS)
+    install: node
+    if: os == 'darwin'
+
+  - name: Install claude-agent-acp adapter
+    run: |
+      set -e
+      VERSION="0.93.0"
+      PREFIX="$HOME/.local/share/tin/claude-agent-acp"
+      mkdir -p "$PREFIX" "$HOME/.local/bin"
+      npm install --prefix "$PREFIX" "@agentclientprotocol/claude-agent-acp@$VERSION"
+      ln -sf "$PREFIX/node_modules/.bin/claude-agent-acp" "$HOME/.local/bin/claude-agent-acp"
+      echo "  claude-agent-acp $VERSION -> $HOME/.local/bin/claude-agent-acp"

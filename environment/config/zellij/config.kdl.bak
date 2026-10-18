@@ -1,0 +1,55 @@
+keybinds clear-defaults=true {
+    normal {
+        bind "Ctrl a" { SwitchToMode "Tmux"; }
+        bind "Alt a" { SwitchToMode "Tmux"; }
+    }
+
+    tmux {
+        bind "Ctrl a" { Write 1; SwitchToMode "Normal"; }
+        bind "Alt a" { SwitchToMode "Normal"; }
+        bind "Esc" { SwitchToMode "Normal"; }
+
+        bind "h" { GoToPreviousTab; SwitchToMode "Normal"; }
+        bind "l" { GoToNextTab; SwitchToMode "Normal"; }
+        bind "t" { NewTab; SwitchToMode "Normal"; }
+        bind "x" { CloseTab; SwitchToMode "Normal"; }
+        bind "1" { GoToTab 1; SwitchToMode "Normal"; }
+        bind "2" { GoToTab 2; SwitchToMode "Normal"; }
+        bind "3" { GoToTab 3; SwitchToMode "Normal"; }
+        bind "4" { GoToTab 4; SwitchToMode "Normal"; }
+        bind "5" { GoToTab 5; SwitchToMode "Normal"; }
+        bind "6" { GoToTab 6; SwitchToMode "Normal"; }
+        bind "7" { GoToTab 7; SwitchToMode "Normal"; }
+        bind "8" { GoToTab 8; SwitchToMode "Normal"; }
+        bind "9" { GoToTab 9; SwitchToMode "Normal"; }
+
+        bind "Left" { MoveFocus "Left"; SwitchToMode "Normal"; }
+        bind "Right" { MoveFocus "Right"; SwitchToMode "Normal"; }
+        bind "Down" { MoveFocus "Down"; SwitchToMode "Normal"; }
+        bind "Up" { MoveFocus "Up"; SwitchToMode "Normal"; }
+    }
+}
+
+theme "monokai"
+
+themes {
+    monokai {
+        fg "#f8f8f2"
+        bg "#272822"
+        black "#272822"
+        red "#f92672"
+        green "#a6e22e"
+        yellow "#f4bf75"
+        blue "#66d9ef"
+        magenta "#ae81ff"
+        cyan "#a1efe4"
+        white "#f8f8f2"
+        orange "#fd971f"
+    }
+}
+
+pane_frames true
+pane_frame_style "titles"
+simplified_ui true
+default_mode "normal"
+mouse_mode true

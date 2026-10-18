@@ -1,0 +1,28 @@
+# OS
+.DS_Store
+
+# Zig build output
+zig-out/
+.zig-cache/
+
+# Local install and runtime state
+/.config
+/bin/
+/.tin-revision
+/tmp/
+
+# Secrets — keep real keys in an untracked .env
+.env
+.env.local
+*.secret
+*.token
+auth.json
+secret_*
+
+# Test and dev artifacts
+/yaml-test-data/
+*.tmp
+__pycache__/
+
+# Agent config
+.claude/

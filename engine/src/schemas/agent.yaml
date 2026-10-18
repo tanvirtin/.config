@@ -1,0 +1,48 @@
+type: object
+fields:
+  - name: description
+    type: string
+  - name: command
+    type: string
+  - name: args
+    type: sequence
+    items:
+      type: string
+    required: false
+  - name: env
+    type: mapping
+    keys:
+      type: string
+    values:
+      type: string
+    required: false
+  - name: model
+    type: string
+    required: false
+  - name: recipe
+    type: string
+    required: false
+  - name: system
+    type: string
+    required: false
+  - name: include
+    type: sequence
+    items:
+      type: string
+      ref_to: { path: "#/rules/**", kind: rule_id, catalog: rule_id }
+    required: false
+  - name: mcp
+    type: sequence
+    items:
+      type: string
+      ref_to: { path: "#/mcp/**", kind: mcp_id, catalog: mcp_id }
+    required: false
+  - name: policy
+    type: object
+    fields:
+      - name: auto_allow
+        type: boolean
+        required: false
+    additional: forbid
+    required: false
+additional: forbid

@@ -1,0 +1,126 @@
+name: Smoke
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  SMOKE_HOME: /tmp/tin-smoke-home
+
+jobs:
+  bootstrap:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-15]
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash --noprofile --norc -euo pipefail {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Install tin (install.sh --from-source)
+        run: |
+          export HOME="$SMOKE_HOME"
+          rm -rf "$HOME"
+          mkdir -p "$HOME"
+          export TIN_DIR="$HOME/.tin"
+
+          cp -r "$GITHUB_WORKSPACE" "$TIN_DIR"
+          git -C "$TIN_DIR" remote remove origin 2>/dev/null || true
+
+          mkdir -p "$HOME/.config/tin"
+          printf '%s\n' \
+            'identity:' \
+            '  name: Smoke Test' \
+            '  email: smoke@example.com' \
+            'symlinks:' \
+            '  shell:' \
+            '    - source: environment/config/.zshrc' \
+            '      target: ~/.zshrc' \
+            'install:' \
+            '  - link' > "$HOME/.config/tin/tinrc.yml"
+
+          "$TIN_DIR/install.sh" --from-source
+
+      - name: Verify installer does not apply the environment
+        run: |
+          export HOME="$SMOKE_HOME"
+          test ! -e "$HOME/.zshrc"
+          test ! -L "$HOME/.zshrc"
+
+      - name: Apply environment explicitly and verify symlink
+        run: |
+          export HOME="$SMOKE_HOME"
+          "$HOME/.tin/bin/tin" help >/dev/null
+          "$HOME/.tin/bin/tin" install
+          test -L "$HOME/.zshrc"
+          "$HOME/.tin/bin/tin" heal
+
+      - name: Run recipes through tin and use the results
+        run: |
+          export HOME="$SMOKE_HOME"
+          mkdir -p "$HOME/.config/tin/recipes"
+          printf '%s\n' \
+            'name: smoke' \
+            'steps:' \
+            '  - name: make artifacts dir' \
+            '    mkdir: ~/smoke-artifacts' \
+            '  - name: write marker' \
+            '    run: touch ~/smoke-artifacts/marker' > "$HOME/.config/tin/recipes/smoke.yml"
+          printf '%s\n' \
+            'identity:' \
+            '  name: Smoke Test' \
+            '  email: smoke@example.com' \
+            'recipes:' \
+            '  dev: [smoke, git]' \
+            'install:' \
+            '  - link' \
+            '  - recipes: dev' > "$HOME/.config/tin/tinrc.yml"
+          "$HOME/.tin/bin/tin" install
+          test -f "$HOME/smoke-artifacts/marker"
+          test "$(git config --global user.name)" = "Smoke Test"
+
+      - name: Run installer regression suite
+        run: |
+          export HOME="$SMOKE_HOME"
+          bash "$HOME/.tin/engine/tests/installer.sh"
+
+      - name: Verify installer flags
+        run: |
+          export HOME="$SMOKE_HOME"
+          "$HOME/.tin/install.sh" --help >/dev/null
+          if "$HOME/.tin/install.sh" --bogus 2>/dev/null; then
+            echo "expected an unknown flag to be rejected"
+            exit 1
+          fi
+
+      - name: Verify missing config is tolerated
+        run: |
+          export HOME="$SMOKE_HOME"
+          rm -f "$HOME/.config/tin/tinrc.yml" "$HOME/.tin/tinrc.yml"
+          "$HOME/.tin/bin/tin" install
+          "$HOME/.tin/bin/tin" link
+          "$HOME/.tin/bin/tin" heal
+
+      - name: Verify tin upgrade resolves a release
+        continue-on-error: true
+        run: |
+          export HOME="$SMOKE_HOME"
+          out="$("$HOME/.tin/bin/tin" upgrade --check 2>&1 || true)"
+          printf '%s\n' "$out"
+          case "$out" in
+            *"up to date"*|*"update available"*) ;;
+            *)
+              echo "tin upgrade --check did not resolve a release"
+              exit 1
+              ;;
+          esac

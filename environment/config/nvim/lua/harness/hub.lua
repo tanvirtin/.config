@@ -1,0 +1,241 @@
+local agent = require('harness.agent')
+local async = require('harness.async')
+local permissions = require('harness.permissions')
+local Workspace = require('harness.workspace')
+
+local hub = {}
+
+hub.config = {
+  agent = agent.DEFAULT,
+  auto_allow = nil,
+  max_running = 4,
+  max_depth = 2,
+  ask = nil,
+  spawn = nil,
+}
+
+local workspaces = {}
+local sessions = {}
+local starting = {}
+local next_key = 0
+
+local function lua_root()
+  local source = debug.getinfo(1, 'S').source:sub(2)
+
+  return vim.fs.normalize(vim.fs.dirname(source) .. '/..')
+end
+
+function hub.dir()
+  return vim.fs.normalize(vim.fn.getcwd(-1, 0))
+end
+
+function hub.editor_server(key)
+  local addr = (vim.v.servername ~= '' and vim.v.servername) or vim.fn.serverstart()
+
+  return {
+    name = permissions.MCP_NAME,
+    command = vim.v.progpath,
+    args = { '--headless', '-u', 'NONE', '-l', lua_root() .. '/nvim_mcp/run.lua', addr },
+    env = { { name = 'HARNESS_SESSION', value = key or '' } },
+  }
+end
+
+function hub.workspace(dir)
+  dir = dir or hub.dir()
+
+  if not workspaces[dir] then
+    workspaces[dir] = Workspace(dir, {
+      spawn = function(a, d)
+        return hub.config.spawn and hub.config.spawn(a, d) or a:spawn(d)
+      end,
+      servers = function(a, key)
+        return vim.list_extend({ hub.editor_server(key) }, a:mcp_servers())
+      end,
+    })
+  end
+
+  return workspaces[dir]
+end
+
+local function approve_for(a)
+  local auto_allow = hub.config.auto_allow
+
+  if auto_allow == nil then auto_allow = a.policy.auto_allow == true end
+
+  return permissions.new({ ask = hub.config.ask, auto_allow = auto_allow })
+end
+
+local function effects(event)
+  if event.kind == 'tool_update' and event.status == 'completed' and permissions.tier(event.name) == nil then
+    vim.schedule(function()
+      pcall(vim.cmd.checktime)
+    end)
+  end
+end
+
+local function register(session)
+  sessions[session.key] = session
+
+  session:subscribe(function(event)
+    effects(event)
+    pcall(vim.api.nvim_exec_autocmds, 'User', {
+      pattern = 'HarnessEvent',
+      modeline = false,
+      data = { session = session.key, kind = event.kind },
+    })
+  end)
+
+  return session
+end
+
+local function resolve_agent(name)
+  local found = agent.get(name or hub.config.agent)
+
+  if not found then error('unknown agent: ' .. tostring(name or hub.config.agent), 0) end
+
+  return found
+end
+
+local function new_key()
+  next_key = next_key + 1
+
+  return 'h' .. next_key
+end
+
+function hub.start(opts)
+  opts = opts or {}
+
+  local key = new_key()
+
+  starting[key] = true
+
+  local task = async.run(function()
+    local ok, session = pcall(function()
+      local a = resolve_agent(opts.agent)
+      local parent = opts.parent and sessions[opts.parent]
+      local depth = parent and parent.depth + 1 or 0
+
+      if depth > hub.config.max_depth then
+        error(string.format('sessions may only nest %d deep', hub.config.max_depth), 0)
+      end
+
+      local dir = opts.dir or (parent and parent.dir) or hub.dir()
+
+      return register(hub.workspace(dir):new_session(a, {
+        key = key,
+        approve = approve_for(a),
+        parent = parent and parent.key,
+        depth = depth,
+      }))
+    end)
+
+    if not ok then
+      starting[key] = tostring(session)
+      error(session, 0)
+    end
+
+    starting[key] = nil
+
+    return session
+  end)
+
+  task.key = key
+
+  return task
+end
+
+function hub.starting(key)
+  return starting[key]
+end
+
+function hub.load(opts)
+  return async.run(function()
+    local workspace = hub.workspace(opts.dir)
+    local live = workspace:find(opts.id)
+
+    if live and live.state ~= 'closed' then return live end
+
+    local a = resolve_agent(opts.agent)
+    local session = workspace:load_session(a, opts.id, {
+      key = new_key(),
+      approve = approve_for(a),
+      title = opts.title,
+    })
+
+    return register(session)
+  end)
+end
+
+function hub.list(dir, agent_name)
+  return async.run(function()
+    return hub.workspace(dir):list(resolve_agent(agent_name))
+  end)
+end
+
+function hub.delete(opts)
+  return async.run(function()
+    local workspace = hub.workspace(opts.dir)
+    local live = workspace:find(opts.id)
+
+    workspace:delete(resolve_agent(opts.agent), opts.id)
+
+    if live then sessions[live.key] = nil end
+  end)
+end
+
+function hub.running()
+  local count = 0
+
+  for _, session in pairs(sessions) do
+    if session:running() then count = count + 1 end
+  end
+
+  return count
+end
+
+function hub.prompt(session, text, context)
+  if not session:running() and hub.running() >= hub.config.max_running then
+    error(string.format('%d turns are already running (max_running)', hub.config.max_running), 0)
+  end
+
+  return session:prompt(text, context)
+end
+
+function hub.session(key)
+  return sessions[key]
+end
+
+function hub.sessions(dir)
+  local out = {}
+
+  for _, session in pairs(sessions) do
+    if session.state ~= 'closed' and (not dir or session.dir == dir) then out[#out + 1] = session end
+  end
+
+  table.sort(out, function(a, b)
+    return tonumber(a.key:sub(2)) < tonumber(b.key:sub(2))
+  end)
+
+  return out
+end
+
+function hub.close(key)
+  local session = sessions[key]
+
+  if not session then return end
+
+  session:close()
+  sessions[key] = nil
+
+  if workspaces[session.dir] then workspaces[session.dir]:forget(key) end
+end
+
+function hub.shutdown()
+  for _, workspace in pairs(workspaces) do
+    workspace:close()
+  end
+
+  workspaces, sessions, starting = {}, {}, {}
+end
+
+return hub
