@@ -30,6 +30,9 @@ function composer.winbar(session)
   local title = (session.title or 'untitled'):gsub('%%', '%%%%')
   local parts = { '%#UiTitle# → ' .. session.key .. ' ' .. title .. ' %*' }
 
+  local mode = session:mode()
+
+  if mode then parts[#parts + 1] = '%#UiAccent#󰒓 ' .. (mode.name or mode.id):gsub('%%', '%%%%') .. ' ' end
   if #session.queue > 0 then parts[#parts + 1] = string.format('%%#UiMuted#⏳ %d queued ', #session.queue) end
   if session.external then parts[#parts + 1] = '%#UiWarn#⇄ also driven elsewhere: sending forks it ' end
 
@@ -44,6 +47,8 @@ function composer.winbar(session)
     parts[#parts + 1] = key(':w', 'send')
   end
 
+  if #session.commands > 0 then parts[#parts + 1] = key('/', 'commands') end
+  if session:mode() then parts[#parts + 1] = key('<S-Tab>', 'mode') end
   parts[#parts + 1] = key('q', 'close')
 
   return table.concat(parts)
@@ -225,6 +230,15 @@ function composer.open(session, opts)
   element:set_keymap('n', '<C-c>', function()
     composer.interrupt(session)
   end, 'Interrupt the running turn')
+
+  for _, mode in ipairs({ 'n', 'i' }) do
+    element:set_keymap(mode, '<S-Tab>', function()
+      session:cycle_mode()
+    end, 'Next session mode')
+  end
+
+  element:set_buf_option('omnifunc', 'v:lua.require\'harness.ui.composer\'.complete')
+  element:set_keymap('i', '/', composer.slash, 'Slash commands')
   element:set_keymap('n', 'q', function()
     composer.close()
   end, 'Close (keeps the draft)')
@@ -259,6 +273,45 @@ function composer.open(session, opts)
   if opts.insert then vim.cmd('startinsert!') end
 
   return element
+end
+
+function composer.complete(findstart, base)
+  local session = current and current.session
+
+  if not session then return findstart == 1 and -3 or {} end
+
+  if findstart == 1 then
+    local line = vim.api.nvim_get_current_line()
+    local col = vim.api.nvim_win_get_cursor(0)[2]
+    local word = line:sub(1, col)
+
+    if word:match('^/%S*$') then return 0 end
+
+    return -3
+  end
+
+  local items = {}
+  local prefix = base:gsub('^/', '')
+
+  for _, command in ipairs(session.commands) do
+    if vim.startswith(command.name, prefix) then
+      items[#items + 1] = {
+        word = '/' .. command.name .. (command.hint and ' ' or ''),
+        abbr = '/' .. command.name .. (command.hint and (' ' .. command.hint) or ''),
+        menu = command.description,
+      }
+    end
+  end
+
+  return items
+end
+
+function composer.slash()
+  local session = current and current.session
+  local complete = session ~= nil and #session.commands > 0 and vim.api.nvim_win_get_cursor(0)[2] == 0
+
+  vim.api.nvim_feedkeys('/', 'n', false)
+  if complete then vim.api.nvim_feedkeys(vim.keycode('<C-x><C-o>'), 'n', false) end
 end
 
 function composer.restore(session, texts)

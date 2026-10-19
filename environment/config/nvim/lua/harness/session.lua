@@ -22,6 +22,9 @@ function Session:constructor(opts)
     history = {},
     times = {},
     queue = {},
+    options = {},
+    modes = nil,
+    commands = {},
     _listeners = {},
     _tools = {},
     _pending = {},
@@ -84,10 +87,155 @@ function Session:_emit(event)
   end
 end
 
+local STATE = {
+  config = function(self, event)
+    self.options = event.options
+  end,
+  mode = function(self, event)
+    if self.modes then self.modes.currentModeId = event.id end
+
+    for _, option in ipairs(self.options) do
+      if option.category == 'mode' or option.id == 'mode' then option.currentValue = event.id end
+    end
+  end,
+  commands = function(self, event)
+    self.commands = event.commands
+  end,
+}
+
+function Session:configure(result)
+  if type(result) ~= 'table' then return end
+
+  if type(result.configOptions) == 'table' then self.options = result.configOptions end
+  if type(result.modes) == 'table' then self.modes = result.modes end
+
+  self:_notify({ kind = 'config' })
+end
+
+local function find_option(options, key)
+  for _, option in ipairs(options) do
+    if option.id == key then return option end
+  end
+
+  for _, option in ipairs(options) do
+    if option.category == key then return option end
+  end
+end
+
+function Session:option(key)
+  return find_option(self.options, key)
+end
+
+local function choices(option)
+  local out = {}
+
+  for _, choice in ipairs(option.options or {}) do
+    if type(choice) == 'table' and choice.options then
+      vim.list_extend(out, choice.options)
+    else
+      out[#out + 1] = choice
+    end
+  end
+
+  return out
+end
+
+Session.choices = choices
+
+function Session:choice(key)
+  local option = self:option(key)
+
+  if not option then return nil end
+
+  for _, choice in ipairs(choices(option)) do
+    if choice.value == option.currentValue then return choice end
+  end
+end
+
+function Session:mode()
+  local choice = self:choice('mode')
+
+  if choice then return { id = choice.value, name = choice.name } end
+
+  local modes = self.modes
+
+  if not modes then return nil end
+
+  for _, mode in ipairs(modes.availableModes or {}) do
+    if mode.id == modes.currentModeId then return { id = mode.id, name = mode.name } end
+  end
+end
+
+function Session:mode_choices()
+  local option = self:option('mode')
+
+  if option then
+    return vim.tbl_map(function(choice)
+      return { id = choice.value, name = choice.name, description = choice.description }
+    end, choices(option))
+  end
+
+  return vim.tbl_map(function(mode)
+    return { id = mode.id, name = mode.name, description = mode.description }
+  end, (self.modes or {}).availableModes or {})
+end
+
+function Session:set_option(id, value)
+  return async.run(function()
+    local result = self.connection:set_config(self.id, id, value)
+
+    if type(result) == 'table' and type(result.configOptions) == 'table' and #result.configOptions > 0 then
+      self.options = result.configOptions
+    else
+      local option = find_option(self.options, id)
+      if option then option.currentValue = value end
+    end
+
+    self:_notify({ kind = 'config' })
+
+    return result
+  end)
+end
+
+function Session:set_mode(id)
+  local option = self:option('mode')
+
+  if option then return self:set_option(option.id, id) end
+
+  return async.run(function()
+    local result = self.connection:set_mode(self.id, id)
+
+    if self.modes then self.modes.currentModeId = id end
+    self:_notify({ kind = 'config' })
+
+    return result
+  end)
+end
+
+function Session:cycle_mode()
+  local available = self:mode_choices()
+  local current = self:mode()
+
+  if #available == 0 then return nil end
+
+  local index = 0
+
+  for i, mode in ipairs(available) do
+    if current and mode.id == current.id then index = i end
+  end
+
+  return self:set_mode(available[index % #available + 1].id)
+end
+
 function Session:_on_update(update)
   local event = events.from_update(update)
 
   if not event then return end
+
+  if STATE[event.kind] then
+    STATE[event.kind](self, event)
+    return self:_notify(event)
+  end
 
   if event.kind == 'tool_call' then
     self._tools[event.id] = event.name

@@ -450,4 +450,114 @@ describe('harness.session:', function()
       end, session.history))
     end)
   end)
+
+  describe('modes, options and commands', function()
+    local OPTIONS = {
+      {
+        id = 'mode',
+        category = 'mode',
+        type = 'select',
+        currentValue = 'default',
+        options = {
+          { value = 'default', name = 'Manual' },
+          { value = 'acceptEdits', name = 'Accept edits' },
+          { value = 'plan', name = 'Plan' },
+        },
+      },
+      {
+        id = 'model',
+        category = 'model',
+        type = 'select',
+        currentValue = 'opus',
+        options = { { group = 'g', name = 'Claude', options = { { value = 'opus', name = 'Opus' } } } },
+      },
+    }
+
+    local function configured(script)
+      local session, agent = session_with(script)
+
+      session:configure({ configOptions = vim.deepcopy(OPTIONS) })
+
+      return session, agent
+    end
+
+    it('reads the mode and model from config options, including grouped choices', function()
+      local session = configured()
+
+      eq({ id = 'default', name = 'Manual' }, session:mode())
+      eq('Opus', session:choice('model').name)
+      eq(3, #session:mode_choices())
+    end)
+
+    it('keeps option, mode and command updates as state, out of the history', function()
+      local session, agent = configured()
+      local seen = {}
+
+      session:subscribe(function(event)
+        seen[#seen + 1] = event.kind
+      end)
+      agent:push(fake_agent.update('s1', { sessionUpdate = 'current_mode_update', currentModeId = 'plan' }))
+      agent:push(fake_agent.update('s1', {
+        sessionUpdate = 'available_commands_update',
+        availableCommands = { { name = 'review', description = 'review changes' } },
+      }))
+
+      eq('Plan', session:mode().name)
+      eq('review', session.commands[1].name)
+      eq({}, session.history)
+      eq({ 'mode', 'commands' }, seen)
+    end)
+
+    it('sets an option through session/set_config_option and takes the options it returns', function()
+      local returned = vim.deepcopy(OPTIONS)
+
+      returned[1].currentValue = 'plan'
+
+      local session, agent = configured({
+        ['session/set_config_option'] = function(message)
+          return { jsonrpc.result(message.id, { configOptions = returned }) }
+        end,
+      })
+
+      session:set_mode('plan'):wait()
+
+      local sent = agent:sent_method('session/set_config_option').params
+
+      eq({ 'mode', 'plan' }, { sent.configId, sent.value })
+      eq('Plan', session:mode().name)
+    end)
+
+    it('uses session/set_mode for agents that only have modes', function()
+      local session, agent = session_with()
+
+      session:configure({
+        modes = {
+          currentModeId = 'ask',
+          availableModes = { { id = 'ask', name = 'Ask' }, { id = 'code', name = 'Code' } },
+        },
+      })
+      session:cycle_mode():wait()
+
+      eq('code', agent:sent_method('session/set_mode').params.modeId)
+      eq('Code', session:mode().name)
+    end)
+
+    it('cycles through the modes, wrapping around', function()
+      local session = configured()
+      local seen = {}
+
+      session.set_mode = function(_, id)
+        seen[#seen + 1] = id
+        for _, option in ipairs(session.options) do
+          if option.id == 'mode' then option.currentValue = id end
+        end
+      end
+
+      for _ = 1, 3 do
+        session:cycle_mode()
+      end
+
+      eq({ 'acceptEdits', 'plan', 'default' }, seen)
+    end)
+  end)
 end)

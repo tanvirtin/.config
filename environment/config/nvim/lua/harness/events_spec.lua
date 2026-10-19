@@ -124,8 +124,28 @@ describe('harness.events:', function()
       eq(nil, events.tool_name(nil))
     end)
 
+    it('reads config options, the current mode and the agent\'s slash commands', function()
+      eq(
+        { kind = 'config', options = { { id = 'mode', currentValue = 'plan' } } },
+        events.from_update({
+          sessionUpdate = 'config_option_update',
+          configOptions = { { id = 'mode', currentValue = 'plan' } },
+        })
+      )
+      eq(
+        { kind = 'mode', id = 'plan' },
+        events.from_update({ sessionUpdate = 'current_mode_update', currentModeId = 'plan' })
+      )
+      eq(
+        { kind = 'commands', commands = { { name = 'review', description = 'review changes', hint = 'branch' } } },
+        events.from_update({
+          sessionUpdate = 'available_commands_update',
+          availableCommands = { { name = 'review', description = 'review changes', input = { hint = 'branch' } } },
+        })
+      )
+    end)
+
     it('skips updates no view needs', function()
-      eq(nil, events.from_update({ sessionUpdate = 'available_commands_update' }))
       eq(nil, events.from_update({ sessionUpdate = 'session_info_update', _meta = {} }))
       eq(nil, events.from_update({ sessionUpdate = 'agent_message_chunk', content = { type = 'image' } }))
       eq(nil, events.from_update(nil))

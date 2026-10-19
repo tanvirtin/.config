@@ -78,6 +78,12 @@ function transcript.winbar(session)
     parts[#parts + 1] = '%#UiMuted#○ idle'
   end
 
+  local mode = session:mode()
+  local model = session:choice('model')
+
+  if mode then parts[#parts + 1] = '%#UiAccent#  󰒓 ' .. (mode.name or mode.id):gsub('%%', '%%%%') end
+  if model then parts[#parts + 1] = '%#UiMuted#  ' .. (model.name or model.value):gsub('%%', '%%%%') end
+
   local usage = last_usage(session)
 
   if usage and usage.used and usage.size and usage.size > 0 then
@@ -297,6 +303,55 @@ function transcript.announce_waiting(session, buf)
   end)
 end
 
+function transcript.pick_option(session)
+  local options = vim.tbl_filter(function(option)
+    return option.type == nil or option.type == 'select'
+  end, session.options)
+
+  local function pick_value(option)
+    local choices = session.choices(option)
+
+    vim.ui.select(choices, {
+      prompt = option.name or option.id,
+      format_item = function(choice)
+        local mark = choice.value == option.currentValue and '● ' or '  '
+        return mark .. (choice.name or choice.value) .. (choice.description and ('  ' .. choice.description) or '')
+      end,
+    }, function(choice)
+      if choice then session:set_option(option.id, choice.value) end
+    end)
+  end
+
+  if #options == 0 then
+    local modes = session:mode_choices()
+
+    if #modes == 0 then return vim.notify('Harness: this agent offers no options', vim.log.levels.INFO) end
+
+    return vim.ui.select(modes, {
+      prompt = 'Mode',
+      format_item = function(mode)
+        return (mode.name or mode.id) .. (mode.description and ('  ' .. mode.description) or '')
+      end,
+    }, function(mode)
+      if mode then session:set_mode(mode.id) end
+    end)
+  end
+
+  vim.ui.select(options, {
+    prompt = 'Session option',
+    format_item = function(option)
+      local current = session:choice(option.id)
+      return (option.name or option.id)
+        .. ': '
+        .. (current and (current.name or current.value) or tostring(option.currentValue))
+    end,
+  }, function(option)
+    if option then vim.schedule(function()
+      pick_value(option)
+    end) end
+  end)
+end
+
 local function create(session, opts)
   local buf = vim.api.nvim_create_buf(true, true)
 
@@ -427,6 +482,12 @@ local function create(session, opts)
   map(']]', function()
     transcript.jump(1, buf)
   end, 'Next turn')
+  map('<S-Tab>', function()
+    session:cycle_mode()
+  end, 'Next session mode')
+  map('go', function()
+    transcript.pick_option(session)
+  end, 'Session options: mode, model, …')
   map('[[', function()
     transcript.jump(-1, buf)
   end, 'Previous turn')

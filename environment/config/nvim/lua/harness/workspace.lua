@@ -40,11 +40,24 @@ function Workspace:connection(agent)
 end
 
 local function use_model(connection, agent, id)
-  if not agent.model then return end
+  if not agent.model then return nil end
 
-  local ok, err = pcall(connection.set_config, connection, id, 'model', agent.model)
+  local ok, result = pcall(connection.set_config, connection, id, 'model', agent.model)
 
-  if not ok then error(string.format('could not use model %s: %s', agent.model, tostring(err)), 0) end
+  if not ok then error(string.format('could not use model %s: %s', agent.model, tostring(result)), 0) end
+
+  return result
+end
+
+local function configure(session, ...)
+  for _, result in ipairs({ ... }) do
+    if
+      type(result) == 'table'
+      and (type(result.modes) == 'table' or (type(result.configOptions) == 'table' and #result.configOptions > 0))
+    then
+      session:configure(result)
+    end
+  end
 end
 
 local function servers(self, agent, key)
@@ -59,7 +72,7 @@ function Workspace:new_session(agent, opts)
     system_prompt = agent.system,
   })
 
-  use_model(connection, agent, result.sessionId)
+  local model = use_model(connection, agent, result.sessionId)
 
   local session = Session(vim.tbl_extend('force', opts, {
     id = result.sessionId,
@@ -67,6 +80,8 @@ function Workspace:new_session(agent, opts)
     dir = self.dir,
     connection = connection,
   })):attach()
+
+  configure(session, result, model)
 
   self.sessions[opts.key] = session
 
@@ -82,13 +97,13 @@ function Workspace:load_session(agent, id, opts)
     connection = connection,
   })):attach()
 
-  connection:load_session(id, {
+  local loaded = connection:load_session(id, {
     cwd = self.dir,
     mcp_servers = servers(self, agent, opts.key),
     system_prompt = agent.system,
   })
 
-  use_model(connection, agent, id)
+  configure(session, loaded, use_model(connection, agent, id))
 
   self.sessions[opts.key] = session
 

@@ -237,6 +237,10 @@ function Connection:set_config(session_id, config_id, value)
   }))
 end
 
+function Connection:set_mode(session_id, mode_id)
+  return async.await(self:request('session/set_mode', { sessionId = session_id, modeId = mode_id }))
+end
+
 function Connection:cancel(session_id)
   self:notify('session/cancel', { sessionId = session_id })
 end

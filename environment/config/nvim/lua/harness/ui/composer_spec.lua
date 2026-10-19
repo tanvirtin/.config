@@ -396,6 +396,24 @@ describe('harness.ui.composer:', function()
     end)
   end)
 
+  it('completes the agent\'s slash commands at the start of the message', function()
+    session.commands = {
+      { name = 'review', description = 'review changes', hint = 'branch' },
+      { name = 'compact', description = 'summarize' },
+    }
+    composer.open(session)
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { '/re' })
+    vim.api.nvim_win_set_cursor(0, { 1, 3 })
+
+    eq(0, composer.complete(1, ''))
+    eq({ { word = '/review ', abbr = '/review branch', menu = 'review changes' } }, composer.complete(0, '/re'))
+    assert.is_truthy(composer.winbar():find('commands', 1, true))
+
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'not /a command' })
+    vim.api.nvim_win_set_cursor(0, { 1, 8 })
+    eq(-3, composer.complete(1, ''))
+  end)
+
   it('opens from the session buffer\'s i', function()
     press('i')
 

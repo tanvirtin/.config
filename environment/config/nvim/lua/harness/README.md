@@ -49,6 +49,14 @@ A session is a buffer: `harness://h3 <title>`, listed like any other buffer. Ses
 - **New sessions.** `<leader>an` or `:HarnessNew` starts a new session, which is simply a new buffer.
 - **Prompting.** `:Harness <prompt>` asks the session you're in, or the one you were in last, and opens it in the current window. The editor tools keep acting on the buffer you came from, even while the session buffer covers it.
 
+## Modes, options and commands
+
+Agents describe their settings as ACP config options (`configOptions`: mode, model, effort, …), or only as session `modes`. Both are kept on the session, not in the history, and follow `config_option_update` and `current_mode_update`.
+
+- The winbar shows the current mode (`󰒓 Plan`) and model.
+- `<S-Tab>` cycles the mode; `go` picks any option and value. They are set with `session/set_config_option`, or `session/set_mode` for agents that only have modes. A mode is real: in Accept edits Claude edits without asking.
+- The agent's slash commands (`available_commands_update`) complete in the composer when `/` starts the message (or `<C-x><C-o>`), with their argument hint and description. They are sent as ordinary prompt text.
+
 ## Queue, steer and interrupt
 
 - **Queue.** Sending while the agent works queues the message; queued messages show under the transcript (`󰔟 queued …`) and are sent one by one as turns end. Works with any agent.
@@ -212,6 +220,8 @@ Keys in a transcript:
 | `za`, `zR`, `zM` | folds, as anywhere |
 | `]]`, `[[` | next and previous turn |
 | `<C-c>` | interrupt the running turn |
+| `<S-Tab>` | next session mode (also in the composer) |
+| `go` | pick a session option (mode, model, effort, …) and its value |
 | `i`, `a`, `o` | write to the session |
 
 **Links.** Replies are told to reference code as `[label](nvim://file/<path>#L<line>)`, relative to the session's directory. `nvim://buf/<n>` names a buffer. Links show an icon and open on `<CR>`. A link to a file that no longer exists is greyed out. Inline code that names an existing file is a link too.

@@ -136,6 +136,28 @@ local FROM_UPDATE = {
     return type(update.title) == 'string' and { kind = 'title', title = update.title } or nil
   end,
 
+  config_option_update = function(update)
+    return type(update.configOptions) == 'table' and { kind = 'config', options = update.configOptions } or nil
+  end,
+
+  current_mode_update = function(update)
+    return str(update.currentModeId) and { kind = 'mode', id = update.currentModeId } or nil
+  end,
+
+  available_commands_update = function(update)
+    local commands = {}
+
+    for _, command in ipairs(type(update.availableCommands) == 'table' and update.availableCommands or {}) do
+      if type(command) == 'table' and str(command.name) then
+        local input = type(command.input) == 'table' and command.input or {}
+        commands[#commands + 1] =
+          { name = command.name, description = str(command.description), hint = str(input.hint) }
+      end
+    end
+
+    return { kind = 'commands', commands = commands }
+  end,
+
   usage_update = function(update)
     local cost = type(update.cost) == 'table' and num(update.cost.amount) or nil
 

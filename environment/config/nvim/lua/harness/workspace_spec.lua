@@ -154,6 +154,27 @@ describe('harness.workspace:', function()
     eq('/w', spawned[1].fake:sent_method('session/list').params.cwd)
   end)
 
+  it('keeps the modes and options an agent reports when a session starts', function()
+    local ws = workspace({
+      ['session/new'] = function(message)
+        return {
+          jsonrpc.result(message.id, {
+            sessionId = 's1',
+            modes = { currentModeId = 'default', availableModes = { { id = 'default', name = 'Manual' } } },
+            configOptions = { { id = 'effort', category = 'thought_level', currentValue = 'high', options = {} } },
+          }),
+        }
+      end,
+    })
+
+    local session = run(function()
+      return ws:new_session(claude, { key = 'h1' })
+    end)
+
+    eq('Manual', session:mode().name)
+    eq('high', session:option('effort').currentValue)
+  end)
+
   it('loads a stored session, replaying its history', function()
     local ws, spawned = workspace()
 

@@ -457,5 +457,30 @@ describe('harness.ui.transcript:', function()
       assert.is_truthy(messages[1]:find('waiting for your permission: Edit a.lua', 1, true))
       session._pending = {}
     end)
+
+    it('shows the mode and model in the winbar, and cycles the mode with <S-Tab>', function()
+      local buf = transcript.open(session)
+      local cycled = 0
+
+      session:configure({
+        configOptions = {
+          { id = 'mode', category = 'mode', currentValue = 'plan', options = { { value = 'plan', name = 'Plan' } } },
+          { id = 'model', category = 'model', currentValue = 'opus', options = { { value = 'opus', name = 'Opus' } } },
+        },
+      })
+      session.cycle_mode = function()
+        cycled = cycled + 1
+      end
+      vim.wait(500, function()
+        return vim.wo.winbar:find('Plan', 1, true) ~= nil
+      end)
+
+      assert.is_truthy(vim.wo.winbar:find('󰒓 Plan', 1, true))
+      assert.is_truthy(vim.wo.winbar:find('Opus', 1, true))
+
+      vim.api.nvim_set_current_buf(buf)
+      vim.api.nvim_feedkeys(vim.keycode('<S-Tab>'), 'x', false)
+      eq(1, cycled)
+    end)
   end)
 end)

@@ -81,6 +81,9 @@ function fake_agent.new(script)
     ['session/set_config_option'] = function(message)
       return { jsonrpc.result(message.id, { configOptions = {} }) }
     end,
+    ['session/set_mode'] = function(message)
+      return { jsonrpc.result(message.id, {}) }
+    end,
     ['session/prompt'] = fake_agent.replying('ok'),
   }
 
