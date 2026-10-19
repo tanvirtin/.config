@@ -1,0 +1,243 @@
+local blocks = require('harness.ui.blocks')
+local events = require('harness.events')
+
+local Block = blocks.Block
+
+local eq = assert.are.same
+
+local function kinds(list)
+  return vim.tbl_map(function(block)
+    return block.kind
+  end, list)
+end
+
+describe('harness.ui.blocks:', function()
+  it('streams consecutive text into one block, even across events it does not show', function()
+    local list = blocks.build({
+      { kind = 'message', text = 'Look' },
+      { kind = 'usage', used = 1, size = 2 },
+      { kind = 'message', text = 'ing' },
+    })
+
+    eq({ Block.KIND.title, Block.KIND.message }, kinds(list))
+    eq({ 'Looking' }, list[2].lines)
+  end)
+
+  it('shows thoughts as a callout', function()
+    local list = blocks.build({ { kind = 'thought', text = 'first\n\nsecond' } })
+
+    eq({ '> [!thought]', '> first', '>', '> second' }, list[2].lines)
+  end)
+
+  it('shows only the latest plan of a turn', function()
+    local list = blocks.build({
+      events.prompt('go'),
+      { kind = 'plan', entries = { { content = 'a', status = Block.STATUS.pending } } },
+      { kind = 'message', text = 'working' },
+      { kind = 'plan', entries = { { content = 'a', status = Block.STATUS.completed } } },
+      events.prompt('again'),
+      { kind = 'plan', entries = { { content = 'b' } } },
+    })
+
+    eq({
+      Block.KIND.title,
+      Block.KIND.prompt,
+      Block.KIND.message,
+      Block.KIND.plan,
+      Block.KIND.prompt,
+      Block.KIND.plan,
+    }, kinds(list))
+    eq({ '**plan**', '- [x] a' }, list[4].lines)
+  end)
+
+  it('gives a tool block the latest title and status of its call', function()
+    local list = blocks.build({
+      { kind = 'tool_call', id = 't1', title = 'Read', status = Block.STATUS.pending, diffs = {} },
+      { kind = 'tool_update', id = 't1', title = 'Read a.lua', status = Block.STATUS.completed, diffs = {} },
+    })
+
+    eq({ '-> Read a.lua' }, list[2].lines)
+    eq('t1', list[2].id)
+    eq(Block.STATUS.completed, list[2].status)
+  end)
+
+  it('closes a fence a finished message left open, so it cannot swallow the next block', function()
+    local list = blocks.build({
+      { kind = 'message', text = '```lua\nlocal x = 1' },
+      events.stop('end_turn'),
+    })
+
+    eq({ '```lua', 'local x = 1', '```' }, list[2].lines)
+  end)
+
+  it('leaves the fence of a message that is still streaming alone', function()
+    local list = blocks.build({ { kind = 'message', text = '```lua\nlocal x = 1' } })
+
+    eq({ '```lua', 'local x = 1' }, list[2].lines)
+  end)
+
+  it('records where each block sits in the lines', function()
+    local list = blocks.build({ events.prompt('hi'), { kind = 'message', text = 'a\nb' } })
+    local lines = blocks.lines(list)
+
+    eq({ '# Harness', '', '> hi', '', 'a', 'b' }, lines)
+    eq({ 0, 2 }, { list[1].start, list[1].finish })
+    eq({ 2, 4 }, { list[2].start, list[2].finish })
+    eq({ 4, 6 }, { list[3].start, list[3].finish })
+  end)
+
+  it('labels a tool by its name and main argument', function()
+    local list = blocks.build({
+      {
+        kind = 'tool_call',
+        id = 't1',
+        name = 'Bash',
+        title = 'Terminal',
+        input = { command = 'make test' },
+        diffs = {},
+      },
+      { kind = 'tool_call', id = 't2', name = 'mcp__nvim__buffer_read', input = { path = '/repo/a.lua' }, diffs = {} },
+    }, nil, { dir = '/repo' })
+
+    eq({ '-> Bash make test' }, list[2].lines)
+    eq({ 'Bash', 'make test' }, { list[2].name, list[2].argument })
+    eq({ '-> nvim:buffer_read a.lua' }, list[3].lines)
+  end)
+
+  it('shows command output in a fence, folding all but the first lines', function()
+    local output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, 10)), '\n')
+    local list = blocks.build({
+      { kind = 'tool_call', id = 't1', name = 'Bash', category = 'execute', input = { command = 'seq' }, diffs = {} },
+      { kind = 'tool_update', id = 't1', status = Block.STATUS.completed, output = output, diffs = {} },
+    })
+    local tool = list[2]
+
+    eq('```output', tool.lines[2])
+    eq('10', tool.lines[12])
+    eq('```', tool.lines[13])
+    eq({ { 2 + Block.PREVIEW, 12 } }, tool.folds)
+  end)
+
+  it('leaves reads and agent transcripts without output', function()
+    local history = {
+      { kind = 'tool_call', id = 't1', name = 'Read', category = 'read', diffs = {} },
+      { kind = 'tool_update', id = 't1', status = Block.STATUS.completed, output = 'file text', diffs = {} },
+      { kind = 'tool_call', id = 't2', name = 'Bash', category = 'execute', diffs = {} },
+      { kind = 'tool_update', id = 't2', status = Block.STATUS.completed, output = 'out', diffs = {} },
+    }
+
+    eq(1, #blocks.build(history)[2].lines)
+    eq(4, #blocks.build(history)[3].lines)
+    eq(1, #blocks.build(history, nil, { outputs = false })[3].lines)
+  end)
+
+  it('counts a tool\'s diff lines', function()
+    local list = blocks.build({
+      {
+        kind = 'tool_call',
+        id = 't1',
+        name = 'Edit',
+        diffs = { { path = '/a.lua', old = 'a\nb\n', new = 'a\nc\nd\n' } },
+      },
+    })
+
+    eq({ 2, 1 }, { list[2].added, list[2].removed })
+    eq(Block.KIND.diff, list[3].kind)
+  end)
+
+  it('times turns and thoughts, and marks the thought still streaming', function()
+    local history = {
+      events.prompt('go'),
+      { kind = 'thought', text = 'hmm' },
+      { kind = 'message', text = 'ok' },
+      events.stop('end_turn'),
+    }
+    local times = { 1000, 2000, 6000, 9000 }
+    local list = blocks.build(history, nil, { times = times })
+
+    eq({ 2000, 6000 }, { list[3].started, list[3].finished })
+    eq(8000, list[5].duration)
+    eq('end_turn', list[5].reason)
+    eq(true, blocks.build({ { kind = 'thought', text = 'hmm' } }, nil, { running = true })[2].live)
+  end)
+
+  it('marks the first prompt, and the block that opens each reply', function()
+    local list = blocks.build({
+      events.prompt('one'),
+      { kind = 'tool_call', id = 't1', name = 'Read', diffs = {} },
+      { kind = 'message', text = 'done' },
+      events.prompt('two'),
+      { kind = 'message', text = 'ok' },
+    })
+
+    eq({ true, true, nil, false, true }, {
+      list[2].first,
+      list[3].opens_reply,
+      list[4].opens_reply,
+      list[5].first,
+      list[6].opens_reply,
+    })
+  end)
+
+  it('labels tools from standard ACP fields, whatever agent sent them', function()
+    local list = blocks.build({
+      {
+        kind = 'tool_call',
+        id = 'a',
+        title = 'Run ls -la',
+        category = 'execute',
+        input = { command = { 'ls', '-la' } },
+        diffs = {},
+      },
+      {
+        kind = 'tool_call',
+        id = 'b',
+        title = 'Reading',
+        category = 'read',
+        locations = { { path = '/repo/x.lua' } },
+        diffs = {},
+      },
+      { kind = 'tool_call', id = 'c', title = 'Searching for foo in src', category = 'search', diffs = {} },
+    }, nil, { dir = '/repo' })
+
+    eq({ '-> Run ls -la' }, list[2].lines)
+    eq({ '-> Reading x.lua' }, list[3].lines)
+    eq({ '-> Searching for foo in src' }, list[4].lines)
+  end)
+
+  describe('fences', function()
+    it('makes a fence longer than any backtick run in the content, instead of escaping it', function()
+      eq('```', blocks.fence_for({ 'plain' }))
+      eq('````', blocks.fence_for({ 'a', '```lua', 'b', '```' }))
+      eq('`````', blocks.fence_for({ '  ````' }))
+      eq('````', blocks.fence_for({ ' ```', '+x' }))
+    end)
+
+    it('shows tool output verbatim inside a fence it cannot close', function()
+      local list = blocks.build({
+        { kind = 'tool_call', id = 't1', name = 'Bash', category = 'execute', diffs = {} },
+        { kind = 'tool_update', id = 't1', status = 'completed', output = 'before\n```\nafter', diffs = {} },
+      })
+
+      eq({ '-> Bash', '````output', 'before', '```', 'after', '````' }, list[2].lines)
+    end)
+
+    it('finds the fenced lines around a line, honouring fence length and kind', function()
+      local lines = { 'intro', '````md', '```lua', 'x', '```', '````', '~~~', 'y' }
+
+      eq({ 3, 5 }, { blocks.fenced_at(lines, 4) })
+      eq({ 3, 5 }, { blocks.fenced_at(lines, 3) })
+      eq({ 8, 8 }, { blocks.fenced_at(lines, 8) })
+      assert.is_nil(blocks.fenced_at(lines, 1))
+    end)
+
+    it('closes a finished message\'s open fence with the same marker', function()
+      local list = blocks.build({
+        { kind = 'message', text = '````md\n```lua\nx\n```' },
+        events.stop('end_turn'),
+      })
+
+      eq('````', list[2].lines[#list[2].lines])
+    end)
+  end)
+end)

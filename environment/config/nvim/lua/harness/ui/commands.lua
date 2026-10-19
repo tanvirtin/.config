@@ -87,7 +87,7 @@ function commands.cancel()
     end
   end
 
-  if session then session:cancel() end
+  if session then require('harness.ui.composer').interrupt(session) end
 end
 
 function commands.sessions()

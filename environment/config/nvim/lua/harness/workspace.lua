@@ -95,6 +95,24 @@ function Workspace:load_session(agent, id, opts)
   return session
 end
 
+function Workspace:reload(session)
+  if session.state ~= 'idle' or session.reloading then return false end
+
+  session:begin_replay()
+
+  local ok, err = pcall(session.connection.load_session, session.connection, session.id, {
+    cwd = self.dir,
+    mcp_servers = servers(self, session.agent, session.key),
+    system_prompt = session.agent and session.agent.system,
+  })
+
+  local changed = session:end_replay(ok)
+
+  if not ok then error(err, 0) end
+
+  return changed
+end
+
 function Workspace:find(id)
   for _, session in pairs(self.sessions) do
     if session.id == id then return session end

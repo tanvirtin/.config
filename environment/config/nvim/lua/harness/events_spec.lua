@@ -78,6 +78,52 @@ describe('harness.events:', function()
       )
     end)
 
+    it('keeps a tool\'s category, input, locations, and the output of a finished call', function()
+      local running = events.from_update({
+        sessionUpdate = 'tool_call_update',
+        toolCallId = 't1',
+        kind = 'execute',
+        rawInput = { command = 'ls' },
+        content = { { type = 'content', content = { type = 'text', text = 'List files' } } },
+      })
+      local done = events.from_update({
+        sessionUpdate = 'tool_call_update',
+        toolCallId = 't1',
+        status = 'completed',
+        locations = { { path = '/a.lua', line = 3 } },
+        content = { { type = 'content', content = { type = 'text', text = '```console\na\nb\n```' } } },
+      })
+
+      eq('execute', running.category)
+      eq({ command = 'ls' }, running.input)
+      eq(nil, running.output)
+      eq('a\nb', done.output)
+      eq({ { path = '/a.lua', line = 3 } }, done.locations)
+      eq(
+        'raw',
+        events.from_update({
+          sessionUpdate = 'tool_call_update',
+          toolCallId = 't1',
+          status = 'failed',
+          rawOutput = 'raw',
+        }).output
+      )
+    end)
+
+    it('reads the cost from usage', function()
+      eq(
+        { kind = 'usage', used = 5, size = 10, cost = 0.25 },
+        events.from_update({ sessionUpdate = 'usage_update', used = 5, size = 10, cost = { amount = 0.25 } })
+      )
+    end)
+
+    it('reads a tool name from any agent\'s _meta, and none when there is none', function()
+      eq('shell', events.tool_name({ _meta = { codex = { toolName = 'shell' } } }))
+      eq('Edit', events.tool_name({ _meta = { claudeCode = { toolName = 'Edit' } } }))
+      eq(nil, events.tool_name({ title = 'Run ls' }))
+      eq(nil, events.tool_name(nil))
+    end)
+
     it('skips updates no view needs', function()
       eq(nil, events.from_update({ sessionUpdate = 'available_commands_update' }))
       eq(nil, events.from_update({ sessionUpdate = 'session_info_update', _meta = {} }))

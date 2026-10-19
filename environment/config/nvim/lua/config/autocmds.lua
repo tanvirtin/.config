@@ -7,7 +7,7 @@ augroup('YankHighlight', { clear = true })
 autocmd('TextYankPost', {
   group = 'YankHighlight',
   callback = function()
-    vim.highlight.on_yank()
+    vim.hl.on_yank()
   end,
 })
 
@@ -26,5 +26,7 @@ autocmd({ 'FocusGained', 'BufEnter', 'CursorHold', 'CursorHoldI' }, {
   group = 'AutoReload',
   command = 'checktime',
 })
+
+require('core.watcher').setup()
 
 require('core.shutdown').setup()

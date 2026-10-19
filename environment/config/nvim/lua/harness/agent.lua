@@ -16,6 +16,10 @@ local CLAUDE_SYSTEM = table.concat({
   'also plays the search out in a picker); ui_show (list or panel) points the user at places or explains;',
   'ui_command drives a surface step by step and ui_read reads it; ui_screen and ui_keys read and drive any UI,',
   'such as vgit views opened with git_view. Write a lua script only for what these tools cannot do.',
+  'Your replies render as markdown in a Neovim buffer, where code references open the file on <CR>.',
+  'Reference code as [label](nvim://file/<path>#L<line>), with the path relative to the working directory,',
+  'for example [composer.lua:42](nvim://file/lua/harness/ui/composer.lua#L42); inline code like `path:line`',
+  'also links. Keep replies scannable: short paragraphs, lists, and fenced code with a language.',
 }, ' ')
 
 agent.BUILTIN = {
@@ -41,7 +45,22 @@ function Agent:constructor(name, spec)
     system = spec.system,
     mcp = spec.mcp or {},
     policy = spec.policy or {},
+    transcripts = spec.transcripts,
   }
+end
+
+agent.TRANSCRIPTS = {
+  ['claude-agent-acp'] = '~/.claude/projects/*/{id}.jsonl',
+}
+
+function Agent:transcript(id)
+  local pattern = self.transcripts or agent.TRANSCRIPTS[vim.fs.basename(self.command or '')]
+
+  if not pattern or not id then return nil end
+
+  local matches = vim.fn.glob(vim.fn.expand((pattern:gsub('{id}', id))), false, true)
+
+  return matches[1]
 end
 
 local function resolve(value)

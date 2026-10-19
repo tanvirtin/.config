@@ -186,6 +186,7 @@ function Connection:initialize()
 
   self.capabilities = (result and result.agentCapabilities) or {}
   self.info = result and result.agentInfo
+  self.extensions = type(result) == 'table' and type(result._meta) == 'table' and result._meta or {}
 
   return result
 end
@@ -238,6 +239,22 @@ end
 
 function Connection:cancel(session_id)
   self:notify('session/cancel', { sessionId = session_id })
+end
+
+Connection.STEER_METHOD = '_session/steering'
+
+function Connection:steering()
+  local steering = (self.extensions or {}).steering
+
+  return type(steering) == 'table' and steering.supported == true
+end
+
+function Connection:steer(session_id, blocks)
+  return async.await(self:request(Connection.STEER_METHOD, {
+    sessionId = session_id,
+    prompt = blocks,
+    _meta = { steering = { idleBehavior = 'promptRequired' } },
+  }))
 end
 
 function Connection:supports(capability)

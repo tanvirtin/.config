@@ -222,4 +222,232 @@ describe('harness.session:', function()
 
     eq('Rename x', session.title)
   end)
+
+  describe('queue and interrupt', function()
+    local function held()
+      local ids = {}
+
+      return ids,
+        {
+          ['session/prompt'] = function(message)
+            ids[#ids + 1] = message.id
+            return {}
+          end,
+        }
+    end
+
+    local function finish(agent, id, reason)
+      agent:push(jsonrpc.result(id, { stopReason = reason or 'end_turn' }))
+    end
+
+    local function prompt_texts(agent)
+      local out = {}
+
+      for _, message in ipairs(agent.sent) do
+        if message.method == 'session/prompt' then out[#out + 1] = message.params.prompt[1].text end
+      end
+
+      return out
+    end
+
+    it('queues while a turn runs, and sends the next one when the turn ends', function()
+      local ids, script = held()
+      local session, agent = session_with(script)
+
+      session:prompt('first')
+      vim.wait(500, function()
+        return #ids == 1
+      end)
+      session:enqueue('second')
+      session:enqueue('third')
+
+      eq({ 'second', 'third' }, session:queued())
+      eq({ 'first' }, prompt_texts(agent))
+
+      finish(agent, ids[1])
+      vim.wait(500, function()
+        return #ids == 2
+      end)
+
+      eq({ 'first', 'second' }, prompt_texts(agent))
+      eq({ 'third' }, session:queued())
+    end)
+
+    it('sends right away when queued while idle', function()
+      local session, agent = session_with()
+
+      session:enqueue('now')
+      vim.wait(500, function()
+        return #prompt_texts(agent) == 1
+      end)
+
+      eq({ 'now' }, prompt_texts(agent))
+      eq({}, session:queued())
+    end)
+
+    it('hands back what was queued on interrupt, and sends nothing after the cancelled turn', function()
+      local ids, script = held()
+
+      script['session/cancel'] = function()
+        return { jsonrpc.result(ids[1], { stopReason = 'cancelled' }) }
+      end
+
+      local session, agent = session_with(script)
+      local notified = 0
+
+      session:subscribe(function(event)
+        if event.kind == 'queue' then notified = notified + 1 end
+      end)
+      session:prompt('first')
+      vim.wait(500, function()
+        return #ids == 1
+      end)
+      session:enqueue('second')
+
+      eq({ 'second' }, session:cancel())
+      vim.wait(200)
+
+      eq({}, session:queued())
+      eq({ 'first' }, prompt_texts(agent))
+      eq(true, notified >= 2)
+      eq(
+        false,
+        vim.tbl_contains(
+          vim.tbl_map(function(event)
+            return event.kind
+          end, session.history),
+          'queue'
+        )
+      )
+    end)
+
+    it('answers an open permission request with cancelled on interrupt, and closes its prompt', function()
+      local dismissed = false
+      local prompt_id
+      local session, agent = session_with({
+        ['session/prompt'] = function(message)
+          prompt_id = message.id
+          return { fake_agent.permission('s1', 'Edit') }
+        end,
+      }, function()
+        local answer = async.Future.new()
+        answer.dismiss = function()
+          dismissed = true
+        end
+        return answer
+      end)
+
+      session:prompt('edit it')
+      vim.wait(500, function()
+        return prompt_id ~= nil and next(session._pending) ~= nil
+      end)
+      session:cancel()
+
+      local function reply()
+        return agent:find(function(message)
+          return message.id == 'perm-1' and message.result ~= nil
+        end)
+      end
+
+      vim.wait(500, function()
+        return reply() ~= nil
+      end)
+
+      eq({ outcome = { outcome = 'cancelled' } }, reply().result)
+      eq(true, dismissed)
+      eq({ kind = 'permission', tool = 'Edit', allowed = false }, session.history[#session.history])
+      eq(nil, next(session._pending))
+    end)
+
+    it('lists the permission requests it is waiting on, announcing when that changes', function()
+      local answer = async.Future.new()
+      local announced = 0
+      local session = session_with({
+        ['session/prompt'] = function()
+          return { fake_agent.permission('s1', 'Edit') }
+        end,
+      }, function()
+        return answer
+      end)
+
+      session:subscribe(function(event)
+        if event.kind == 'waiting' then announced = announced + 1 end
+      end)
+      session:prompt('edit')
+      vim.wait(500, function()
+        return #session:waiting() == 1
+      end)
+
+      eq({ { tool = 'Edit', id = 't1', title = 'Edit' } }, session:waiting())
+
+      answer:set_result('allow_once')
+      async.drain()
+
+      eq({}, session:waiting())
+      eq(2, announced)
+    end)
+
+    it('steers the running turn when the agent supports it', function()
+      local ids, script = held()
+
+      script[Connection.STEER_METHOD] = function(message)
+        return { jsonrpc.result(message.id, { outcome = 'injected' }) }
+      end
+
+      local session, agent = session_with(script)
+
+      session.connection.extensions = { steering = { supported = true } }
+      session:prompt('first')
+      vim.wait(500, function()
+        return #ids == 1
+      end)
+
+      local result = session:steer('look at b instead'):wait()
+      local steer = agent:sent_method(Connection.STEER_METHOD)
+
+      eq('injected', result.outcome)
+      eq('look at b instead', steer.params.prompt[1].text)
+      eq('promptRequired', steer.params._meta.steering.idleBehavior)
+      eq({ kind = 'prompt', text = 'look at b instead' }, session.history[#session.history])
+      eq({}, session:queued())
+    end)
+
+    it('queues instead of steering when the agent cannot steer', function()
+      local ids, script = held()
+      local session, agent = session_with(script)
+
+      session:prompt('first')
+      vim.wait(500, function()
+        return #ids == 1
+      end)
+
+      assert.is_nil(session:steer('later please'))
+      eq({ 'later please' }, session:queued())
+      assert.is_nil(agent:sent_method(Connection.STEER_METHOD))
+    end)
+
+    it('sends a steer as a normal prompt when the turn ended first, recording it once', function()
+      local session, agent = session_with({
+        [Connection.STEER_METHOD] = function(message)
+          return { jsonrpc.result(message.id, { outcome = 'promptRequired' }) }
+        end,
+      })
+
+      session.connection.extensions = { steering = { supported = true } }
+      session.state = 'running'
+
+      local task = session:steer('follow up')
+
+      session.state = 'idle'
+      task:wait()
+      vim.wait(500, function()
+        return #prompt_texts(agent) == 1
+      end)
+
+      eq({ 'follow up' }, prompt_texts(agent))
+      eq(1, #vim.tbl_filter(function(event)
+        return event.kind == 'prompt'
+      end, session.history))
+    end)
+  end)
 end)

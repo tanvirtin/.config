@@ -3,6 +3,7 @@ local Session = require('harness.session')
 local events = require('harness.events')
 local fake_agent = require('harness.fake_agent')
 local transcript = require('harness.ui.transcript')
+local blocks_preview = require('harness.ui.blocks').Block.PREVIEW
 
 local eq = assert.are.same
 
@@ -12,7 +13,7 @@ end
 
 describe('harness.ui.transcript:', function()
   describe('render', function()
-    it('shows prompts, replies, tool calls and the end of a turn', function()
+    it('shows prompts, replies, thoughts, tool calls and the end of a turn', function()
       eq(
         {
           '# Harness',
@@ -22,7 +23,10 @@ describe('harness.ui.transcript:', function()
           '',
           'Looking',
           '',
-          '`-> buffer_read`',
+          '-> buffer_read',
+          '',
+          '> [!thought]',
+          '> checking',
           '',
           'It has two',
           'lines.',
@@ -34,7 +38,7 @@ describe('harness.ui.transcript:', function()
           events.prompt('what is here?\nbe brief'),
           { kind = 'message', text = 'Looking' },
           { kind = 'tool_call', id = 't1', title = 'buffer_read', diffs = {} },
-          { kind = 'thought', text = 'hidden' },
+          { kind = 'thought', text = 'checking' },
           { kind = 'message', text = 'It has two\nlines.' },
           events.stop('end_turn'),
         })
@@ -72,7 +76,7 @@ describe('harness.ui.transcript:', function()
       end
 
       eq('# Two lines', lines[1])
-      assert.is_truthy(vim.tbl_contains(lines, '`-> Bash: for f in *; do echo $f done`'))
+      assert.is_truthy(vim.tbl_contains(lines, '-> Bash: for f in *; do echo $f done'))
       assert.is_truthy(vim.tbl_contains(lines, 'stack traceback:'))
 
       local buf = vim.api.nvim_create_buf(false, true)
@@ -258,6 +262,200 @@ describe('harness.ui.transcript:', function()
 
       assert.is_truthy(again ~= buf)
       eq(session, transcript.view(again).session)
+    end)
+
+    it('comes back working after :bdelete, which strips buffer keymaps', function()
+      session:_emit(events.prompt('before the delete'))
+
+      local buf = transcript.open(session)
+
+      vim.cmd('enew')
+      vim.cmd('bdelete ' .. buf)
+      vim.wait(50)
+
+      eq(false, vim.api.nvim_buf_is_valid(buf))
+      eq({}, session._listeners)
+
+      local again = transcript.open(session)
+
+      eq('Write to this session', vim.fn.maparg('i', 'n', false, true).desc)
+      eq('> before the delete', lines(again)[3])
+      assert.is_truthy(vim.api.nvim_buf_get_name(again):find('harness://' .. session.key, 1, true))
+    end)
+
+    it('shows the session state, context use and cost in the winbar', function()
+      transcript.open(session)
+      session:_emit({ kind = 'usage', used = 250, size = 1000, cost = 1.5 })
+      vim.wait(1000, function()
+        return vim.wo.winbar:find('ctx', 1, true) ~= nil
+      end)
+
+      assert.is_truthy(vim.wo.winbar:find('○ idle', 1, true))
+      assert.is_truthy(vim.wo.winbar:find('ctx 25%%', 1, true))
+      assert.is_truthy(vim.wo.winbar:find('$1.50', 1, true))
+    end)
+
+    it('opens the file a reply names in a new tab on <CR>, and jumps between turns', function()
+      local dir = vim.fn.tempname()
+
+      vim.fn.mkdir(dir, 'p')
+      vim.fn.writefile({ 'a', 'b', 'c' }, dir .. '/x.lua')
+      session.dir = dir
+      session:_emit(events.prompt('first'))
+      session:_emit({ kind = 'message', text = 'see `x.lua:2`' })
+      session:_emit(events.stop('end_turn'))
+      session:_emit(events.prompt('second'))
+
+      local buf = transcript.open(session)
+      local row
+
+      for i, line in ipairs(lines(buf)) do
+        if line == 'see `x.lua:2`' then row = i end
+      end
+
+      vim.api.nvim_win_set_cursor(0, { row, 6 })
+      vim.api.nvim_feedkeys(vim.keycode('<CR>'), 'x', false)
+
+      eq(vim.uv.fs_realpath(dir .. '/x.lua'), vim.uv.fs_realpath(vim.api.nvim_buf_get_name(0)))
+      eq(2, vim.api.nvim_win_get_cursor(0)[1])
+
+      vim.cmd('bwipeout')
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      vim.api.nvim_feedkeys(']]', 'x', false)
+      eq('> first', vim.api.nvim_get_current_line())
+      vim.api.nvim_feedkeys(']]', 'x', false)
+      eq('> second', vim.api.nvim_get_current_line())
+      vim.api.nvim_feedkeys('[[', 'x', false)
+      eq('> first', vim.api.nvim_get_current_line())
+      vim.fn.delete(dir, 'rf')
+    end)
+
+    it('folds long output closed, and keeps the fold in place when the whole buffer is rewritten', function()
+      local output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, 20)), '\n')
+      local buf = transcript.open(session)
+
+      session:_emit({ kind = 'tool_call', id = 't1', name = 'Bash', category = 'execute', diffs = {} })
+      session:_emit({ kind = 'tool_update', id = 't1', status = 'completed', output = output, diffs = {} })
+
+      local function fold_start()
+        vim.wait(1000, function()
+          return #lines(buf) > 20
+        end)
+
+        for i, line in ipairs(lines(buf)) do
+          if vim.fn.foldclosed(i) == i then return line end
+        end
+      end
+
+      eq(tostring(blocks_preview + 1), fold_start())
+
+      session.title = 'Renamed'
+      session:_emit({ kind = 'title', title = 'Renamed' })
+      vim.wait(1000, function()
+        return lines(buf)[1] == '# Renamed'
+      end)
+
+      eq(tostring(blocks_preview + 1), fold_start())
+    end)
+
+    it('animates a running turn without errors, and clears the working line when it ends', function()
+      local errors = {}
+      local notify = vim.notify
+
+      vim.notify = function(msg)
+        errors[#errors + 1] = msg
+      end
+
+      local buf = transcript.open(session)
+      local Document = require('harness.ui.document')
+      local function status()
+        return #vim.api.nvim_buf_get_extmarks(buf, Document.STATUS_NAMESPACE, 0, -1, {})
+      end
+
+      session.state = 'running'
+      session:_emit(events.prompt('go'))
+      session:_emit({ kind = 'tool_call', id = 't1', name = 'Bash', status = 'pending', diffs = {} })
+
+      local ok, err = pcall(vim.wait, transcript.TICK_MS * 4, function()
+        return false
+      end)
+
+      eq(true, ok, err)
+      eq(1, status())
+
+      session.state = 'idle'
+      session:_emit(events.stop('end_turn'))
+      vim.wait(transcript.TICK_MS * 3, function()
+        return status() == 0
+      end)
+
+      vim.notify = notify
+      eq(0, status())
+      eq({}, errors)
+    end)
+
+    it('yanks the code block under the cursor without its fences, or else the whole block', function()
+      session:_emit(events.prompt('show me'))
+      session:_emit({ kind = 'message', text = 'Here:\n\n```lua\nlocal x = 1\nreturn x\n```\n\nDone.' })
+      session:_emit(events.stop('end_turn'))
+
+      local buf = transcript.open(session)
+      local rows = {}
+
+      for i, line in ipairs(lines(buf)) do
+        rows[line] = i
+      end
+
+      vim.api.nvim_win_set_cursor(0, { rows['return x'], 0 })
+      vim.api.nvim_feedkeys('gy', 'x', false)
+      eq({ 'local x = 1', 'return x' }, vim.fn.getreg('"', 1, true))
+      eq('V', vim.fn.getregtype('"'))
+
+      vim.api.nvim_win_set_cursor(0, { rows['Done.'], 0 })
+      eq({ 'Here:', '', '```lua', 'local x = 1', 'return x', '```', '', 'Done.' }, (transcript.yank(buf, 'a')))
+
+      vim.api.nvim_win_set_cursor(0, { rows['> show me'], 0 })
+      eq({ 'show me' }, (transcript.yank(buf, 'a')))
+    end)
+
+    it('shows when the session is also being driven by another program', function()
+      local follow = require('harness.follow')
+
+      transcript.open(session)
+      follow.start(session)
+      session.external = vim.uv.now()
+      session:_notify({ kind = 'external' })
+      vim.wait(500, function()
+        return vim.wo.winbar:find('external', 1, true) ~= nil
+      end)
+
+      assert.is_truthy(vim.wo.winbar:find('⇄ external', 1, true))
+      follow.stop(session)
+    end)
+
+    it('tells you a session is waiting for permission only when its transcript is out of sight', function()
+      local messages = {}
+      local notify = vim.notify
+
+      vim.notify = function(message)
+        messages[#messages + 1] = message
+      end
+
+      local buf = transcript.open(session)
+
+      session._pending[{ tool = 'Edit', id = 't1', title = 'Edit a.lua' }] = true
+      transcript.announce_waiting(session, buf)
+      vim.wait(50)
+      eq({}, messages)
+
+      vim.cmd('enew')
+      transcript.announce_waiting(session, buf)
+      vim.wait(50)
+      vim.notify = notify
+
+      eq(1, #messages)
+      assert.is_truthy(messages[1]:find('waiting for your permission: Edit a.lua', 1, true))
+      session._pending = {}
     end)
   end)
 end)

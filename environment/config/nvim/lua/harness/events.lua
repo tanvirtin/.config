@@ -22,12 +22,55 @@ local function diffs(content)
   return out
 end
 
+local FINISHED = { completed = true, failed = true }
+
+local function unfence(text)
+  local body = text:match('^```[%w_-]*\n(.-)\n?```%s*$')
+
+  return body or text
+end
+
+local function output(update)
+  if not FINISHED[update.status] then return nil end
+
+  local parts = {}
+
+  for _, item in ipairs(type(update.content) == 'table' and update.content or {}) do
+    if type(item) == 'table' and item.type == 'content' and type(item.content) == 'table' then
+      local text = str(item.content.text)
+      if text then parts[#parts + 1] = unfence(text) end
+    end
+  end
+
+  if #parts > 0 then return table.concat(parts, '\n') end
+
+  return str(update.rawOutput)
+end
+
+local function locations(update)
+  local out = {}
+
+  for _, location in ipairs(type(update.locations) == 'table' and update.locations or {}) do
+    if type(location) == 'table' and str(location.path) then
+      out[#out + 1] = { path = location.path, line = num(location.line) }
+    end
+  end
+
+  return #out > 0 and out or nil
+end
+
+local function input(update)
+  return type(update.rawInput) == 'table' and next(update.rawInput) ~= nil and update.rawInput or nil
+end
+
 function events.tool_name(call)
-  call = call or {}
+  local meta = type(call) == 'table' and call._meta or nil
 
-  local meta = type(call._meta) == 'table' and call._meta.claudeCode or nil
+  if type(meta) ~= 'table' then return nil end
 
-  return (type(meta) == 'table' and str(meta.toolName)) or nil
+  for _, vendor in pairs(meta) do
+    if type(vendor) == 'table' and str(vendor.toolName) then return vendor.toolName end
+  end
 end
 
 local function text_of(update)
@@ -55,9 +98,11 @@ local FROM_UPDATE = {
       kind = 'tool_call',
       id = update.toolCallId,
       name = events.tool_name(update),
+      category = str(update.kind),
       title = str(update.title),
       status = str(update.status),
-      input = update.rawInput ~= vim.NIL and update.rawInput or nil,
+      input = input(update),
+      locations = locations(update),
       diffs = diffs(update.content),
     }
   end,
@@ -67,8 +112,12 @@ local FROM_UPDATE = {
       kind = 'tool_update',
       id = update.toolCallId,
       name = events.tool_name(update),
+      category = str(update.kind),
       title = str(update.title),
       status = str(update.status),
+      input = input(update),
+      locations = locations(update),
+      output = output(update),
       diffs = diffs(update.content),
     }
   end,
@@ -88,7 +137,9 @@ local FROM_UPDATE = {
   end,
 
   usage_update = function(update)
-    return { kind = 'usage', used = num(update.used), size = num(update.size) }
+    local cost = type(update.cost) == 'table' and num(update.cost.amount) or nil
+
+    return { kind = 'usage', used = num(update.used), size = num(update.size), cost = cost }
   end,
 }
 

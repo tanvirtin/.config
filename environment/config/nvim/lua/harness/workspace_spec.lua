@@ -175,6 +175,212 @@ describe('harness.workspace:', function()
     eq(session, ws:find('old'))
   end)
 
+  describe('reload', function()
+    local function loaded()
+      local ws, spawned = workspace()
+
+      run(function()
+        ws:connection(claude)
+      end)
+
+      local fake = spawned[1].fake
+
+      fake.histories.old = {
+        { sessionUpdate = 'user_message_chunk', content = { type = 'text', text = 'rename x' } },
+        { sessionUpdate = 'agent_message_chunk', content = { type = 'text', text = 'done' } },
+      }
+
+      local session = run(function()
+        return ws:load_session(claude, 'old', { key = 'h3' })
+      end)
+
+      return ws, session, fake
+    end
+
+    it('replays what another program added, swapping the history in at once', function()
+      local ws, session, fake = loaded()
+      local seen = {}
+
+      session:subscribe(function(event)
+        seen[#seen + 1] = event.kind
+      end)
+      table.insert(
+        fake.histories.old,
+        { sessionUpdate = 'user_message_chunk', content = { type = 'text', text = 'and y' } }
+      )
+      table.insert(
+        fake.histories.old,
+        { sessionUpdate = 'agent_message_chunk', content = { type = 'text', text = 'renamed y' } }
+      )
+
+      local changed = run(function()
+        return ws:reload(session)
+      end)
+
+      eq(true, changed)
+      eq({ 'appended' }, seen)
+      eq({
+        { kind = 'user', text = 'rename x' },
+        { kind = 'message', text = 'done' },
+        { kind = 'user', text = 'and y' },
+        { kind = 'message', text = 'renamed y' },
+      }, session.history)
+      eq(2, fake:count('session/load'))
+    end)
+
+    it('keeps what only this editor knows, such as turn endings, when another program adds a turn', function()
+      local ws, session, fake = loaded()
+
+      session:_emit({ kind = 'stop', reason = 'end_turn' })
+      session:_emit({ kind = 'permission', tool = 'Bash', allowed = false })
+      table.insert(
+        fake.histories.old,
+        { sessionUpdate = 'user_message_chunk', content = { type = 'text', text = 'more' } }
+      )
+
+      eq(
+        true,
+        run(function()
+          return ws:reload(session)
+        end)
+      )
+      eq(
+        { 'user', 'message', 'stop', 'permission', 'user' },
+        vim.tbl_map(function(event)
+          return event.kind
+        end, session.history)
+      )
+    end)
+
+    it('fills in a turn from another program as it is written, prompt first and reply later', function()
+      local ws, session, fake = loaded()
+
+      table.insert(
+        fake.histories.old,
+        { sessionUpdate = 'user_message_chunk', content = { type = 'text', text = 'next' } }
+      )
+      eq(
+        true,
+        run(function()
+          return ws:reload(session)
+        end)
+      )
+
+      table.insert(
+        fake.histories.old,
+        { sessionUpdate = 'agent_message_chunk', content = { type = 'text', text = 'reply' } }
+      )
+      eq(
+        true,
+        run(function()
+          return ws:reload(session)
+        end)
+      )
+      eq({ kind = 'message', text = 'reply' }, session.history[#session.history])
+      eq(4, #session.history)
+
+      eq(
+        false,
+        run(function()
+          return ws:reload(session)
+        end)
+      )
+    end)
+
+    it('never rewrites a turn this editor ran itself', function()
+      local ws, session = loaded()
+
+      session:_emit({ kind = 'prompt', text = 'mine' })
+      session:_emit({ kind = 'message', text = 'my reply' })
+      session:_emit({ kind = 'stop', reason = 'end_turn' })
+
+      local before = vim.deepcopy(session.history)
+
+      run(function()
+        return ws:reload(session)
+      end)
+
+      eq(before, session.history)
+    end)
+
+    it('swaps in the replay when it no longer matches what this editor shows', function()
+      local ws, session, fake = loaded()
+      local seen = {}
+
+      session:subscribe(function(event)
+        seen[#seen + 1] = event.kind
+      end)
+      fake.histories.old = {
+        { sessionUpdate = 'user_message_chunk', content = { type = 'text', text = 'something else' } },
+      }
+
+      eq(
+        true,
+        run(function()
+          return ws:reload(session)
+        end)
+      )
+      eq({ { kind = 'user', text = 'something else' } }, session.history)
+      eq({ 'reset' }, seen)
+    end)
+
+    it('matches its own prompts against the replay, ignoring the editor context sent with them', function()
+      local ws, session, fake = loaded()
+
+      session:_emit({ kind = 'prompt', text = 'mine' })
+      table.insert(fake.histories.old, {
+        sessionUpdate = 'user_message_chunk',
+        content = { type = 'text', text = '<editor-context>at a.lua</editor-context>\n\nmine' },
+      })
+
+      eq(
+        false,
+        run(function()
+          return ws:reload(session)
+        end)
+      )
+      eq('prompt', session.history[#session.history].kind)
+    end)
+
+    it('reports no change when nothing was added, keeping when things first arrived', function()
+      local ws, session = loaded()
+      local times = vim.deepcopy(session.times)
+
+      vim.wait(20)
+
+      eq(
+        false,
+        run(function()
+          return ws:reload(session)
+        end)
+      )
+      eq(times, session.times)
+    end)
+
+    it('does not reload over a running turn, and sends what was queued during a reload once it is done', function()
+      local ws, session, fake = loaded()
+
+      session.state = 'running'
+      eq(
+        false,
+        run(function()
+          return ws:reload(session)
+        end)
+      )
+      session.state = 'idle'
+
+      session:begin_replay()
+      session:enqueue('queued while loading')
+      eq(0, fake:count('session/prompt'))
+      session:end_replay(true)
+      vim.wait(200, function()
+        return fake:count('session/prompt') == 1
+      end)
+
+      eq(1, fake:count('session/prompt'))
+    end)
+  end)
+
   it('closes every session and process', function()
     local ws, spawned = workspace()
     local session = run(function()

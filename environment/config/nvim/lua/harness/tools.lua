@@ -111,7 +111,7 @@ local function session_read(args, ctx)
 end
 
 local function session_cancel(args, ctx)
-  target(args.session, ctx):cancel()
+  require('harness.ui.composer').interrupt(target(args.session, ctx))
 
   return { session = args.session }
 end

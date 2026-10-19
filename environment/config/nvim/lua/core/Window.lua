@@ -100,7 +100,7 @@ function Window:get_option(key)
 end
 
 function Window:set_option(key, value)
-  pcall(vim.api.nvim_set_option_value, key, value, { win = self.win_id })
+  pcall(vim.api.nvim_set_option_value, key, value, { scope = 'local', win = self.win_id })
   return self
 end
 
@@ -132,7 +132,7 @@ end
 
 function Window:assign_options(options)
   for key, value in pairs(options) do
-    pcall(vim.api.nvim_set_option_value, key, value, { win = self.win_id })
+    pcall(vim.api.nvim_set_option_value, key, value, { scope = 'local', win = self.win_id })
   end
   return self
 end

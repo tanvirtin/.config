@@ -13,10 +13,10 @@ local function press(keys)
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(keys, true, false, true), 'x', false)
 end
 
-local function float_of(buf)
-  for _, win in ipairs(vim.api.nvim_list_wins()) do
-    if vim.api.nvim_win_get_buf(win) == buf then return win, vim.api.nvim_win_get_config(win) end
-  end
+local function composers()
+  return vim.tbl_filter(function(win)
+    return vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win)):find('harness://composer', 1, true) ~= nil
+  end, vim.api.nvim_list_wins())
 end
 
 local function prompts(fake)
@@ -57,14 +57,19 @@ describe('harness.ui.composer:', function()
     hub.config = vim.deepcopy(defaults)
   end)
 
-  it('opens as a fileless float along the bottom, naming its session', function()
+  it('opens as a fileless split along the bottom, naming its session', function()
+    local above = vim.api.nvim_get_current_win()
     local element = composer.open(session)
     local buf = vim.api.nvim_get_current_buf()
-    local _, config = float_of(buf)
+    local win = vim.api.nvim_get_current_win()
 
-    eq('editor', config.relative)
-    assert.is_true(config.row + config.height >= vim.o.lines - 6)
-    assert.is_truthy(config.title[1][1]:find(session.key, 1, true))
+    eq('', vim.api.nvim_win_get_config(win).relative)
+    eq({ 'col', { { 'leaf', above }, { 'leaf', win } } }, vim.fn.winlayout())
+    eq(composer.HEIGHT, vim.api.nvim_win_get_height(win))
+    eq(true, vim.wo[win].winfixheight)
+    eq(composer.WINBAR, vim.wo[win].winbar)
+    assert.is_truthy(composer.winbar():find(session.key, 1, true))
+    eq('', vim.go.winbar)
     eq('acwrite', vim.bo[buf].buftype)
     assert.is_truthy(vim.api.nvim_buf_get_name(buf):find('harness://composer', 1, true))
     eq(true, element:is_valid())
@@ -144,9 +149,7 @@ describe('harness.ui.composer:', function()
 
     vim.cmd('wincmd p')
     eq(first, composer.open(session))
-    eq(1, #vim.tbl_filter(function(win)
-      return vim.api.nvim_win_get_config(win).relative ~= ''
-    end, vim.api.nvim_list_wins()))
+    eq(1, #composers())
 
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'for the first' })
 
@@ -160,22 +163,33 @@ describe('harness.ui.composer:', function()
     eq({ 'for the first' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   end)
 
-  it('closes when the user leaves it, keeping the draft', function()
-    composer.open(session)
+  it('stays open when the user leaves it, like any window', function()
+    local element = composer.open(session)
+
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'later' })
     vim.cmd('wincmd p')
-    vim.wait(200, function()
-      return not composer.is_open()
-    end)
+    vim.wait(50)
 
-    eq(false, composer.is_open())
-
-    composer.open(session)
+    eq(true, composer.is_open())
+    eq(element, composer.open(session))
     eq({ 'later' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   end)
 
-  it('stays when the session buffer is closed, and sending shows the buffer again', function()
-    local origin = vim.api.nvim_get_current_win()
+  it('keeps the draft when its window is closed some other way', function()
+    composer.open(session)
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'closed with <C-w>c' })
+    vim.wait(50)
+    vim.cmd('wincmd p')
+    vim.cmd('only')
+
+    eq(false, composer.is_open())
+    eq(0, #composers())
+
+    composer.open(session)
+    eq({ 'closed with <C-w>c' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+  end)
+
+  it('stays when the session buffer is closed, and sending shows it in a window of its own', function()
     local session_buf = vim.api.nvim_get_current_buf()
 
     composer.open(session)
@@ -189,10 +203,30 @@ describe('harness.ui.composer:', function()
       return #prompts(fake) == 1
     end)
 
+    local win = vim.api.nvim_get_current_win()
+
     eq({ 'still here?' }, prompts(fake))
+    eq({ win }, vim.api.nvim_list_wins())
+    eq(session, transcript.view().session)
+    eq(false, vim.wo[win].winfixheight)
+    eq(1, vim.wo[win].winbar:find(transcript.WINBAR, 1, true))
+    assert.is_truthy(fake:sent_method('session/prompt').params.prompt[1].text:find('(bufnr ' .. code .. ')', 1, true))
+  end)
+
+  it('sends the reply to the window it came from when that is still open', function()
+    local origin = vim.api.nvim_get_current_win()
+
+    vim.cmd('enew')
+    composer.open(session)
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'over here' })
+    press('<CR>')
+    vim.wait(1000, function()
+      return #prompts(fake) == 1
+    end)
+
     eq(origin, vim.api.nvim_get_current_win())
     eq(session, transcript.view().session)
-    assert.is_truthy(fake:sent_method('session/prompt').params.prompt[1].text:find('(bufnr ' .. code .. ')', 1, true))
+    eq({ origin }, vim.api.nvim_list_wins())
   end)
 
   it('keeps the draft when quit with :q', function()
@@ -263,37 +297,103 @@ describe('harness.ui.composer:', function()
     eq({ '' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   end)
 
-  it('keeps the text when the session cannot take it yet', function()
-    hub.config.spawn = function()
-      fake = fake_agent.new({
-        ['session/prompt'] = function()
-          return {}
-        end,
-      })
-      return fake
-    end
-    hub.shutdown()
-    session = hub.start({ dir = '/w' }):wait()
-    hub.prompt(session, 'long running')
+  describe('while the agent works', function()
+    local prompt_ids
 
-    local notify = vim.notify
-    local warned
-
-    vim.notify = function(message)
-      warned = message
-    end
-
-    composer.open(session)
-    vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'next question' })
-    press('<CR>')
-    vim.wait(200, function()
-      return warned ~= nil
+    before_each(function()
+      prompt_ids = {}
+      hub.config.spawn = function()
+        fake = fake_agent.new({
+          ['session/prompt'] = function(message)
+            prompt_ids[#prompt_ids + 1] = message.id
+            return {}
+          end,
+          ['session/cancel'] = function()
+            return { jsonrpc.result(prompt_ids[#prompt_ids], { stopReason = 'cancelled' }) }
+          end,
+        })
+        return fake
+      end
+      hub.shutdown()
+      session = hub.start({ dir = '/w' }):wait()
+      transcript.open(session, { source_win = vim.api.nvim_get_current_win(), source_buf = code })
+      hub.prompt(session, 'long running')
+      vim.wait(500, function()
+        return #prompt_ids == 1
+      end)
     end)
-    vim.notify = notify
 
-    eq(true, composer.is_open())
-    eq({ 'next question' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
-    assert.is_truthy(warned:find('already running', 1, true))
+    it('queues what you send, shows it, and sends it when the turn ends', function()
+      composer.open(session)
+
+      assert.is_truthy(composer.winbar():find('queue', 1, true))
+      assert.is_truthy(composer.winbar():find('<C-c>', 1, true))
+
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'next question' })
+      press('<CR>')
+
+      eq(false, composer.is_open())
+      eq({ 'next question' }, session:queued())
+
+      local buf = transcript.buffer_of(session)
+      local Document = require('harness.ui.document')
+
+      local function shown()
+        local text = {}
+
+        for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(buf, Document.STATUS_NAMESPACE, 0, -1, { details = true })) do
+          for _, line in ipairs(mark[4].virt_lines or {}) do
+            for _, chunk in ipairs(line) do
+              text[#text + 1] = chunk[1]
+            end
+            text[#text + 1] = '\n'
+          end
+        end
+
+        return table.concat(text)
+      end
+
+      vim.wait(500, function()
+        return shown():find('queued next question', 1, true) ~= nil
+      end)
+
+      assert.is_truthy(shown():find('queued next question', 1, true))
+
+      fake:push(jsonrpc.result(prompt_ids[1], { stopReason = 'end_turn' }))
+      vim.wait(1000, function()
+        return #prompt_ids == 2
+      end)
+
+      eq({ 'long running', 'next question' }, prompts(fake))
+      eq({}, session:queued())
+    end)
+
+    it('interrupts on <C-c>, moving queued messages back into the composer', function()
+      session:enqueue('queued one')
+
+      local notify = vim.notify
+      vim.notify = function() end
+
+      composer.open(session)
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'my draft' })
+      press('<C-c>')
+      vim.wait(200)
+      vim.notify = notify
+
+      eq('s1', fake:sent_method('session/cancel').params.sessionId)
+      eq({ 'queued one', '', 'my draft' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+      eq({}, session:queued())
+      eq(1, #prompt_ids)
+    end)
+
+    it('steers with <C-s>, falling back to the queue when the agent cannot steer', function()
+      composer.open(session)
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'change course' })
+      press('<C-s>')
+
+      eq({ 'change course' }, session:queued())
+      eq(nil, composer.winbar(session):find('steer', 1, true))
+    end)
   end)
 
   it('opens from the session buffer\'s i', function()

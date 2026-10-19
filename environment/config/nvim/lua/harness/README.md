@@ -31,7 +31,7 @@ Bottom up. A layer only requires layers below it.
 | workspace | `workspace.lua` | **Workspace**: the sessions of one directory. It runs one process per agent, shared by that agent's sessions. `list()` merges live sessions with the agent's stored ones (`session/list`), and `load_session` replays a stored one. |
 | hub | `hub.lua` | Every session in the editor. It decides what a session gets (agent, policy, the editor as the `nvim` MCP server) and enforces `max_running` and `max_depth`. It fires `User HarnessEvent`. |
 | tools | `tools.lua` | The `session` toolset, which lets an agent run sessions (see below). |
-| ui | `ui/transcript.lua`, `ui/commands.lua` | Transcripts rendered from history, which can be reopened at any time, and the user's commands. |
+| ui | `ui/blocks.lua`, `ui/document.lua`, `ui/transcript.lua`, `ui/commands.lua` | Transcripts built from history as blocks, written incrementally and reopenable at any time, and the user's commands. |
 
 `context.lua` captures where the user is (file, cursor, selection). It is sent ahead of each prompt inside an `<editor-context>` tag, so the agent always sees fresh context. Transcripts strip the tag when a session replays.
 
@@ -49,14 +49,20 @@ A session is a buffer: `harness://h3 <title>`, listed like any other buffer. Ses
 - **New sessions.** `<leader>an` or `:HarnessNew` starts a new session, which is simply a new buffer.
 - **Prompting.** `:Harness <prompt>` asks the session you're in, or the one you were in last, and opens it in the current window. The editor tools keep acting on the buffer you came from, even while the session buffer covers it.
 
+## Queue, steer and interrupt
+
+- **Queue.** Sending while the agent works queues the message; queued messages show under the transcript (`󰔟 queued …`) and are sent one by one as turns end. Works with any agent.
+- **Steer.** `<C-s>` in the composer injects the message into the running turn when the agent advertises steering (`initialize` `_meta.steering.supported`, `_session/steering`); otherwise it queues.
+- **Interrupt.** `<C-c>` in the transcript or the composer sends `session/cancel`, answers every open permission request with `cancelled` and closes its prompt, and moves queued messages back into the composer.
+
 ## The composer
 
 You write to a session in the composer, much like a commit message window.
 
-- **Opening.** Press `i`, `a`, `o`, `I`, `A` or `O` in a session's buffer, which is read-only. The composer opens as a float along the bottom of the editor, detached from your windows. Its border names the session it writes to and lists its keys.
+- **Opening.** Press `i`, `a`, `o`, `I`, `A` or `O` in a session's buffer, which is read-only. The composer opens as a split along the bottom of the editor, like a commit message window, so it never covers the conversation. It's a normal window: move it with `<C-w>K`, `<C-w>L` and the rest, or resize it. Its winbar names the session it writes to and lists its keys.
 - **No file behind it.** It's a buffer with `buftype=acwrite`, so it edits like any buffer, and "writing" it means sending it.
   - `<CR>` in normal mode, or `:w`, sends to the session, then clears and closes the composer. In insert mode, `<CR>` is just a newline.
-  - `q` or `<Esc>` in normal mode closes it. So does leaving it. The draft is kept per session for next time.
+  - `q` in normal mode, `:q`, or closing its window any other way closes it. Leaving it doesn't; it stays open like any window. The draft is kept per session for next time.
 - **Only one.** Opening it again focuses the open one, and opening it from another session's buffer moves it there.
 - **Context.** Each message says where you were, from the buffer the session was opened from.
 
@@ -64,8 +70,9 @@ It belongs to the session, not to the session's buffer:
 
 | When | The composer |
 | --- | --- |
-| The session's buffer is closed | Stays open. Sending shows the buffer again in the window you came from, with the reply streaming in. |
-| You leave it, `q` it or `:q` it | Closes and keeps the draft, which is saved as you type. `:q` never complains about unsaved changes. |
+| The session's buffer is closed | Stays open. Sending shows the buffer again, with the reply streaming in: in the window you came from, or in a new window above if that one closed too. |
+| You leave it | Stays open, keeping its text. |
+| You `q` it, `:q` it or close its window | Closes and keeps the draft, which is saved as you type. Nothing complains about unsaved changes. |
 | You `:wq` it | Sends and closes only the composer, never the window under it. |
 | The session is deleted | Closes and drops the draft. |
 | The session ended, or is still replying | Stays open with your text, and says why it couldn't send. |
@@ -167,10 +174,69 @@ session:subscribe(function(event) print(event.kind) end)
 local result = harness.hub.prompt(session, 'what is in this buffer?'):wait()   -- { stop_reason, text, permissions }
 ```
 
+## Transcripts
+
+A transcript is plain markdown with the `harness` filetype, drawn entirely by our own renderer: render-markdown.nvim keeps drawing normal `.md` files, and no treesitter highlighter is attached to the buffer. The text is the permanent record: yank it, search it, `:w` it. Anything that changes over time is an extmark.
+
+It works for any ACP agent. It reads only standard ACP fields (`kind`, `title`, `rawInput`, `locations`, `content`, `rawOutput`, diffs, plans, thoughts, usage, stop reasons). A tool name under any agent's `_meta` (`_meta.<vendor>.toolName`) is used when present, and otherwise the label comes from the title.
+
+- **Blocks.** `ui/blocks.lua` turns history into typed blocks: title, prompt, message, thought, tool, diff, plan, note, stop. Turns before the last can't change, so their blocks are built once and cached.
+- **Incremental writes.** `ui/document.lua` lays out and writes only from the first block that changed, comparing cached blocks by identity. A streamed chunk costs well under a millisecond whatever the length of the session.
+- **Lazy drawing.** Extmarks are drawn only for blocks in or near a window (two screens either side). A decoration provider draws the rest as they scroll into view.
+- **Per-block parsing.** `lua/ui/markdown/Renderer.lua` parses each block's text on its own with a treesitter string parser, markdown, inline markdown and code-fence languages, and applies the same highlight and conceal captures the built-in highlighter would. A block is parsed once; streaming reparses only the tail. The renderer compiles its own copy of each highlights query, because the cached query is shared and plugins change it (render-markdown disables the fence `conceal_lines` patterns for its own drawing). On top it draws heading icons and bars, shaded code blocks with a language label, bullets by depth, checkboxes, quote bars, callouts (`> [!NOTE]`, `> [!thought]`), rules and links. The cursor line shows the raw text.
+- **Who said what.** Your prompts sit on a tinted card (a blend of the accent and `Normal`'s background, recomputed on `ColorScheme`) under a **You** header; each reply opens under the agent's name; a rule separates turns.
+
 In a transcript:
-- tool calls appear as `-> name` lines
-- edits made by Claude's built-in Edit appear as fenced diffs, and open buffers reload (`checktime`) after them
-- plans appear as checklists
+
+| You see | Where it comes from |
+| --- | --- |
+| **You** header, tinted card with a `▌` bar, a rule between turns | each prompt |
+| **󰚩 Claude** header (the session's agent) | the start of each reply |
+| `󰄬 Bash seq 1 20` with a spinner while it runs, then done or failed | the tool call: its name and main argument (command, path, pattern, url) |
+| `⎿ Read 5 lines`, `⎿ 12 results` | the result of reads and searches, as a virtual line |
+| Output under `⎿`, the first 5 lines shown and the rest folded | commands, searches and fetches; failures show their error. Output is shown verbatim: its fence is longer than any backtick run in it |
+| `Edit a.lua +2 -2`, then the diff with file line numbers, diff colours and the file's own syntax colours | edits. Numbers come from finding the edit in the file, and are left off when it can't be found |
+| `[!thought]` callout with how long it took, folded | thoughts |
+| `󰄬 Done in 12s · 3 tools` | the end of each turn: done, interrupted, or a limit hit |
+| `⠋ Working · 12s · <C-c> interrupt` under the last line | a running turn |
+| `󰀦 Waiting for you: Edit a.lua` on the tool and the working line, and a notification when the transcript is out of sight | a permission request waiting for an answer |
+| `● running  ctx 3%  $0.07` in the winbar | the session's state and its latest usage |
+
+Keys in a transcript:
+
+| Key | Does |
+| --- | --- |
+| `<CR>` | on a link or a file named in inline code (`lua/a.lua:42`): open it in a new tab. On a diff line: open the file at that line. On a tool: open what it touched. On a fold: open or close it |
+| `gf` | open what is under the cursor in a new tab |
+| `gy` | yank the code block under the cursor without its fences, or else the whole block (a prompt without its `>`) |
+| `za`, `zR`, `zM` | folds, as anywhere |
+| `]]`, `[[` | next and previous turn |
+| `<C-c>` | interrupt the running turn |
+| `i`, `a`, `o` | write to the session |
+
+**Links.** Replies are told to reference code as `[label](nvim://file/<path>#L<line>)`, relative to the session's directory. `nvim://buf/<n>` names a buffer. Links show an icon and open on `<CR>`. A link to a file that no longer exists is greyed out. Inline code that names an existing file is a link too.
+
+`session_read` gives agents the same transcript without tool output, to keep it small.
+
+## Sessions driven elsewhere
+
+A session can be open in Neovim while another program drives it, for example `claude --resume <id>` in another pane. `harness/follow.lua` keeps the transcript in step without a keypress.
+
+- **Signal.** For agents that keep transcripts on disk, the transcript file is watched (re-armed after atomic saves, checked again right after arming). Where it lives comes from the agent's `transcripts` glob (`{id}` is the session id), which defaults to `~/.claude/projects/*/{id}.jsonl` for `claude-agent-acp`. Agents without one are polled through standard `session/list` (`updatedAt`) every few seconds while the transcript is visible; a transcript that appears later is picked up.
+- **Content.** On a change the session is reloaded through standard `session/load`, which the agent replays into a separate history. Only what is new is taken: turns after the last one this editor has, and the latest turn when it came from elsewhere and is still being written. Turns this editor ran keep everything only it knows (endings, timings, refusals). A replay that lags behind changes nothing; one that disagrees replaces the history.
+- **Own turns.** Writes made while this editor's turn runs, and shortly after, are its own and cause no reload.
+- **Shown.** After a change from elsewhere the winbar reads `⇄ external`, and the composer warns that sending forks the session. Messages sent during a reload are queued.
+- **Granularity.** Another program writes whole messages and tool results, not tokens, so a turn from elsewhere fills in step by step rather than streaming character by character.
+
+## Files changed by other programs
+
+`lua/core/watcher.lua` keeps buffers in sync with edits made outside Neovim, such as Claude Code or any agent in another pane, without a keypress or focus change.
+
+- **Live.** Each loaded file is watched (`vim.uv.new_fs_event`). A change reloads the buffer within about 100 ms, and the changed lines are highlighted for a few seconds. Atomic saves (write a temp file, rename it over) are followed: the watch is re-armed on the path after every event, and the file is checked once right after arming, so a write in the moment the watch starts isn't missed.
+- **Only real files.** Buffers with a `buftype` (chat transcripts, the composer, terminals, help, scratch) and unsaved new files are never watched, so a hundred open sessions cost nothing.
+- **Nothing left behind.** A watch stops when its buffer is unloaded, deleted, wiped or renamed, and all stop on exit.
+- **Bounded.** At most `watcher.MAX` (128) files are watched; past that the least recently entered buffer gives up its watch and falls back to the `checktime` on `BufEnter` and `CursorHold`, and gets it back when entered.
+- **Unsaved changes win.** A file that changes under a modified buffer is never reloaded. Instead of Neovim's blocking prompt you get one notification, and `:DiffDisk` opens your version against the disk in a new tab. A file deleted on disk keeps its text in the buffer.
 
 ## Permissions
 

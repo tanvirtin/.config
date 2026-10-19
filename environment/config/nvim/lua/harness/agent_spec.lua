@@ -78,4 +78,19 @@ describe('harness.agent:', function()
       agent.Agent('n', { command = 'not-installed-agent' }):executable()
     )
   end)
+
+  it('finds where an agent keeps a session\'s transcript, from its spec or its command', function()
+    local dir = vim.fn.tempname()
+
+    vim.fn.mkdir(dir .. '/project', 'p')
+    vim.fn.writefile({}, dir .. '/project/abc.jsonl')
+
+    local custom = agent.Agent('custom', { command = 'x', transcripts = dir .. '/*/{id}.jsonl' })
+
+    eq(dir .. '/project/abc.jsonl', custom:transcript('abc'))
+    eq(nil, custom:transcript('missing'))
+    eq(nil, agent.Agent('other', { command = 'gemini' }):transcript('abc'))
+    eq(agent.TRANSCRIPTS['claude-agent-acp'], '~/.claude/projects/*/{id}.jsonl')
+    vim.fn.delete(dir, 'rf')
+  end)
 end)

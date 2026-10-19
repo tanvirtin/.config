@@ -150,14 +150,20 @@ describe('SyntaxAnnotator:', function()
 
   describe('_parse_highlights', function()
     it('should return empty table when parser unavailable', function()
-      local Buffer = require('core.Buffer')
-      local scratch_buffer = Buffer():create(false, true)
-      scratch_buffer:set_lines({ 'test' })
+      eq({}, annotator:_parse_highlights('test', 'nonexistent_filetype_xyz'))
+    end)
 
-      local highlights = annotator:_parse_highlights(scratch_buffer, 'nonexistent_filetype_xyz')
-      eq({}, highlights)
+    it('should highlight source text without a buffer', function()
+      local buffers = #vim.api.nvim_list_bufs()
+      local highlights = annotator:_parse_highlights('local x = 1', 'lua')
 
-      scratch_buffer:delete()
+      eq(buffers, #vim.api.nvim_list_bufs())
+      assert.is_truthy(vim.tbl_contains(
+        vim.tbl_map(function(h)
+          return h.hl_group
+        end, highlights),
+        '@keyword'
+      ))
     end)
   end)
 end)

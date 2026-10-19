@@ -201,6 +201,31 @@ function hub.prompt(session, text, context)
   return session:prompt(text, context)
 end
 
+function hub.reload(session)
+  return async.run(function()
+    return hub.workspace(session.dir):reload(session)
+  end)
+end
+
+function hub.send(session, text, context, opts)
+  if session.reloading then
+    session:enqueue(text, context)
+    return 'queued'
+  end
+
+  if session:running() then
+    if opts and opts.steer then
+      local task = session:steer(text, context)
+      return task and 'steered' or 'queued', task
+    end
+
+    session:enqueue(text, context)
+    return 'queued'
+  end
+
+  return 'started', hub.prompt(session, text, context)
+end
+
 function hub.session(key)
   return sessions[key]
 end
@@ -223,6 +248,8 @@ function hub.close(key)
   local session = sessions[key]
 
   if not session then return end
+
+  require('harness.follow').stop(session)
 
   session:close()
   sessions[key] = nil

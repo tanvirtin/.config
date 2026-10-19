@@ -16,33 +16,37 @@ local function warn(message)
   end)
 end
 
-local HINTS = { { '<CR>', 'send' }, { ':w', 'send' }, { 'q', 'close' } }
+composer.WINBAR = '%!v:lua.require\'harness.ui.composer\'.winbar()'
 
-local function footer()
-  local chunks = { { ' ', 'UiMuted' } }
-
-  for i, hint in ipairs(HINTS) do
-    if i > 1 then chunks[#chunks + 1] = { '  ', 'UiMuted' } end
-    chunks[#chunks + 1] = { hint[1], 'UiAccent' }
-    chunks[#chunks + 1] = { ' ' .. hint[2], 'UiMuted' }
-  end
-
-  chunks[#chunks + 1] = { ' ', 'UiMuted' }
-
-  return chunks
+local function key(lhs, label)
+  return '%#UiAccent#' .. lhs .. ' %#UiMuted#' .. label .. '  '
 end
 
-local function geometry()
-  local width = math.max(20, vim.o.columns - 4)
-  local bottom = vim.o.lines - vim.o.cmdheight - (vim.o.laststatus > 0 and 1 or 0)
+function composer.winbar(session)
+  session = session or (current and current.session)
 
-  return {
-    relative = 'editor',
-    width = width,
-    height = composer.HEIGHT,
-    row = math.max(0, bottom - composer.HEIGHT - 2),
-    col = math.floor((vim.o.columns - width - 2) / 2),
-  }
+  if not session then return '' end
+
+  local title = (session.title or 'untitled'):gsub('%%', '%%%%')
+  local parts = { '%#UiTitle# → ' .. session.key .. ' ' .. title .. ' %*' }
+
+  if #session.queue > 0 then parts[#parts + 1] = string.format('%%#UiMuted#⏳ %d queued ', #session.queue) end
+  if session.external then parts[#parts + 1] = '%#UiWarn#⇄ also driven elsewhere: sending forks it ' end
+
+  parts[#parts + 1] = '%='
+
+  if session:running() then
+    parts[#parts + 1] = key('<CR>', 'queue')
+    if session.connection:steering() then parts[#parts + 1] = key('<C-s>', 'steer') end
+    parts[#parts + 1] = key('<C-c>', 'interrupt')
+  else
+    parts[#parts + 1] = key('<CR>', 'send')
+    parts[#parts + 1] = key(':w', 'send')
+  end
+
+  parts[#parts + 1] = key('q', 'close')
+
+  return table.concat(parts)
 end
 
 local function lines_of()
@@ -83,12 +87,20 @@ local function reveal(session, origin, source)
   local buf = transcript.buffer_of(session)
 
   if buf and #vim.fn.win_findbuf(buf) > 0 then return end
-  if origin and vim.api.nvim_win_is_valid(origin) then vim.api.nvim_set_current_win(origin) end
+
+  if origin and vim.api.nvim_win_is_valid(origin) then
+    vim.api.nvim_set_current_win(origin)
+  else
+    vim.cmd('topleft split')
+    vim.cmd('setlocal winfixheight< signcolumn< winbar<')
+  end
 
   transcript.open(session, { source_win = source.win, source_buf = source.buf })
+
+  return vim.api.nvim_get_current_win()
 end
 
-local function deliver(outgoing)
+local function deliver(outgoing, opts)
   local session, source = outgoing.session, outgoing.source
   local text = vim.trim(table.concat(outgoing.lines, '\n'))
 
@@ -96,35 +108,37 @@ local function deliver(outgoing)
   if session.state == 'closed' then return false, 'this session has ended; your text is kept' end
 
   local where = source.buf and vim.api.nvim_buf_is_valid(source.buf) and context.capture_buffer(source.buf) or nil
-  local ok, task = pcall(hub.prompt, session, text, where)
+  local ok, how, task = pcall(hub.send, session, text, where, opts)
 
-  if not ok then return false, tostring(task) end
+  if not ok then return false, tostring(how) end
 
   drafts[session.key] = nil
 
   if source.buf then tools.set_focus(source.win, source.buf) end
 
-  task:on_complete(function(err)
+  if task then task:on_complete(function(err)
     if err then warn(tostring(err)) end
-  end)
+  end) end
 
-  return true
+  return true, how
 end
 
 local function outgoing()
   return { session = current.session, lines = lines_of(), source = current.source, origin = current.origin }
 end
 
-function composer.send()
+function composer.send(opts)
   if not current then return end
 
   local message = outgoing()
-  local sent, why = deliver(message)
+  local sent, why = deliver(message, opts)
 
   if not sent then return warn(why) end
 
+  local shown = reveal(message.session, message.origin, message.source)
+
   composer.close(true)
-  reveal(message.session, message.origin, message.source)
+  if shown and vim.api.nvim_win_is_valid(shown) then vim.api.nvim_set_current_win(shown) end
 end
 
 local function send_after_write(message)
@@ -136,9 +150,10 @@ local function send_after_write(message)
       return warn(why)
     end
 
-    if current and current.session == message.session then composer.close(true) end
+    local shown = reveal(message.session, message.origin, message.source)
 
-    reveal(message.session, message.origin, message.source)
+    if current and current.session == message.session then composer.close(true) end
+    if shown and vim.api.nvim_win_is_valid(shown) then vim.api.nvim_set_current_win(shown) end
   end)
 end
 
@@ -157,15 +172,6 @@ function composer.open(session, opts)
 
   if session.state == 'closed' then return warn('this session has ended') end
 
-  local plot = geometry()
-
-  plot.border = 'rounded'
-  plot.style = 'minimal'
-  plot.title = { { ' → ' .. session.key .. ' ' .. (session.title or 'untitled') .. ' ', 'UiTitle' } }
-  plot.title_pos = 'left'
-  plot.footer = footer()
-  plot.footer_pos = 'right'
-
   local element = Element({
     buf_options = {
       buftype = 'acwrite',
@@ -175,11 +181,15 @@ function composer.open(session, opts)
       filetype = 'markdown',
     },
     win_options = {
-      winhl = 'Normal:UiNormal,FloatBorder:UiBorder,FloatTitle:UiTitle,FloatFooter:UiMuted',
+      winbar = composer.WINBAR,
+      winfixheight = true,
       wrap = true,
       linebreak = true,
+      number = false,
+      relativenumber = false,
+      signcolumn = 'no',
     },
-    win_plot = plot,
+    win_plot = { split = 'below', win = -1, height = composer.HEIGHT },
   })
 
   local origin = vim.api.nvim_get_current_win()
@@ -201,31 +211,40 @@ function composer.open(session, opts)
   element:focus()
   element:set_cursor({ element:get_line_count(), #(element:get_lines()[element:get_line_count()] or '') })
 
-  element:set_keymap('n', '<CR>', composer.send, 'Send to the session')
+  element:set_keymap('n', '<CR>', function()
+    composer.send()
+  end, 'Send, or queue while the agent works')
+
+  for _, mode in ipairs({ 'n', 'i' }) do
+    element:set_keymap(mode, '<C-s>', function()
+      vim.cmd('stopinsert')
+      composer.send({ steer = true })
+    end, 'Steer the running turn (queues if the agent cannot steer)')
+  end
+
+  element:set_keymap('n', '<C-c>', function()
+    composer.interrupt(session)
+  end, 'Interrupt the running turn')
   element:set_keymap('n', 'q', function()
     composer.close()
   end, 'Close (keeps the draft)')
-  element:set_keymap('n', '<Esc>', function()
-    composer.close()
-  end, 'Close (keeps the draft)')
 
-  element:on({ 'TextChanged', 'TextChangedI' }, function()
-    if current and current.element == element then
+  local function keep()
+    if current and current.element == element and element:is_valid() then
       local lines = element:get_lines()
 
       drafts[session.key] = has_text(lines) and lines or nil
       element:set_buf_option('modified', false)
     end
-  end)
+  end
 
-  element:on('QuitPre', function()
-    if current and current.element == element then
-      local lines = element:get_lines()
+  element:attach_to_changes({
+    on_lines = function()
+      vim.schedule(keep)
+    end,
+  })
 
-      drafts[session.key] = has_text(lines) and lines or nil
-      element:set_buf_option('modified', false)
-    end
-  end)
+  element:on('QuitPre', keep)
 
   element:on('BufWriteCmd', function()
     element:set_buf_option('modified', false)
@@ -233,15 +252,53 @@ function composer.open(session, opts)
     if current and current.element == element then send_after_write(outgoing()) end
   end)
 
-  element:on('WinLeave', function()
-    vim.schedule(function()
-      if current and current.element == element and not element:is_focused() then composer.close() end
-    end)
+  element:on('BufWipeout', function()
+    if current and current.element == element then current = nil end
   end)
 
   if opts.insert then vim.cmd('startinsert!') end
 
   return element
+end
+
+function composer.restore(session, texts)
+  if #texts == 0 then return end
+
+  local lines = vim.split(table.concat(texts, '\n\n'), '\n', { plain = true })
+  local open = current and current.session == session and current.element:is_valid()
+  local existing = open and current.element:get_lines() or drafts[session.key]
+
+  if existing and has_text(existing) then
+    lines[#lines + 1] = ''
+    vim.list_extend(lines, existing)
+  end
+
+  drafts[session.key] = lines
+
+  if open then
+    current.element:set_lines(lines)
+    current.element:set_buf_option('modified', false)
+  end
+end
+
+function composer.interrupt(session)
+  if not session then return end
+
+  local returned = session:cancel()
+
+  composer.restore(session, returned)
+
+  if #returned > 0 then
+    vim.notify(
+      string.format(
+        'Harness: interrupted; %d queued message%s moved back to the composer',
+        #returned,
+        #returned == 1 and '' or 's'
+      )
+    )
+  end
+
+  return returned
 end
 
 function composer.forget(session)

@@ -152,4 +152,45 @@ describe('harness.permissions:', function()
       assert.is_falsy(text:find('\n', 1, true))
     end)
   end)
+
+  it('can dismiss a question it asked, answering cancelled and closing the picker', function()
+    local closed = false
+    local select = vim.ui.select
+
+    vim.ui.select = function()
+      return {
+        close = function()
+          closed = true
+        end,
+      }
+    end
+
+    local future = permissions.ui_ask({ tool = 'Edit', params = {} })
+
+    vim.wait(100, function()
+      return future.picker ~= nil
+    end)
+    future.dismiss()
+    vim.ui.select = select
+
+    eq(true, closed)
+    eq('cancelled', future.result)
+  end)
+
+  it('never opens the picker when dismissed before it was shown', function()
+    local opened = false
+    local select = vim.ui.select
+
+    vim.ui.select = function()
+      opened = true
+    end
+
+    local future = permissions.ui_ask({ tool = 'Edit', params = {} })
+
+    future.dismiss()
+    vim.wait(100)
+    vim.ui.select = select
+
+    eq(false, opened)
+  end)
 end)

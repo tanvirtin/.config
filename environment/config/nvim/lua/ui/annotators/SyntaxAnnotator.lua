@@ -1,7 +1,6 @@
 local lazy = require('core.lazy')
 
 local Object = lazy('core.Object')
-local Buffer = lazy('core.Buffer')
 
 local SyntaxAnnotator = Object:extend()
 
@@ -10,7 +9,6 @@ function SyntaxAnnotator:constructor()
     _cache = {},
     _cache_max = 50,
     _cache_order = {},
-    _scratch_buffer = nil,
   }
 end
 
@@ -43,38 +41,33 @@ function SyntaxAnnotator:clear_cache()
 end
 
 function SyntaxAnnotator:dispose()
-  if self._scratch_buffer and self._scratch_buffer:is_valid() then self._scratch_buffer:delete() end
-  self._scratch_buffer = nil
   self:clear_cache()
 end
 
-function SyntaxAnnotator:_parse_highlights(scratch_buffer, filetype)
+function SyntaxAnnotator:_parse_highlights(source, filetype)
   local highlights = {}
-  local bufnr = scratch_buffer.bufnr
+  local lang = vim.treesitter.language.get_lang(filetype) or filetype
 
-  local ok, parser = pcall(vim.treesitter.get_parser, bufnr, filetype)
+  if not pcall(vim.treesitter.language.add, lang) then return highlights end
+
+  local ok, parser = pcall(vim.treesitter.get_string_parser, source, lang)
   if not ok or not parser then return highlights end
 
-  local query_ok, query = pcall(vim.treesitter.query.get, filetype, 'highlights')
+  local query_ok, query = pcall(vim.treesitter.query.get, lang, 'highlights')
   if not query_ok or not query then return highlights end
 
   local tree = parser:parse()[1]
   if not tree then return highlights end
 
-  local root = tree:root()
-
-  for id, node, _ in query:iter_captures(root, bufnr, 0, -1) do
+  for id, node in query:iter_captures(tree:root(), source, 0, -1) do
     local name = query.captures[id]
     local start_row, start_col, end_row, end_col = node:range()
 
     for row = start_row, end_row do
-      local col_start = (row == start_row) and start_col or 0
-      local col_end = (row == end_row) and end_col or -1
-
       highlights[#highlights + 1] = {
         row = row,
-        col_start = col_start,
-        col_end = col_end,
+        col_start = (row == start_row) and start_col or 0,
+        col_end = (row == end_row) and end_col or -1,
         hl_group = '@' .. name,
       }
     end
@@ -91,15 +84,7 @@ function SyntaxAnnotator:annotate(lines, filetype)
   local key = self:_cache_key(lines, filetype)
   if key and self._cache[key] then return self._cache[key] end
 
-  if not self._scratch_buffer or not self._scratch_buffer:is_valid() then
-    self._scratch_buffer = Buffer():create(false, true)
-  end
-
-  local scratch_buffer = self._scratch_buffer
-  scratch_buffer:set_lines(lines)
-  scratch_buffer:set_option('filetype', filetype)
-
-  local highlights = self:_parse_highlights(scratch_buffer, filetype)
+  local highlights = self:_parse_highlights(table.concat(lines, '\n'), filetype)
 
   if key then self:_cache_put(key, highlights) end
 

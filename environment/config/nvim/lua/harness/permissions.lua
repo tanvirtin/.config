@@ -67,7 +67,9 @@ function permissions.ui_ask(request)
   local future = async.Future.new()
 
   vim.schedule(function()
-    vim.ui.select(permissions.CHOICES, {
+    if future.done then return end
+
+    local picker = vim.ui.select(permissions.CHOICES, {
       prompt = 'Harness wants to run ' .. permissions.describe(request),
       format_item = function(choice)
         return choice.label
@@ -76,7 +78,20 @@ function permissions.ui_ask(request)
       future:set_result(choice and choice.kind or 'reject_once')
       async.drain()
     end)
+
+    if future.done and type(picker) == 'table' and picker.close then pcall(picker.close, picker) end
+    future.picker = picker
   end)
+
+  function future.dismiss()
+    if future.done then return end
+
+    future:set_result('cancelled')
+
+    local picker = future.picker
+
+    if type(picker) == 'table' and picker.close then pcall(picker.close, picker) end
+  end
 
   return future
 end
@@ -114,6 +129,7 @@ function permissions.new(opts)
 
     local decided = async.Future.new()
 
+    decided.dismiss = answer.dismiss
     answer:on_complete(function(err, kind)
       decided:set_result(decide(not err and kind or 'reject_once'))
     end)
