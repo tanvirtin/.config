@@ -219,6 +219,8 @@ local function tool_states(history, from, to)
         if event[key] ~= nil then state[key] = event[key] end
       end
 
+      if event.diffs and #event.diffs > 0 then state.diffs = event.diffs end
+
       for key, value in pairs(event.input or {}) do
         state.input[key] = value
       end
@@ -372,20 +374,23 @@ local function build_turn(history, from, to, opts, last_turn)
     end
   end
 
-  local function show_diffs(event, tool)
-    if diffs_shown[event.id] then return end
+  local function show_diffs(id, tool)
+    local state = states[id] or {}
 
-    for _, diff in ipairs(event.diffs or {}) do
+    if diffs_shown[id] or not state.diffs then return end
+
+    diffs_shown[id] = true
+
+    for _, diff in ipairs(state.diffs) do
       local lines = diff_lines(diff, opts.dir)
       local added, removed = diff_stats(lines)
 
-      diffs_shown[event.id] = true
       add(Block.KIND.diff, lines, {
-        id = event.id,
+        id = id,
         path = diff.path,
         added = added,
         removed = removed,
-        status = (states[event.id] or {}).status,
+        status = state.status,
       })
 
       if tool then
@@ -445,14 +450,14 @@ local function build_turn(history, from, to, opts, last_turn)
       })
 
       tools[event.id] = tool
-      show_diffs(event, tool)
+      show_diffs(event.id, tool)
     end,
     tool_update = function(event)
       if event.status == Block.STATUS.failed and not tools[event.id] then
         add(Block.KIND.note, { '*failed:* `' .. compact.line(event.title or event.name or event.id, 200) .. '`' })
       end
 
-      show_diffs(event, tools[event.id])
+      show_diffs(event.id, tools[event.id])
     end,
     plan = function(event, i)
       if plans[i] then add(Block.KIND.plan, plan_lines(event.entries)) end

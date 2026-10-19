@@ -240,4 +240,64 @@ describe('harness.ui.blocks:', function()
       eq('````', list[2].lines[#list[2].lines])
     end)
   end)
+
+  describe('diffs', function()
+    local function diff(new)
+      return { path = '/a.lua', old = 'local x = 1\n', new = new }
+    end
+
+    local function diff_blocks(list)
+      return vim.tbl_filter(function(block)
+        return block.kind == Block.KIND.diff
+      end, list)
+    end
+
+    it('shows the latest diff a tool reported, right under the tool', function()
+      local list = blocks.build({
+        { kind = 'tool_call', id = 't1', name = 'Edit', diffs = { diff('local x = 2\n') } },
+        { kind = 'message', text = 'thinking it over' },
+        { kind = 'tool_update', id = 't1', diffs = { diff('local x = 3\n') } },
+      })
+      local shown = diff_blocks(list)
+
+      eq(1, #shown)
+      eq(Block.KIND.diff, list[3].kind)
+      assert.is_truthy(vim.tbl_contains(shown[1].lines, '+local x = 3'))
+      assert.is_falsy(vim.tbl_contains(shown[1].lines, '+local x = 2'))
+    end)
+
+    it('shows a diff that only arrives with a later update under the tool', function()
+      local list = blocks.build({
+        { kind = 'tool_call', id = 't1', name = 'Edit', diffs = {} },
+        { kind = 'message', text = 'between' },
+        { kind = 'tool_update', id = 't1', diffs = { diff('local x = 2\n') } },
+      })
+
+      eq({ Block.KIND.title, Block.KIND.tool, Block.KIND.diff, Block.KIND.message }, kinds(list))
+      eq(1, list[2].added)
+    end)
+
+    it('keeps the attempted diff when a later update carries only text', function()
+      local list = blocks.build({
+        { kind = 'tool_call', id = 't1', name = 'Edit', diffs = { diff('local x = 2\n') } },
+        { kind = 'tool_update', id = 't1', status = Block.STATUS.failed, output = 'refused', diffs = {} },
+      })
+
+      eq(1, #diff_blocks(list))
+    end)
+
+    it('shows every file of a multi-file edit', function()
+      local list = blocks.build({
+        {
+          kind = 'tool_call',
+          id = 't1',
+          name = 'Edit',
+          diffs = { diff('local x = 2\n'), { path = '/b.lua', old = '', new = 'y = 1\n' } },
+        },
+      })
+
+      eq(2, #diff_blocks(list))
+      eq({ 2, 1 }, { list[2].added, list[2].removed })
+    end)
+  end)
 end)
