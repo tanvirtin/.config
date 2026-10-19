@@ -2,6 +2,7 @@ local Connection = require('harness.acp.connection')
 local Session = require('harness.session')
 local events = require('harness.events')
 local fake_agent = require('harness.fake_agent')
+local jsonrpc = require('harness.acp.jsonrpc')
 local transcript = require('harness.ui.transcript')
 local blocks_preview = require('harness.ui.blocks').Block.PREVIEW
 
@@ -481,6 +482,115 @@ describe('harness.ui.transcript:', function()
       vim.api.nvim_set_current_buf(buf)
       vim.api.nvim_feedkeys(vim.keycode('<S-Tab>'), 'x', false)
       eq(1, cycled)
+    end)
+
+    describe('asking for permission in the transcript', function()
+      local permissions = require('harness.permissions')
+      local Document = require('harness.ui.document')
+      local async = require('harness.async')
+      local prompt_id, agent
+
+      local function asking_session()
+        agent = fake_agent.new({
+          ['session/prompt'] = function(message)
+            prompt_id = message.id
+            return { fake_agent.permission('s1', 'Edit') }
+          end,
+          reply = function(message)
+            if message.id ~= 'perm-1' then return {} end
+            return { jsonrpc.result(prompt_id, { stopReason = 'end_turn' }) }
+          end,
+        })
+
+        return Session({
+          key = 'hp' .. math.random(1e6),
+          id = 's1',
+          connection = Connection(agent),
+          approve = permissions.new({ ask = transcript.ask }),
+        }):attach()
+      end
+
+      local function status_text(buf)
+        local out = {}
+
+        for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(buf, Document.STATUS_NAMESPACE, 0, -1, { details = true })) do
+          for _, line in ipairs(mark[4].virt_lines or {}) do
+            for _, chunk in ipairs(line) do
+              out[#out + 1] = chunk[1]
+            end
+            out[#out + 1] = '\n'
+          end
+        end
+
+        return table.concat(out)
+      end
+
+      it('asks under the transcript and takes the answer from 1, 2 or 3', function()
+        local asked = asking_session()
+        local buf = transcript.open(asked)
+        local task = asked:prompt('edit it')
+
+        vim.wait(1000, function()
+          return status_text(buf):find('Allow Edit', 1, true) ~= nil
+        end)
+
+        local shown = status_text(buf)
+
+        assert.is_truthy(shown:find('Allow Edit?', 1, true))
+        assert.is_truthy(shown:find('1 Allow once', 1, true))
+        assert.is_truthy(shown:find('3 Reject', 1, true))
+
+        vim.api.nvim_set_current_buf(buf)
+        vim.api.nvim_feedkeys('2', 'x', false)
+        vim.wait(1000, function()
+          return task.done
+        end)
+
+        local reply = agent:find(function(message)
+          return message.id == 'perm-1' and message.result ~= nil
+        end)
+
+        eq('allow', reply.result.outcome.optionId)
+        eq({ kind = 'permission', tool = 'Edit', allowed = true }, asked.history[2])
+        eq({}, transcript.asks_of(asked))
+      end)
+
+      it('lets 1, 2 and 3 be counts when nothing is being asked', function()
+        transcript.open(session)
+
+        eq('2', vim.fn.maparg('2', 'n', false, true).callback())
+      end)
+
+      it('closes the question when the turn is interrupted', function()
+        local asked = asking_session()
+        local buf = transcript.open(asked)
+
+        asked:prompt('edit it')
+        vim.wait(1000, function()
+          return #transcript.asks_of(asked) == 1
+        end)
+        asked:cancel()
+        vim.wait(500, function()
+          return not status_text(buf):find('Allow Edit', 1, true)
+        end)
+
+        eq({}, transcript.asks_of(asked))
+        assert.is_falsy(status_text(buf):find('Allow Edit', 1, true))
+      end)
+
+      it('opens the transcript in the background when a session without one asks', function()
+        local asked = asking_session()
+
+        transcript.ask({ session = asked, tool = 'Bash', params = {} })
+        vim.wait(500, function()
+          return transcript.buffer_of(asked) ~= nil
+        end)
+
+        assert.is_truthy(transcript.buffer_of(asked))
+        assert.is_truthy(require('harness.ui.composer').winbar(asked):find('1/2/3', 1, true))
+        transcript.asks_of(asked)[1].future:set_result('reject_once')
+        async.drain()
+      end)
     end)
   end)
 end)

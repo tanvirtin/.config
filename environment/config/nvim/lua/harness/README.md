@@ -220,6 +220,7 @@ Keys in a transcript:
 | `za`, `zR`, `zM` | folds, as anywhere |
 | `]]`, `[[` | next and previous turn |
 | `<C-c>` | interrupt the running turn |
+| `1` `2` `3` | while the agent asks permission: allow once, allow always (this session), reject. Otherwise they are counts |
 | `<S-Tab>` | next session mode (also in the composer) |
 | `go` | pick a session option (mode, model, effort, …) and its value |
 | `i`, `a`, `o` | write to the session |
@@ -253,7 +254,7 @@ A session can be open in Neovim while another program drives it, for example `cl
 `harness/permissions.lua` sets these rules:
 - Read and write tools are allowed without asking.
 - Exec tools follow the agent's `policy.auto_allow`, which `setup({ auto_allow = ... })` overrides.
-- Claude's built-ins that reach the gate are asked through `vim.ui.select`, and so are exec tools when `auto_allow` is off.
+- Claude's built-ins that reach the gate are asked in the transcript, and so are exec tools when `auto_allow` is off. The question sits under the transcript (`󰀦 Allow Edit a.lua?` with `1 Allow once  2 Allow always (this session)  3 Reject`); `1` `2` `3` answer it there. A session without a transcript gets one in the background, and you are notified when it is out of sight. `setup({ ask = require('harness.permissions').ui_ask })` brings back the popup.
 - Anything that would need asking is refused when there is no UI.
 - "Allow always" is remembered per session. The adapter is sent `allow_once`, so no lasting rule lands in the user's Claude Code settings.
 

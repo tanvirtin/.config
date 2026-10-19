@@ -35,6 +35,9 @@ function composer.winbar(session)
   if mode then parts[#parts + 1] = '%#UiAccent#󰒓 ' .. (mode.name or mode.id):gsub('%%', '%%%%') .. ' ' end
   if #session.queue > 0 then parts[#parts + 1] = string.format('%%#UiMuted#⏳ %d queued ', #session.queue) end
   if session.external then parts[#parts + 1] = '%#UiWarn#⇄ also driven elsewhere: sending forks it ' end
+  if #require('harness.ui.transcript').asks_of(session) > 0 then
+    parts[#parts + 1] = '%#UiWarn#󰀦 answer with 1/2/3 in the transcript '
+  end
 
   parts[#parts + 1] = '%='
 

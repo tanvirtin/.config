@@ -697,6 +697,31 @@ function Document:_status()
     return
   end
 
+  local ask = (self.state.asks or {})[1]
+
+  if ask then
+    local choices = { { '   ' } }
+
+    for _, choice in ipairs(require('harness.ui.transcript').CHOICES) do
+      choices[#choices + 1] = { choice.key, 'UiAccent' }
+      choices[#choices + 1] = { ' ' .. choice.label .. '   ' }
+    end
+
+    choices[#choices + 1] = { '<C-c>', 'UiAccent' }
+    choices[#choices + 1] = { ' interrupt', 'UiMuted' }
+
+    local more = #self.state.asks > 1 and { string.format('  (+%d more)', #self.state.asks - 1), 'UiMuted' } or nil
+    local question = { Document.WAITING_ICON, { 'Allow ', 'UiWarn' }, { ask.text, 'UiPromptBar' }, { '?', 'UiWarn' } }
+
+    if more then question[#question + 1] = more end
+
+    pcall(vim.api.nvim_buf_set_extmark, self.bufnr, Document.STATUS_NAMESPACE, last, 0, {
+      virt_lines = vim.list_extend({ { { '' } }, question, choices }, queued),
+    })
+
+    return
+  end
+
   local elapsed = self.state.started and Document.duration(vim.uv.now() - self.state.started)
   local request = (self.state.waiting or {})[1]
   local chunks = request

@@ -287,6 +287,63 @@ function transcript.yank(buf, register)
   return text, first ~= nil
 end
 
+local asks = setmetatable({}, { __mode = 'k' })
+
+transcript.CHOICES = {
+  { key = '1', kind = 'allow_once', label = 'Allow once' },
+  { key = '2', kind = 'allow_always', label = 'Allow always (this session)' },
+  { key = '3', kind = 'reject_once', label = 'Reject' },
+}
+
+function transcript.asks_of(session)
+  return vim.tbl_filter(function(ask)
+    return not ask.future.done
+  end, asks[session] or {})
+end
+
+local function refresh(session)
+  vim.schedule(function()
+    session:_notify({ kind = 'waiting' })
+  end)
+end
+
+function transcript.ask(request)
+  local async = require('harness.async')
+  local session = request.session
+  local future = async.Future.new()
+  local ask = { future = future, text = require('harness.permissions').describe(request), tool = request.tool }
+
+  asks[session] = asks[session] or {}
+  table.insert(asks[session], ask)
+
+  function future.dismiss()
+    future:set_result('cancelled')
+    refresh(session)
+  end
+
+  future:on_complete(function()
+    refresh(session)
+  end)
+
+  vim.schedule(function()
+    if not buffer_for(session) then transcript.open(session, { background = true }) end
+    session:_notify({ kind = 'waiting' })
+  end)
+
+  return future
+end
+
+function transcript.answer(session, kind)
+  local pending = transcript.asks_of(session)[1]
+
+  if not pending then return false end
+
+  pending.future:set_result(kind)
+  require('harness.async').drain()
+
+  return true
+end
+
 function transcript.announce_waiting(session, buf)
   local waiting = session:waiting()
 
@@ -423,6 +480,7 @@ local function create(session, opts)
         agent = agent_label(session),
         queue = session:queued(),
         waiting = session:waiting(),
+        asks = transcript.asks_of(session),
       }
     )
 
@@ -482,6 +540,18 @@ local function create(session, opts)
   map(']]', function()
     transcript.jump(1, buf)
   end, 'Next turn')
+  for _, choice in ipairs(transcript.CHOICES) do
+    vim.keymap.set('n', choice.key, function()
+      if #transcript.asks_of(session) == 0 then return choice.key end
+
+      vim.schedule(function()
+        transcript.answer(session, choice.kind)
+      end)
+
+      return ''
+    end, { buffer = buf, expr = true, desc = choice.label .. ' (when the agent asks)' })
+  end
+
   map('<S-Tab>', function()
     session:cycle_mode()
   end, 'Next session mode')

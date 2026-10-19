@@ -1,5 +1,4 @@
 local hub = require('harness.hub')
-local permissions = require('harness.permissions')
 
 local harness = {}
 
@@ -15,7 +14,11 @@ harness.session = hub.session
 harness.sessions = hub.sessions
 
 function harness.setup(opts)
-  hub.config = vim.tbl_extend('force', hub.config, { ask = permissions.ui_ask }, opts or {})
+  local ask = function(request)
+    return require('harness.ui.transcript').ask(request)
+  end
+
+  hub.config = vim.tbl_extend('force', hub.config, { ask = ask }, opts or {})
 
   require('harness.ui.commands').setup()
 end
