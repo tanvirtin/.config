@@ -38,38 +38,43 @@ end
 
 function dataclass.define(name, schema)
   local class = { __name = name, schema = schema }
+  local required, defaults = {}, {}
+
+  for key, spec in pairs(schema) do
+    if spec.required then required[#required + 1] = key end
+    if spec.default ~= nil then defaults[#defaults + 1] = key end
+  end
 
   class.__index = class
 
   function class.new(fields)
-    fields = fields or {}
-
-    for key in pairs(fields) do
-      if schema[key] == nil then error(string.format('%s: unknown field "%s"', name, tostring(key)), 3) end
-    end
-
     local instance = {}
 
-    for key, spec in pairs(schema) do
-      local value = fields[key]
+    for key, value in pairs(fields or {}) do
+      local spec = schema[key]
 
-      if value == nil and spec.default ~= nil then
-        value = type(spec.default) == 'function' and spec.default() or spec.default
+      if spec == nil then error(string.format('%s: unknown field "%s"', name, tostring(key)), 3) end
+
+      if not type_ok(spec, value) then
+        error(string.format('%s.%s: expected %s, got %s', name, key, describe(spec), type(value)), 3)
       end
 
-      if value == nil then
-        if spec.required then error(string.format('%s: missing required field "%s"', name, key), 3) end
-      else
-        if not type_ok(spec, value) then
-          error(string.format('%s.%s: expected %s, got %s', name, key, describe(spec), type(value)), 3)
-        end
-
-        if spec.enum and not dataclass.is_member(spec.enum, value) then
-          error(string.format('%s.%s: "%s" is not one of its values', name, key, tostring(value)), 3)
-        end
+      if spec.enum and not dataclass.is_member(spec.enum, value) then
+        error(string.format('%s.%s: "%s" is not one of its values', name, key, tostring(value)), 3)
       end
 
       instance[key] = value
+    end
+
+    for _, key in ipairs(defaults) do
+      if instance[key] == nil then
+        local default = schema[key].default
+        instance[key] = type(default) == 'function' and default() or default
+      end
+    end
+
+    for _, key in ipairs(required) do
+      if instance[key] == nil then error(string.format('%s: missing required field "%s"', name, key), 3) end
     end
 
     return setmetatable(instance, class)

@@ -1,4 +1,7 @@
 local blocks = require('harness.ui.blocks')
+local DECISION = require('harness.acp.connection').DECISION
+local EVENT, NOTICE = require('harness.events').KIND, require('harness.events').NOTICE
+local INLINE = require('ui.markdown.Renderer').INLINE
 local Document = require('harness.ui.document')
 local follow = require('harness.follow')
 local links = require('harness.ui.links')
@@ -61,7 +64,7 @@ transcript.WINBAR = '%#UiAccent# i %#UiMuted#write to this session   %#UiAccent#
 
 local function last_usage(session)
   for i = #session.history, 1, -1 do
-    if session.history[i].kind == 'usage' then return session.history[i] end
+    if session.history[i].kind == EVENT.usage then return session.history[i] end
   end
 end
 
@@ -156,7 +159,7 @@ local function turn_started(session)
   for i = #session.history, 1, -1 do
     local kind = session.history[i].kind
 
-    if kind == 'prompt' or kind == 'user' then return session.times[i] end
+    if kind == EVENT.prompt or kind == EVENT.user then return session.times[i] end
   end
 end
 
@@ -177,7 +180,7 @@ local function target_at(view, win)
 
   if block.kind == blocks.Block.KIND.diff then
     local line = document:diff_line(block, row)
-    return links.resolve('link', block.path, dir) and { path = block.path, line = line } or nil
+    return links.resolve(INLINE.link, block.path, dir) and { path = block.path, line = line } or nil
   end
 
   if block.kind == blocks.Block.KIND.tool and block.locations and block.locations[1] then
@@ -290,9 +293,9 @@ end
 local asks = setmetatable({}, { __mode = 'k' })
 
 transcript.CHOICES = {
-  { key = '1', kind = 'allow_once', label = 'Allow once' },
-  { key = '2', kind = 'allow_always', label = 'Allow always (this session)' },
-  { key = '3', kind = 'reject_once', label = 'Reject' },
+  { key = '1', kind = DECISION.allow_once, label = 'Allow once' },
+  { key = '2', kind = DECISION.allow_always, label = 'Allow always (this session)' },
+  { key = '3', kind = DECISION.reject_once, label = 'Reject' },
 }
 
 function transcript.asks_of(session)
@@ -303,7 +306,7 @@ end
 
 local function refresh(session)
   vim.schedule(function()
-    session:_notify({ kind = 'waiting' })
+    session:_notify({ kind = NOTICE.waiting })
   end)
 end
 
@@ -317,7 +320,7 @@ function transcript.ask(request)
   table.insert(asks[session], ask)
 
   function future.dismiss()
-    future:set_result('cancelled')
+    future:set_result(DECISION.cancelled)
     refresh(session)
   end
 
@@ -327,7 +330,7 @@ function transcript.ask(request)
 
   vim.schedule(function()
     if not buffer_for(session) then transcript.open(session, { background = true }) end
-    session:_notify({ kind = 'waiting' })
+    session:_notify({ kind = NOTICE.waiting })
   end)
 
   return future
@@ -500,9 +503,9 @@ local function create(session, opts)
   local view = { session = session, source_win = opts.source_win, document = document }
 
   view.unsubscribe = session:subscribe(function(event)
-    if event.kind == 'title' then pcall(vim.api.nvim_buf_set_name, buf, buffer_name(session)) end
-    if event.kind == 'reset' then cache = {} end
-    if event.kind == 'waiting' then transcript.announce_waiting(session, buf) end
+    if event.kind == EVENT.title then pcall(vim.api.nvim_buf_set_name, buf, buffer_name(session)) end
+    if event.kind == NOTICE.reset then cache = {} end
+    if event.kind == NOTICE.waiting then transcript.announce_waiting(session, buf) end
     dirty = true
     if scheduled then return end
 

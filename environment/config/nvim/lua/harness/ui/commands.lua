@@ -111,7 +111,7 @@ function commands.stats_lines()
     local usage
 
     for i = #session.history, 1, -1 do
-      if session.history[i].kind == 'usage' then
+      if session.history[i].kind == require('harness.events').KIND.usage then
         usage = session.history[i]
         break
       end

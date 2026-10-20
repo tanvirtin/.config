@@ -1,4 +1,8 @@
+local INLINE = require('ui.markdown.Renderer').INLINE
+
 local links = {}
+
+links.TARGET = require('core.dataclass').enum({ 'file', 'buf' })
 
 links.SCHEME = 'nvim://'
 
@@ -44,12 +48,12 @@ local function from_scheme(target, dir)
   local rest = target:sub(#links.SCHEME + 1)
   local kind, value = rest:match('^(%a+)/(.+)$')
 
-  if kind == 'file' then
+  if kind == links.TARGET.file then
     local path, line = split_location(value)
     return file(path, line, dir) or { path = absolute(path, dir), line = line, missing = true }
   end
 
-  if kind == 'buf' then
+  if kind == links.TARGET.buf then
     local bufnr = tonumber(value)
     if bufnr and vim.api.nvim_buf_is_valid(bufnr) then return { bufnr = bufnr } end
     return { bufnr = bufnr, missing = true }
@@ -61,7 +65,7 @@ local PATH_LIKE = '^[%w%._%-/~]+$'
 function links.resolve(kind, text, dir)
   if not text or text == '' then return nil end
 
-  if kind == 'link' then
+  if kind == INLINE.link then
     if text:sub(1, #links.SCHEME) == links.SCHEME then return from_scheme(text, dir) end
     if text:match('^https?://') then return { url = text } end
 
@@ -69,7 +73,7 @@ function links.resolve(kind, text, dir)
     return file(path, line, dir)
   end
 
-  if kind == 'code' then
+  if kind == INLINE.code then
     local path, line = split_location(text)
 
     if not path:match(PATH_LIKE) or not (path:find('/', 1, true) or path:find('%.%w+$')) then return nil end

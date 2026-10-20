@@ -5,6 +5,8 @@ local Renderer = Object:extend()
 
 Renderer.NAMESPACE = vim.api.nvim_create_namespace('ui.markdown')
 
+Renderer.INLINE = require('core.dataclass').enum({ 'link', 'code' })
+
 Renderer.HEADING_ICONS = { '󰉫 ', '󰉬 ', '󰉭 ', '󰉮 ', '󰉯 ', '󰉰 ' }
 
 Renderer.BULLETS = { '•', '◦', '▪', '▫' }
@@ -220,7 +222,7 @@ end
 Renderer.NODES = NODES
 
 local function inline_text(text, kind)
-  if kind == 'code' then return (text:gsub('^`+%s?', ''):gsub('%s?`+$', '')) end
+  if kind == Renderer.INLINE.code then return (text:gsub('^`+%s?', ''):gsub('%s?`+$', '')) end
 
   return text
 end
@@ -291,7 +293,7 @@ function Renderer:_inline(parser, src)
       local decoration = self.resolve(kind, inline_text(src:node_text(node), kind))
 
       if decoration then
-        local row, col, end_row, end_col = src:range(kind == 'link' and node:parent() or node)
+        local row, col, end_row, end_col = src:range(kind == Renderer.INLINE.link and node:parent() or node)
 
         self:_mark(row, col, { virt_text = { decoration.icon }, virt_text_pos = 'inline' })
         self:_mark(row, col, { end_row = end_row, end_col = end_col, hl_group = 'UiMarkdownLink', priority = 190 })
@@ -322,11 +324,11 @@ function Renderer:inline_at(row, col)
       if type == 'inline_link' then
         for part in node:iter_children() do
           if part:type() == 'link_destination' then
-            return 'link', inline_text(vim.treesitter.get_node_text(part, line), 'link')
+            return Renderer.INLINE.link, inline_text(vim.treesitter.get_node_text(part, line), Renderer.INLINE.link)
           end
         end
       elseif type == 'code_span' then
-        return 'code', inline_text(vim.treesitter.get_node_text(node, line), 'code')
+        return Renderer.INLINE.code, inline_text(vim.treesitter.get_node_text(node, line), Renderer.INLINE.code)
       end
 
       node = node:parent()

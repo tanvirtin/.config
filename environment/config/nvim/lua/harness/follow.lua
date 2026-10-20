@@ -4,6 +4,7 @@ local Buffer = lazy('core.Buffer')
 local FileWatch = lazy('core.FileWatch')
 local Timer = lazy('core.Timer')
 local async = lazy('harness.async')
+local events = lazy('harness.events')
 
 local follow = {}
 
@@ -38,7 +39,7 @@ function follow.reload(session)
 
     if changed then
       session.external = Timer.now()
-      session:_notify({ kind = 'external' })
+      session:_notify({ kind = events.NOTICE.external })
     end
   end)
   async.drain()

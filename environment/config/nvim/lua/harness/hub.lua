@@ -1,4 +1,5 @@
 local agent = require('harness.agent')
+local events = require('harness.events')
 local async = require('harness.async')
 local permissions = require('harness.permissions')
 local Workspace = require('harness.workspace')
@@ -66,7 +67,7 @@ local function approve_for(a)
 end
 
 local function effects(event)
-  if event.kind == 'tool_update' and event.status == 'completed' and permissions.tier(event.name) == nil then
+  if event.kind == events.KIND.tool_update and event.status == 'completed' and permissions.tier(event.name) == nil then
     vim.schedule(function()
       pcall(vim.cmd.checktime)
     end)

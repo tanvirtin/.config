@@ -1,6 +1,7 @@
 local api = require('nvim_mcp.api')
 local async = require('harness.async')
 local tools = require('nvim_mcp.tools')
+local DECISION = require('harness.acp.connection').DECISION
 
 local permissions = {}
 
@@ -17,9 +18,9 @@ function permissions.tier(tool_name)
 end
 
 permissions.CHOICES = {
-  { kind = 'allow_once', label = 'Allow once' },
-  { kind = 'allow_always', label = 'Allow always (this session)' },
-  { kind = 'reject_once', label = 'Reject' },
+  { kind = DECISION.allow_once, label = 'Allow once' },
+  { kind = DECISION.allow_always, label = 'Allow always (this session)' },
+  { kind = DECISION.reject_once, label = 'Reject' },
 }
 
 local WIDTH = 160
@@ -75,7 +76,7 @@ function permissions.ui_ask(request)
         return choice.label
       end,
     }, function(choice)
-      future:set_result(choice and choice.kind or 'reject_once')
+      future:set_result(choice and choice.kind or DECISION.reject_once)
       async.drain()
     end)
 
@@ -86,7 +87,7 @@ function permissions.ui_ask(request)
   function future.dismiss()
     if future.done then return end
 
-    future:set_result('cancelled')
+    future:set_result(DECISION.cancelled)
 
     local picker = future.picker
 
@@ -106,18 +107,18 @@ function permissions.new(opts)
     local destructive = tier ~= nil and tools.always_ask(request.tool:sub(#PREFIX + 1))
 
     if not destructive then
-      if tier == 'read' or tier == 'write' or (tier and opts.auto_allow) then return 'allow_once' end
-      if always[request.tool] then return 'allow_once' end
+      if tier == 'read' or tier == 'write' or (tier and opts.auto_allow) then return DECISION.allow_once end
+      if always[request.tool] then return DECISION.allow_once end
     end
 
-    if not opts.ask then return 'reject_once' end
+    if not opts.ask then return DECISION.reject_once end
 
     local function decide(kind)
-      if kind == 'allow_always' and destructive then return 'allow_once' end
+      if kind == DECISION.allow_always and destructive then return DECISION.allow_once end
 
-      if kind == 'allow_always' then
+      if kind == DECISION.allow_always then
         always[request.tool] = true
-        return 'allow_once'
+        return DECISION.allow_once
       end
 
       return kind
@@ -131,7 +132,7 @@ function permissions.new(opts)
 
     decided.dismiss = answer.dismiss
     answer:on_complete(function(err, kind)
-      decided:set_result(decide(not err and kind or 'reject_once'))
+      decided:set_result(decide(not err and kind or DECISION.reject_once))
     end)
 
     return decided

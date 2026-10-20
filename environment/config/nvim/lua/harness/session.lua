@@ -3,6 +3,8 @@ local Connection = require('harness.acp.connection')
 local async = require('harness.async')
 local context = require('harness.context')
 local events = require('harness.events')
+
+local K, NOTICE = events.KIND, events.NOTICE
 local permissions = require('harness.permissions')
 
 local Session = Object:extend()
@@ -135,9 +137,9 @@ function Session:_on_child_update(child, update)
 
   if not event or STATE[event.kind] then return end
 
-  if event.kind == 'delegation' then
+  if event.kind == K.delegation then
     child.tool = event.message or child.tool
-    return self:_notify({ kind = 'subagent' })
+    return self:_notify({ kind = K.subagent })
   end
 
   event.parent = event.parent or child.tool
@@ -152,7 +154,7 @@ function Session:configure(result)
   if type(result.configOptions) == 'table' then self.options = result.configOptions end
   if type(result.modes) == 'table' then self.modes = result.modes end
 
-  self:_notify({ kind = 'config' })
+  self:_notify({ kind = NOTICE.config })
 end
 
 local function find_option(options, key)
@@ -234,7 +236,7 @@ function Session:set_option(id, value)
       if option then option.currentValue = value end
     end
 
-    self:_notify({ kind = 'config' })
+    self:_notify({ kind = NOTICE.config })
 
     return result
   end)
@@ -249,7 +251,7 @@ function Session:set_mode(id)
     local result = self.connection:set_mode(self.id, id)
 
     if self.modes then self.modes.currentModeId = id end
-    self:_notify({ kind = 'config' })
+    self:_notify({ kind = NOTICE.config })
 
     return result
   end)
@@ -280,19 +282,19 @@ function Session:_on_update(update)
     return self:_notify(event)
   end
 
-  if event.kind == 'delegation' then return end
+  if event.kind == K.delegation then return end
 
   self:_handle(event)
 end
 
 function Session:_handle(event)
-  if event.kind == 'tool_call' then
+  if event.kind == K.tool_call then
     self._tools[event.id] = event.name
-  elseif event.kind == 'tool_update' then
+  elseif event.kind == K.tool_update then
     event.name = event.name or self._tools[event.id]
-  elseif event.kind == 'title' then
+  elseif event.kind == K.title then
     self.title = event.title
-  elseif event.kind == 'message' and self._turn and not event.parent then
+  elseif event.kind == K.message and self._turn and not event.parent then
     self._turn.text[#self._turn.text + 1] = event.text
   end
 
@@ -300,8 +302,8 @@ function Session:_handle(event)
 end
 
 local function kind_of(decision)
-  if decision == true then return 'allow_once' end
-  if type(decision) ~= 'string' then return 'reject_once' end
+  if decision == true then return Connection.DECISION.allow_once end
+  if type(decision) ~= 'string' then return Connection.DECISION.reject_once end
 
   return decision
 end
@@ -318,7 +320,7 @@ function Session:_on_request(method, params)
     if answer.done then return end
 
     self._pending[pending] = nil
-    self:_notify({ kind = 'waiting' })
+    self:_notify({ kind = NOTICE.waiting })
 
     local kind = kind_of(decision)
     local allowed = kind:sub(1, 5) == 'allow'
@@ -330,16 +332,16 @@ function Session:_on_request(method, params)
   end
 
   self._pending[pending] = true
-  self:_notify({ kind = 'waiting' })
+  self:_notify({ kind = NOTICE.waiting })
 
   local ok, decision = pcall(self.approve, { tool = tool, params = params, session = self })
 
   if not ok then
-    decide('reject_once')
+    decide(Connection.DECISION.reject_once)
   elseif type(decision) == 'table' and decision.on_complete then
     pending.dismiss = decision.dismiss
     decision:on_complete(function(err, kind)
-      decide(not err and kind or 'reject_once')
+      decide(not err and kind or Connection.DECISION.reject_once)
     end)
   else
     decide(decision)
@@ -393,9 +395,11 @@ function Session:prompt(text, context, opts)
     self.turn_ended = vim.uv.now()
     self:_emit(events.stop(reason))
 
-    if reason ~= 'cancelled' and #self.queue > 0 then vim.schedule(function()
-      self:_drain()
-    end) end
+    if reason ~= Connection.STOP_REASON.cancelled and #self.queue > 0 then
+      vim.schedule(function()
+        self:_drain()
+      end)
+    end
 
     return { stop_reason = reason, text = table.concat(turn.text, ''), permissions = turn.permissions }
   end)
@@ -406,13 +410,13 @@ function Session:_drain()
 
   local next = table.remove(self.queue, 1)
 
-  self:_notify({ kind = 'queue' })
+  self:_notify({ kind = NOTICE.queue })
 
   local ok, err = pcall(self.prompt, self, next.text, next.context, { shown = next.shown })
 
   if not ok then
     table.insert(self.queue, 1, next)
-    self:_notify({ kind = 'queue' })
+    self:_notify({ kind = NOTICE.queue })
     vim.notify('Harness: could not send the queued message: ' .. tostring(err), vim.log.levels.WARN)
   end
 end
@@ -421,7 +425,7 @@ function Session:enqueue(text, context)
   if self.state == 'closed' then error('this session is closed', 2) end
 
   self.queue[#self.queue + 1] = { text = text, context = context }
-  self:_notify({ kind = 'queue' })
+  self:_notify({ kind = NOTICE.queue })
 
   if self.state == 'idle' then self:_drain() end
 end
@@ -442,11 +446,11 @@ function Session:steer(text, context)
 
     if type(result) == 'table' and result.outcome == 'promptRequired' then
       steered.steered = nil
-      self:_notify({ kind = 'reset' })
+      self:_notify({ kind = NOTICE.reset })
 
       if self.state == 'running' then
         self.queue[#self.queue + 1] = { text = text, context = context, shown = true }
-        self:_notify({ kind = 'queue' })
+        self:_notify({ kind = NOTICE.queue })
       else
         self:prompt(text, context, { shown = true })
       end
@@ -484,7 +488,7 @@ local function compare(ours, theirs)
 end
 
 local function refreshable(history, from)
-  if history[from].kind ~= 'user' then return false end
+  if history[from].kind ~= K.user then return false end
 
   for i = from + 1, #history do
     if LOCAL[history[i].kind] then return false end
@@ -533,7 +537,7 @@ function Session:_adopt(shadow)
       self.times[i] = nil
     end
 
-    self:_notify({ kind = 'appended' })
+    self:_notify({ kind = NOTICE.appended })
 
     return true
   end
@@ -545,7 +549,7 @@ function Session:_adopt(shadow)
   end
 
   self.history, self.times = shadow.history, shadow.times
-  self:_notify({ kind = 'reset' })
+  self:_notify({ kind = NOTICE.reset })
 
   return true
 end
@@ -587,7 +591,7 @@ function Session:cancel()
   local returned = self:queued()
 
   self.queue = {}
-  if #returned > 0 then self:_notify({ kind = 'queue' }) end
+  if #returned > 0 then self:_notify({ kind = NOTICE.queue }) end
 
   if self.state ~= 'running' then return returned end
 

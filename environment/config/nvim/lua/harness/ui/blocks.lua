@@ -1,55 +1,67 @@
-local Object = require('core.Object')
+local dataclass = require('core.dataclass')
 local compact = require('compact')
 local context = require('harness.context')
+local EVENT = require('harness.events').KIND
 
-local Block = Object:extend()
+local Block
 
-Block.KIND = {
-  title = 'title',
-  prompt = 'prompt',
-  message = 'message',
-  thought = 'thought',
-  tool = 'tool',
-  diff = 'diff',
-  plan = 'plan',
-  note = 'note',
-  stop = 'stop',
-}
+local KIND = dataclass.enum({ 'title', 'prompt', 'message', 'thought', 'tool', 'diff', 'plan', 'note', 'stop' })
 
-Block.STATUS = {
-  pending = 'pending',
-  in_progress = 'in_progress',
-  completed = 'completed',
-  failed = 'failed',
-}
+local STRING, NUMBER, BOOLEAN, TABLE =
+  { type = 'string' }, { type = 'number' }, { type = 'boolean' }, { type = 'table' }
 
-Block.CATEGORY = {
-  read = 'read',
-  edit = 'edit',
-  delete = 'delete',
-  move = 'move',
-  search = 'search',
-  execute = 'execute',
-  think = 'think',
-  fetch = 'fetch',
-  other = 'other',
-}
+Block = dataclass.define('Block', {
+  kind = { type = 'string', required = true, enum = KIND },
+  lines = { type = 'table', required = true },
+  text = STRING,
+  first_event = NUMBER,
+  last_event = NUMBER,
+  live = BOOLEAN,
+  first = BOOLEAN,
+  steered = BOOLEAN,
+  opens_reply = BOOLEAN,
+  error = BOOLEAN,
+  id = STRING,
+  parent = STRING,
+  depth = NUMBER,
+  nested = NUMBER,
+  path = STRING,
+  name = STRING,
+  argument = STRING,
+  status = STRING,
+  category = STRING,
+  locations = TABLE,
+  output = STRING,
+  folds = TABLE,
+  added = NUMBER,
+  removed = NUMBER,
+  started = NUMBER,
+  finished = NUMBER,
+  reason = STRING,
+  duration = NUMBER,
+  tools = NUMBER,
+  start = NUMBER,
+  finish = NUMBER,
+  index = NUMBER,
+})
+
+Block.KIND = KIND
+
+Block.STATUS = dataclass.enum({ 'pending', 'in_progress', 'completed', 'failed' })
+
+Block.CATEGORY = dataclass.enum({ 'read', 'edit', 'delete', 'move', 'search', 'execute', 'think', 'fetch', 'other' })
 
 Block.PREVIEW = 5
 Block.OUTPUT_MAX = 200
 
-function Block:constructor(kind, lines, fields)
-  local block = { kind = kind, lines = lines }
+function Block.make(kind, lines, fields)
+  local all = { kind = kind, lines = lines }
 
   for key, value in pairs(fields or {}) do
-    block[key] = value
+    all[key] = value
   end
 
-  return block
-end
-
-function Block:range()
-  return self.start, self.finish
+  return Block(all)
 end
 
 local blocks = { Block = Block }
@@ -215,7 +227,7 @@ local function tool_indices(history, from, to, updates)
     local event = history[i]
 
     if TOOL[event.kind] then indices[#indices + 1] = i end
-    if event.kind == 'tool_call' then own[event.id] = true end
+    if event.kind == EVENT.tool_call then own[event.id] = true end
   end
 
   for id in pairs(own) do
@@ -264,10 +276,10 @@ local function last_plans(history, from, to)
   for i = from, to do
     local event = history[i]
 
-    if event.kind == 'prompt' or event.kind == 'user' then
+    if event.kind == EVENT.prompt or event.kind == EVENT.user then
       if latest then last[latest] = true end
       latest = nil
-    elseif event.kind == 'plan' then
+    elseif event.kind == EVENT.plan then
       latest = i
     end
   end
@@ -377,7 +389,7 @@ local function build_turn(history, from, to, opts, last_turn, updates)
   local opens = false
 
   local function add(kind, lines, fields)
-    list[#list + 1] = Block(kind, lines, fields)
+    list[#list + 1] = Block.make(kind, lines, fields)
 
     if opens and kind ~= Block.KIND.prompt then
       list[#list].opens_reply = true
@@ -549,7 +561,9 @@ local function turn_starts(history)
   local starts = { 1 }
 
   for i, event in ipairs(history) do
-    if (event.kind == 'prompt' or event.kind == 'user') and not event.steered and i > 1 then starts[#starts + 1] = i end
+    if (event.kind == EVENT.prompt or event.kind == EVENT.user) and not event.steered and i > 1 then
+      starts[#starts + 1] = i
+    end
   end
 
   return starts
@@ -567,9 +581,9 @@ local function invalidate(history, cache, starts)
       for i = from, to do
         local event = history[i]
 
-        if event.kind == 'tool_call' then
+        if event.kind == EVENT.tool_call then
           owners[event.id] = from
-        elseif event.kind == 'tool_update' and owners[event.id] and owners[event.id] ~= from then
+        elseif event.kind == EVENT.tool_update and owners[event.id] and owners[event.id] ~= from then
           cache[owners[event.id]] = nil
         end
       end
@@ -580,7 +594,7 @@ end
 function blocks.build(history, title, opts)
   opts = opts or {}
 
-  local list = { Block(Block.KIND.title, { '# ' .. compact.line(title or 'Harness', 200) }) }
+  local list = { Block.make(Block.KIND.title, { '# ' .. compact.line(title or 'Harness', 200) }) }
   local starts = turn_starts(history)
   local cache = opts.cache
 
@@ -589,7 +603,7 @@ function blocks.build(history, title, opts)
   local updates = {}
 
   for i, event in ipairs(history) do
-    if event.kind == 'tool_update' then
+    if event.kind == EVENT.tool_update then
       updates[event.id] = updates[event.id] or {}
       table.insert(updates[event.id], i)
     end

@@ -1,4 +1,5 @@
 local Object = require('core.Object')
+local dataclass = require('core.dataclass')
 local async = require('harness.async')
 local jsonrpc = require('harness.acp.jsonrpc')
 
@@ -155,9 +156,13 @@ function Connection:_on_request(message)
   reply(ok, result)
 end
 
+Connection.DECISION = dataclass.enum({ 'allow_once', 'allow_always', 'reject_once', 'reject_always', 'cancelled' })
+
+Connection.STOP_REASON = dataclass.enum({ 'end_turn', 'max_tokens', 'max_turn_requests', 'refusal', 'cancelled' })
+
 function Connection.permission_outcome(options, kind)
-  if kind == true then kind = 'allow_once' end
-  if type(kind) ~= 'string' or kind == 'cancelled' then return { outcome = 'cancelled' } end
+  if kind == true then kind = Connection.DECISION.allow_once end
+  if type(kind) ~= 'string' or kind == Connection.DECISION.cancelled then return { outcome = 'cancelled' } end
 
   local family = kind:match('^(%a+)_') or kind
 
