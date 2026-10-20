@@ -71,10 +71,6 @@ local function session_new(args, ctx)
   task:on_complete(function(err, session)
     if err then return end
 
-    vim.schedule(function()
-      require('harness.ui.commands').open(session, { background = true })
-    end)
-
     if args.prompt then prompt(session, args.prompt) end
   end)
 
@@ -111,7 +107,7 @@ local function session_read(args, ctx)
 end
 
 local function session_cancel(args, ctx)
-  require('harness.ui.composer').interrupt(target(args.session, ctx))
+  target(args.session, ctx):cancel()
 
   return { session = args.session }
 end

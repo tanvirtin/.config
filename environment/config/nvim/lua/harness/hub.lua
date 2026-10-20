@@ -1,8 +1,8 @@
 local agent = require('harness.agent')
-local events = require('harness.events')
 local async = require('harness.async')
 local permissions = require('harness.permissions')
 local Workspace = require('harness.workspace')
+local session_store = require('harness.session_store')
 
 local hub = {}
 
@@ -16,7 +16,6 @@ hub.config = {
 }
 
 local workspaces = {}
-local sessions = {}
 local starting = {}
 local next_key = 0
 
@@ -66,27 +65,8 @@ local function approve_for(a)
   return permissions.new({ ask = hub.config.ask, auto_allow = auto_allow })
 end
 
-local function effects(event)
-  if event.kind == events.KIND.tool_update and event.status == 'completed' and permissions.tier(event.name) == nil then
-    vim.schedule(function()
-      pcall(vim.cmd.checktime)
-    end)
-  end
-end
-
 local function register(session)
-  sessions[session.key] = session
-
-  session:subscribe(function(event)
-    effects(event)
-    pcall(vim.api.nvim_exec_autocmds, 'User', {
-      pattern = 'HarnessEvent',
-      modeline = false,
-      data = { session = session.key, kind = event.kind },
-    })
-  end)
-
-  return session
+  return session_store.add(session)
 end
 
 local function resolve_agent(name)
@@ -113,7 +93,7 @@ function hub.start(opts)
   local task = async.run(function()
     local ok, session = pcall(function()
       local a = resolve_agent(opts.agent)
-      local parent = opts.parent and sessions[opts.parent]
+      local parent = opts.parent and session_store.get(opts.parent)
       local depth = parent and parent.depth + 1 or 0
 
       if depth > hub.config.max_depth then
@@ -180,16 +160,16 @@ function hub.delete(opts)
 
     workspace:delete(resolve_agent(opts.agent), opts.id)
 
-    if live then sessions[live.key] = nil end
+    if live then session_store.remove(live.key) end
   end)
 end
 
 function hub.running()
   local count = 0
 
-  for _, session in pairs(sessions) do
+  session_store.each(function(session)
     if session:running() then count = count + 1 end
-  end
+  end)
 
   return count
 end
@@ -228,32 +208,20 @@ function hub.send(session, text, context, opts)
 end
 
 function hub.session(key)
-  return sessions[key]
+  return session_store.get(key)
 end
 
 function hub.sessions(dir)
-  local out = {}
-
-  for _, session in pairs(sessions) do
-    if session.state ~= 'closed' and (not dir or session.dir == dir) then out[#out + 1] = session end
-  end
-
-  table.sort(out, function(a, b)
-    return tonumber(a.key:sub(2)) < tonumber(b.key:sub(2))
-  end)
-
-  return out
+  return session_store.list(dir)
 end
 
 function hub.close(key)
-  local session = sessions[key]
+  local session = session_store.get(key)
 
   if not session then return end
 
-  require('harness.follow').stop(session)
-
   session:close()
-  sessions[key] = nil
+  session_store.remove(key)
 
   if workspaces[session.dir] then workspaces[session.dir]:forget(key) end
 end
@@ -263,7 +231,8 @@ function hub.shutdown()
     workspace:close()
   end
 
-  workspaces, sessions, starting = {}, {}, {}
+  session_store.clear()
+  workspaces, starting = {}, {}
 end
 
 return hub

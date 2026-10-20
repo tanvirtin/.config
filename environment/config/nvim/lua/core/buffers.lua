@@ -13,4 +13,8 @@ function buffers.list()
   return result
 end
 
+function buffers.checktime()
+  pcall(vim.cmd.checktime)
+end
+
 return buffers

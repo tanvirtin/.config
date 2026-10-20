@@ -340,22 +340,30 @@ end
 function composer.interrupt(session)
   if not session then return end
 
-  local returned = session:cancel()
-
-  composer.restore(session, returned)
-
-  if #returned > 0 then
-    vim.notify(
-      string.format(
-        'Harness: interrupted; %d queued message%s moved back to the composer',
-        #returned,
-        #returned == 1 and '' or 's'
-      )
-    )
-  end
-
-  return returned
+  return session:cancel()
 end
+
+function composer.on_returned(session, texts)
+  composer.restore(session, texts)
+
+  vim.notify(
+    string.format(
+      'Harness: interrupted; %d queued message%s moved back to the composer',
+      #texts,
+      #texts == 1 and '' or 's'
+    )
+  )
+end
+
+local NOTICE = require('harness.events').NOTICE
+
+local function on_session_event(session, event)
+  if event.kind == NOTICE.returned then composer.on_returned(session, event.texts) end
+end
+
+composer.on_session_event = on_session_event
+
+require('harness.session_store').on('event', on_session_event)
 
 function composer.forget(session)
   drafts[session.key] = nil

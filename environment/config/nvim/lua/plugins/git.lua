@@ -1,7 +1,7 @@
 return {
   {
     'tanvirtin/vgit.nvim',
-    branch = 'alpha-v2.0.x',
+    dir = '~/workspace/vgit.nvim',
     dependencies = { 'nvim-lua/plenary.nvim', 'nvim-tree/nvim-web-devicons' },
     event = 'VimEnter',
     config = function()

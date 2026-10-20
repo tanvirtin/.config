@@ -180,4 +180,12 @@ function commands.setup()
   })
 end
 
+require('harness.session_store').on('start', function(session)
+  if session.parent then
+    require('core.Timer').defer(0, function()
+      commands.open(session, { background = true })
+    end)
+  end
+end)
+
 return commands

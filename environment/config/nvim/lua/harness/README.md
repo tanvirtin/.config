@@ -27,9 +27,11 @@ Bottom up. A layer only requires layers below it.
 | protocol | `acp/jsonrpc.lua`, `acp/transport.lua`, `acp/connection.lua` | A **Connection** is one agent process serving many sessions. It routes updates and requests by `sessionId`. It covers new, load, list, prompt, cancel and close, and nothing else: no UI and no policy. |
 | events | `events.lua` | Typed events (`message`, `tool_call`, `plan`, `permission`, `stop`, ...) normalized from `session/update`. Views never parse ACP. |
 | agent | `agent.lua` | **Agent** definitions, loaded from tin's `~/.local/share/tin/nvim/agents.json`, with a built-in `claude` as fallback. It spawns the process and reads `$NAME` env values at spawn time. |
-| session | `session.lua` | **Session**: one conversation. Its `history` of events is the source of truth. It provides `subscribe`, `prompt`, `cancel` and `close`, and answers permission requests through `approve`. |
+| session | `session.lua`, `session/*.lua` | **Session**: one conversation, a coordinator over its parts: `History` (events, times, replay and adoption), `PermissionGate` (open requests, cancel), `PromptQueue` (queue, drain, steer), `SessionConfig` (options, modes, commands) and `Subagents` (child sessions). Its `history` is the source of truth. It provides `subscribe`, `prompt`, `enqueue`, `steer`, `cancel` and `close`. |
 | workspace | `workspace.lua` | **Workspace**: the sessions of one directory. It runs one process per agent, shared by that agent's sessions. `list()` merges live sessions with the agent's stored ones (`session/list`), and `load_session` replays a stored one. |
-| hub | `hub.lua` | Every session in the editor. It decides what a session gets (agent, policy, the editor as the `nvim` MCP server) and enforces `max_running` and `max_depth`. It fires `User HarnessEvent`. |
+| store | `session_store.lua` | Every session in the editor, with lifecycle dispatch (`on('start'/'event'/'close')`) that features subscribe to. It fires `User HarnessEvent`. |
+| hub | `hub.lua` | Policy: what a session gets (agent, permissions, the editor as the `nvim` MCP server), `max_running` and `max_depth`. |
+| features | `features/*.lua`, `follow.lua` | Behaviour that reacts to the store: reload buffers after an agent's edit (`EditCheckTime`), follow sessions driven elsewhere. |
 | tools | `tools.lua` | The `session` toolset, which lets an agent run sessions (see below). |
 | ui | `ui/blocks.lua`, `ui/document.lua`, `ui/transcript.lua`, `ui/commands.lua` | Transcripts built from history as blocks, written incrementally and reopenable at any time, and the user's commands. |
 

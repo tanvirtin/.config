@@ -1,6 +1,5 @@
 local lazy = require('core.lazy')
 
-local Buffer = lazy('core.Buffer')
 local FileWatch = lazy('core.FileWatch')
 local Timer = lazy('core.Timer')
 local async = lazy('harness.async')
@@ -81,10 +80,12 @@ local function watch_file(session, follower, path)
   follower.watch:start()
 end
 
-local function visible(session)
-  local bufnr = require('harness.ui.transcript').buffer_of(session)
+local function visible(follower)
+  require('harness.session_store').on('close', function(session)
+    follow.stop(session)
+  end)
 
-  return bufnr ~= nil and #Buffer(bufnr):get_windows() > 0
+  return follower.visible == nil or follower.visible()
 end
 
 local function poll(session, follower)
@@ -99,7 +100,7 @@ local function poll(session, follower)
       return watch_file(session, follower, path)
     end
 
-    if not visible(session) or not session.connection:supports('list') then return end
+    if not visible(follower) or not session.connection:supports('list') then return end
 
     async.run(function()
       for _, entry in ipairs(session.connection:list_sessions(session.dir)) do
@@ -114,10 +115,10 @@ local function poll(session, follower)
   end)
 end
 
-function follow.start(session)
+function follow.start(session, opts)
   if followers[session] or not session.id then return followers[session] end
 
-  local follower = { grace = Timer() }
+  local follower = { grace = Timer(), visible = opts and opts.visible }
   local path = session.agent and session.agent.transcript and session.agent:transcript(session.id)
 
   followers[session] = follower

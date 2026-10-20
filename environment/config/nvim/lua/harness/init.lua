@@ -20,6 +20,7 @@ function harness.setup(opts)
 
   hub.config = vim.tbl_extend('force', hub.config, { ask = ask }, opts or {})
 
+  require('harness.features.EditCheckTime')():register_events()
   require('harness.ui.commands').setup()
 end
 

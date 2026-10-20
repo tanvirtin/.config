@@ -615,7 +615,13 @@ local function create(session, opts)
   })
 
   views[buf] = view
-  follow.start(session)
+  follow.start(session, {
+    visible = function()
+      local buffer = require('core.Buffer')(buf)
+
+      return buffer:is_valid() and #buffer:get_windows() > 0
+    end,
+  })
   render()
 
   return buf

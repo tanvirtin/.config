@@ -38,6 +38,7 @@ local LAYERS = {
   { 'harness.fake_agent', 2 },
   { 'harness.session', 3 },
   { 'harness.workspace', 4 },
+  { 'harness.session_store', 4 },
   { 'harness.hub', 5 },
   { 'harness.tools', 6 },
   { 'harness.follow', 6 },
@@ -53,10 +54,8 @@ local NEOVIM_ALLOWED = {
   ['harness.agent'] = 5,
   ['harness.async'] = 2,
   ['harness.context'] = 7,
-  ['harness.hub'] = 6,
+  ['harness.hub'] = 3,
   ['harness.permissions'] = 3,
-  ['harness.session'] = 8,
-  ['harness.tools'] = 1,
   ['harness.ui.blocks'] = 1,
   ['harness.ui.commands'] = 14,
   ['harness.ui.composer'] = 24,
@@ -67,10 +66,6 @@ local NEOVIM_ALLOWED = {
 }
 
 local UPWARD_ALLOWED = {
-  ['harness.follow -> harness.ui.transcript'] = true,
-  ['harness.hub -> harness.follow'] = true,
-  ['harness.tools -> harness.ui.commands'] = true,
-  ['harness.tools -> harness.ui.composer'] = true,
   ['harness.tools -> harness.ui.transcript'] = true,
 }
 

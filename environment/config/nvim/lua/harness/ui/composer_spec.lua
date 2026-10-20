@@ -386,6 +386,19 @@ describe('harness.ui.composer:', function()
       eq(1, #prompt_ids)
     end)
 
+    it('takes back queued messages however the turn is interrupted, even from the agent\'s session_cancel', function()
+      local notify = vim.notify
+      vim.notify = function() end
+
+      session:enqueue('from the queue')
+      session:cancel()
+      vim.notify = notify
+
+      composer.open(session)
+
+      eq({ 'from the queue' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    end)
+
     it('steers with <C-s>, falling back to the queue when the agent cannot steer', function()
       composer.open(session)
       vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'change course' })

@@ -154,6 +154,7 @@ end
 function event.emit(event_name, data)
   vim.api.nvim_exec_autocmds({ 'User' }, {
     pattern = event_name,
+    modeline = false,
     data = data,
   })
 end
