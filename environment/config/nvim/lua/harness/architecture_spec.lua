@@ -53,7 +53,6 @@ local NEOVIM_ALLOWED = {
   ['harness.agent'] = 5,
   ['harness.async'] = 2,
   ['harness.context'] = 7,
-  ['harness.follow'] = 13,
   ['harness.hub'] = 6,
   ['harness.permissions'] = 3,
   ['harness.session'] = 8,

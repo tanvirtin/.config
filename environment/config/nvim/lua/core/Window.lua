@@ -17,6 +17,26 @@ function Window.set_current(win_id)
   vim.api.nvim_set_current_win(win_id)
 end
 
+function Window.tab_with(buffer)
+  vim.cmd('tab sbuffer ' .. buffer.bufnr)
+  return Window(0)
+end
+
+function Window:split_right(buffer)
+  self:focus()
+  vim.cmd('vertical rightbelow sbuffer ' .. buffer.bufnr)
+
+  return Window(0)
+end
+
+function Window:diff_this()
+  self:call(function()
+    vim.cmd('diffthis')
+  end)
+
+  return self
+end
+
 function Window:constructor(win_id)
   assertion.assert_number(win_id)
   if win_id == 0 then win_id = vim.api.nvim_get_current_win() end

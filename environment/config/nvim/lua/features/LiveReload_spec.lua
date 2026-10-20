@@ -1,18 +1,23 @@
-local watcher = require('core.watcher')
+local Buffer = require('core.Buffer')
+local LiveReload = require('features.LiveReload')
 
 local eq = assert.are.same
 
-describe('core.watcher:', function()
-  it('removes everything it set up on teardown', function()
-    watcher.setup()
-    watcher.teardown()
+describe('features.LiveReload:', function()
+  local live
+  it('removes everything it set up on cleanup', function()
+    local before = #vim.api.nvim_get_autocmds({ event = 'FileChangedShell' })
+    local other = LiveReload():register_events()
 
-    eq(0, watcher.count())
-    eq(0, #vim.api.nvim_get_autocmds({ event = 'FileChangedShell' }))
+    eq(before + 1, #vim.api.nvim_get_autocmds({ event = 'FileChangedShell' }))
+    other:cleanup()
+
+    eq(0, other:count())
+    eq(before, #vim.api.nvim_get_autocmds({ event = 'FileChangedShell' }))
     eq(nil, vim.api.nvim_get_commands({}).DiffDisk)
   end)
 
-  local dir, max
+  local dir
 
   local function file(name, lines)
     local path = dir .. '/' .. name
@@ -30,27 +35,25 @@ describe('core.watcher:', function()
   end
 
   local function settle(ms)
-    vim.wait(ms or (watcher.DEBOUNCE_MS * 4))
+    vim.wait(ms or (LiveReload.DEBOUNCE_MS * 4))
   end
 
   before_each(function()
     dir = vim.fn.tempname()
     vim.fn.mkdir(dir, 'p')
-    max = watcher.MAX
-    watcher.setup()
+    live = LiveReload():register_events()
   end)
 
   after_each(function()
-    watcher.MAX = max
     vim.cmd('silent! %bwipeout!')
-    watcher.teardown()
+    live:cleanup()
     vim.fn.delete(dir, 'rf')
   end)
 
   it('reloads a buffer when another program writes its file, without being asked', function()
     local buf = edit(file('a.lua', { 'local a = 1' }))
 
-    eq(true, watcher.is_watching(buf))
+    eq(true, live:is_watching(Buffer(buf)))
 
     vim.fn.writefile({ 'local a = 2', 'local b = 3' }, dir .. '/a.lua')
     vim.wait(2000, function()
@@ -75,7 +78,7 @@ describe('core.watcher:', function()
       eq({ 'version ' .. i }, lines(buf))
     end
 
-    eq(true, watcher.is_watching(buf))
+    eq(true, live:is_watching(Buffer(buf)))
   end)
 
   it('briefly marks the lines an outside edit changed', function()
@@ -86,7 +89,7 @@ describe('core.watcher:', function()
       return lines(buf)[2] == 'B'
     end)
 
-    local marks = vim.api.nvim_buf_get_extmarks(buf, watcher.NAMESPACE, 0, -1, {})
+    local marks = vim.api.nvim_buf_get_extmarks(buf, LiveReload.NAMESPACE, 0, -1, {})
 
     eq(1, #marks)
     eq(1, marks[1][2])
@@ -103,7 +106,7 @@ describe('core.watcher:', function()
 
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'mine' })
     vim.fn.writefile({ 'theirs' }, dir .. '/d.lua')
-    settle(watcher.DEBOUNCE_MS * 6)
+    settle(LiveReload.DEBOUNCE_MS * 6)
     vim.cmd('checktime')
     vim.cmd('checktime')
     vim.notify = notify
@@ -118,7 +121,7 @@ describe('core.watcher:', function()
     local tabs = #vim.api.nvim_list_tabpages()
 
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'mine' })
-    watcher.diff_disk(buf)
+    live:diff_disk(Buffer(buf))
 
     eq(tabs + 1, #vim.api.nvim_list_tabpages())
     eq({ 'disk' }, lines(0))
@@ -134,32 +137,35 @@ describe('core.watcher:', function()
     vim.api.nvim_buf_set_name(acwrite, dir .. '/composer')
 
     for _, buf in ipairs({ scratch, acwrite }) do
-      watcher.start(buf)
-      eq(false, watcher.is_watching(buf))
+      live:start(Buffer(buf))
+      eq(false, live:is_watching(Buffer(buf)))
     end
 
     vim.cmd('edit ' .. dir .. '/new.lua')
-    eq(false, watcher.is_watching(vim.api.nvim_get_current_buf()))
+    eq(false, live:is_watching(Buffer(0)))
 
     vim.cmd('write')
-    eq(true, watcher.is_watching(vim.api.nvim_get_current_buf()))
+    eq(true, live:is_watching(Buffer(0)))
   end)
 
-  it('leaves no watcher behind when a buffer is unloaded, deleted or wiped', function()
-    local before = watcher.count()
+  it('leaves no watch behind when a buffer is unloaded, deleted or wiped', function()
+    local before = live:count()
     local a = edit(file('f.lua', { 'f' }))
     local b = edit(file('g.lua', { 'g' }))
     local c = edit(file('h.lua', { 'h' }))
 
-    eq(before + 3, watcher.count())
+    eq(before + 3, live:count())
 
     vim.cmd('enew')
     vim.cmd('bunload ' .. a)
     vim.cmd('bdelete ' .. b)
     vim.cmd('bwipeout ' .. c)
 
-    eq(before, watcher.count())
-    eq({ false, false, false }, { watcher.is_watching(a), watcher.is_watching(b), watcher.is_watching(c) })
+    eq(before, live:count())
+    eq(
+      { false, false, false },
+      { live:is_watching(Buffer(a)), live:is_watching(Buffer(b)), live:is_watching(Buffer(c)) }
+    )
   end)
 
   it('follows a buffer renamed with :saveas', function()
@@ -175,8 +181,8 @@ describe('core.watcher:', function()
   end)
 
   it('caps how many files it watches, dropping the least recently used', function()
-    watcher.stop_all()
-    watcher.MAX = 3
+    live:stop_all()
+    live.max = 3
 
     local bufs = {}
 
@@ -184,14 +190,19 @@ describe('core.watcher:', function()
       bufs[i] = edit(file('cap' .. i .. '.lua', { tostring(i) }))
     end
 
-    eq(3, watcher.count())
-    eq({ false, false, true, true, true }, vim.tbl_map(watcher.is_watching, bufs))
+    eq(3, live:count())
+    eq(
+      { false, false, true, true, true },
+      vim.tbl_map(function(b)
+        return live:is_watching(Buffer(b))
+      end, bufs)
+    )
 
     vim.cmd('buffer ' .. bufs[1])
 
-    eq(3, watcher.count())
-    eq(true, watcher.is_watching(bufs[1]))
-    eq(false, watcher.is_watching(bufs[3]))
+    eq(3, live:count())
+    eq(true, live:is_watching(Buffer(bufs[1])))
+    eq(false, live:is_watching(Buffer(bufs[3])))
   end)
 
   it('stops watching a file that was deleted, and says so', function()
@@ -205,11 +216,11 @@ describe('core.watcher:', function()
 
     vim.fn.delete(dir .. '/j.lua')
     vim.wait(2000, function()
-      return not watcher.is_watching(buf)
+      return not live:is_watching(Buffer(buf))
     end)
     vim.notify = notify
 
-    eq(false, watcher.is_watching(buf))
+    eq(false, live:is_watching(Buffer(buf)))
     eq({ 'j' }, lines(buf))
     assert.is_truthy(messages[1] and messages[1]:find('deleted', 1, true))
   end)

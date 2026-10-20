@@ -150,6 +150,43 @@ function Buffer:is_current()
   return self.bufnr == vim.api.nvim_get_current_buf()
 end
 
+function Buffer.namespace(name)
+  return vim.api.nvim_create_namespace(name)
+end
+
+function Buffer:get_windows()
+  local Window = require('core.Window')
+
+  return vim.tbl_map(Window, vim.fn.win_findbuf(self.bufnr))
+end
+
+function Buffer:is_loaded()
+  return self:is_valid() and vim.api.nvim_buf_is_loaded(self.bufnr)
+end
+
+function Buffer:get_changedtick()
+  return vim.api.nvim_buf_get_changedtick(self.bufnr)
+end
+
+function Buffer:checktime()
+  vim.cmd.checktime(self.bufnr)
+  return self
+end
+
+function Buffer:set_extmark(namespace, row, col, opts)
+  local ok, id = pcall(vim.api.nvim_buf_set_extmark, self.bufnr, namespace, row, col, opts)
+  return ok and id or nil
+end
+
+function Buffer:get_extmarks(namespace, from, to, opts)
+  return vim.api.nvim_buf_get_extmarks(self.bufnr, namespace, from or 0, to or -1, opts or {})
+end
+
+function Buffer:clear_namespace(namespace, from, to)
+  if self:is_valid() then vim.api.nvim_buf_clear_namespace(self.bufnr, namespace, from or 0, to or -1) end
+  return self
+end
+
 function Buffer:is_valid()
   local bufnr = self.bufnr
   return vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr)

@@ -27,6 +27,6 @@ autocmd({ 'FocusGained', 'BufEnter', 'CursorHold', 'CursorHoldI' }, {
   command = 'checktime',
 })
 
-require('core.watcher').setup()
+require('features.LiveReload')():register_events()
 
 require('core.shutdown').setup()

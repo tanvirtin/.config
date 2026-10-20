@@ -121,6 +121,22 @@ function event.defer(fn, ms)
   return timer
 end
 
+function event.command(name, callback, opts)
+  vim.api.nvim_create_user_command(name, callback, opts or {})
+
+  return function()
+    pcall(vim.api.nvim_del_user_command, name)
+  end
+end
+
+function event.file_changed_reason()
+  return vim.v.fcs_reason
+end
+
+function event.answer_file_changed(choice)
+  vim.v.fcs_choice = choice
+end
+
 function event.custom_on(event_name, callback)
   local uuid = utils_math.uuid()
   local group_name = event.group .. '::custom::' .. event_name .. '::' .. uuid
