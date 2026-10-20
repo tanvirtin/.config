@@ -202,8 +202,8 @@ function events.from_update(update)
   return convert and convert(update) or nil
 end
 
-function events.prompt(text)
-  return { kind = 'prompt', text = text }
+function events.prompt(text, opts)
+  return { kind = 'prompt', text = text, steered = opts and opts.steered or nil }
 end
 
 function events.permission(tool, allowed)

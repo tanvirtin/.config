@@ -319,4 +319,46 @@ describe('harness.ui.blocks:', function()
       eq(1, list[2].nested)
     end)
   end)
+
+  describe('steering and late tool updates', function()
+    it('keeps a steered prompt in the turn it steered, timing the turn from its first prompt', function()
+      local history = {
+        events.prompt('run the long thing'),
+        { kind = 'tool_call', id = 't1', name = 'Bash', status = Block.STATUS.pending, diffs = {} },
+        events.prompt('skip it', { steered = true }),
+        { kind = 'tool_update', id = 't1', status = Block.STATUS.completed, diffs = {} },
+        { kind = 'message', text = 'skipped' },
+        events.stop('end_turn'),
+      }
+      local list = blocks.build(history, nil, { times = { 0, 1000, 5000, 6000, 7000, 9000 } })
+
+      eq({
+        Block.KIND.title,
+        Block.KIND.prompt,
+        Block.KIND.tool,
+        Block.KIND.prompt,
+        Block.KIND.message,
+        Block.KIND.stop,
+      }, kinds(list))
+      eq(true, list[4].steered)
+      eq(Block.STATUS.completed, list[3].status)
+      eq(9000, list[6].duration)
+    end)
+
+    it('rebuilds a finished turn whose tool completes during a later turn', function()
+      local cache = {}
+      local history = {
+        events.prompt('start a background job'),
+        { kind = 'tool_call', id = 'bg', name = 'Bash', status = Block.STATUS.in_progress, diffs = {} },
+        events.stop('end_turn'),
+        events.prompt('anything new?'),
+      }
+
+      eq(Block.STATUS.in_progress, blocks.build(history, nil, { cache = cache })[3].status)
+
+      history[#history + 1] = { kind = 'tool_update', id = 'bg', status = Block.STATUS.completed, diffs = {} }
+
+      eq(Block.STATUS.completed, blocks.build(history, nil, { cache = cache })[3].status)
+    end)
+  end)
 end)

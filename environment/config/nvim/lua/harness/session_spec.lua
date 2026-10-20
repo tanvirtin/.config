@@ -408,7 +408,7 @@ describe('harness.session:', function()
       eq('injected', result.outcome)
       eq('look at b instead', steer.params.prompt[1].text)
       eq('promptRequired', steer.params._meta.steering.idleBehavior)
-      eq({ kind = 'prompt', text = 'look at b instead' }, session.history[#session.history])
+      eq({ kind = 'prompt', text = 'look at b instead', steered = true }, session.history[#session.history])
       eq({}, session:queued())
     end)
 
@@ -448,6 +448,7 @@ describe('harness.session:', function()
       eq(1, #vim.tbl_filter(function(event)
         return event.kind == 'prompt'
       end, session.history))
+      eq(nil, session.history[1].steered)
     end)
   end)
 

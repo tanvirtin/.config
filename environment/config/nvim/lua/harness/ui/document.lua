@@ -123,9 +123,11 @@ local DECORATE = {}
 Document.SEPARATOR_WIDTH = 400
 
 function DECORATE.prompt(self, block)
-  local header = { { { ' ' .. Document.USER_ICON .. 'You', 'UiSpeakerUser' } } }
+  local header = {
+    { { ' ' .. Document.USER_ICON .. 'You', 'UiSpeakerUser' }, block.steered and { ' · steered', 'UiMuted' } or nil },
+  }
 
-  if not block.first then
+  if not block.first and not block.steered then
     table.insert(header, 1, { { string.rep('─', Document.SEPARATOR_WIDTH), 'UiTurnSeparator' } })
   end
 

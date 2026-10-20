@@ -206,13 +206,36 @@ local function open_fence(lines)
   return unclosed and unclosed[3] or nil
 end
 
-local function tool_states(history, from, to)
-  local states = {}
+local TOOL = { tool_call = true, tool_update = true }
+
+local function tool_indices(history, from, to, updates)
+  local indices, own = {}, {}
 
   for i = from, to do
     local event = history[i]
 
-    if event.kind == 'tool_call' or event.kind == 'tool_update' then
+    if TOOL[event.kind] then indices[#indices + 1] = i end
+    if event.kind == 'tool_call' then own[event.id] = true end
+  end
+
+  for id in pairs(own) do
+    for _, i in ipairs(updates and updates[id] or {}) do
+      if i > to then indices[#indices + 1] = i end
+    end
+  end
+
+  table.sort(indices)
+
+  return indices
+end
+
+local function tool_states(history, from, to, updates)
+  local states = {}
+
+  for _, i in ipairs(tool_indices(history, from, to, updates)) do
+    local event = history[i]
+
+    if TOOL[event.kind] then
       local state = states[event.id] or { started = i, input = {} }
 
       for _, key in ipairs({ 'title', 'name', 'category', 'status', 'locations', 'output' }) do
@@ -343,10 +366,10 @@ local STOP_REASONS = {
 
 blocks.STOP_REASONS = STOP_REASONS
 
-local function build_turn(history, from, to, opts, last_turn)
+local function build_turn(history, from, to, opts, last_turn, updates)
   local times = opts.times or {}
   local list = {}
-  local states = tool_states(history, from, to)
+  local states = tool_states(history, from, to, updates)
   local plans = last_plans(history, from, to)
   local diffs_shown = {}
   local turn = { tools = 0 }
@@ -407,8 +430,8 @@ local function build_turn(history, from, to, opts, last_turn)
 
   local BUILD = {
     prompt = function(event, i)
-      turn = { tools = 0, started = times[i] }
-      add(Block.KIND.prompt, quoted(vim.trim(context.strip(event.text))), { first = i == 1 })
+      if not event.steered then turn = { tools = 0, started = times[i] } end
+      add(Block.KIND.prompt, quoted(vim.trim(context.strip(event.text))), { first = i == 1, steered = event.steered })
       opens = true
     end,
     message = function(event, i)
@@ -526,10 +549,32 @@ local function turn_starts(history)
   local starts = { 1 }
 
   for i, event in ipairs(history) do
-    if (event.kind == 'prompt' or event.kind == 'user') and i > 1 then starts[#starts + 1] = i end
+    if (event.kind == 'prompt' or event.kind == 'user') and not event.steered and i > 1 then starts[#starts + 1] = i end
   end
 
   return starts
+end
+
+local function invalidate(history, cache, starts)
+  local owners = cache.owners or {}
+
+  cache.owners = owners
+
+  for n, from in ipairs(starts) do
+    local to = (starts[n + 1] or #history + 1) - 1
+
+    if not cache[from] then
+      for i = from, to do
+        local event = history[i]
+
+        if event.kind == 'tool_call' then
+          owners[event.id] = from
+        elseif event.kind == 'tool_update' and owners[event.id] and owners[event.id] ~= from then
+          cache[owners[event.id]] = nil
+        end
+      end
+    end
+  end
 end
 
 function blocks.build(history, title, opts)
@@ -538,6 +583,17 @@ function blocks.build(history, title, opts)
   local list = { Block(Block.KIND.title, { '# ' .. compact.line(title or 'Harness', 200) }) }
   local starts = turn_starts(history)
   local cache = opts.cache
+
+  if cache then invalidate(history, cache, starts) end
+
+  local updates = {}
+
+  for i, event in ipairs(history) do
+    if event.kind == 'tool_update' then
+      updates[event.id] = updates[event.id] or {}
+      table.insert(updates[event.id], i)
+    end
+  end
 
   for n, from in ipairs(starts) do
     local to = (starts[n + 1] or #history + 1) - 1
@@ -548,7 +604,7 @@ function blocks.build(history, title, opts)
     if cached and cached.to == to and not last_turn then
       turn = cached.blocks
     else
-      turn = build_turn(history, from, to, opts, last_turn)
+      turn = build_turn(history, from, to, opts, last_turn, updates)
       if cache and not last_turn then cache[from] = { to = to, blocks = turn } end
     end
 

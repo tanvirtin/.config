@@ -262,6 +262,25 @@ describe('harness.ui.document:', function()
     eq({ ' ' .. Document.AGENT_ICON .. 'Claude' }, above(reply.start))
     eq(string.rep('─', Document.SEPARATOR_WIDTH), above(second.start)[1])
     eq(' ' .. Document.USER_ICON .. 'You', above(second.start)[2])
+
+    events.append(history, events.prompt('change course', { steered = true }))
+    document:write(blocks.build(history), { agent = 'Claude' })
+
+    local marks = vim.api.nvim_buf_get_extmarks(
+      buf,
+      Document.NAMESPACE,
+      { document.blocks[5].start, 0 },
+      { document.blocks[5].start, -1 },
+      { details = true }
+    )
+    local lines
+
+    for _, mark in ipairs(marks) do
+      if mark[4].virt_lines_above then lines = mark[4].virt_lines end
+    end
+
+    eq(1, #lines)
+    eq(' · steered', lines[1][2][1])
   end)
 
   it('says when a running turn is waiting for permission, on the tool and the working line', function()

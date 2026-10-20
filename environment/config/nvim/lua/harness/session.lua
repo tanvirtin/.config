@@ -431,7 +431,9 @@ function Session:steer(text, context)
 
   if self.state ~= 'running' or not self.connection:steering() then return self:enqueue(text, context) end
 
-  self:_emit(events.prompt(text))
+  self:_emit(events.prompt(text, { steered = true }))
+
+  local steered = self.history[#self.history]
 
   local blocks = blocks_of(text, context)
 
@@ -439,6 +441,9 @@ function Session:steer(text, context)
     local result = self.connection:steer(self.id, blocks)
 
     if type(result) == 'table' and result.outcome == 'promptRequired' then
+      steered.steered = nil
+      self:_notify({ kind = 'reset' })
+
       if self.state == 'running' then
         self.queue[#self.queue + 1] = { text = text, context = context, shown = true }
         self:_notify({ kind = 'queue' })
