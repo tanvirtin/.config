@@ -560,4 +560,84 @@ describe('harness.session:', function()
       eq({ 'acceptEdits', 'plan', 'default' }, seen)
     end)
   end)
+
+  describe('sub-agents', function()
+    local function spawn(agent)
+      agent:push(
+        fake_agent.update(
+          's1',
+          { sessionUpdate = 'subagent_update', sessionId = 'c1', title = 'Explore', state = { state = 'running' } }
+        )
+      )
+    end
+
+    it('follows a child session, filing its work under the tool call that started it', function()
+      local session, agent = session_with()
+
+      spawn(agent)
+      agent:push(fake_agent.update('c1', { sessionUpdate = 'session_message', messageId = 'task1', content = {} }))
+      agent:push(
+        fake_agent.update(
+          'c1',
+          { sessionUpdate = 'agent_message_chunk', content = { type = 'text', text = 'two files' } }
+        )
+      )
+      agent:push(fake_agent.update('s1', {
+        sessionUpdate = 'subagent_update',
+        sessionId = 'c1',
+        state = { state = 'idle', stopReason = 'end_turn' },
+      }))
+
+      eq({ { kind = 'message', text = 'two files', parent = 'task1' } }, session.history)
+      eq({ id = 'c1', tool = 'task1', title = 'Explore', state = 'idle', stop = 'end_turn' }, session.children.c1)
+    end)
+
+    it('takes the tool call from the child\'s own updates when it has no delegation message', function()
+      local session, agent = session_with()
+
+      spawn(agent)
+      agent:push(fake_agent.update('c1', {
+        sessionUpdate = 'tool_call',
+        toolCallId = 'inner',
+        title = 'ls',
+        _meta = { claudeCode = { toolName = 'Bash', parentToolUseId = 'task1' } },
+      }))
+      agent:push(
+        fake_agent.update('c1', { sessionUpdate = 'agent_message_chunk', content = { type = 'text', text = 'done' } })
+      )
+
+      eq('task1', session.history[1].parent)
+      eq('task1', session.history[2].parent)
+    end)
+
+    it('asks the child\'s permission requests through the parent, and stops listening when closed', function()
+      local asked
+      local session, agent = session_with({}, function(request)
+        asked = request.tool
+        return 'allow_once'
+      end)
+
+      spawn(agent)
+      agent:push(fake_agent.permission('c1', 'Bash', 'perm-c1'))
+
+      eq('Bash', asked)
+      eq(
+        'allow',
+        agent:find(function(message)
+          return message.id == 'perm-c1' and message.result ~= nil
+        end).result.outcome.optionId
+      )
+
+      session:close()
+      agent:push(
+        fake_agent.update('c1', { sessionUpdate = 'agent_message_chunk', content = { type = 'text', text = 'late' } })
+      )
+      eq(
+        nil,
+        vim.tbl_filter(function(event)
+          return event.text == 'late'
+        end, session.history)[1]
+      )
+    end)
+  end)
 end)

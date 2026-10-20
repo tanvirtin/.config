@@ -49,6 +49,12 @@ A session is a buffer: `harness://h3 <title>`, listed like any other buffer. Ses
 - **New sessions.** `<leader>an` or `:HarnessNew` starts a new session, which is simply a new buffer.
 - **Prompting.** `:Harness <prompt>` asks the session you're in, or the one you were in last, and opens it in the current window. The editor tools keep acting on the buffer you came from, even while the session buffer covers it.
 
+## Sub-agents
+
+The client declares `subagents` (the ACP sub-agent RFD). When an agent reports a child session (`subagent_update`), the parent follows it: the child's updates, and its permission requests, come through the parent session, filed under the tool call that started the child (from its `session_message` id, or the child's `parentToolUseId`). Agents that only tag work with `_meta.<vendor>.parentToolUseId` nest the same way.
+
+In the transcript the child's tools and report sit under its Agent/Task call behind a `│` gutter, folded as one (`zo` opens it, its own folds sit one level deeper), and the call counts the tools the child ran.
+
 ## Modes, options and commands
 
 Agents describe their settings as ACP config options (`configOptions`: mode, model, effort, …), or only as session `modes`. Both are kept on the session, not in the history, and follow `config_option_update` and `current_mode_update`.
@@ -205,6 +211,7 @@ In a transcript:
 | Output under `⎿`, the first 5 lines shown and the rest folded | commands, searches and fetches; failures show their error. Output is shown verbatim: its fence is longer than any backtick run in it |
 | `Edit a.lua +2 -2`, then the diff with file line numbers, diff colours and the file's own syntax colours | edits. Numbers come from finding the edit in the file, and are left off when it can't be found |
 | `[!thought]` callout with how long it took, folded | thoughts |
+| `󰄬 Agent List files   2 tools`, then the sub-agent's tools and report under a `│` gutter, folded as one | sub-agents (Agent/Task calls) |
 | `󰄬 Done in 12s · 3 tools` | the end of each turn: done, interrupted, or a limit hit |
 | `⠋ Working · 12s · <C-c> interrupt` under the last line | a running turn |
 | `󰀦 Waiting for you: Edit a.lua` on the tool and the working line, and a notification when the transcript is out of sight | a permission request waiting for an answer |

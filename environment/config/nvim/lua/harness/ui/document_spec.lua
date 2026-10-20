@@ -285,4 +285,60 @@ describe('harness.ui.document:', function()
     assert.is_truthy(texts(document.blocks[3].start):find(Document.WAITING_ICON[1], 1, true))
     assert.is_truthy(texts(document.blocks[3].start):find('waiting for you', 1, true))
   end)
+
+  it('draws a sub-agent\'s work with a gutter, folded as one under its tool, with deeper folds inside', function()
+    local output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, 10)), '\n')
+
+    history = {}
+    events.append(history, { kind = 'tool_call', id = 'task1', name = 'Task', diffs = {} })
+    events.append(
+      history,
+      { kind = 'tool_call', id = 'inner', name = 'Bash', category = 'execute', parent = 'task1', diffs = {} }
+    )
+    events.append(
+      history,
+      { kind = 'tool_update', id = 'inner', status = Block.STATUS.completed, output = output, diffs = {} }
+    )
+    events.append(history, { kind = 'message', text = 'report', parent = 'task1' })
+    events.append(history, { kind = 'message', text = 'parent done' })
+    document:write(blocks.build(history))
+
+    local task, inner, report, after = document.blocks[2], document.blocks[3], document.blocks[4], document.blocks[5]
+
+    assert.is_truthy(texts(inner.start):find(Document.GUTTER, 1, true))
+    assert.is_truthy(texts(report.start):find(Document.GUTTER, 1, true))
+    assert.is_falsy(texts(task.start):find(Document.GUTTER, 1, true))
+    assert.is_truthy(texts(task.start):find('1 tool', 1, true))
+
+    history[#history + 1] =
+      { kind = 'tool_call', id = 'read', name = 'Read', category = 'read', parent = 'task1', diffs = {} }
+    history[#history + 1] =
+      { kind = 'tool_update', id = 'read', status = Block.STATUS.completed, output = 'a\nb', diffs = {} }
+    document:write(blocks.build(history))
+
+    local read = document.blocks[#document.blocks]
+    local summary
+
+    for _, mark in
+      ipairs(
+        vim.api.nvim_buf_get_extmarks(
+          buf,
+          Document.NAMESPACE,
+          { read.start, 0 },
+          { read.start, -1 },
+          { details = true }
+        )
+      )
+    do
+      if mark[4].virt_lines then summary = mark[4].virt_lines[1] end
+    end
+
+    eq(Document.GUTTER, summary[1][1])
+
+    eq('>1', document:fold_level(inner.start))
+    eq('1', document:fold_level(inner.start + 1))
+    eq('>2', document:fold_level(inner.start + 2 + Block.PREVIEW))
+    eq('1', document:fold_level(report.start))
+    eq('0', document:fold_level(after.start))
+  end)
 end)

@@ -181,7 +181,7 @@ end
 function Connection:initialize()
   local result = async.await(self:request('initialize', {
     protocolVersion = Connection.PROTOCOL_VERSION,
-    clientCapabilities = vim.empty_dict(),
+    clientCapabilities = { subagents = vim.empty_dict() },
   }))
 
   self.capabilities = (result and result.agentCapabilities) or {}

@@ -220,6 +220,7 @@ local function tool_states(history, from, to)
       end
 
       if event.diffs and #event.diffs > 0 then state.diffs = event.diffs end
+      state.parent = state.parent or event.parent
 
       for key, value in pairs(event.input or {}) do
         state.input[key] = value
@@ -363,14 +364,14 @@ local function build_turn(history, from, to, opts, last_turn)
     return list[#list]
   end
 
-  local function stream(kind, text, i)
+  local function stream(kind, text, i, parent)
     local last = list[#list]
 
-    if last and last.kind == kind then
+    if last and last.kind == kind and last.parent == parent then
       last.text = last.text .. text
       last.last_event = i
     else
-      add(kind, {}, { text = text, first_event = i, last_event = i })
+      add(kind, {}, { text = text, first_event = i, last_event = i, parent = parent, depth = parent and 1 or nil })
     end
   end
 
@@ -391,6 +392,8 @@ local function build_turn(history, from, to, opts, last_turn)
         added = added,
         removed = removed,
         status = state.status,
+        parent = state.parent,
+        depth = state.parent and 1 or nil,
       })
 
       if tool then
@@ -409,10 +412,10 @@ local function build_turn(history, from, to, opts, last_turn)
       opens = true
     end,
     message = function(event, i)
-      stream(Block.KIND.message, event.text, i)
+      stream(Block.KIND.message, event.text, i, event.parent)
     end,
     thought = function(event, i)
-      stream(Block.KIND.thought, event.text, i)
+      stream(Block.KIND.thought, event.text, i, event.parent)
     end,
     tool_call = function(event)
       local state = states[event.id] or { input = {} }
@@ -447,7 +450,13 @@ local function build_turn(history, from, to, opts, last_turn)
         started = times[state.started],
         finished = state.finished and times[state.finished] or nil,
         folds = folds,
+        parent = state.parent,
+        depth = state.parent and 1 or nil,
       })
+
+      if state.parent and tools[state.parent] then
+        tools[state.parent].nested = (tools[state.parent].nested or 0) + 1
+      end
 
       tools[event.id] = tool
       show_diffs(event.id, tool)

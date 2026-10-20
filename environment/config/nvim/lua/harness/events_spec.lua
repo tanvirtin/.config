@@ -145,6 +145,36 @@ describe('harness.events:', function()
       )
     end)
 
+    it('reads which tool call an update belongs to, from any agent\'s _meta', function()
+      eq('task1', events.parent_of({ _meta = { claudeCode = { parentToolUseId = 'task1' } } }))
+      eq('task2', events.parent_of({ _meta = { other = { parentToolUseId = 'task2' } } }))
+      eq(nil, events.parent_of({}))
+
+      local chunk = events.from_update({
+        sessionUpdate = 'agent_message_chunk',
+        content = { type = 'text', text = 'found it' },
+        _meta = { claudeCode = { parentToolUseId = 'task1' } },
+      })
+
+      eq({ kind = 'message', text = 'found it', parent = 'task1' }, chunk)
+    end)
+
+    it('reads sub-agent state and the delegation that started one', function()
+      eq(
+        { kind = 'subagent', child = 'c1', title = 'Explore', state = 'idle', stop = 'end_turn' },
+        events.from_update({
+          sessionUpdate = 'subagent_update',
+          sessionId = 'c1',
+          title = 'Explore',
+          state = { state = 'idle', stopReason = 'end_turn' },
+        })
+      )
+      eq(
+        { kind = 'delegation', message = 'task1' },
+        events.from_update({ sessionUpdate = 'session_message', messageId = 'task1' })
+      )
+    end)
+
     it('skips updates no view needs', function()
       eq(nil, events.from_update({ sessionUpdate = 'session_info_update', _meta = {} }))
       eq(nil, events.from_update({ sessionUpdate = 'agent_message_chunk', content = { type = 'image' } }))
@@ -166,6 +196,16 @@ describe('harness.events:', function()
         { kind = 'thought', text = 'c' },
         { kind = 'message', text = 'd' },
       }, history)
+    end)
+
+    it('never joins text from different tool calls', function()
+      local history = {}
+
+      events.append(history, { kind = 'message', text = 'a' })
+      events.append(history, { kind = 'message', text = 'b', parent = 'task1' })
+      events.append(history, { kind = 'message', text = 'c', parent = 'task1' })
+
+      eq({ { kind = 'message', text = 'a' }, { kind = 'message', text = 'bc', parent = 'task1' } }, history)
     end)
 
     it('keeps prompts apart and stores copies', function()

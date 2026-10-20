@@ -244,4 +244,17 @@ describe('harness.acp.connection:', function()
       eq({ outcome = 'cancelled' }, Connection.permission_outcome(options, nil))
     end)
   end)
+
+  it('tells the agent it can follow sub-agent sessions', function()
+    local fake = require('harness.fake_agent').new()
+    local connection = Connection(fake)
+
+    require('harness.async')
+      .run(function()
+        connection:initialize()
+      end)
+      :wait()
+
+    eq('table', type(fake:sent_method('initialize').params.clientCapabilities.subagents))
+  end)
 end)

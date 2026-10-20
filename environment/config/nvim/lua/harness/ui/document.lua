@@ -26,6 +26,9 @@ Document.STOP_ICONS = {
 
 Document.PRIORITY = 300
 
+Document.GUTTER = '  │ '
+Document.GUTTER_PRIORITY = 10
+
 Document.USER_ICON = '󰀄 '
 Document.AGENT_ICON = '󰚩 '
 
@@ -153,7 +156,12 @@ function DECORATE.tool(self, block)
 
   local tail = {}
 
+  if block.nested then
+    tail[#tail + 1] = { string.format('%d tool%s', block.nested, block.nested == 1 and '' or 's'), 'UiMuted' }
+  end
+
   if block.added or block.removed then
+    if #tail > 0 then tail[#tail + 1] = { '  ' } end
     tail[#tail + 1] = { '+' .. (block.added or 0), 'UiAdded' }
     tail[#tail + 1] = { ' ' }
     tail[#tail + 1] = { '-' .. (block.removed or 0), 'UiRemoved' }
@@ -187,7 +195,13 @@ function DECORATE.tool(self, block)
   elseif FINISHED[block.status] and SUMMARY[block.category] then
     local summary = SUMMARY[block.category](block)
 
-    if summary then self:_mark(row, 0, { virt_lines = { { { '  ⎿ ', 'UiMuted' }, { summary, 'UiMuted' } } } }) end
+    if summary then
+      local line = { { '  ⎿ ', 'UiMuted' }, { summary, 'UiMuted' } }
+
+      if block.depth then table.insert(line, 1, { Document.GUTTER, 'UiMuted' }) end
+
+      self:_mark(row, 0, { virt_lines = { line } })
+    end
   end
 end
 
@@ -399,6 +413,16 @@ function Document:_decorate(block)
 
   if DECORATE[block.kind] then DECORATE[block.kind](self, block) end
 
+  if block.depth then
+    for row = block.start, block.finish - 1 do
+      self:_mark(row, 0, {
+        virt_text = { { Document.GUTTER, 'UiMuted' } },
+        virt_text_pos = 'inline',
+        priority = Document.GUTTER_PRIORITY,
+      })
+    end
+  end
+
   if block.opens_reply then
     self:_mark(block.start, 0, {
       virt_lines = { { { ' ' .. Document.AGENT_ICON .. (self.state.agent or 'Agent'), 'UiSpeakerAgent' } } },
@@ -504,13 +528,24 @@ function Document:fold_level(row)
 
   if not block or row < block.start or row >= block.finish then return '0' end
 
+  local base = block.depth or 0
+
   for _, fold in ipairs(block.folds or {}) do
     local from, to = block.start + fold[1], block.start + fold[2]
 
     if to > from then
-      if row == from then return '>1' end
-      if row > from and row <= to then return '1' end
+      if row == from then return '>' .. (base + 1) end
+      if row > from and row <= to then return tostring(base + 1) end
     end
+  end
+
+  if base > 0 then
+    local previous = block.index and self.blocks[block.index - 1]
+    local opens = not previous or previous.parent ~= block.parent
+
+    if opens and row == block.start then return '>' .. base end
+
+    return tostring(base)
   end
 
   return '0'
@@ -538,6 +573,10 @@ function Document:write(list, state)
   end
 
   self.blocks = list
+
+  for i, block in ipairs(list) do
+    block.index = i
+  end
 
   if changed then
     local from = keep > 0 and list[keep].finish or 0

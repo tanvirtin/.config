@@ -63,6 +63,16 @@ local function input(update)
   return type(update.rawInput) == 'table' and next(update.rawInput) ~= nil and update.rawInput or nil
 end
 
+function events.parent_of(update)
+  local meta = type(update) == 'table' and update._meta or nil
+
+  if type(meta) ~= 'table' then return nil end
+
+  for _, vendor in pairs(meta) do
+    if type(vendor) == 'table' and str(vendor.parentToolUseId) then return vendor.parentToolUseId end
+  end
+end
+
 function events.tool_name(call)
   local meta = type(call) == 'table' and call._meta or nil
 
@@ -80,12 +90,31 @@ end
 local FROM_UPDATE = {
   agent_message_chunk = function(update)
     local text = text_of(update)
-    return text and { kind = 'message', text = text }
+    return text and { kind = 'message', text = text, parent = events.parent_of(update) }
   end,
 
   agent_thought_chunk = function(update)
     local text = text_of(update)
-    return text and { kind = 'thought', text = text }
+    return text and { kind = 'thought', text = text, parent = events.parent_of(update) }
+  end,
+
+  subagent_update = function(update)
+    local state = type(update.state) == 'table' and update.state or {}
+
+    return str(update.sessionId)
+        and {
+          kind = 'subagent',
+          child = update.sessionId,
+          title = str(update.title),
+          description = str(update.description),
+          state = str(state.state),
+          stop = str(state.stopReason),
+        }
+      or nil
+  end,
+
+  session_message = function(update)
+    return { kind = 'delegation', message = str(update.messageId) }
   end,
 
   user_message_chunk = function(update)
@@ -97,6 +126,7 @@ local FROM_UPDATE = {
     return {
       kind = 'tool_call',
       id = update.toolCallId,
+      parent = events.parent_of(update),
       name = events.tool_name(update),
       category = str(update.kind),
       title = str(update.title),
@@ -111,6 +141,7 @@ local FROM_UPDATE = {
     return {
       kind = 'tool_update',
       id = update.toolCallId,
+      parent = events.parent_of(update),
       name = events.tool_name(update),
       category = str(update.kind),
       title = str(update.title),
@@ -190,7 +221,7 @@ end
 function events.append(history, event)
   local last = history[#history]
 
-  if events.TEXT[event.kind] and last and last.kind == event.kind then
+  if events.TEXT[event.kind] and last and last.kind == event.kind and last.parent == event.parent then
     last.text = last.text .. event.text
   else
     history[#history + 1] = vim.deepcopy(event)

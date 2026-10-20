@@ -300,4 +300,23 @@ describe('harness.ui.blocks:', function()
       eq({ 2, 1 }, { list[2].added, list[2].removed })
     end)
   end)
+
+  describe('sub-agents', function()
+    it('nests a sub-agent\'s work under the tool call that started it, counting its tools', function()
+      local list = blocks.build({
+        { kind = 'tool_call', id = 'task1', name = 'Task', input = { description = 'list files' }, diffs = {} },
+        { kind = 'tool_call', id = 'inner', name = 'Bash', parent = 'task1', input = { command = 'ls' }, diffs = {} },
+        { kind = 'message', text = 'two ', parent = 'task1' },
+        { kind = 'message', text = 'files', parent = 'task1' },
+        { kind = 'tool_update', id = 'task1', status = Block.STATUS.completed, diffs = {} },
+        { kind = 'message', text = 'parent done' },
+      })
+
+      eq({ Block.KIND.title, Block.KIND.tool, Block.KIND.tool, Block.KIND.message, Block.KIND.message }, kinds(list))
+      eq({ nil, 'task1', 'task1', nil }, { list[2].parent, list[3].parent, list[4].parent, list[5].parent })
+      eq({ nil, 1, 1, nil }, { list[2].depth, list[3].depth, list[4].depth, list[5].depth })
+      eq({ 'two files' }, list[4].lines)
+      eq(1, list[2].nested)
+    end)
+  end)
 end)

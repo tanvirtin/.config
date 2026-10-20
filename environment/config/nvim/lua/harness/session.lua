@@ -25,6 +25,7 @@ function Session:constructor(opts)
     options = {},
     modes = nil,
     commands = {},
+    children = {},
     _listeners = {},
     _tools = {},
     _pending = {},
@@ -101,7 +102,49 @@ local STATE = {
   commands = function(self, event)
     self.commands = event.commands
   end,
+  subagent = function(self, event)
+    local child = self.children[event.child]
+
+    if not child then
+      child = { id = event.child }
+      self.children[event.child] = child
+      self:_follow_child(child)
+    end
+
+    for _, key in ipairs({ 'title', 'description', 'state', 'stop' }) do
+      if event[key] ~= nil then child[key] = event[key] end
+    end
+  end,
 }
+
+function Session:_follow_child(child)
+  if not (self.connection and self.connection.attach) then return end
+
+  self.connection:attach(child.id, {
+    update = function(update)
+      self:_on_child_update(child, update)
+    end,
+    request = function(method, params)
+      return self:_on_request(method, params)
+    end,
+  })
+end
+
+function Session:_on_child_update(child, update)
+  local event = events.from_update(update)
+
+  if not event or STATE[event.kind] then return end
+
+  if event.kind == 'delegation' then
+    child.tool = event.message or child.tool
+    return self:_notify({ kind = 'subagent' })
+  end
+
+  event.parent = event.parent or child.tool
+  child.tool = child.tool or event.parent
+
+  self:_handle(event)
+end
 
 function Session:configure(result)
   if type(result) ~= 'table' then return end
@@ -237,13 +280,19 @@ function Session:_on_update(update)
     return self:_notify(event)
   end
 
+  if event.kind == 'delegation' then return end
+
+  self:_handle(event)
+end
+
+function Session:_handle(event)
   if event.kind == 'tool_call' then
     self._tools[event.id] = event.name
   elseif event.kind == 'tool_update' then
     event.name = event.name or self._tools[event.id]
   elseif event.kind == 'title' then
     self.title = event.title
-  elseif event.kind == 'message' and self._turn then
+  elseif event.kind == 'message' and self._turn and not event.parent then
     self._turn.text[#self._turn.text + 1] = event.text
   end
 
@@ -553,6 +602,10 @@ end
 
 function Session:close()
   if self.state == 'closed' then return end
+
+  for id in pairs(self.children) do
+    if self.connection.detach then self.connection:detach(id) end
+  end
 
   self:cancel()
   self.state = 'closed'
