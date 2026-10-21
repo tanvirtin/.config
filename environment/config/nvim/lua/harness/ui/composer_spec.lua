@@ -209,7 +209,7 @@ describe('harness.ui.composer:', function()
     eq({ win }, vim.api.nvim_list_wins())
     eq(session, transcript.view().session)
     eq(false, vim.wo[win].winfixheight)
-    eq(1, vim.wo[win].winbar:find(transcript.WINBAR, 1, true))
+    eq(1, vim.wo[win].winbar:find(require('harness.ui.winbar').hints(), 1, true))
     assert.is_truthy(fake:sent_method('session/prompt').params.prompt[1].text:find('(bufnr ' .. code .. ')', 1, true))
   end)
 

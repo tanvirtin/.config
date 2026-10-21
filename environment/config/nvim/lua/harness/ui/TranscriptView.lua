@@ -253,7 +253,7 @@ function TranscriptView:announce_waiting()
 
   local what = waiting[1].title or waiting[1].tool or 'a tool'
 
-  console.notify(string.format('Harness %s is waiting for your permission: %s', self.session.key, what), 'warn')
+  console.notify(string.format('Harness %s: waiting for permission: %s', self.session.key, what), 'warn')
 end
 
 function TranscriptView:on_event(update)

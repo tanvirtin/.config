@@ -53,18 +53,19 @@ function composer.winbar(session)
 
   parts[#parts + 1] = '%='
 
+  local keys = settings.keymaps:get('composer')
+
   if session:running() then
-    parts[#parts + 1] = key('<CR>', 'queue')
-    if session.connection:steering() then parts[#parts + 1] = key('<C-s>', 'steer') end
-    parts[#parts + 1] = key('<C-c>', 'interrupt')
+    parts[#parts + 1] = key(keys.send, 'queue')
+    if session.connection:steering() then parts[#parts + 1] = key(keys.steer, 'steer') end
+    parts[#parts + 1] = key(keys.interrupt, 'interrupt')
   else
-    parts[#parts + 1] = key('<CR>', 'send')
-    parts[#parts + 1] = key(':w', 'send')
+    parts[#parts + 1] = key(keys.send, 'send')
   end
 
-  if #session.commands > 0 then parts[#parts + 1] = key('/', 'commands') end
-  if session:mode() then parts[#parts + 1] = key('<S-Tab>', 'mode') end
-  parts[#parts + 1] = key('q', 'close')
+  if #session.commands > 0 then parts[#parts + 1] = key(keys.slash, 'commands') end
+  if session:mode() then parts[#parts + 1] = key(keys.cycle_mode, 'mode') end
+  parts[#parts + 1] = key(keys.close, 'close')
 
   return table.concat(parts)
 end
@@ -240,6 +241,11 @@ function composer.open(session, opts)
   element:set_keymap('n', keys.interrupt, function()
     composer.interrupt(session)
   end, 'Interrupt the running turn')
+  element:set_keymap('i', keys.interrupt, function()
+    if session:running() then return composer.interrupt(session) end
+
+    Window.stop_insert()
+  end, 'Interrupt the running turn, or leave insert mode')
 
   for _, mode in ipairs({ 'n', 'i' }) do
     element:set_keymap(mode, keys.cycle_mode, function()

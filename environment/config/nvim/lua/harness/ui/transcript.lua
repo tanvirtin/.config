@@ -26,7 +26,6 @@ local composer = lazy('harness.ui.composer')
 local transcript = {}
 
 transcript.FILETYPE = TranscriptView.FILETYPE
-transcript.WINBAR = winbar.HINTS
 transcript.CHOICES = permission_prompt.CHOICES
 
 transcript.view = display.view
@@ -425,7 +424,7 @@ function transcript.bindings(view)
       function()
         local ok, why = transcript.show_edit(buf)
 
-        if not ok then console.notify_now('Harness: no edit to show: ' .. why, 'info') end
+        if not ok then console.notify_now('Harness: ' .. why, 'info') end
       end,
       'Open the edit under the cursor in vgit',
     },
@@ -434,7 +433,7 @@ function transcript.bindings(view)
       function()
         local ok, why = transcript.git_diff(buf)
 
-        if not ok then console.notify_now('Harness: no git diff to show: ' .. why, 'info') end
+        if not ok then console.notify_now('Harness: ' .. why, 'info') end
       end,
       'Open the git diff of the file under the cursor in vgit',
     },
@@ -443,7 +442,7 @@ function transcript.bindings(view)
       function()
         local ok, why = transcript.show_changes(view)
 
-        if not ok then console.notify_now('Harness: no changes to show: ' .. why, 'info') end
+        if not ok then console.notify_now('Harness: ' .. why, 'info') end
       end,
       'Open every file this session changed in vgit',
     },

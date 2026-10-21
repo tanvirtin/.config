@@ -2,11 +2,19 @@ local EVENT = require('harness.events').KIND
 local compact = require('compact')
 local core_text = require('core.text')
 local follow = require('harness.follow')
+local keymaps = require('harness.settings.keymaps')
 local theme = require('harness.transcript.theme')
 
 local winbar = {}
 
-winbar.HINTS = '%#UiAccent# i %#UiMuted#write to this session   %#UiAccent#<leader>. %#UiMuted#sessions'
+function winbar.hints()
+  local write = keymaps:get('transcript').write
+
+  return string.format(
+    '%%#UiAccent# %s %%#UiMuted#write to this session   %%#UiAccent#<leader>. %%#UiMuted#sessions',
+    type(write) == 'table' and write[1] or write
+  )
+end
 winbar.STICKY_WIDTH = 80
 
 local function last_usage(session)
@@ -63,7 +71,7 @@ end
 
 function winbar.transcript(session, prompt, width)
   local right = status(session)
-  local left = winbar.HINTS
+  local left = winbar.hints()
 
   if prompt then left = winbar.sticky(prompt, width and width - winbar.visible_width(right) - 2) end
 

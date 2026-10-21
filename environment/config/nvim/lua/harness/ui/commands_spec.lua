@@ -77,7 +77,7 @@ describe('harness.ui.commands:', function()
 
     eq(1, #vim.api.nvim_tabpage_list_wins(0))
     assert.is_truthy(transcript.view(buf))
-    eq({ '# Harness', '', '> what is here?', '', 'reply to what is here?', '', '*end_turn*', '' }, lines(buf))
+    eq({ '# untitled', '', '> what is here?', '', 'reply to what is here?', '', '*end_turn*', '' }, lines(buf))
   end)
 
   it('tells the agent where the user was, and points the tools there, behind the session buffer', function()

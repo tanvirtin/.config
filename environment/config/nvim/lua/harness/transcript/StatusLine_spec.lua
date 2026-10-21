@@ -43,6 +43,6 @@ describe('harness.transcript.StatusLine:', function()
   it('points at a request answered elsewhere', function()
     local lines = StatusLine.lines({ running = true, waiting = { { title = 'Write a.lua' } } })
 
-    assert.truthy(text(lines[2]):find('Waiting for you: Write a.lua', 1, true))
+    assert.truthy(text(lines[2]):find('waiting for you: Write a.lua', 1, true))
   end)
 end)

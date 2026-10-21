@@ -118,7 +118,7 @@ describe('harness.transcript.BlockBuilder:', function()
     local list = blocks.build({ events.prompt('hi'), { kind = 'message', text = 'a\nb' } })
     local lines = blocks.lines(list)
 
-    eq({ '# Harness', '', '> hi', '', 'a', 'b' }, lines)
+    eq({ '# untitled', '', '> hi', '', 'a', 'b' }, lines)
     eq({ 0, 2 }, { list[1].start, list[1].finish })
     eq({ 2, 4 }, { list[2].start, list[2].finish })
     eq({ 4, 6 }, { list[3].start, list[3].finish })

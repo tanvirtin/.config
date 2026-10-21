@@ -28,7 +28,7 @@ describe('harness.ui.winbar:', function()
   it('shows the hints, the state, the mode and the model', function()
     local text = winbar.transcript(session({ mode = { id = 'plan', name = 'Plan' }, model = { name = 'Sonnet' } }))
 
-    assert.truthy(text:find(winbar.HINTS, 1, true))
+    assert.truthy(text:find(winbar.hints(), 1, true))
     assert.truthy(text:find('○ idle', 1, true))
     assert.truthy(text:find('[Plan]', 1, true))
     assert.truthy(text:find('Sonnet', 1, true))
@@ -53,7 +53,7 @@ describe('harness.ui.winbar:', function()
   it('shows the scrolled-past prompt in place of the hints', function()
     local text = winbar.transcript(session({}), { lines = { '> fix the 100% bug', '> please' } })
 
-    assert.is_nil(text:find(winbar.HINTS, 1, true))
+    assert.is_nil(text:find(winbar.hints(), 1, true))
     assert.truthy(text:find('❯ %#UiMuted#fix the 100%% bug', 1, true))
   end)
 

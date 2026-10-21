@@ -7,7 +7,7 @@ return function(block, ctx)
   local text
 
   if block.live and ctx.running then
-    text = { { '  ' .. context.spinner(ctx) .. ' thinking', 'UiMuted' } }
+    text = { { '  ' .. context.spinner(ctx) .. ' ', 'UiToolPending' }, { 'thinking', 'UiMuted' } }
   elseif block.started and block.finished then
     local duration = theme.duration(block.finished - block.started)
     if duration then text = { { '  ' .. duration, 'UiMuted' } } end

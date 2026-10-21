@@ -56,7 +56,7 @@ describe('harness.ui.document:', function()
   it('writes the transcript and leaves the buffer read-only and unmodified', function()
     emit(events.prompt('hi'))
 
-    eq({ '# Harness', '', '> hi', '' }, lines(buf))
+    eq({ '# untitled', '', '> hi', '' }, lines(buf))
     eq(false, vim.bo[buf].modifiable)
     eq(false, vim.bo[buf].modified)
   end)
@@ -75,7 +75,7 @@ describe('harness.ui.document:', function()
 
     emit({ kind = 'message', text = 'o' })
 
-    eq({ '# Harness', '', '> hi', '', 'one', 'two' }, lines(buf))
+    eq({ '# untitled', '', '> hi', '', 'one', 'two' }, lines(buf))
     eq({ { 5, 6, 6 } }, written)
   end)
 
@@ -117,7 +117,7 @@ describe('harness.ui.document:', function()
     document:reset()
     document:write(blocks.build(history))
 
-    eq({ '# Harness', '', '> hi', '' }, lines(buf))
+    eq({ '# untitled', '', '> hi', '' }, lines(buf))
   end)
 
   it('after reset rewrites only from the first line the buffer gets wrong', function()
@@ -285,7 +285,7 @@ describe('harness.ui.document:', function()
 
     history = { events.prompt('go') }
     document:write(blocks.build(history), { running = true, started = vim.uv.now() })
-    eq('Working', status())
+    eq('working', status())
 
     document:write(blocks.build(history), { running = false })
     eq(nil, status())
@@ -329,7 +329,7 @@ describe('harness.ui.document:', function()
       return chunk[1]
     end, status[4].virt_lines[2])
 
-    eq('Waiting for you: ', line[2])
+    eq('waiting for you: ', line[2])
     eq('Edit a.lua', line[3])
     assert.is_truthy(texts(document.blocks[3].start):find(theme.WAITING_ICON[1], 1, true))
     assert.is_truthy(texts(document.blocks[3].start):find('waiting for you', 1, true))

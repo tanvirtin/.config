@@ -95,7 +95,7 @@ end
 function commands.changes()
   local ok, why = transcript.show_changes(transcript.view() or display.last())
 
-  if not ok then console.notify_now('Harness: no changes to show: ' .. why, 'info') end
+  if not ok then console.notify_now('Harness: ' .. why, 'info') end
 
   return ok
 end

@@ -17,7 +17,7 @@ describe('harness.ui.transcript:', function()
     it('shows prompts, replies, thoughts, tool calls and the end of a turn', function()
       eq(
         {
-          '# Harness',
+          '# untitled',
           '',
           '> what is here?',
           '> be brief',
@@ -152,7 +152,7 @@ describe('harness.ui.transcript:', function()
         return lines(buf)[3] == '> hi'
       end)
 
-      eq({ '# Harness', '', '> hi', '' }, lines(buf))
+      eq({ '# untitled', '', '> hi', '' }, lines(buf))
     end)
 
     it('opens with the cursor at the bottom, and keeps it there as the reply streams', function()
@@ -455,7 +455,7 @@ describe('harness.ui.transcript:', function()
       vim.notify = notify
 
       eq(1, #messages)
-      assert.is_truthy(messages[1]:find('waiting for your permission: Edit a.lua', 1, true))
+      assert.is_truthy(messages[1]:find(': waiting for permission: Edit a.lua', 1, true))
       session._pending = {}
     end)
 

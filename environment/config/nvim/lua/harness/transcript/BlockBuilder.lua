@@ -5,6 +5,7 @@ local tool_label = require('harness.transcript.tool_label')
 local compact = require('compact')
 local context = require('harness.context')
 local EVENT = require('harness.events').KIND
+local keymaps = require('harness.settings.keymaps')
 local settings = require('harness.settings.transcript')
 
 local blocks = { Block = Block, fence_for = fences.fence_for, fences = fences.fences, fenced_at = fences.fenced_at }
@@ -585,7 +586,7 @@ end
 function blocks.build(history, title, opts)
   opts = opts or {}
 
-  local list = { Block.make(Block.KIND.title, { '# ' .. compact.line(title or 'Harness', 200) }) }
+  local list = { Block.make(Block.KIND.title, { '# ' .. compact.line(title or 'untitled', 200) }) }
   local starts = turn_starts(history)
   local cache = opts.cache
 
@@ -604,11 +605,14 @@ function blocks.build(history, title, opts)
 
   if opts.live_turns and #starts > opts.live_turns then
     first = #starts - opts.live_turns + 1
-    list[#list + 1] = Block.make(
-      Block.KIND.collapsed,
-      { string.format('%d earlier turn%s · <CR> to show', first - 1, first == 2 and '' or 's') },
-      { hidden = first - 1 }
-    )
+    list[#list + 1] = Block.make(Block.KIND.collapsed, {
+      string.format(
+        '%d earlier turn%s · %s to show',
+        first - 1,
+        first == 2 and '' or 's',
+        keymaps:get('transcript').activate
+      ),
+    }, { hidden = first - 1 })
   end
 
   for n = first, #starts do

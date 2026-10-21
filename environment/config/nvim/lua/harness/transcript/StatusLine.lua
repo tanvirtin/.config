@@ -1,4 +1,5 @@
 local compact = require('compact')
+local keymaps = require('harness.settings.keymaps')
 local settings = require('harness.settings.transcript')
 local theme = require('harness.transcript.theme')
 
@@ -28,7 +29,7 @@ local function ask_lines(state, ask)
     choices[#choices + 1] = { ' ' .. choice.label .. '   ' }
   end
 
-  choices[#choices + 1] = { '<C-c>', 'UiAccent' }
+  choices[#choices + 1] = { keymaps:get('transcript').interrupt, 'UiAccent' }
   choices[#choices + 1] = { ' interrupt', 'UiMuted' }
 
   local question = { theme.WAITING_ICON, { 'Allow ', 'UiWarn' }, { ask.text, 'UiPromptBar' }, { '?', 'UiWarn' } }
@@ -44,10 +45,10 @@ local function working_line(state, now)
   if request then
     return {
       theme.WAITING_ICON,
-      { 'Waiting for you: ', 'UiWarn' },
+      { 'waiting for you: ', 'UiWarn' },
       { compact.line(request.title or request.tool or 'a tool', settings:get('request_preview')), 'UiPromptBar' },
       { ' · answer the prompt, or ', 'UiMuted' },
-      { '<C-c>', 'UiAccent' },
+      { keymaps:get('transcript').interrupt, 'UiAccent' },
       { ' to interrupt', 'UiMuted' },
     }
   end
@@ -55,11 +56,11 @@ local function working_line(state, now)
   local elapsed = state.started and now and theme.duration(now - state.started)
 
   return {
-    { theme.spinner(state.frame) .. ' ', 'UiAccent' },
-    { state.label or 'Working', 'UiAccent' },
+    { theme.spinner(state.frame) .. ' ', 'UiToolPending' },
+    { state.label or 'working', 'UiAccent' },
     { elapsed and ' · ' .. elapsed or '', 'UiMuted' },
     { ' · ', 'UiMuted' },
-    { '<C-c>', 'UiAccent' },
+    { keymaps:get('transcript').interrupt, 'UiAccent' },
     { ' interrupt', 'UiMuted' },
   }
 end
