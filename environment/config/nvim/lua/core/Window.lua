@@ -167,6 +167,12 @@ function Window:get_width()
   return vim.api.nvim_win_get_width(self.win_id)
 end
 
+function Window:get_text_width()
+  local info = vim.fn.getwininfo(self.win_id)[1]
+
+  return self:get_width() - (info and info.textoff or 0)
+end
+
 function Window:set_cursor(cursor)
   return self:call(function()
     pcall(vim.api.nvim_win_set_cursor, self.win_id, cursor)

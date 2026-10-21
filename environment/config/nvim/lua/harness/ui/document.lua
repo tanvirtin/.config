@@ -80,13 +80,39 @@ function Document:_context()
     frame = state.frame,
     waiting = state.waiting,
     active = state.active,
-    agent = state.agent,
+    width = self.width,
     now = Timer.now(),
     syntax = self.syntax,
     diff_offset = function(block)
       return self:diff_offset(block)
     end,
   }
+end
+
+function Document:text_width()
+  local width
+
+  for _, window in ipairs(self.buffer:get_windows()) do
+    local text_width = window:get_text_width()
+
+    width = width and math.min(width, text_width) or text_width
+  end
+
+  return width
+end
+
+function Document:resize()
+  local width = self:text_width()
+
+  if not width or width == self.width then return end
+
+  self.width = width
+
+  for i in ipairs(self.blocks) do
+    self.pending[i] = true
+  end
+
+  self:decorate_visible()
 end
 
 function Document:_decorate(block, ctx)
@@ -136,6 +162,11 @@ function Document:write(list, state)
 
   merge(self.state, state)
 
+  local width = self:text_width()
+  local resized = width ~= nil and width ~= self.width
+
+  if resized then self.width = width end
+
   local old = self.blocks
   local changed = Layout.first_changed(old, list)
   local keep = (changed or #list + 1) - 1
@@ -149,7 +180,7 @@ function Document:write(list, state)
   for i = 1, keep do
     local same = list[i] == old[i] or Layout.signature(list[i]) == Layout.signature(old[i])
 
-    if self.pending[i] or not same or self:_live(list[i]) then pending[i] = true end
+    if resized or self.pending[i] or not same or self:_live(list[i]) then pending[i] = true end
   end
 
   self.blocks = list

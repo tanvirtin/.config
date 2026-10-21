@@ -244,7 +244,7 @@ describe('harness.ui.document:', function()
     events.append(history, events.stop('end_turn'))
     document:write(blocks.build(history, nil, { times = history_times }))
 
-    eq(theme.STOP_ICONS.end_turn[1] .. '|Done in 13s · 1 tool', texts(document.blocks[4].start))
+    assert.is_truthy(texts(document.blocks[4].start):find(' 13s · 1 tool |──', 1, true))
   end)
 
   it('shows a working line with a spinner only while the turn runs', function()
@@ -261,59 +261,26 @@ describe('harness.ui.document:', function()
     eq(nil, status())
   end)
 
-  it('heads each prompt with who wrote it, separates turns, and heads each reply with the agent', function()
-    local function above(row)
+  it('marks each prompt with the prompt icon and says when one steered the turn', function()
+    local function overlay(row)
       for _, mark in
         ipairs(vim.api.nvim_buf_get_extmarks(buf, Document.NAMESPACE, { row, 0 }, { row, -1 }, { details = true }))
       do
-        if mark[4].virt_lines_above then
-          return vim.tbl_map(function(line)
-            return line[1][1]
-          end, mark[4].virt_lines)
-        end
+        if mark[4].virt_text_pos == 'overlay' then return mark[4].virt_text[1][1] end
       end
     end
 
     history = {}
     events.append(history, events.prompt('one'))
     events.append(history, { kind = 'message', text = 'reply' })
-    events.append(history, events.prompt('two'))
-    document:write(blocks.build(history), { agent = 'Claude' })
-
-    local first, reply, second = document.blocks[2], document.blocks[3], document.blocks[4]
-
-    local function below(row)
-      for _, mark in
-        ipairs(vim.api.nvim_buf_get_extmarks(buf, Document.NAMESPACE, { row, 0 }, { row, -1 }, { details = true }))
-      do
-        if mark[4].virt_lines and not mark[4].virt_lines_above then return mark[4].virt_lines[1][1][1] end
-      end
-    end
-
-    eq({ ' ' .. theme.USER_ICON .. 'You' }, above(first.start))
-    eq(reply.start, first.finish)
-    eq(' ' .. theme.AGENT_ICON .. 'Claude', below(first.finish - 1))
-    eq(string.rep('─', theme.SEPARATOR_WIDTH), above(second.start)[1])
-    eq(' ' .. theme.USER_ICON .. 'You', above(second.start)[2])
-
     events.append(history, events.prompt('change course', { steered = true }))
-    document:write(blocks.build(history), { agent = 'Claude' })
+    document:write(blocks.build(history))
 
-    local marks = vim.api.nvim_buf_get_extmarks(
-      buf,
-      Document.NAMESPACE,
-      { document.blocks[5].start, 0 },
-      { document.blocks[5].start, -1 },
-      { details = true }
-    )
-    local lines
+    local first, reply, steered = document.blocks[2], document.blocks[3], document.blocks[4]
 
-    for _, mark in ipairs(marks) do
-      if mark[4].virt_lines_above then lines = mark[4].virt_lines end
-    end
-
-    eq(1, #lines)
-    eq(' · steered', lines[1][2][1])
+    eq(theme.PROMPT_ICON, overlay(first.start))
+    eq(reply.start, first.finish)
+    assert.is_truthy(texts(steered.start):find('steered', 1, true))
   end)
 
   it('says when a running turn is waiting for permission, on the tool and the working line', function()
@@ -357,7 +324,7 @@ describe('harness.ui.document:', function()
 
     local task, inner, report = document.blocks[2], document.blocks[3], document.blocks[4]
 
-    assert.is_truthy(texts(inner.start):find(theme.GUTTER, 1, true))
+    assert.is_truthy(texts(inner.start):find(theme.BRANCH, 1, true))
     assert.is_truthy(texts(report.start):find(theme.GUTTER, 1, true))
     assert.is_falsy(texts(task.start):find(theme.GUTTER, 1, true))
     assert.is_truthy(texts(task.start):find('1 tool', 1, true))
@@ -377,23 +344,8 @@ describe('harness.ui.document:', function()
     eq('parent done', document.blocks[#document.blocks].lines[1])
     eq(1, read.depth)
 
-    local summary
-
-    for _, mark in
-      ipairs(
-        vim.api.nvim_buf_get_extmarks(
-          buf,
-          Document.NAMESPACE,
-          { read.start, 0 },
-          { read.start, -1 },
-          { details = true }
-        )
-      )
-    do
-      if mark[4].virt_lines then summary = mark[4].virt_lines[1] end
-    end
-
-    eq(theme.GUTTER, summary[1][1])
+    assert.is_truthy(texts(read.start):find(theme.BRANCH, 1, true))
+    assert.is_truthy(texts(read.start):find('2 lines', 1, true))
 
     eq('>1', document:fold_level(inner.start))
     eq('1', document:fold_level(inner.start + 1))

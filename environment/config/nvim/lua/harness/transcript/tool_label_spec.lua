@@ -25,6 +25,7 @@ describe('harness.transcript.tool_label:', function()
 
   it('shows paths relative to the directory', function()
     eq('lua/a.lua', tool_label.relative('/repo/lua/a.lua', '/repo'))
+    eq('.', tool_label.relative('/repo', '/repo'))
     eq(nil, tool_label.relative(nil, '/repo'))
   end)
 end)

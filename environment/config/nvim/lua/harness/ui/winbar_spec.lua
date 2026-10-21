@@ -54,7 +54,7 @@ describe('harness.ui.winbar:', function()
     local text = winbar.transcript(session({}), { lines = { '> fix the 100% bug', '> please' } })
 
     assert.is_nil(text:find(winbar.HINTS, 1, true))
-    assert.truthy(text:find('▌ %#UiMuted#fix the 100%% bug', 1, true))
+    assert.truthy(text:find('❯ %#UiMuted#fix the 100%% bug', 1, true))
   end)
 
   it('fits the scrolled-past prompt into what the status leaves of the window', function()

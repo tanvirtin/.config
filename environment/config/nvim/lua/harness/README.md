@@ -72,7 +72,7 @@ require('harness').setup({
   composer = { height = 6 },
   follow = { debounce_ms = 300, grace_ms = 1500, poll_ms = 3000 },
   keymaps = { transcript = { yank = 'gy', plan = 'gp', diff = 'gd' }, composer = { steer = '<C-s>' } },
-  theme = { user_icon = '󰀄 ', spinner = { '◐', '◓', '◑', '◒' }, highlights = { UiToolOutput = { bg = '#1e2228' } } },
+  theme = { prompt_icon = '>', spinner = { '◐', '◓', '◑', '◒' }, highlights = { UiToolOutput = { bg = '#1e2228' } } },
 })
 ```
 
@@ -240,29 +240,28 @@ It works for any ACP agent. It reads only standard ACP fields (`kind`, `title`, 
 - **Incremental writes.** `ui/document.lua` lays out and writes only from the first block that changed, comparing cached blocks by identity. A streamed chunk costs well under a millisecond whatever the length of the session.
 - **Lazy drawing.** Extmarks are drawn only for blocks in or near a window (two screens either side), starting where the window lands. A decoration provider draws the rest as they scroll into view.
 - **Markdown.** `lua/ui/markdown/Renderer.lua` annotates text into `MarkSpec`s with a treesitter string parser (markdown, inline markdown and code-fence languages), applying the same highlight and conceal captures the built-in highlighter would, then applies them. Only blocks being drawn are parsed, and streaming redraws only the tail block. The renderer compiles its own copy of each highlights query, because the cached query is shared and plugins change it (render-markdown disables the fence `conceal_lines` patterns for its own drawing). On top (`ui/markdown/nodes.lua`) it draws heading icons and bars, shaded code blocks with a language label, bullets by depth, checkboxes, quote bars, callouts (`> [!NOTE]`, `> [!thought]`), rules, links, and pipe tables as a box aligned by display width. The cursor line shows the raw text.
-- **Who said what.** Your prompts sit on a tinted card under a **You** header; each reply opens under the agent's name; a rule separates turns.
+- **A ledger, not a chat.** There are no speaker headers: your prompt is the bold text after `❯`, and everything under it is the agent. Tools line up as a status icon, a lowercase verb and their argument, with the result aligned right when the window has room (else at the end of the line). Runs of tools and their diffs sit on consecutive lines; a sub-agent's work hangs off a `├ │ └` tree that stays on wrapped lines; each turn ends on a rule carrying its time and tool count.
 - **Surfaces.** Code blocks, tool output and diff lines get backgrounds blended from the colour scheme's own `Normal`, `Comment` and `Added`/`Removed` colours, recomputed on `ColorScheme`, so any scheme gets a coherent palette. `theme.highlights` overrides any group.
 
 In a transcript:
 
 | You see | Where it comes from |
 | --- | --- |
-| **You** header, tinted card with a `▌` bar, a rule between turns | each prompt |
-| **󰚩 Claude** header (the session's agent) | the start of each reply |
-| `󰄬 Bash seq 1 20` with a spinner while it runs, then done or failed | the tool call: its name and main argument (command, path, pattern, url) |
-| `⎿ Read 5 lines`, `⎿ 12 results` | the result of reads and searches, as a virtual line |
-| Output under `⎿`, the first 5 lines shown and the rest folded | commands, searches and fetches; failures show their error. Output is shown verbatim: its fence is longer than any backtick run in it |
-| `Edit a.lua +2 -2`, then the diff with file line numbers, diff colours and the file's own syntax colours | edits. Numbers come from finding the edit in the file, and are left off when it can't be found |
+| `❯ fix the parser` in bold, wrapped lines indented under the text | each prompt |
+| `✓ bash    seq 1 20` with a spinner while it runs, then `✓` or `✗` | the tool call: a lowercase verb and its main argument (command, path, pattern, url) |
+| `1 line`, `12 results` at the right edge | the result of reads and searches |
+| Output under a `│` rail, the first 5 lines shown and the rest folded | commands, searches and fetches; failures show their error. Output is shown verbatim: its fence is longer than any backtick run in it |
+| `✓ edit    a.lua   +2 −2`, then the diff under a `│` rail with file line numbers, diff colours and the file's own syntax colours | edits. Numbers come from finding the edit in the file, and are left off when it can't be found. A diff shown away from its edit keeps a path line |
 | `[!thought]` callout with how long it took, folded | thoughts |
-| `󰄬 Agent List files   2 tools` while it runs, then `done in 6s · 2 tools` (or `failed …`), with the sub-agent's tools and report under a `│` gutter, folded as one | sub-agents (Agent/Task calls), from the block's own status and times |
-| `󰄬 Read 3 files, searched 1 pattern` over `⋯ 3 tools` | a run of two or more finished reads and searches in a turn; live and failed tools never group, and agents reading the session still see each tool |
+| `✓ agent   List files   2 tools` while it runs, then `6s · 2 tools`, with the sub-agent's tools (`├`) and report (`│`) on a tree closed by `└`, folded as one | sub-agents (Agent/Task calls), from the block's own status and times. Their prose is indented two spaces so wrapped lines keep the rail |
+| `✓ read 3 files, searched 1 pattern` over `⋯ 3 tools` | a run of two or more finished reads and searches in a turn; live and failed tools never group, and agents reading the session still see each tool |
 | `󰁝 120 earlier turns · <CR> to show` | turns older than `live_turns` |
 | A box-drawn table | pipe tables in a reply |
-| The current turn's prompt in the winbar (`▌ fix the parser`) | once that prompt scrolls out of view |
+| The current turn's prompt in the winbar (`❯ fix the parser`) | once that prompt scrolls out of view |
 | A floating `Plan  2/5` checklist at the top right | the latest ACP plan while any entry is unfinished |
-| `󰄬 Done in 12s · 3 tools` | the end of each turn: done, interrupted, or a limit hit |
+| `──────── 12s · 3 tools ──` | the end of each turn; `interrupted` or the limit hit is named in the warning colour |
 | `⠋ Working · 12s · <C-c> interrupt` under the last line | a running turn |
-| `󰀦 Waiting for you: Edit a.lua` on the tool and the working line, and a notification when the transcript is out of sight | a permission request waiting for an answer |
+| `◆ Waiting for you: Edit a.lua` on the tool and the working line, and a notification when the transcript is out of sight | a permission request waiting for an answer |
 | `● running  ctx 3%  $0.07` in the winbar | the session's state and its latest usage |
 
 Keys in a transcript:

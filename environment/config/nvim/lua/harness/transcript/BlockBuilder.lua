@@ -83,6 +83,16 @@ local function quoted(text, prefix)
   return lines
 end
 
+local function indented(lines)
+  local out = {}
+
+  for i, line in ipairs(lines) do
+    out[i] = line == '' and '' or '  ' .. line
+  end
+
+  return out
+end
+
 local function flatten(items)
   local out = {}
 
@@ -203,16 +213,8 @@ local function build_turn(history, from, to, opts, last_turn, updates)
   local diffs_shown = {}
   local turn = { tools = 0 }
 
-  local opens = false
-
   local function add(kind, lines, fields)
     list[#list + 1] = Block.make(kind, lines, fields)
-
-    if opens and kind ~= Block.KIND.prompt then
-      list[#list].opens_reply = true
-      if list[#list - 1] then list[#list - 1].answered = true end
-      opens = false
-    end
 
     return list[#list]
   end
@@ -238,9 +240,11 @@ local function build_turn(history, from, to, opts, last_turn, updates)
     for _, diff in ipairs(state.diffs) do
       local lines = diff_lines(diff, opts.dir)
       local added, removed = diff_stats(lines)
+      local last = list[#list]
 
       add(Block.KIND.diff, lines, {
         id = id,
+        attached = last ~= nil and last.id == id and (last.kind == Block.KIND.tool or last.kind == Block.KIND.diff),
         path = diff.path,
         added = added,
         removed = removed,
@@ -262,7 +266,6 @@ local function build_turn(history, from, to, opts, last_turn, updates)
     prompt = function(event, i)
       if not event.steered then turn = { tools = 0, started = times[i] } end
       add(Block.KIND.prompt, quoted(vim.trim(context.strip(event.text))), { first = i == 1, steered = event.steered })
-      opens = true
     end,
     message = function(event, i)
       stream(Block.KIND.message, event.text, i, event.parent)
@@ -369,6 +372,11 @@ local function build_turn(history, from, to, opts, last_turn, updates)
       end
 
       block.text = nil
+
+      if block.depth then
+        block.lines = indented(block.lines)
+        block.indented = true
+      end
     else
       block.lines = flatten(block.lines)
     end
@@ -410,6 +418,11 @@ function blocks.nest(list, times)
           local at = times and last_activity(child, times)
 
           if at and block.finished and at > block.finished then block.finished = at end
+        end
+
+        for i, child in ipairs(children[block.id]) do
+          child.first_child = i == 1 or nil
+          child.last_child = i == #children[block.id] or nil
         end
 
         vim.list_extend(out, children[block.id])
@@ -464,14 +477,13 @@ local function make_group(run)
     started = run[1].started,
     finished = run[#run].finished,
     folds = {},
-    opens_reply = run[1].opens_reply,
   })
 
-  run[1].opens_reply = nil
-
-  for _, block in ipairs(run) do
+  for i, block in ipairs(run) do
     block.parent = id
     block.depth = 1
+    block.first_child = i == 1 or nil
+    block.last_child = i == #run or nil
   end
 
   return header
@@ -535,6 +547,20 @@ local function invalidate(history, cache, starts)
   end
 end
 
+local ROW = { [Block.KIND.tool] = true, [Block.KIND.diff] = true }
+
+function blocks.tighten(list)
+  for i, block in ipairs(list) do
+    local after = list[i + 1]
+    local tight = after ~= nil
+      and ((ROW[after.kind] and (ROW[block.kind] or block.depth ~= nil)) or (ROW[block.kind] and after.depth ~= nil))
+
+    block.tight = tight or nil
+  end
+
+  return list
+end
+
 function blocks.build(history, title, opts)
   opts = opts or {}
 
@@ -582,7 +608,7 @@ function blocks.build(history, title, opts)
     vim.list_extend(list, turn)
   end
 
-  return list
+  return blocks.tighten(list)
 end
 
 function blocks.lines(list)

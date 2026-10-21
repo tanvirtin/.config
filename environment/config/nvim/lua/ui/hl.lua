@@ -92,21 +92,11 @@ hl.COMPUTED = {
   UiToolOutput = tint({ 'Comment' }, 0.08, 'ColorColumn'),
   UiDiffAdd = tint({ 'Added', 'DiffAdd', 'DiagnosticOk' }, 0.16, 'DiffAdd'),
   UiDiffDelete = tint({ 'Removed', 'DiffDelete', 'DiagnosticError' }, 0.16, 'DiffDelete'),
-  UiPrompt = function()
-    local accent, background = color('UiAccent', 'fg'), color('Normal', 'bg')
-
-    if not accent or not background then return { link = 'CursorLine' } end
-
-    return { bg = hl.blend(accent, background, 0.1) }
-  end,
   UiPromptBar = function()
     return { fg = color('UiAccent', 'fg'), bold = true }
   end,
-  UiSpeakerUser = function()
-    return { fg = color('UiAccent', 'fg'), bold = true }
-  end,
-  UiSpeakerAgent = function()
-    return { fg = color('Function', 'fg'), bold = true }
+  UiPromptText = function()
+    return { fg = color('Normal', 'fg'), bold = true }
   end,
 }
 

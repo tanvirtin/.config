@@ -27,6 +27,8 @@ TranscriptView.FILETYPE = 'harness'
 TranscriptView.WINDOW_OPTIONS = {
   wrap = true,
   linebreak = true,
+  breakindent = true,
+  breakindentopt = 'list:-1',
   number = false,
   relativenumber = false,
   conceallevel = 2,
@@ -39,16 +41,12 @@ TranscriptView.WINDOW_OPTIONS = {
   fillchars = 'fold: ,eob: ',
 }
 
+TranscriptView.LIST_PATTERN = [[^>\s\+\|^\s*[-*+]\s\+\|^\s*\d\+[.)]\s\+]]
+
 TranscriptView.FOLD_OPTIONS = { 'foldexpr', 'foldtext', 'foldlevel', 'foldenable', 'foldmethod' }
 
 function TranscriptView.buffer_name(session)
   return string.format('harness://%s %s', session.key, session.title or 'untitled')
-end
-
-function TranscriptView.agent_label(session)
-  local name = session.agent and session.agent.name or 'agent'
-
-  return name:sub(1, 1):upper() .. name:sub(2)
 end
 
 function TranscriptView.turn_started(session)
@@ -67,6 +65,7 @@ function TranscriptView:constructor(session, opts)
   buffer:set_option('bufhidden', 'hide')
   buffer:set_option('modifiable', false)
   buffer:set_option('filetype', TranscriptView.FILETYPE)
+  buffer:set_option('formatlistpat', TranscriptView.LIST_PATTERN)
   pcall(buffer.set_name, buffer, TranscriptView.buffer_name(session))
 
   local document = Document(buffer.bufnr):attach()
@@ -165,7 +164,6 @@ function TranscriptView:state()
     running = session:running(),
     frame = self.frame,
     started = TranscriptView.turn_started(session),
-    agent = TranscriptView.agent_label(session),
     queue = session:queued(),
     waiting = session:waiting(),
     asks = permission_prompt.asks_of(session),
@@ -373,6 +371,7 @@ function TranscriptView:mount(callbacks)
     end
   end)
   self.group.on({ 'WinResized', 'TabEnter' }, function()
+    self.document:resize()
     self:update_plan()
   end)
   self.group.on('BufWinLeave', function()

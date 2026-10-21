@@ -161,22 +161,41 @@ describe('harness.transcript.BlockBuilder:', function()
     eq(true, blocks.build({ { kind = 'thought', text = 'hmm' } }, nil, { running = true })[2].live)
   end)
 
-  it('marks the first prompt, and the block that opens each reply', function()
+  it('marks the first prompt, packs runs of tools and diffs tight, and attaches a diff to its tool', function()
     local list = blocks.build({
       events.prompt('one'),
       { kind = 'tool_call', id = 't1', name = 'Read', diffs = {} },
+      { kind = 'tool_call', id = 't2', name = 'Edit', diffs = { { path = 'a.txt', old = 'x', new = 'y' } } },
       { kind = 'message', text = 'done' },
       events.prompt('two'),
-      { kind = 'message', text = 'ok' },
     })
 
-    eq({ true, true, nil, false, true }, {
-      list[2].first,
-      list[3].opens_reply,
-      list[4].opens_reply,
-      list[5].first,
-      list[6].opens_reply,
+    eq(
+      { 'title', 'prompt', 'tool', 'tool', 'diff', 'message', 'prompt' },
+      vim.tbl_map(function(block)
+        return block.kind
+      end, list)
+    )
+    eq({ true, false }, { list[2].first, list[7].first })
+    eq({ true, true }, { list[3].tight, list[4].tight })
+    assert.is_nil(list[5].tight)
+    assert.is_nil(list[6].tight)
+    eq(true, list[5].attached)
+  end)
+
+  it('closes each sub-agent on its last child and indents the sub-agent\'s prose', function()
+    local list = blocks.build({
+      events.prompt('go'),
+      { kind = 'tool_call', id = 'A', name = 'Agent', diffs = {} },
+      { kind = 'tool_call', id = 'r', name = 'Read', parent = 'A', diffs = {} },
+      { kind = 'message', text = 'found it\n\nall done', parent = 'A' },
     })
+
+    eq({ true, true }, { list[3].tight, list[4].tight })
+    eq({ true, nil }, { list[4].first_child, list[4].last_child })
+    eq({ nil, true }, { list[5].first_child, list[5].last_child })
+    eq(true, list[5].indented)
+    eq({ '  found it', '', '  all done' }, list[5].lines)
   end)
 
   it('labels tools from standard ACP fields, whatever agent sent them', function()
@@ -279,7 +298,7 @@ describe('harness.transcript.BlockBuilder:', function()
       eq({ Block.KIND.title, Block.KIND.tool, Block.KIND.tool, Block.KIND.message, Block.KIND.message }, kinds(list))
       eq({ nil, 'task1', 'task1', nil }, { list[2].parent, list[3].parent, list[4].parent, list[5].parent })
       eq({ nil, 1, 1, nil }, { list[2].depth, list[3].depth, list[4].depth, list[5].depth })
-      eq({ 'two files' }, list[4].lines)
+      eq({ '  two files' }, list[4].lines)
       eq(1, list[2].nested)
     end)
   end)
@@ -401,9 +420,8 @@ describe('harness.transcript.BlockBuilder:', function()
       eq({ 'title', 'prompt', 'tool', 'tool', 'tool', 'tool', 'tool' }, kinds(list))
       eq('Read 2 files, searched 1 pattern', list[3].name)
       eq(3, list[3].grouped)
-      eq(true, list[3].opens_reply)
       eq({ 1, list[3].id }, { list[4].depth, list[4].parent })
-      assert.is_nil(list[4].opens_reply)
+      eq({ nil, true }, { list[5].last_child, list[6].last_child })
       assert.is_nil(list[7].depth)
     end)
 
@@ -464,7 +482,7 @@ describe('harness.transcript.BlockBuilder:', function()
     end, vim.list_slice(list, 3))
 
     eq(
-      { 'Agent', 'Read', 'Bash', 'report A', 'Agent', 'Read', 'Bash', 'report B', 'started both', '*end_turn*' },
+      { 'Agent', 'Read', 'Bash', '  report A', 'Agent', 'Read', 'Bash', '  report B', 'started both', '*end_turn*' },
       order
     )
     eq(2, list[3].nested)

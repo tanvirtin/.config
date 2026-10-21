@@ -1,31 +1,23 @@
 local MarkSpec = require('ui.MarkSpec')
 local theme = require('harness.transcript.theme')
 
-return function(block, ctx)
+return function(block)
   local out = {}
-  local header = {
-    { { ' ' .. theme.USER_ICON .. 'You', 'UiSpeakerUser' }, block.steered and { ' · steered', 'UiMuted' } or nil },
-  }
-
-  if not block.first and not block.steered then
-    table.insert(header, 1, { { string.rep('─', theme.SEPARATOR_WIDTH), 'UiTurnSeparator' } })
-  end
-
-  MarkSpec.add(out, block.start, 0, { virt_lines = header, virt_lines_above = true })
 
   for row = block.start, block.finish - 2 do
+    local line = block.lines[row - block.start + 1] or ''
+
     MarkSpec.add(out, row, 0, {
-      end_col = 1,
-      virt_text = { { '▌', 'UiPromptBar' } },
+      end_col = math.min(1, #line),
+      virt_text = { { row == block.start and theme.PROMPT_ICON or ' ', 'UiPromptBar' } },
       virt_text_pos = 'overlay',
-      line_hl_group = 'UiPrompt',
     })
+
+    if #line > 2 then MarkSpec.add(out, row, 2, { end_col = #line, hl_group = 'UiPromptText' }) end
   end
 
-  if block.answered then
-    MarkSpec.add(out, block.finish - 1, 0, {
-      virt_lines = { { { ' ' .. theme.AGENT_ICON .. (ctx and ctx.agent or 'Agent'), 'UiSpeakerAgent' } } },
-    })
+  if block.steered then
+    MarkSpec.add(out, block.start, 0, { virt_text = { { '  steered', 'UiMuted' } }, virt_text_pos = 'eol' })
   end
 
   return out

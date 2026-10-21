@@ -1,4 +1,5 @@
 local Block = require('harness.transcript.Block')
+local MarkSpec = require('ui.MarkSpec')
 
 local decorators = {}
 
@@ -20,6 +21,10 @@ function decorators.decorate(block, ctx)
 
   for _, mark in ipairs(decorators.nesting(block, ctx)) do
     out[#out + 1] = mark
+  end
+
+  if block.tight and not block.last_child and block.finish > block.start + #block.lines then
+    MarkSpec.add(out, block.finish - 1, 0, { conceal_lines = '' })
   end
 
   return out

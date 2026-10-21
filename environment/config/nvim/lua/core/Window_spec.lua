@@ -130,6 +130,16 @@ describe('Window:', function()
     end)
   end)
 
+  describe('get_text_width', function()
+    it('should leave out the columns drawn before the text', function()
+      win = Window:open(buffer, default_float_opts)
+      win:set_option('number', true)
+      win:set_option('numberwidth', 4)
+
+      assert.are.equal(default_float_opts.width - 4, win:get_text_width())
+    end)
+  end)
+
   describe('set_cursor', function()
     it('should set cursor position', function()
       win = Window:open(buffer, default_float_opts)

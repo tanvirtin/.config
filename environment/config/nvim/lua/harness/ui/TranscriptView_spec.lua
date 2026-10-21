@@ -16,10 +16,8 @@ describe('harness.ui.TranscriptView:', function()
     session = Session({ key = 'h' .. math.random(1e6), id = 's1', connection = Connection(fake_agent.new()) })
   end)
 
-  it('names the buffer after the session and labels the agent', function()
+  it('names the buffer after the session', function()
     eq('harness://h1 untitled', TranscriptView.buffer_name({ key = 'h1' }))
-    eq('Claude', TranscriptView.agent_label({ agent = { name = 'claude' } }))
-    eq('Agent', TranscriptView.agent_label({}))
   end)
 
   it('creates a listed, unmodifiable harness buffer that renders on mount', function()

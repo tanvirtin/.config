@@ -35,9 +35,9 @@ describe('harness.settings:', function()
   it('applies theme overrides to the transcript theme at once', function()
     local theme = require('harness.transcript.theme')
 
-    settings.assign({ theme = { user_icon = 'U ' } })
+    settings.assign({ theme = { prompt_icon = '>' } })
 
-    eq('U ', theme.USER_ICON)
+    eq('>', theme.PROMPT_ICON)
   end)
 
   it('reads every default without error', function()

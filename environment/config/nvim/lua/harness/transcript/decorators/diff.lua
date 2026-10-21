@@ -34,9 +34,13 @@ return function(block, ctx)
   local out = {}
   local path = block.lines[2]:sub(5)
 
-  MarkSpec.add(out, block.start + 1, 0, { end_col = 4, conceal = '' })
-  MarkSpec.add(out, block.start + 1, 0, { virt_text = { { theme.PATH_ICON, 'UiPath' } }, virt_text_pos = 'inline' })
-  MarkSpec.add(out, block.start + 1, 4, { end_col = #block.lines[2], hl_group = 'UiPath' })
+  if block.attached then
+    MarkSpec.add(out, block.start + 1, 0, { conceal_lines = '' })
+  else
+    MarkSpec.add(out, block.start + 1, 0, { end_col = 4, conceal = '' })
+    MarkSpec.add(out, block.start + 1, 0, { virt_text = { { theme.PATH_ICON, 'UiPath' } }, virt_text_pos = 'inline' })
+    MarkSpec.add(out, block.start + 1, 4, { end_col = #block.lines[2], hl_group = 'UiPath' })
+  end
 
   local sides = { new = { lines = {}, rows = {} }, old = { lines = {}, rows = {} } }
   local shift = ctx.diff_offset and ctx.diff_offset(block)
@@ -45,7 +49,15 @@ return function(block, ctx)
     local row = block.start + offset - 1
     local line = block.lines[offset]
 
-    if entry.mark == '@' then
+    MarkSpec.add(out, row, 0, {
+      virt_text = { { theme.GUTTER, 'UiMuted' } },
+      virt_text_pos = 'inline',
+      priority = theme.GUTTER_PRIORITY + 1,
+    })
+
+    if entry.mark == '@' and offset == 3 then
+      MarkSpec.add(out, row, 0, { conceal_lines = '' })
+    elseif entry.mark == '@' then
       MarkSpec.add(out, row, 0, { end_col = #line, conceal = '' })
       MarkSpec.add(out, row, 0, { virt_text = { { theme.HUNK, 'UiMuted' } }, virt_text_pos = 'inline' })
     else

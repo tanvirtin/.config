@@ -4,19 +4,20 @@ local theme = {}
 
 theme.GUTTER_PRIORITY = 10
 theme.SYNTAX_PRIORITY = 150
-theme.SEPARATOR_WIDTH = 400
+theme.RULE_WIDTH = 400
 
 local FROM_SETTINGS = {
   SPINNER = 'spinner',
   TOOL_ICONS = 'tool_icons',
-  STOP_ICONS = 'stop_icons',
-  STOP_FALLBACK_ICON = 'stop_fallback_icon',
   WAITING_ICON = 'waiting_icon',
   QUEUE_ICON = 'queue_icon',
-  USER_ICON = 'user_icon',
-  AGENT_ICON = 'agent_icon',
+  PROMPT_ICON = 'prompt_icon',
   PATH_ICON = 'path_icon',
+  VERB_WIDTH = 'verb_width',
   GUTTER = 'gutter',
+  BRANCH = 'branch',
+  BRANCH_END = 'branch_end',
+  RULE = 'rule',
   HUNK = 'hunk',
   COLLAPSED_ICON = 'collapsed_icon',
 }

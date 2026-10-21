@@ -6,6 +6,7 @@ local tool_label = {}
 function tool_label.relative(path, dir)
   if type(path) ~= 'string' then return path end
 
+  if dir and path == dir then return '.' end
   if dir and path:sub(1, #dir + 1) == dir .. '/' then return path:sub(#dir + 2) end
 
   return text.display_path(path)

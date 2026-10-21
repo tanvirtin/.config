@@ -24,7 +24,7 @@ end
 
 function winbar.sticky(prompt, width)
   local first = (prompt.lines[1] or ''):gsub('^> ?', '')
-  local head = '%#UiPromptBar# ▌ %#UiMuted#'
+  local head = '%#UiPromptBar# ❯ %#UiMuted#'
   local room = math.max(math.min(width or winbar.STICKY_WIDTH, winbar.STICKY_WIDTH) - winbar.visible_width(head), 8)
 
   return head .. escape(compact.line(first, room))
