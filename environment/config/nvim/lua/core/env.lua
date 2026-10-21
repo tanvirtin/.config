@@ -50,4 +50,16 @@ function env.get_all()
   return result
 end
 
+function env.server_address()
+  return (vim.v.servername ~= '' and vim.v.servername) or vim.fn.serverstart()
+end
+
+function env.progpath()
+  return vim.v.progpath
+end
+
+function env.var(name)
+  return vim.env[name]
+end
+
 return env

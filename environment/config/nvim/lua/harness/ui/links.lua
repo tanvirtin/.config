@@ -1,3 +1,7 @@
+local Buffer = require('core.Buffer')
+local Window = require('core.Window')
+local console = require('core.console')
+local fs = require('core.fs')
 local INLINE = require('ui.markdown.Renderer').INLINE
 
 local links = {}
@@ -9,7 +13,7 @@ links.SCHEME = 'nvim://'
 local exists_cache = {}
 
 local function exists(path)
-  if exists_cache[path] == nil then exists_cache[path] = vim.uv.fs_stat(path) ~= nil end
+  if exists_cache[path] == nil then exists_cache[path] = fs.exists(path) end
 
   return exists_cache[path]
 end
@@ -21,11 +25,11 @@ end
 local function absolute(path, dir)
   local first = path:sub(1, 1)
 
-  if first == '~' or first == '$' then path = vim.fn.expand(path) end
+  if first == '~' or first == '$' then path = fs.expand(path) end
 
   if path:sub(1, 1) == '/' then return path end
 
-  return vim.fs.joinpath(dir or vim.fn.getcwd(), path)
+  return fs.joinpath(dir or fs.cwd(), path)
 end
 
 local function file(path, line, dir)
@@ -55,7 +59,7 @@ local function from_scheme(target, dir)
 
   if kind == links.TARGET.buf then
     local bufnr = tonumber(value)
-    if bufnr and vim.api.nvim_buf_is_valid(bufnr) then return { bufnr = bufnr } end
+    if Buffer.exists(bufnr) then return { bufnr = bufnr } end
     return { bufnr = bufnr, missing = true }
   end
 end
@@ -101,20 +105,15 @@ function links.open(target)
   if not target or target.missing then return false end
 
   if target.url then
-    vim.ui.open(target.url)
+    console.open_url(target.url)
     return true
   end
 
-  if target.bufnr then
-    vim.cmd('tab sbuffer ' .. target.bufnr)
-  else
-    vim.cmd('tabnew ' .. vim.fn.fnameescape(target.path))
-  end
+  local window = target.bufnr and Window.tab_with(Buffer(target.bufnr)) or Window.tab_edit(target.path)
 
   if target.line then
-    local last = vim.api.nvim_buf_line_count(0)
-    vim.api.nvim_win_set_cursor(0, { math.min(target.line, last), 0 })
-    vim.cmd('normal! zz')
+    window:set_cursor({ math.min(target.line, window:get_buffer():get_line_count()), 0 })
+    window:normal('zz')
   end
 
   return true

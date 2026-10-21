@@ -1,3 +1,6 @@
+local Timer = require('core.Timer')
+local console = require('core.console')
+local fs = require('core.fs')
 local api = require('nvim_mcp.api')
 local async = require('harness.async')
 local tools = require('nvim_mcp.tools')
@@ -46,7 +49,7 @@ function permissions.describe(request)
     elseif type(input.file_path) == 'string' then
       local content = input.content or input.new_string
 
-      local path = vim.fn.fnamemodify(input.file_path, ':~:.')
+      local path = fs.display(input.file_path)
       local size = type(content) == 'string' and string.format('%d lines', count_lines(content)) or nil
 
       if request.tool:find(path, 1, true) then
@@ -67,10 +70,10 @@ end
 function permissions.ui_ask(request)
   local future = async.Future.new()
 
-  vim.schedule(function()
+  Timer.schedule(function()
     if future.done then return end
 
-    local picker = vim.ui.select(permissions.CHOICES, {
+    local picker = console.select(permissions.CHOICES, {
       prompt = 'Harness wants to run ' .. permissions.describe(request),
       format_item = function(choice)
         return choice.label

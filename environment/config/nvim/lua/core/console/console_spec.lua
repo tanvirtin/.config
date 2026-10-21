@@ -109,4 +109,50 @@ describe('console:', function()
       end)
     end)
   end)
+  describe('notify', function()
+    local original
+
+    before_each(function()
+      original = vim.notify
+    end)
+
+    after_each(function()
+      vim.notify = original
+    end)
+
+    it('notifies now, or on the next tick, at the named level', function()
+      local seen = {}
+
+      vim.notify = function(msg, level)
+        seen[#seen + 1] = { msg, level }
+      end
+
+      console.notify_now('now', 'warn')
+      console.notify('later')
+
+      assert.are.same({ { 'now', vim.log.levels.WARN } }, seen)
+      vim.wait(100, function()
+        return #seen == 2
+      end)
+      assert.are.same({ 'later', vim.log.levels.INFO }, seen[2])
+    end)
+  end)
+
+  describe('select', function()
+    it('hands the choice to vim.ui.select', function()
+      local original = vim.ui.select
+      local picked
+
+      vim.ui.select = function(items, _, on_choice)
+        on_choice(items[2])
+      end
+
+      console.select({ 'a', 'b' }, {}, function(choice)
+        picked = choice
+      end)
+
+      vim.ui.select = original
+      assert.are.same('b', picked)
+    end)
+  end)
 end)

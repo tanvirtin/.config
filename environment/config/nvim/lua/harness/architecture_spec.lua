@@ -49,19 +49,7 @@ local LAYERS = {
   { 'harness', 8 },
 }
 
-local NEOVIM_ALLOWED = {
-  ['harness.acp.transport'] = 3,
-  ['harness.agent'] = 5,
-  ['harness.async'] = 2,
-  ['harness.context'] = 7,
-  ['harness.hub'] = 3,
-  ['harness.permissions'] = 3,
-  ['harness.ui.commands'] = 14,
-  ['harness.ui.composer'] = 24,
-  ['harness.ui.links'] = 10,
-  ['harness.ui.sessions'] = 6,
-  ['harness.ui.transcript'] = 84,
-}
+local NEOVIM_ALLOWED = {}
 
 local UPWARD_ALLOWED = {}
 

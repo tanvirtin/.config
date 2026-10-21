@@ -393,4 +393,27 @@ describe('event:', function()
       eq(0, scheduled)
     end)
   end)
+  describe('augroup', function()
+    it('groups autocmds, scoped to a buffer and optionally once, and disposes them together', function()
+      local buffer = Buffer(vim.api.nvim_create_buf(false, true))
+      local fired = 0
+      local group = event.augroup('core.event.spec.augroup')
+
+      group.on('User', function()
+        fired = fired + 1
+      end, { pattern = 'CoreEventSpec', once = true })
+      group.on('BufWipeout', function() end, { buffer = buffer })
+
+      vim.api.nvim_exec_autocmds('User', { pattern = 'CoreEventSpec' })
+      vim.api.nvim_exec_autocmds('User', { pattern = 'CoreEventSpec' })
+
+      assert.are.same(1, fired)
+      assert.are.same(1, #vim.api.nvim_get_autocmds({ group = group.id }))
+
+      group.dispose()
+      group.dispose()
+
+      assert.is_false(pcall(vim.api.nvim_get_autocmds, { group = group.id }))
+    end)
+  end)
 end)

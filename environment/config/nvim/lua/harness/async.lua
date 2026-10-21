@@ -1,3 +1,5 @@
+local Timer = require('core.Timer')
+
 local async = {}
 
 local queue = {}
@@ -83,7 +85,7 @@ end
 function Future:wait(timeout_ms)
   drain()
 
-  local finished = vim.wait(timeout_ms or 60000, function()
+  local finished = Timer.wait(timeout_ms or 60000, function()
     drain()
     return self.done
   end, 5)
@@ -123,7 +125,7 @@ function Task.new(fn)
     resume_task(task)
   end)
 
-  vim.schedule(drain)
+  Timer.schedule(drain)
 
   return task
 end

@@ -1,9 +1,11 @@
+local console = require('core.console')
+local fs = require('core.fs')
 local Object = require('core.Object')
 local transport = require('harness.acp.transport')
 
 local agent = {}
 
-agent.PATH = vim.fn.expand('~/.local/share/tin/nvim/agents.json')
+agent.PATH = fs.expand('~/.local/share/tin/nvim/agents.json')
 agent.DEFAULT = 'claude'
 
 local CLAUDE_SYSTEM = table.concat({
@@ -58,7 +60,7 @@ function Agent:transcript(id)
 
   if not pattern or not id then return nil end
 
-  local matches = vim.fn.glob(vim.fn.expand((pattern:gsub('{id}', id))), false, true)
+  local matches = fs.glob(fs.expand((pattern:gsub('{id}', id))))
 
   return matches[1]
 end
@@ -70,11 +72,11 @@ local function resolve(value)
 end
 
 function Agent:executable()
-  local found = vim.fn.exepath(self.command)
+  local found = fs.exepath(self.command)
 
   if found ~= '' then return found end
 
-  return vim.fn.expand('~/.local/bin/' .. self.command)
+  return fs.expand('~/.local/bin/' .. self.command)
 end
 
 function Agent:environment()
@@ -124,7 +126,7 @@ local function read_exported(path)
   local ok, decoded = pcall(vim.json.decode, text)
 
   if not ok or type(decoded) ~= 'table' or type(decoded.agents) ~= 'table' then
-    vim.notify('Harness: ignoring unreadable agents file ' .. path, vim.log.levels.WARN)
+    console.notify_now('Harness: ignoring unreadable agents file ' .. path, 'warn')
     return {}
   end
 

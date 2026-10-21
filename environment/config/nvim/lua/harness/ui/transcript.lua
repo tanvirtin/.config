@@ -1,170 +1,67 @@
-local blocks = require('harness.transcript.BlockBuilder')
-local DECISION = require('harness.acp.connection').DECISION
-local EVENT, NOTICE = require('harness.events').KIND, require('harness.events').NOTICE
+local lazy = require('core.lazy')
+
+local Block = require('harness.transcript.Block')
+local Buffer = require('core.Buffer')
+local Fold = require('core.Fold')
 local INLINE = require('ui.markdown.Renderer').INLINE
-local Document = require('harness.ui.document')
-local follow = require('harness.follow')
+local Timer = require('core.Timer')
+local TranscriptView = require('harness.ui.TranscriptView')
+local Window = require('core.Window')
+local console = require('core.console')
+local display = require('harness.ui.display')
+local fences = require('harness.transcript.fences')
 local links = require('harness.ui.links')
+local permission_prompt = require('harness.ui.permission_prompt')
+local register = require('core.register')
+local winbar = require('harness.ui.winbar')
+
+local composer = lazy('harness.ui.composer')
 
 local transcript = {}
 
-transcript.FILETYPE = 'harness'
+transcript.FILETYPE = TranscriptView.FILETYPE
+transcript.TICK_MS = TranscriptView.TICK_MS
+transcript.WINBAR = winbar.HINTS
+transcript.CHOICES = permission_prompt.CHOICES
 
-local views = {}
-
-transcript.TICK_MS = 100
+transcript.view = display.view
+transcript.view_of = display.view_of
+transcript.buffer_of = display.buffer_of
+transcript.last = display.last
+transcript.window = display.window
+transcript.to_bottom = display.to_bottom
+transcript.open = display.open
+transcript.forget = display.forget
+transcript.winbar = winbar.transcript
+transcript.asks_of = permission_prompt.asks_of
+transcript.ask = permission_prompt.ask
+transcript.answer = permission_prompt.answer
 
 function transcript.render(history, title)
   return require('harness.transcript.TextRenderer').render(history, title)
 end
 
-function transcript.view(buf)
-  return views[buf or vim.api.nvim_get_current_buf()]
-end
+function transcript.announce_waiting(session)
+  local view = display.view_of(session)
 
-local function buffer_for(session)
-  for buf, view in pairs(views) do
-    if view.session == session and vim.api.nvim_buf_is_valid(buf) then return buf end
-  end
-end
-
-function transcript.buffer_of(session)
-  return buffer_for(session)
-end
-
-function transcript.view_of(session)
-  local buf = buffer_for(session)
-
-  return buf and views[buf] or nil
-end
-
-local function buffer_name(session)
-  return string.format('harness://%s %s', session.key, session.title or 'untitled')
-end
-
-local last_buf
-
-function transcript.to_bottom(win)
-  if vim.api.nvim_win_is_valid(win) then
-    vim.api.nvim_win_set_cursor(win, { vim.api.nvim_buf_line_count(vim.api.nvim_win_get_buf(win)), 0 })
-  end
-end
-
-function transcript.window()
-  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-    if views[vim.api.nvim_win_get_buf(win)] then return win end
-  end
-end
-
-function transcript.last()
-  return last_buf and vim.api.nvim_buf_is_valid(last_buf) and views[last_buf] or nil
-end
-
-transcript.WINBAR = '%#UiAccent# i %#UiMuted#write to this session   %#UiAccent#<leader>. %#UiMuted#sessions'
-
-local function last_usage(session)
-  for i = #session.history, 1, -1 do
-    if session.history[i].kind == EVENT.usage then return session.history[i] end
-  end
-end
-
-function transcript.winbar(session)
-  local parts = { transcript.WINBAR, '%=' }
-
-  if session.external and follow.is_following(session) then parts[#parts + 1] = '%#UiWarn#⇄ external  ' end
-
-  if session:running() then
-    parts[#parts + 1] = '%#UiAccent#● running'
-  elseif session.state == 'closed' then
-    parts[#parts + 1] = '%#UiMuted#○ closed'
-  else
-    parts[#parts + 1] = '%#UiMuted#○ idle'
-  end
-
-  local mode = session:mode()
-  local model = session:choice('model')
-
-  if mode then parts[#parts + 1] = '%#UiAccent#  󰒓 ' .. (mode.name or mode.id):gsub('%%', '%%%%') end
-  if model then parts[#parts + 1] = '%#UiMuted#  ' .. (model.name or model.value):gsub('%%', '%%%%') end
-
-  local usage = last_usage(session)
-
-  if usage and usage.used and usage.size and usage.size > 0 then
-    parts[#parts + 1] = string.format('%%#UiMuted#  ctx %d%%%%', math.floor(usage.used / usage.size * 100 + 0.5))
-  end
-
-  if usage and usage.cost then parts[#parts + 1] = string.format('%%#UiMuted#  $%.2f', usage.cost) end
-
-  return table.concat(parts, '') .. ' '
-end
-
-local WINDOW_OPTIONS = {
-  wrap = true,
-  linebreak = true,
-  number = false,
-  relativenumber = false,
-  conceallevel = 2,
-  concealcursor = '',
-  foldmethod = 'expr',
-  foldexpr = 'v:lua.require\'harness.ui.transcript\'.foldexpr()',
-  foldtext = 'v:lua.require\'harness.ui.transcript\'.foldtext()',
-  foldlevel = 0,
-  foldenable = true,
-  fillchars = 'fold: ,eob: ',
-}
-
-local function set_winbar(win, session)
-  local winbar = transcript.winbar(session)
-
-  if vim.wo[win].winbar ~= winbar then
-    vim.api.nvim_set_option_value('winbar', winbar, { scope = 'local', win = win })
-  end
-end
-
-local FOLD_OPTIONS = { 'foldexpr', 'foldtext', 'foldlevel', 'foldenable', 'foldmethod' }
-
-local function style(win, session)
-  set_winbar(win, session)
-
-  for option, value in pairs(WINDOW_OPTIONS) do
-    if not option:find('^fold') then vim.api.nvim_set_option_value(option, value, { scope = 'local', win = win }) end
-  end
-
-  for _, option in ipairs(FOLD_OPTIONS) do
-    if vim.wo[win][option] ~= WINDOW_OPTIONS[option] then
-      vim.api.nvim_set_option_value(option, WINDOW_OPTIONS[option], { scope = 'local', win = win })
-    end
-  end
+  if view then view:announce_waiting() end
 end
 
 function transcript.foldexpr()
-  local view = views[vim.api.nvim_get_current_buf()]
+  local view = display.view()
 
-  return view and view.document:fold_level(vim.v.lnum - 1) or '0'
+  return view and view.document:fold_level(Fold.lnum() - 1) or '0'
 end
 
 function transcript.foldtext()
-  local hidden = vim.v.foldend - vim.v.foldstart + 1
+  local first, last = Fold.range()
+  local hidden = last - first + 1
 
   return { { string.format('  ⋯ %d more line%s', hidden, hidden == 1 and '' or 's'), 'UiMuted' } }
 end
 
-local function agent_label(session)
-  local name = session.agent and session.agent.name or 'agent'
-
-  return name:sub(1, 1):upper() .. name:sub(2)
-end
-
-local function turn_started(session)
-  for i = #session.history, 1, -1 do
-    local kind = session.history[i].kind
-
-    if kind == EVENT.prompt or kind == EVENT.user then return session.times[i] end
-  end
-end
-
-local function target_at(view, win)
-  local cursor = vim.api.nvim_win_get_cursor(win)
+local function target_at(view, window)
+  local cursor = window:get_cursor()
   local row, col = cursor[1] - 1, cursor[2]
   local document, dir = view.document, view.session.dir
   local kind, text = document.renderer:inline_at(row, col)
@@ -178,79 +75,75 @@ local function target_at(view, win)
 
   if not block then return nil end
 
-  if block.kind == blocks.Block.KIND.diff then
+  if block.kind == Block.KIND.diff then
     local line = document:diff_line(block, row)
     return links.resolve(INLINE.link, block.path, dir) and { path = block.path, line = line } or nil
   end
 
-  if block.kind == blocks.Block.KIND.tool and block.locations and block.locations[1] then
+  if block.kind == Block.KIND.tool and block.locations and block.locations[1] then
     local location = block.locations[1]
     return { path = location.path, line = location.line }
   end
 end
 
-function transcript.jump(direction, buf)
-  buf = buf or vim.api.nvim_get_current_buf()
+local function view_for(buf)
+  return display.view(buf or Buffer.current_number())
+end
 
-  local view = views[buf]
+function transcript.jump(direction, buf)
+  local view = view_for(buf)
 
   if not view then return end
 
-  local row = vim.api.nvim_win_get_cursor(0)[1] - 1
+  local window = Window.get_current()
+  local row = window:get_cursor()[1] - 1
   local rows = {}
 
   for _, block in ipairs(view.document.blocks) do
-    if block.kind == blocks.Block.KIND.prompt then rows[#rows + 1] = block.start end
+    if block.kind == Block.KIND.prompt then rows[#rows + 1] = block.start end
   end
 
   if direction < 0 then
     for i = #rows, 1, -1 do
-      if rows[i] < row then return vim.api.nvim_win_set_cursor(0, { rows[i] + 1, 0 }) end
+      if rows[i] < row then return window:set_cursor({ rows[i] + 1, 0 }) end
     end
   else
     for _, candidate in ipairs(rows) do
-      if candidate > row then return vim.api.nvim_win_set_cursor(0, { candidate + 1, 0 }) end
+      if candidate > row then return window:set_cursor({ candidate + 1, 0 }) end
     end
   end
 end
 
-function transcript.activate(buf)
-  buf = buf or vim.api.nvim_get_current_buf()
+local function toggle_at(window, fold_row, row)
+  window:set_cursor({ fold_row, 0 })
+  window:normal(window:fold_closed(fold_row) and 'zo' or 'zc')
+  window:set_cursor({ row, 0 })
+end
 
-  local view = views[buf]
+function transcript.activate(buf)
+  local view = view_for(buf)
 
   if not view then return false end
 
-  local win = vim.api.nvim_get_current_win()
-  local row = vim.api.nvim_win_get_cursor(win)[1]
+  local window = Window.get_current()
+  local row = window:get_cursor()[1]
 
-  if vim.fn.foldclosed(row) ~= -1 then
-    vim.cmd('normal! zo')
+  if window:fold_closed(row) then
+    window:normal('zo')
     return true
   end
 
-  if links.open(target_at(view, win)) then return true end
+  if links.open(target_at(view, window)) then return true end
 
-  if vim.fn.foldlevel(row) > 0 then
-    vim.cmd('normal! zc')
+  if window:fold_level(row) > 0 then
+    window:normal('zc')
     return true
   end
 
   local block = view.document:block_at(row - 1)
 
   if block and block.folds and block.folds[1] then
-    local fold_row = block.start + block.folds[1][1] + 1
-
-    if vim.fn.foldclosed(fold_row) ~= -1 then
-      vim.api.nvim_win_set_cursor(win, { fold_row, 0 })
-      vim.cmd('normal! zo')
-      vim.api.nvim_win_set_cursor(win, { row, 0 })
-    else
-      vim.api.nvim_win_set_cursor(win, { fold_row, 0 })
-      vim.cmd('normal! zc')
-      vim.api.nvim_win_set_cursor(win, { row, 0 })
-    end
-
+    toggle_at(window, block.start + block.folds[1][1] + 1, row)
     return true
   end
 
@@ -258,25 +151,23 @@ function transcript.activate(buf)
 end
 
 function transcript.open_target(buf)
-  local view = views[buf or vim.api.nvim_get_current_buf()]
+  local view = view_for(buf)
 
-  return view and links.open(target_at(view, vim.api.nvim_get_current_win())) or false
+  return view and links.open(target_at(view, Window.get_current())) or false
 end
 
-function transcript.yank(buf, register)
-  buf = buf or vim.api.nvim_get_current_buf()
-
-  local view = views[buf]
+function transcript.yank(buf, name)
+  local view = view_for(buf)
 
   if not view then return nil end
 
-  local row = vim.api.nvim_win_get_cursor(0)[1] - 1
+  local row = Window.get_current():get_cursor()[1] - 1
   local block = view.document:block_at(row)
 
   if not block then return nil end
 
   local lines = block.lines
-  local first, last = blocks.fenced_at(lines, row - block.start + 1)
+  local first, last = fences.fenced_at(lines, row - block.start + 1)
   local text = vim.list_slice(lines, first or 1, last or #lines)
 
   if not first and lines[1] and lines[1]:match('^>') then
@@ -285,82 +176,15 @@ function transcript.yank(buf, register)
     end, text)
   end
 
-  vim.fn.setreg(register or vim.v.register, text, 'l')
+  register.set(text, name)
 
   return text, first ~= nil
 end
 
-local asks = setmetatable({}, { __mode = 'k' })
+local function describe(choice, current)
+  local mark = choice.value == current and '● ' or '  '
 
-transcript.CHOICES = {
-  { key = '1', kind = DECISION.allow_once, label = 'Allow once' },
-  { key = '2', kind = DECISION.allow_always, label = 'Allow always (this session)' },
-  { key = '3', kind = DECISION.reject_once, label = 'Reject' },
-}
-
-function transcript.asks_of(session)
-  return vim.tbl_filter(function(ask)
-    return not ask.future.done
-  end, asks[session] or {})
-end
-
-local function refresh(session)
-  vim.schedule(function()
-    session:_notify({ kind = NOTICE.waiting })
-  end)
-end
-
-function transcript.ask(request)
-  local async = require('harness.async')
-  local session = request.session
-  local future = async.Future.new()
-  local ask = { future = future, text = require('harness.permissions').describe(request), tool = request.tool }
-
-  asks[session] = asks[session] or {}
-  table.insert(asks[session], ask)
-
-  function future.dismiss()
-    future:set_result(DECISION.cancelled)
-    refresh(session)
-  end
-
-  future:on_complete(function()
-    refresh(session)
-  end)
-
-  vim.schedule(function()
-    if not buffer_for(session) then transcript.open(session, { background = true }) end
-    session:_notify({ kind = NOTICE.waiting })
-  end)
-
-  return future
-end
-
-function transcript.answer(session, kind)
-  local pending = transcript.asks_of(session)[1]
-
-  if not pending then return false end
-
-  pending.future:set_result(kind)
-  require('harness.async').drain()
-
-  return true
-end
-
-function transcript.announce_waiting(session, buf)
-  local waiting = session:waiting()
-
-  if #waiting == 0 then return end
-
-  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-    if vim.api.nvim_win_get_buf(win) == buf then return end
-  end
-
-  local what = waiting[1].title or waiting[1].tool or 'a tool'
-
-  vim.schedule(function()
-    vim.notify(string.format('Harness %s is waiting for your permission: %s', session.key, what), vim.log.levels.WARN)
-  end)
+  return mark .. (choice.name or choice.value) .. (choice.description and ('  ' .. choice.description) or '')
 end
 
 function transcript.pick_option(session)
@@ -369,13 +193,10 @@ function transcript.pick_option(session)
   end, session.options)
 
   local function pick_value(option)
-    local choices = session.choices(option)
-
-    vim.ui.select(choices, {
+    console.select(session.choices(option), {
       prompt = option.name or option.id,
       format_item = function(choice)
-        local mark = choice.value == option.currentValue and '● ' or '  '
-        return mark .. (choice.name or choice.value) .. (choice.description and ('  ' .. choice.description) or '')
+        return describe(choice, option.currentValue)
       end,
     }, function(choice)
       if choice then session:set_option(option.id, choice.value) end
@@ -385,9 +206,9 @@ function transcript.pick_option(session)
   if #options == 0 then
     local modes = session:mode_choices()
 
-    if #modes == 0 then return vim.notify('Harness: this agent offers no options', vim.log.levels.INFO) end
+    if #modes == 0 then return console.notify_now('Harness: this agent offers no options', 'info') end
 
-    return vim.ui.select(modes, {
+    return console.select(modes, {
       prompt = 'Mode',
       format_item = function(mode)
         return (mode.name or mode.id) .. (mode.description and ('  ' .. mode.description) or '')
@@ -397,7 +218,7 @@ function transcript.pick_option(session)
     end)
   end
 
-  vim.ui.select(options, {
+  console.select(options, {
     prompt = 'Session option',
     format_item = function(option)
       local current = session:choice(option.id)
@@ -406,252 +227,78 @@ function transcript.pick_option(session)
         .. (current and (current.name or current.value) or tostring(option.currentValue))
     end,
   }, function(option)
-    if option then vim.schedule(function()
+    if option then Timer.schedule(function()
       pick_value(option)
     end) end
   end)
 end
 
-local function create(session, opts)
-  local buf = vim.api.nvim_create_buf(true, true)
+function transcript.bindings(view)
+  local session, buf = view.session, view.bufnr
 
-  vim.bo[buf].bufhidden = 'hide'
-  vim.bo[buf].modifiable = false
-  vim.bo[buf].filetype = transcript.FILETYPE
-  pcall(vim.api.nvim_buf_set_name, buf, buffer_name(session))
+  return {
+    {
+      '<C-c>',
+      function()
+        composer.interrupt(session)
+      end,
+      'Interrupt this session',
+    },
+    {
+      '<CR>',
+      function()
+        if not transcript.activate(buf) then Window.get_current():normal('j') end
+      end,
+      'Open or fold what is under the cursor',
+    },
+    {
+      'gf',
+      function()
+        if not transcript.open_target(buf) then console.notify_now('Harness: nothing to open here', 'info') end
+      end,
+      'Open the file under the cursor in a new tab',
+    },
+    {
+      'gy',
+      function()
+        local text, code = transcript.yank(buf)
 
-  local scheduled = false
-  local document = Document(buf):attach()
-  local timer = vim.uv.new_timer()
-  local frame = 1
-  local cache = {}
-  local dirty = true
-  local render
-
-  local function resolve(kind, text)
-    local target = links.resolve(kind, text, session.dir)
-
-    return target and { icon = links.icon(target) } or nil
-  end
-
-  document.renderer.resolve = resolve
-
-  local function step()
-    if not vim.api.nvim_buf_is_valid(buf) then return timer:stop() end
-
-    if not session:running() then
-      timer:stop()
-      return render()
-    end
-
-    frame = frame + 1
-    document:tick({ frame = frame })
-  end
-
-  local function tick()
-    local ok, err = pcall(step)
-
-    if not ok then
-      timer:stop()
-      vim.notify('Harness: the transcript stopped animating: ' .. tostring(err), vim.log.levels.WARN)
-    end
-  end
-
-  render = function()
-    scheduled = false
-    dirty = false
-
-    if not vim.api.nvim_buf_is_valid(buf) then return end
-
-    local last = vim.api.nvim_buf_line_count(buf)
-    local wins = vim.fn.win_findbuf(buf)
-    local following = vim.tbl_filter(function(win)
-      return vim.api.nvim_win_get_cursor(win)[1] >= last
-    end, wins)
-    local running = session:running()
-
-    document:write(
-      blocks.build(
-        session.history,
-        session.title,
-        { times = session.times, dir = session.dir, running = running, cache = cache }
-      ),
-      {
-        running = running,
-        frame = frame,
-        started = turn_started(session),
-        agent = agent_label(session),
-        queue = session:queued(),
-        waiting = session:waiting(),
-        asks = transcript.asks_of(session),
-        choices = transcript.CHOICES,
-      }
-    )
-
-    for _, win in ipairs(wins) do
-      set_winbar(win, session)
-    end
-
-    for _, win in ipairs(following) do
-      transcript.to_bottom(win)
-    end
-
-    if running and not timer:is_active() then
-      timer:start(transcript.TICK_MS, transcript.TICK_MS, vim.schedule_wrap(tick))
-    end
-  end
-
-  local view = { session = session, source_win = opts.source_win, document = document }
-
-  view.unsubscribe = session:subscribe(function(event)
-    if event.kind == EVENT.title then pcall(vim.api.nvim_buf_set_name, buf, buffer_name(session)) end
-    if event.kind == NOTICE.reset then cache = {} end
-    if event.kind == NOTICE.waiting then transcript.announce_waiting(session, buf) end
-    dirty = true
-    if scheduled then return end
-
-    scheduled = true
-    vim.schedule(render)
-  end)
-
-  for _, key in ipairs({ 'i', 'a', 'o', 'I', 'A', 'O' }) do
-    vim.keymap.set('n', key, function()
-      require('harness.ui.composer').open(session, { insert = true })
-    end, { buffer = buf, desc = 'Write to this session' })
-  end
-
-  local function map(lhs, fn, desc)
-    vim.keymap.set('n', lhs, fn, { buffer = buf, desc = desc })
-  end
-
-  map('<C-c>', function()
-    require('harness.ui.composer').interrupt(session)
-  end, 'Interrupt this session')
-  map('<CR>', function()
-    if not transcript.activate(buf) then vim.cmd('normal! j') end
-  end, 'Open or fold what is under the cursor')
-  map('gf', function()
-    if not transcript.open_target(buf) then vim.notify('Harness: nothing to open here', vim.log.levels.INFO) end
-  end, 'Open the file under the cursor in a new tab')
-  map('gy', function()
-    local text, code = transcript.yank(buf)
-
-    if text then
-      local what = code and 'code block' or 'block'
-      vim.notify(string.format('Harness: yanked the %s (%d line%s)', what, #text, #text == 1 and '' or 's'))
-    end
-  end, 'Yank the code block under the cursor, or the whole block')
-  map(']]', function()
-    transcript.jump(1, buf)
-  end, 'Next turn')
-  for _, choice in ipairs(transcript.CHOICES) do
-    vim.keymap.set('n', choice.key, function()
-      if #transcript.asks_of(session) == 0 then return choice.key end
-
-      vim.schedule(function()
-        transcript.answer(session, choice.kind)
-      end)
-
-      return ''
-    end, { buffer = buf, expr = true, desc = choice.label .. ' (when the agent asks)' })
-  end
-
-  map('<S-Tab>', function()
-    session:cycle_mode()
-  end, 'Next session mode')
-  map('go', function()
-    transcript.pick_option(session)
-  end, 'Session options: mode, model, …')
-  map('[[', function()
-    transcript.jump(-1, buf)
-  end, 'Previous turn')
-
-  local group = vim.api.nvim_create_augroup('harness.transcript.' .. buf, { clear = true })
-
-  vim.api.nvim_create_autocmd('BufWinEnter', {
-    group = group,
-    buffer = buf,
-    callback = function()
-      vim.bo[buf].buflisted = true
-      style(vim.api.nvim_get_current_win(), session)
-
-      if document:stale() then
-        document:reset()
-        dirty = true
-      end
-
-      if dirty then
-        render()
-      else
-        document:decorate_visible()
-      end
-    end,
-  })
-
-  vim.api.nvim_create_autocmd('BufEnter', {
-    group = group,
-    buffer = buf,
-    callback = function()
-      last_buf = buf
-    end,
-  })
-
-  vim.api.nvim_create_autocmd({ 'BufUnload', 'BufDelete', 'BufWipeout' }, {
-    group = group,
-    buffer = buf,
-    once = true,
-    callback = function()
-      view.unsubscribe()
-      follow.stop(session)
-      timer:stop()
-      if not timer:is_closing() then timer:close() end
-      document:dispose()
-      views[buf] = nil
-      if last_buf == buf then last_buf = nil end
-      pcall(vim.api.nvim_del_augroup_by_id, group)
-      vim.schedule(function()
-        if vim.api.nvim_buf_is_valid(buf) then pcall(vim.api.nvim_buf_delete, buf, { force = true }) end
-      end)
-    end,
-  })
-
-  views[buf] = view
-  follow.start(session, {
-    visible = function()
-      local buffer = require('core.Buffer')(buf)
-
-      return buffer:is_valid() and #buffer:get_windows() > 0
-    end,
-  })
-  render()
-
-  return buf
-end
-
-function transcript.forget(session)
-  local buf = buffer_for(session)
-
-  if buf then pcall(vim.api.nvim_buf_delete, buf, { force = true }) end
-end
-
-function transcript.open(session, opts)
-  opts = opts or {}
-
-  local buf = buffer_for(session) or create(session, opts)
-
-  if opts.source_win then
-    views[buf].source_win = opts.source_win
-    views[buf].source_buf = opts.source_buf
-  end
-
-  if not opts.background then
-    vim.api.nvim_win_set_buf(0, buf)
-    transcript.to_bottom(vim.api.nvim_get_current_win())
-    views[buf].document:decorate_visible()
-    last_buf = buf
-  end
-
-  return buf
+        if text then
+          local what = code and 'code block' or 'block'
+          console.notify_now(string.format('Harness: yanked the %s (%d line%s)', what, #text, #text == 1 and '' or 's'))
+        end
+      end,
+      'Yank the code block under the cursor, or the whole block',
+    },
+    {
+      ']]',
+      function()
+        transcript.jump(1, buf)
+      end,
+      'Next turn',
+    },
+    {
+      '[[',
+      function()
+        transcript.jump(-1, buf)
+      end,
+      'Previous turn',
+    },
+    {
+      '<S-Tab>',
+      function()
+        session:cycle_mode()
+      end,
+      'Next session mode',
+    },
+    {
+      'go',
+      function()
+        transcript.pick_option(session)
+      end,
+      'Session options: mode, model, …',
+    },
+  }
 end
 
 return transcript

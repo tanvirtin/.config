@@ -1,3 +1,5 @@
+local Timer = require('core.Timer')
+local process = require('core.process')
 local jsonrpc = require('harness.acp.jsonrpc')
 
 local transport = {}
@@ -24,7 +26,7 @@ function transport.process(cmd, opts)
         local ok, message = pcall(jsonrpc.decode, line)
 
         if ok and type(message) == 'table' then
-          vim.schedule(function()
+          Timer.schedule(function()
             if on_message then on_message(message) end
           end)
         end
@@ -32,7 +34,7 @@ function transport.process(cmd, opts)
     end
   end
 
-  local proc = vim.system(cmd, {
+  local proc = process.system(cmd, {
     stdin = true,
     env = opts.env,
     cwd = opts.cwd,
@@ -43,7 +45,7 @@ function transport.process(cmd, opts)
       if data then self.stderr[#self.stderr + 1] = data end
     end,
   }, function(out)
-    vim.schedule(function()
+    Timer.schedule(function()
       if on_close then on_close(out) end
     end)
   end)

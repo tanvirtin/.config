@@ -37,6 +37,14 @@ function Fold.open_all_current()
   vim.cmd('silent! noautocmd normal! zR')
 end
 
+function Fold.lnum()
+  return vim.v.lnum
+end
+
+function Fold.range()
+  return vim.v.foldstart, vim.v.foldend
+end
+
 function Fold.foldtext()
   local count = vim.v.foldend - vim.v.foldstart + 1
   return string.format('  %d lines folded - zo open | zc close', count)

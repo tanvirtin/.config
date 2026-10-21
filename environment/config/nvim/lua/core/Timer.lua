@@ -60,4 +60,12 @@ function Timer.defer(ms, callback)
   vim.defer_fn(callback, ms)
 end
 
+function Timer.schedule(callback)
+  vim.schedule(callback)
+end
+
+function Timer.wait(ms, condition, interval)
+  return vim.wait(ms, condition, interval)
+end
+
 return Timer

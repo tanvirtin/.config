@@ -1,18 +1,29 @@
+local Buffer = require('core.Buffer')
+local Window = require('core.Window')
+local fs = require('core.fs')
+
 local context = {}
 
 context.TAG = 'editor-context'
 
-local function display_path(buf)
-  local name = vim.api.nvim_buf_get_name(buf)
+local function display_path(buffer)
+  local name = buffer:get_name()
 
-  return name ~= '' and vim.fn.fnamemodify(name, ':~:.') or '[No Name]'
+  return name ~= '' and fs.display(name) or '[No Name]'
 end
 
 function context.capture(win, range)
-  local buf = vim.api.nvim_win_get_buf(win)
-  local cursor = vim.api.nvim_win_get_cursor(win)
+  local window = Window(win)
+  local buffer = window:get_buffer()
+  local cursor = window:get_cursor()
   local parts = {
-    string.format('The user is in %s (bufnr %d), line %d, col %d.', display_path(buf), buf, cursor[1], cursor[2] + 1),
+    string.format(
+      'The user is in %s (bufnr %d), line %d, col %d.',
+      display_path(buffer),
+      buffer.bufnr,
+      cursor[1],
+      cursor[2] + 1
+    ),
   }
 
   if range then parts[#parts + 1] = string.format('They selected lines %d-%d.', range[1], range[2]) end
@@ -23,14 +34,16 @@ function context.capture(win, range)
 end
 
 function context.capture_buffer(buf, range)
-  for _, win in ipairs(vim.api.nvim_list_wins()) do
-    if vim.api.nvim_win_get_buf(win) == buf then return context.capture(win, range) end
+  local buffer = Buffer(buf)
+
+  for _, window in ipairs(Window.list()) do
+    if window:get_buffer().bufnr == buf then return context.capture(window.win_id, range) end
   end
 
-  local mark = vim.api.nvim_buf_get_mark(buf, '"')
+  local mark = buffer:get_mark('"')
   local line, col = mark[1] > 0 and mark[1] or 1, mark[2]
   local parts = {
-    string.format('The user is in %s (bufnr %d), line %d, col %d.', display_path(buf), buf, line, col + 1),
+    string.format('The user is in %s (bufnr %d), line %d, col %d.', display_path(buffer), buf, line, col + 1),
   }
 
   if range then parts[#parts + 1] = string.format('They selected lines %d-%d.', range[1], range[2]) end

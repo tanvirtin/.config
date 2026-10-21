@@ -1,3 +1,5 @@
+local env = require('core.env')
+local fs = require('core.fs')
 local agent = require('harness.agent')
 local async = require('harness.async')
 local permissions = require('harness.permissions')
@@ -26,15 +28,15 @@ local function lua_root()
 end
 
 function hub.dir()
-  return vim.fs.normalize(vim.fn.getcwd(-1, 0))
+  return fs.cwd()
 end
 
 function hub.editor_server(key)
-  local addr = (vim.v.servername ~= '' and vim.v.servername) or vim.fn.serverstart()
+  local addr = env.server_address()
 
   return {
     name = permissions.MCP_NAME,
-    command = vim.v.progpath,
+    command = env.progpath(),
     args = { '--headless', '-u', 'NONE', '-l', lua_root() .. '/nvim_mcp/run.lua', addr },
     env = { { name = 'HARNESS_SESSION', value = key or '' } },
   }

@@ -38,4 +38,31 @@ describe('keymap:', function()
       assert.are.equal('down', calls[1].opts.desc)
     end)
   end)
+  describe('buffer_set expr', function()
+    it('passes expr through to a buffer-local mapping', function()
+      keymap.buffer_set({ bufnr = 7 }, { mode = 'n', key = 'Q', expr = true }, function()
+        return ''
+      end)
+
+      assert.are.same('Q', calls[1].key)
+      assert.are.same(true, calls[1].opts.expr)
+      assert.are.same(7, calls[1].opts.buffer)
+    end)
+  end)
+
+  describe('feed', function()
+    it('feeds keys with special notation decoded', function()
+      local original = vim.api.nvim_feedkeys
+      local fed
+
+      vim.api.nvim_feedkeys = function(keys, mode)
+        fed = { keys, mode }
+      end
+
+      keymap.feed('<C-x>')
+
+      vim.api.nvim_feedkeys = original
+      assert.are.same({ vim.keycode('<C-x>'), 'n' }, fed)
+    end)
+  end)
 end)

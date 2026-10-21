@@ -56,4 +56,24 @@ console.cleanup = event.async(function()
   return console
 end)
 
+console.LEVEL = { info = vim.log.levels.INFO, warn = vim.log.levels.WARN, error = vim.log.levels.ERROR }
+
+function console.notify(msg, level)
+  vim.schedule(function()
+    vim.notify(msg, console.LEVEL[level or 'info'])
+  end)
+end
+
+function console.notify_now(msg, level)
+  vim.notify(msg, console.LEVEL[level or 'info'])
+end
+
+function console.select(items, opts, on_choice)
+  return vim.ui.select(items, opts, on_choice)
+end
+
+function console.open_url(url)
+  return vim.ui.open(url)
+end
+
 return console

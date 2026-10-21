@@ -163,6 +163,22 @@ function Buffer.set_decoration_provider(namespace, on_win)
   })
 end
 
+function Buffer:get_mark(name)
+  return vim.api.nvim_buf_get_mark(self.bufnr, name)
+end
+
+function Buffer.current()
+  return Buffer(vim.api.nvim_get_current_buf())
+end
+
+function Buffer.current_number()
+  return vim.api.nvim_get_current_buf()
+end
+
+function Buffer.exists(bufnr)
+  return type(bufnr) == 'number' and vim.api.nvim_buf_is_valid(bufnr)
+end
+
 function Buffer:get_windows()
   local Window = require('core.Window')
 

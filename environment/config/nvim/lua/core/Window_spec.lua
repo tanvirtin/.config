@@ -341,4 +341,54 @@ describe('Window:', function()
       window:close()
     end)
   end)
+  describe('tabs and folds', function()
+    after_each(function()
+      vim.cmd('silent! tabonly!')
+      vim.cmd('silent! only!')
+    end)
+
+    it('opens a path in a new tab and lists the tab\'s windows', function()
+      local path = vim.fn.tempname()
+
+      vim.fn.writefile({ 'a' }, path)
+
+      local tabs = #vim.api.nvim_list_tabpages()
+      local window = Window.tab_edit(path)
+
+      eq(tabs + 1, #vim.api.nvim_list_tabpages())
+      eq(vim.fn.resolve(path), vim.fn.resolve(window:get_buffer():get_name()))
+      eq(1, #Window.list_tab())
+      assert.is_true(#Window.list() >= 2)
+      os.remove(path)
+    end)
+
+    it('reads and toggles folds, and runs normal commands in the window', function()
+      local window = Window.get_current()
+
+      window:get_buffer():set_lines({ 'a', 'b', 'c', 'd' })
+      window:set_option('foldmethod', 'manual')
+      vim.cmd('2,3fold')
+
+      eq(true, window:fold_closed(2))
+      eq(1, window:fold_level(2))
+      window:set_cursor({ 2, 0 })
+      window:normal('zo')
+      eq(false, window:fold_closed(2))
+    end)
+
+    it('splits at the top and resets local options to their global values', function()
+      vim.o.signcolumn = 'no'
+
+      local origin = Window.get_current()
+
+      origin:set_option('signcolumn', 'yes')
+
+      local window = Window.split_top()
+
+      window:reset_options({ 'signcolumn' })
+
+      eq(2, #Window.list_tab())
+      eq('no', window:get_option('signcolumn'))
+    end)
+  end)
 end)

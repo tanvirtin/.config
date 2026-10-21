@@ -1,7 +1,17 @@
+local lazy = require('core.lazy')
+
+local Buffer = require('core.Buffer')
 local Element = require('ui.elements.Element')
+local Timer = require('core.Timer')
+local Window = require('core.Window')
+local console = require('core.console')
 local context = require('harness.context')
 local hub = require('harness.hub')
+local keymap = require('core.keymap')
+local permission_prompt = require('harness.ui.permission_prompt')
 local tools = require('nvim_mcp.tools')
+
+local display = lazy('harness.ui.display')
 
 local composer = {}
 
@@ -11,9 +21,7 @@ local current
 local drafts = {}
 
 local function warn(message)
-  vim.schedule(function()
-    vim.notify('Harness: ' .. message, vim.log.levels.WARN)
-  end)
+  console.notify('Harness: ' .. message, 'warn')
 end
 
 composer.WINBAR = '%!v:lua.require\'harness.ui.composer\'.winbar()'
@@ -35,7 +43,7 @@ function composer.winbar(session)
   if mode then parts[#parts + 1] = '%#UiAccent#󰒓 ' .. (mode.name or mode.id):gsub('%%', '%%%%') .. ' ' end
   if #session.queue > 0 then parts[#parts + 1] = string.format('%%#UiMuted#⏳ %d queued ', #session.queue) end
   if session.external then parts[#parts + 1] = '%#UiWarn#⇄ also driven elsewhere: sending forks it ' end
-  if #require('harness.ui.transcript').asks_of(session) > 0 then
+  if #permission_prompt.asks_of(session) > 0 then
     parts[#parts + 1] = '%#UiWarn#󰀦 answer with 1/2/3 in the transcript '
   end
 
@@ -65,6 +73,12 @@ local function has_text(lines)
   return vim.trim(table.concat(lines, '\n')) ~= ''
 end
 
+local function focus(win)
+  local window = type(win) == 'number' and Window(win)
+
+  if window and window:is_valid() then window:focus() end
+end
+
 function composer.target()
   return current and current.session
 end
@@ -87,25 +101,11 @@ function composer.close(discard)
   end
 
   if discard then drafts[closing.session.key] = nil end
-  if closing.origin and vim.api.nvim_win_is_valid(closing.origin) then vim.api.nvim_set_current_win(closing.origin) end
+  focus(closing.origin)
 end
 
 local function reveal(session, origin, source)
-  local transcript = require('harness.ui.transcript')
-  local buf = transcript.buffer_of(session)
-
-  if buf and #vim.fn.win_findbuf(buf) > 0 then return end
-
-  if origin and vim.api.nvim_win_is_valid(origin) then
-    vim.api.nvim_set_current_win(origin)
-  else
-    vim.cmd('topleft split')
-    vim.cmd('setlocal winfixheight< signcolumn< winbar<')
-  end
-
-  transcript.open(session, { source_win = source.win, source_buf = source.buf })
-
-  return vim.api.nvim_get_current_win()
+  return display.reveal(session, origin, source)
 end
 
 local function deliver(outgoing, opts)
@@ -115,7 +115,7 @@ local function deliver(outgoing, opts)
   if text == '' then return true end
   if session.state == 'closed' then return false, 'this session has ended; your text is kept' end
 
-  local where = source.buf and vim.api.nvim_buf_is_valid(source.buf) and context.capture_buffer(source.buf) or nil
+  local where = Buffer.exists(source.buf) and context.capture_buffer(source.buf) or nil
   local ok, how, task = pcall(hub.send, session, text, where, opts)
 
   if not ok then return false, tostring(how) end
@@ -146,11 +146,11 @@ function composer.send(opts)
   local shown = reveal(message.session, message.origin, message.source)
 
   composer.close(true)
-  if shown and vim.api.nvim_win_is_valid(shown) then vim.api.nvim_set_current_win(shown) end
+  focus(shown)
 end
 
 local function send_after_write(message)
-  vim.schedule(function()
+  Timer.schedule(function()
     local sent, why = deliver(message)
 
     if not sent then
@@ -161,7 +161,7 @@ local function send_after_write(message)
     local shown = reveal(message.session, message.origin, message.source)
 
     if current and current.session == message.session then composer.close(true) end
-    if shown and vim.api.nvim_win_is_valid(shown) then vim.api.nvim_set_current_win(shown) end
+    focus(shown)
   end)
 end
 
@@ -171,7 +171,7 @@ function composer.open(session, opts)
   if current and current.element:is_valid() then
     if current.session == session then
       current.element:focus()
-      if opts.insert then vim.cmd('startinsert!') end
+      if opts.insert then current.element:start_insert() end
       return current.element
     end
 
@@ -200,8 +200,8 @@ function composer.open(session, opts)
     win_plot = { split = 'below', win = -1, height = composer.HEIGHT },
   })
 
-  local origin = vim.api.nvim_get_current_win()
-  local view = require('harness.ui.transcript').view_of(session)
+  local origin = Window.get_current().win_id
+  local view = display.view_of(session)
 
   element:mount()
   element:set_name('harness://composer')
@@ -225,7 +225,7 @@ function composer.open(session, opts)
 
   for _, mode in ipairs({ 'n', 'i' }) do
     element:set_keymap(mode, '<C-s>', function()
-      vim.cmd('stopinsert')
+      Window.stop_insert()
       composer.send({ steer = true })
     end, 'Steer the running turn (queues if the agent cannot steer)')
   end
@@ -257,7 +257,7 @@ function composer.open(session, opts)
 
   element:attach_to_changes({
     on_lines = function()
-      vim.schedule(keep)
+      Timer.schedule(keep)
     end,
   })
 
@@ -273,7 +273,7 @@ function composer.open(session, opts)
     if current and current.element == element then current = nil end
   end)
 
-  if opts.insert then vim.cmd('startinsert!') end
+  if opts.insert then element:start_insert() end
 
   return element
 end
@@ -284,9 +284,10 @@ function composer.complete(findstart, base)
   if not session then return findstart == 1 and -3 or {} end
 
   if findstart == 1 then
-    local line = vim.api.nvim_get_current_line()
-    local col = vim.api.nvim_win_get_cursor(0)[2]
-    local word = line:sub(1, col)
+    local window = Window.get_current()
+    local cursor = window:get_cursor()
+    local line = window:get_buffer():get_lines(cursor[1] - 1, cursor[1])[1] or ''
+    local word = line:sub(1, cursor[2])
 
     if word:match('^/%S*$') then return 0 end
 
@@ -311,10 +312,10 @@ end
 
 function composer.slash()
   local session = current and current.session
-  local complete = session ~= nil and #session.commands > 0 and vim.api.nvim_win_get_cursor(0)[2] == 0
+  local complete = session ~= nil and #session.commands > 0 and Window.get_current():get_cursor()[2] == 0
 
-  vim.api.nvim_feedkeys('/', 'n', false)
-  if complete then vim.api.nvim_feedkeys(vim.keycode('<C-x><C-o>'), 'n', false) end
+  keymap.feed('/')
+  if complete then keymap.feed('<C-x><C-o>') end
 end
 
 function composer.restore(session, texts)
@@ -346,7 +347,7 @@ end
 function composer.on_returned(session, texts)
   composer.restore(session, texts)
 
-  vim.notify(
+  console.notify_now(
     string.format(
       'Harness: interrupted; %d queued message%s moved back to the composer',
       #texts,

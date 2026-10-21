@@ -22,6 +22,67 @@ function Window.tab_with(buffer)
   return Window(0)
 end
 
+function Window.tab_edit(path)
+  vim.cmd('tabnew ' .. vim.fn.fnameescape(path))
+  return Window(vim.api.nvim_get_current_win())
+end
+
+function Window.list()
+  return vim.tbl_map(Window, vim.api.nvim_list_wins())
+end
+
+function Window.list_tab()
+  return vim.tbl_map(Window, vim.api.nvim_tabpage_list_wins(0))
+end
+
+function Window.split_top()
+  vim.cmd('topleft split')
+  return Window(vim.api.nvim_get_current_win())
+end
+
+function Window:reset_options(names)
+  return self:call(function()
+    vim.cmd('setlocal ' .. table.concat(
+      vim.tbl_map(function(name)
+        return name .. '<'
+      end, names),
+      ' '
+    ))
+  end)
+end
+
+function Window:get_buffer()
+  local Buffer = require('core.Buffer')
+
+  return Buffer(vim.api.nvim_win_get_buf(self.win_id))
+end
+
+function Window:normal(keys)
+  return self:call(function()
+    vim.cmd('normal! ' .. keys)
+  end)
+end
+
+function Window:fold_closed(lnum)
+  local closed
+
+  self:call(function()
+    closed = vim.fn.foldclosed(lnum)
+  end)
+
+  return closed ~= nil and closed ~= -1
+end
+
+function Window:fold_level(lnum)
+  local level = 0
+
+  self:call(function()
+    level = vim.fn.foldlevel(lnum)
+  end)
+
+  return level
+end
+
 function Window:split_right(buffer)
   self:focus()
   vim.cmd('vertical rightbelow sbuffer ' .. buffer.bufnr)

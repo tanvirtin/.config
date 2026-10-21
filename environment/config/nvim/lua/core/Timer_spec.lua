@@ -67,4 +67,16 @@ describe('core.Timer:', function()
     eq(true, ran)
     timer:close()
   end)
+  it('schedules a callback for the next tick and waits on a condition', function()
+    local ran = false
+
+    Timer.schedule(function()
+      ran = true
+    end)
+
+    assert.is_false(ran)
+    assert.is_true(Timer.wait(200, function()
+      return ran
+    end, 5))
+  end)
 end)

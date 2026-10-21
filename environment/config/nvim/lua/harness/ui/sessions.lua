@@ -1,3 +1,5 @@
+local Timer = require('core.Timer')
+local console = require('core.console')
 local hub = require('harness.hub')
 local surfaces = require('surfaces')
 
@@ -33,9 +35,7 @@ function sessions.rows(listed)
 end
 
 local function warn(message)
-  vim.schedule(function()
-    vim.notify('Harness: ' .. message, vim.log.levels.WARN)
-  end)
+  console.notify('Harness: ' .. message, 'warn')
 end
 
 function sessions.open(opts)
@@ -51,7 +51,7 @@ function sessions.open(opts)
       listed = {}
     end
 
-    vim.schedule(function()
+    Timer.schedule(function()
       local rows = sessions.rows(listed)
       local pending
 
@@ -63,13 +63,13 @@ function sessions.open(opts)
           row.description = 'press <C-x> again to delete for good'
           picker:set_items(rows)
 
-          vim.defer_fn(function()
+          Timer.defer(sessions.CONFIRM_MS, function()
             if pending == row.id then
               pending = nil
               row.description = row.key and 'open' or when(row.updated_at)
               if picker:is_open() then picker:set_items(rows) end
             end
-          end, sessions.CONFIRM_MS)
+          end)
 
           return
         end
@@ -79,7 +79,7 @@ function sessions.open(opts)
         local live = row.key and hub.session(row.key)
 
         hub.delete({ dir = dir, id = row.id }):on_complete(function(delete_err)
-          vim.schedule(function()
+          Timer.schedule(function()
             if delete_err then return warn(tostring(delete_err)) end
             if live then
               require('harness.ui.composer').forget(live)
@@ -108,7 +108,7 @@ function sessions.open(opts)
           if live then return opts.on_open and opts.on_open(live) end
 
           hub.load({ dir = dir, id = row.id, title = row.title }):on_complete(function(load_err, session)
-            vim.schedule(function()
+            Timer.schedule(function()
               if load_err then return warn(tostring(load_err)) end
               if opts.on_open then opts.on_open(session) end
             end)

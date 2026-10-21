@@ -129,6 +129,31 @@ function event.command(name, callback, opts)
   end
 end
 
+function event.augroup(name)
+  local id = vim.api.nvim_create_augroup(name, { clear = true })
+  local group = { id = id }
+
+  function group.on(events, callback, opts)
+    opts = opts or {}
+
+    vim.api.nvim_create_autocmd(events, {
+      group = id,
+      buffer = opts.buffer and opts.buffer.bufnr,
+      pattern = opts.pattern,
+      once = opts.once,
+      callback = callback,
+    })
+
+    return group
+  end
+
+  function group.dispose()
+    pcall(vim.api.nvim_del_augroup_by_id, id)
+  end
+
+  return group
+end
+
 function event.file_changed_reason()
   return vim.v.fcs_reason
 end

@@ -1,3 +1,7 @@
+local Buffer = require('core.Buffer')
+local Window = require('core.Window')
+local console = require('core.console')
+local event = require('core.event')
 local async = require('harness.async')
 local context = require('harness.context')
 local hub = require('harness.hub')
@@ -7,9 +11,7 @@ local tools = require('nvim_mcp.tools')
 local commands = {}
 
 local function warn(message)
-  vim.schedule(function()
-    vim.notify('Harness: ' .. message, vim.log.levels.WARN)
-  end)
+  console.notify('Harness: ' .. message, 'warn')
 end
 
 function commands.open(session, opts)
@@ -27,13 +29,11 @@ end
 local function source()
   local view = transcript.view()
 
-  if view and view.source_buf and vim.api.nvim_buf_is_valid(view.source_buf) then
-    return { win = view.source_win, buf = view.source_buf }
-  end
+  if view and Buffer.exists(view.source_buf) then return { win = view.source_win, buf = view.source_buf } end
 
-  local win = vim.api.nvim_get_current_win()
+  local window = Window.get_current()
 
-  return { win = win, buf = vim.api.nvim_win_get_buf(win) }
+  return { win = window.win_id, buf = window:get_buffer().bufnr }
 end
 
 function commands.run(prompt, opts, range)
@@ -144,11 +144,11 @@ function commands.stats_lines()
 end
 
 function commands.setup()
-  vim.api.nvim_create_user_command('Harness', function(args)
+  event.command('Harness', function(args)
     commands.run(args.args, nil, args.range > 0 and { args.line1, args.line2 } or nil)
   end, { nargs = '+', range = true, desc = 'Ask an agent (over ACP) to work in this editor' })
 
-  vim.api.nvim_create_user_command('HarnessNew', function(args)
+  event.command('HarnessNew', function(args)
     commands.new(args.args ~= '' and args.args or nil)
   end, {
     nargs = '?',
@@ -158,26 +158,23 @@ function commands.setup()
     desc = 'Open a new Harness session',
   })
 
-  vim.api.nvim_create_user_command('HarnessSessions', function()
+  event.command('HarnessSessions', function()
     commands.sessions()
   end, { desc = 'Open, start or delete this directory\'s Harness sessions' })
 
-  vim.api.nvim_create_user_command('HarnessStats', function()
+  event.command('HarnessStats', function()
     require('surfaces').panel({ title = 'Harness tokens', lines = commands.stats_lines() })
   end, { desc = 'Tokens per Harness session, and what compact tool output saved' })
 
-  vim.api.nvim_create_user_command('HarnessCancel', function()
+  event.command('HarnessCancel', function()
     commands.cancel()
   end, { desc = 'Stop the running Harness turn' })
 
-  vim.api.nvim_create_user_command('HarnessClear', function()
-    vim.notify(string.format('Harness: removed %d things scripts created', require('nvim_mcp.script').clear()))
+  event.command('HarnessClear', function()
+    console.notify_now(string.format('Harness: removed %d things scripts created', require('nvim_mcp.script').clear()))
   end, { desc = 'Remove the autocmds, keymaps, windows, timers and highlights Harness scripts created' })
 
-  vim.api.nvim_create_autocmd('VimLeavePre', {
-    group = vim.api.nvim_create_augroup('harness', { clear = true }),
-    callback = hub.shutdown,
-  })
+  event.augroup('harness').on('VimLeavePre', hub.shutdown)
 end
 
 require('harness.session_store').on('start', function(session)

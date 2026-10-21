@@ -49,6 +49,7 @@ function keymap.buffer_set(buffer, opts, callback)
     noremap = noremap,
     nowait = true,
     buffer = buffer.bufnr,
+    expr = opts.expr,
   })
 
   return keymap
@@ -70,6 +71,10 @@ function keymap.define(keymaps)
   end
 
   return keymap
+end
+
+function keymap.feed(keys, mode)
+  vim.api.nvim_feedkeys(vim.keycode(keys), mode or 'n', false)
 end
 
 function keymap.find_by_rhs(command)

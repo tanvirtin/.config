@@ -63,6 +63,38 @@ function fs.short_filename(filepath)
   return filename
 end
 
+function fs.expand(path)
+  return vim.fn.expand(path)
+end
+
+function fs.exepath(command)
+  return vim.fn.exepath(command)
+end
+
+function fs.glob(pattern)
+  return vim.fn.glob(pattern, false, true)
+end
+
+function fs.normalize(path)
+  return vim.fs.normalize(path)
+end
+
+function fs.joinpath(...)
+  return vim.fs.joinpath(...)
+end
+
+function fs.basename(path)
+  return vim.fs.basename(path)
+end
+
+function fs.cwd()
+  return vim.fs.normalize(vim.fn.getcwd(-1, 0))
+end
+
+function fs.display(path)
+  return vim.fn.fnamemodify(path, ':~:.')
+end
+
 function fs.tmpname()
   return os.tmpname()
 end
