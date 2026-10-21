@@ -9,9 +9,9 @@ tin                                       Neovim
 artifacts/agents/*.yml ── export ──► agents.json ──► harness.agent
 artifacts/rules/nvim/*.yml (system prompts)              │
                                                          ▼
-:Harness ──► ui.commands ──► hub ──► Workspace(dir) ──► Connection(agent process) ══ ACP ══► agent
-                              │            └─ Session* (history of events) ──► ui.transcript
-                              ▼
+:Harness ──► cli.router ──► hub ──► Workspace(dir) ──► Connection(agent process) ══ ACP ══► agent
+                             │           └─ Session* (history of events) ──► session_store ──► TranscriptView
+                             ▼
                nvim_mcp/run.lua (child nvim) ◄══ MCP stdio ══ agent
                      │ RPC socket
                      ▼
@@ -20,22 +20,61 @@ artifacts/rules/nvim/*.yml (system prompts)              │
 
 ## Layers
 
-Bottom up. A layer only requires layers below it.
+Bottom up. A layer only requires layers below it, and no harness module calls Neovim directly: every `vim.api`, `vim.fn`, `vim.cmd`, timer and notification goes through `lua/core` (`Buffer`, `Window`, `event`, `Timer`, `FileWatch`, `console`, `keymap`, `fs`, `register`, ...) or `lua/ui`. `architecture_spec.lua` enforces both: it ranks every module and fails on an upward require or a raw Neovim call.
 
-| Layer | Module | What it is |
-| --- | --- | --- |
-| protocol | `acp/jsonrpc.lua`, `acp/transport.lua`, `acp/connection.lua` | A **Connection** is one agent process serving many sessions. It routes updates and requests by `sessionId`. It covers new, load, list, prompt, cancel and close, and nothing else: no UI and no policy. |
-| events | `events.lua` | Typed events (`message`, `tool_call`, `plan`, `permission`, `stop`, ...) normalized from `session/update`. Views never parse ACP. |
-| agent | `agent.lua` | **Agent** definitions, loaded from tin's `~/.local/share/tin/nvim/agents.json`, with a built-in `claude` as fallback. It spawns the process and reads `$NAME` env values at spawn time. |
-| session | `session.lua`, `session/*.lua` | **Session**: one conversation, a coordinator over its parts: `History` (events, times, replay and adoption), `PermissionGate` (open requests, cancel), `PromptQueue` (queue, drain, steer), `SessionConfig` (options, modes, commands) and `Subagents` (child sessions). Its `history` is the source of truth. It provides `subscribe`, `prompt`, `enqueue`, `steer`, `cancel` and `close`. |
-| workspace | `workspace.lua` | **Workspace**: the sessions of one directory. It runs one process per agent, shared by that agent's sessions. `list()` merges live sessions with the agent's stored ones (`session/list`), and `load_session` replays a stored one. |
-| store | `session_store.lua` | Every session in the editor, with lifecycle dispatch (`on('start'/'event'/'close')`) that features subscribe to. It fires `User HarnessEvent`. |
-| hub | `hub.lua` | Policy: what a session gets (agent, permissions, the editor as the `nvim` MCP server), `max_running` and `max_depth`. |
-| features | `features/*.lua`, `follow.lua` | Behaviour that reacts to the store: reload buffers after an agent's edit (`EditCheckTime`), follow sessions driven elsewhere. |
-| tools | `tools.lua` | The `session` toolset, which lets an agent run sessions (see below). |
-| ui | `ui/blocks.lua`, `ui/document.lua`, `ui/transcript.lua`, `ui/commands.lua` | Transcripts built from history as blocks, written incrementally and reopenable at any time, and the user's commands. |
+| Rank | Layer | Module | What it is |
+| --- | --- | --- | --- |
+| 1 | protocol | `acp/jsonrpc.lua`, `acp/transport.lua`, `acp/connection.lua` | A **Connection** is one agent process serving many sessions. It routes updates and requests by `sessionId`. It covers new, load, list, prompt, cancel and close, and nothing else: no UI and no policy. |
+| 1 | settings | `settings/*.lua` | Every tunable as a `core.Config`, read at use time (see Settings). |
+| 2 | events | `events.lua` | Typed events (`message`, `tool_call`, `plan`, `permission`, `stop`, ...) normalized from `session/update`, as dataclasses with a `KIND` enum. Views never parse ACP. |
+| 2 | agent | `agent.lua` | **Agent** definitions, loaded from tin's `~/.local/share/tin/nvim/agents.json`, with a built-in `claude` as fallback. It spawns the process and reads `$NAME` env values at spawn time. |
+| 3 | session | `session.lua`, `session/*.lua` | **Session**: one conversation, a coordinator over its parts: `History` (events, times, replay and adoption), `PermissionGate` (open requests, cancel), `PromptQueue` (queue, drain, steer), `SessionConfig` (options, modes, commands) and `Subagents` (child sessions). Its `history` is the source of truth. It provides `subscribe`, `prompt`, `enqueue`, `steer`, `cancel` and `close`. |
+| 4 | workspace | `workspace.lua` | **Workspace**: the sessions of one directory. It runs one process per agent, shared by that agent's sessions. `list()` merges live sessions with the agent's stored ones (`session/list`), and `load_session` replays a stored one. |
+| 4 | store | `session_store.lua` | Every session in the editor, with lifecycle dispatch that features subscribe to (see Store events). It fires `User HarnessEvent`. |
+| 5 | hub | `hub.lua` | Policy: what a session gets (agent, permissions, the editor as the `nvim` MCP server), `max_running` and `max_depth`. |
+| 6 | transcript | `transcript/*.lua` | The render pipeline, pure data with no buffers: `BlockBuilder` (history to typed `Block`s), `calculators/` (`Layout`, `FoldCalculator`, `DiffLineCalculator`), `decorators/` (one per block kind, each returning `MarkSpec`s), `StatusLine`, `PlanSummary`, `theme`, and `TextRenderer` (compact text for agents). |
+| 6 | features | `features/*.lua`, `follow.lua` | Behaviour that reacts to the store: reload buffers after an agent's edit (`EditCheckTime`), follow sessions driven elsewhere. |
+| 6 | tools | `tools.lua` | The `session` toolset, which lets an agent run sessions (see below). |
+| 7 | ui | `ui/*.lua` | `TranscriptView` (one transcript buffer: render loop, timer, keymaps, folds, winbar), `display` (which view shows where, reveal), `document` (applies the pipeline's marks to the buffer), `composer`, `permission_prompt`, `winbar`, `PlanPanel`, `links`, `sessions`, and `transcript`, the facade the rest of the editor calls. |
+| 8 | cli | `cli/router.lua`, `cli/commands/*.lua` | One module per `:Harness*` command, with a name, options and `execute(args)`; the router registers them. |
 
 `context.lua` captures where the user is (file, cursor, selection). It is sent ahead of each prompt inside an `<editor-context>` tag, so the agent always sees fresh context. Transcripts strip the tag when a session replays.
+
+## Architecture
+
+The harness follows vgit's shape: a domain that knows nothing of buffers, stores that dispatch lifecycle events, pure calculators and decorators that return data, one writer that applies it, features as objects, views, a CLI router and settings.
+
+**Where a new thing goes**
+
+| You are adding | Put it in | Notes |
+| --- | --- | --- |
+| A protocol method or field | `acp/connection.lua`, `events.lua` | Standard ACP first; vendor `_meta` only as an optional extra. |
+| Per-session state or behaviour | a part under `session/`, composed by `session.lua` | Parts take the session and stay free of UI. |
+| Something that reacts to sessions starting, changing or closing | `features/<Name>.lua`, subscribed with `session_store.on` | `register_events()` and `cleanup()`, like `EditCheckTime`. |
+| A new look for a kind of block | `transcript/decorators/<kind>.lua` | `(block, ctx) -> MarkSpec[]`; register it in `decorators/init.lua`; test it without a buffer. |
+| Layout, fold or line-number maths | `transcript/calculators/` | Pure functions over blocks. |
+| A new kind of block | `transcript/Block.lua` (`KIND`) and `BlockBuilder.lua` | Then a decorator. |
+| Something drawn in a window | `ui/` as a view or an `Element` | Through `core`/`ui` only; `PlanPanel` is a small example. |
+| A command | `cli/commands/<name>.lua`, listed in `cli/router.lua` | `{ name, opts, execute }`. |
+| A constant someone may want to change | `settings/<feature>.lua` | Read with `settings:get(key)` where it is used, never copied at load. |
+| A Neovim call | `lua/core` (or `lua/ui`) first, then use it | The architecture spec rejects raw calls in harness code. |
+
+**Store events.** `session_store.on(names, fn)` returns a disposer. `start` fires when a session is added (child sessions open their transcript in the background from here), `event` for every session update and notice (the composer takes back interrupted messages from `NOTICE.returned`), and `close` when a session is removed (follow mode stops). Each also fires `User HarnessEvent` with the session key and the event kind.
+
+**The render pipeline.** History goes through `BlockBuilder` into blocks; `Layout` places them and finds the first block that changed; the writer (`ui/document.lua`) rewrites lines only from there and asks each visible block's decorator, and the markdown renderer's `annotate`, for `MarkSpec`s, which it applies through `core.Buffer`. Nothing in `transcript/` touches a buffer, so every look is tested as data.
+
+**Settings.** `setup(opts)` merges per-feature tables into `settings/*` and passes the rest to the hub's policy:
+
+```lua
+require('harness').setup({
+  max_running = 4,                                      -- hub policy: agent, auto_allow, max_depth, ask
+  transcript = { live_turns = 50, tick_ms = 100, preview_lines = 5, output_max = 200 },
+  composer = { height = 6 },
+  follow = { debounce_ms = 300, grace_ms = 1500, poll_ms = 3000 },
+  keymaps = { transcript = { yank = 'gy', plan = 'gp', diff = 'gd' }, composer = { steer = '<C-s>' } },
+  theme = { user_icon = '󰀄 ', spinner = { '◐', '◓', '◑', '◒' }, highlights = { UiToolOutput = { bg = '#1e2228' } } },
+})
+```
 
 ## Sessions are buffers, scoped to a directory
 
@@ -183,7 +222,7 @@ Add another ACP agent (Gemini, Codex, ...) as another YAML file, then open a ses
 
 ```lua
 local harness = require('harness')
-harness.setup({ max_running = 4, max_depth = 2 })   -- also: agent, auto_allow, ask
+harness.setup({ max_running = 4, max_depth = 2 })   -- also: agent, auto_allow, ask, and the settings tables above
 
 local session = harness.start():wait()                -- in the current tab's directory
 session:subscribe(function(event) print(event.kind) end)
@@ -196,11 +235,13 @@ A transcript is plain markdown with the `harness` filetype, drawn entirely by ou
 
 It works for any ACP agent. It reads only standard ACP fields (`kind`, `title`, `rawInput`, `locations`, `content`, `rawOutput`, diffs, plans, thoughts, usage, stop reasons). A tool name under any agent's `_meta` (`_meta.<vendor>.toolName`) is used when present, and otherwise the label comes from the title.
 
-- **Blocks.** `ui/blocks.lua` turns history into typed blocks: title, prompt, message, thought, tool, diff, plan, note, stop. Turns before the last can't change, so their blocks are built once and cached.
+- **Blocks.** `transcript/BlockBuilder.lua` turns history into typed blocks: title, collapsed, prompt, message, thought, tool, diff, plan, note, stop. Turns before the last can't change, so their blocks are built once and cached.
+- **Earlier turns wait.** Turns older than `transcript.live_turns` (50) show as one line, `󰁝 120 earlier turns · <CR> to show`, and are not built until you ask, so opening a session costs about the same at 40 turns as at 1000 (around 20 ms).
 - **Incremental writes.** `ui/document.lua` lays out and writes only from the first block that changed, comparing cached blocks by identity. A streamed chunk costs well under a millisecond whatever the length of the session.
-- **Lazy drawing.** Extmarks are drawn only for blocks in or near a window (two screens either side). A decoration provider draws the rest as they scroll into view.
-- **Per-block parsing.** `lua/ui/markdown/Renderer.lua` parses each block's text on its own with a treesitter string parser, markdown, inline markdown and code-fence languages, and applies the same highlight and conceal captures the built-in highlighter would. A block is parsed once; streaming reparses only the tail. The renderer compiles its own copy of each highlights query, because the cached query is shared and plugins change it (render-markdown disables the fence `conceal_lines` patterns for its own drawing). On top it draws heading icons and bars, shaded code blocks with a language label, bullets by depth, checkboxes, quote bars, callouts (`> [!NOTE]`, `> [!thought]`), rules and links. The cursor line shows the raw text.
-- **Who said what.** Your prompts sit on a tinted card (a blend of the accent and `Normal`'s background, recomputed on `ColorScheme`) under a **You** header; each reply opens under the agent's name; a rule separates turns.
+- **Lazy drawing.** Extmarks are drawn only for blocks in or near a window (two screens either side), starting where the window lands. A decoration provider draws the rest as they scroll into view.
+- **Markdown.** `lua/ui/markdown/Renderer.lua` annotates text into `MarkSpec`s with a treesitter string parser (markdown, inline markdown and code-fence languages), applying the same highlight and conceal captures the built-in highlighter would, then applies them. Only blocks being drawn are parsed, and streaming redraws only the tail block. The renderer compiles its own copy of each highlights query, because the cached query is shared and plugins change it (render-markdown disables the fence `conceal_lines` patterns for its own drawing). On top (`ui/markdown/nodes.lua`) it draws heading icons and bars, shaded code blocks with a language label, bullets by depth, checkboxes, quote bars, callouts (`> [!NOTE]`, `> [!thought]`), rules, links, and pipe tables as a box aligned by display width. The cursor line shows the raw text.
+- **Who said what.** Your prompts sit on a tinted card under a **You** header; each reply opens under the agent's name; a rule separates turns.
+- **Surfaces.** Code blocks, tool output and diff lines get backgrounds blended from the colour scheme's own `Normal`, `Comment` and `Added`/`Removed` colours, recomputed on `ColorScheme`, so any scheme gets a coherent palette. `theme.highlights` overrides any group.
 
 In a transcript:
 
@@ -213,7 +254,12 @@ In a transcript:
 | Output under `⎿`, the first 5 lines shown and the rest folded | commands, searches and fetches; failures show their error. Output is shown verbatim: its fence is longer than any backtick run in it |
 | `Edit a.lua +2 -2`, then the diff with file line numbers, diff colours and the file's own syntax colours | edits. Numbers come from finding the edit in the file, and are left off when it can't be found |
 | `[!thought]` callout with how long it took, folded | thoughts |
-| `󰄬 Agent List files   2 tools`, then the sub-agent's tools and report under a `│` gutter, folded as one | sub-agents (Agent/Task calls) |
+| `󰄬 Agent List files   2 tools` while it runs, then `done in 6s · 2 tools` (or `failed …`), with the sub-agent's tools and report under a `│` gutter, folded as one | sub-agents (Agent/Task calls), from the block's own status and times |
+| `󰄬 Read 3 files, searched 1 pattern` over `⋯ 3 tools` | a run of two or more finished reads and searches in a turn; live and failed tools never group, and agents reading the session still see each tool |
+| `󰁝 120 earlier turns · <CR> to show` | turns older than `live_turns` |
+| A box-drawn table | pipe tables in a reply |
+| The current turn's prompt in the winbar (`▌ fix the parser`) | once that prompt scrolls out of view |
+| A floating `Plan  2/5` checklist at the top right | the latest ACP plan while any entry is unfinished |
 | `󰄬 Done in 12s · 3 tools` | the end of each turn: done, interrupted, or a limit hit |
 | `⠋ Working · 12s · <C-c> interrupt` under the last line | a running turn |
 | `󰀦 Waiting for you: Edit a.lua` on the tool and the working line, and a notification when the transcript is out of sight | a permission request waiting for an answer |
@@ -223,7 +269,9 @@ Keys in a transcript:
 
 | Key | Does |
 | --- | --- |
-| `<CR>` | on a link or a file named in inline code (`lua/a.lua:42`): open it in a new tab. On a diff line: open the file at that line. On a tool: open what it touched. On a fold: open or close it |
+| `<CR>` | on a link or a file named in inline code (`lua/a.lua:42`): open it in a new tab. On a diff line: open the file at that line. On a tool: open what it touched. On a fold: open or close it. On a tool group: show or hide its tools. On the earlier-turns line: show them |
+| `gd` | open vgit's diff of the file under the cursor (a diff, a tool's file, a link): `vgit.run` when vgit has it, else `:VGit diff -- <path>` |
+| `gp` | show or hide the plan panel |
 | `gf` | open what is under the cursor in a new tab |
 | `gy` | yank the code block under the cursor without its fences, or else the whole block (a prompt without its `>`) |
 | `za`, `zR`, `zM` | folds, as anywhere |
@@ -274,4 +322,4 @@ make test          # all specs
 make test-file FILE=lua/harness/session_spec.lua
 ```
 
-`harness/fake_agent.lua` is a scripted ACP agent for specs. It handles sessions, list and load, and permission requests.
+`harness/fake_agent.lua` is a scripted ACP agent for specs. It handles sessions, list and load, and permission requests. Specs sit next to their module (`Layout.lua`, `Layout_spec.lua`) and go bottom up: calculators and decorators are tested as data, views against real buffers, and `architecture_spec.lua` guards the layers.
