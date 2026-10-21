@@ -1,5 +1,6 @@
 local EVENT = require('harness.events').KIND
 local compact = require('compact')
+local core_text = require('core.text')
 local follow = require('harness.follow')
 
 local winbar = {}
@@ -17,14 +18,20 @@ local function escape(text)
   return (text:gsub('%%', '%%%%'))
 end
 
-function winbar.sticky(prompt)
-  local first = (prompt.lines[1] or ''):gsub('^> ?', '')
-
-  return '%#UiPromptBar# ▌ %#UiMuted#' .. escape(compact.line(first, winbar.STICKY_WIDTH))
+function winbar.visible_width(text)
+  return core_text.width((text:gsub('%%#[^#]*#', ''):gsub('%%%%', '%%'):gsub('%%[<=*]', '')))
 end
 
-function winbar.transcript(session, prompt)
-  local parts = { prompt and winbar.sticky(prompt) or winbar.HINTS, '%=' }
+function winbar.sticky(prompt, width)
+  local first = (prompt.lines[1] or ''):gsub('^> ?', '')
+  local head = '%#UiPromptBar# ▌ %#UiMuted#'
+  local room = math.max(math.min(width or winbar.STICKY_WIDTH, winbar.STICKY_WIDTH) - winbar.visible_width(head), 8)
+
+  return head .. escape(compact.line(first, room))
+end
+
+local function status(session)
+  local parts = {}
 
   if session.external and follow.is_following(session) then parts[#parts + 1] = '%#UiWarn#⇄ external  ' end
 
@@ -51,6 +58,15 @@ function winbar.transcript(session, prompt)
   if usage and usage.cost then parts[#parts + 1] = string.format('%%#UiMuted#  $%.2f', usage.cost) end
 
   return table.concat(parts, '') .. ' '
+end
+
+function winbar.transcript(session, prompt, width)
+  local right = status(session)
+  local left = winbar.HINTS
+
+  if prompt then left = winbar.sticky(prompt, width and width - winbar.visible_width(right) - 2) end
+
+  return left .. '%<%=' .. right
 end
 
 return winbar

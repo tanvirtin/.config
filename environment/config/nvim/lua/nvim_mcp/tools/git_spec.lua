@@ -169,8 +169,26 @@ describe('nvim_mcp.tools.git:', function()
     end)
   end)
 
+  it('falls back to the :VGit command when vgit has no run', function()
+    local got
+
+    package.loaded['vgit'] = {}
+    vim.api.nvim_create_user_command('VGit', function(args)
+      got = args.fargs
+    end, { nargs = '*' })
+
+    local out = run('git_view', { command = 'diff', args = { '--', 'a.txt' } })
+
+    vim.api.nvim_del_user_command('VGit')
+    package.loaded['vgit'] = nil
+
+    eq({ 'diff', '--', 'a.txt' }, got)
+    assert.is_truthy(out:find('^opened :VGit diff'))
+  end)
+
   it('says when vgit is missing', function()
     package.loaded['vgit'] = {}
+    pcall(vim.api.nvim_del_user_command, 'VGit')
 
     local ok, err = pcall(run, 'git_view', { command = 'status' })
 

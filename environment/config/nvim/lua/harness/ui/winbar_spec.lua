@@ -1,5 +1,7 @@
 local winbar = require('harness.ui.winbar')
 
+local eq = assert.are.same
+
 local function session(fields)
   local out = {
     history = {},
@@ -53,5 +55,18 @@ describe('harness.ui.winbar:', function()
 
     assert.is_nil(text:find(winbar.HINTS, 1, true))
     assert.truthy(text:find('▌ %#UiMuted#fix the 100%% bug', 1, true))
+  end)
+
+  it('fits the scrolled-past prompt into what the status leaves of the window', function()
+    local text = winbar.transcript(session({ mode = { id = 'plan', name = 'Plan' } }), {
+      lines = { '> ' .. string.rep('word ', 40) },
+    }, 60)
+
+    assert.is_true(winbar.visible_width(text) <= 60)
+    assert.truthy(text:find('󰒓 Plan', 1, true))
+  end)
+
+  it('measures what a winbar shows, without its highlight codes', function()
+    eq(5, winbar.visible_width('%#UiMuted#a%%b%=cd'))
   end)
 end)

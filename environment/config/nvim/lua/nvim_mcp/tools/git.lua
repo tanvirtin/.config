@@ -114,12 +114,19 @@ local VGIT_TIMEOUT_MS = 10000
 
 local function vgit(command, args)
   local ok, api = pcall(require, 'vgit')
+  local fargs = vim.list_extend({ command }, vim.deepcopy(args or {}))
 
-  if not ok or type(api.run) ~= 'function' then
-    util.fail('this needs vgit with require("vgit").run (alpha-v2.0.x with the task API)')
+  if not ok or type(api) ~= 'table' or type(api.run) ~= 'function' then
+    if vim.fn.exists(':VGit') ~= 2 then util.fail('this needs vgit: neither require("vgit").run nor :VGit exists') end
+
+    local ran, err = pcall(vim.api.nvim_cmd, { cmd = 'VGit', args = fargs }, {})
+
+    if not ran then util.fail(string.format('VGit %s: %s', command, tostring(err))) end
+
+    return
   end
 
-  local task = api.run(vim.list_extend({ command }, vim.deepcopy(args or {})))
+  local task = api.run(fargs)
   local done, err = pcall(task.wait, task, VGIT_TIMEOUT_MS)
 
   if not done then util.fail(string.format('VGit %s: %s', command, tostring(err))) end

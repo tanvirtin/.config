@@ -123,7 +123,7 @@ function TranscriptView:toggle_plan()
 end
 
 function TranscriptView:set_winbar(window)
-  local text = winbar.transcript(self.session, self:sticky(window))
+  local text = winbar.transcript(self.session, self:sticky(window), window:get_width())
 
   if window:get_option('winbar') ~= text then window:set_option('winbar', text) end
 end
