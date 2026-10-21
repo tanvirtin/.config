@@ -54,6 +54,8 @@ Block = dataclass.define('Block', {
 
 Block.KIND = KIND
 
+Block.DIFF_HEADER = 2
+
 Block.STATUS = dataclass.enum({ 'pending', 'in_progress', 'completed', 'failed' })
 
 Block.CATEGORY = dataclass.enum({ 'read', 'edit', 'delete', 'move', 'search', 'execute', 'think', 'fetch', 'other' })

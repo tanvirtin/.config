@@ -1,3 +1,4 @@
+local Block = require('harness.transcript.Block')
 local MarkSpec = require('ui.MarkSpec')
 local theme = require('harness.transcript.theme')
 
@@ -25,7 +26,7 @@ local function rows(out, block, first)
     })
 
     if entry.kind == 'hunk' then
-      MarkSpec.add(out, row, 0, { end_col = #block.lines[i + 2], conceal = '' })
+      MarkSpec.add(out, row, 0, { end_col = #block.lines[i + Block.DIFF_HEADER], conceal = '' })
       MarkSpec.add(out, row, 0, { virt_text = { { theme.HUNK, 'UiMuted' } }, virt_text_pos = 'inline' })
     elseif NUMBERED[entry.kind] and entry.number then
       local number = block.whole and entry.number.text or string.rep(' ', #entry.number.text)
@@ -35,36 +36,8 @@ local function rows(out, block, first)
   end
 end
 
-local WORD = { GitWordAdd = true, GitWordDelete = true }
-
-local function words(out, block, first, by_row)
-  for index, ranges in pairs(by_row) do
-    table.sort(ranges, function(x, y)
-      return x.col_start < y.col_start
-    end)
-
-    local line = block.lines[index + 3] or ''
-    local texts, col = {}, ranges[1].col_start
-
-    for _, range in ipairs(ranges) do
-      if range.col_start > col then texts[#texts + 1] = { line:sub(col + 1, range.col_start) } end
-
-      texts[#texts + 1] = { line:sub(range.col_start + 1, range.col_end), range.hl_group }
-      col = range.col_end
-    end
-
-    MarkSpec.add(out, first + index, ranges[1].col_start, {
-      virt_text = texts,
-      virt_text_pos = 'overlay',
-      hl_mode = 'combine',
-      priority = MarkSpec.PRIORITY + 100,
-    })
-  end
-end
-
 local function highlights(out, block, first)
   local patch_rows = block.patch.rows
-  local by_row = {}
 
   for _, hl in ipairs(block.patch.highlights) do
     local entry = patch_rows[hl.row + 1]
@@ -73,9 +46,6 @@ local function highlights(out, block, first)
     if entry and entry.kind ~= 'hunk' then
       if hl.line then
         if LINE_HL[hl.hl_group] then MarkSpec.add(out, row, 0, { line_hl_group = hl.hl_group }) end
-      elseif WORD[hl.hl_group] then
-        by_row[hl.row] = by_row[hl.row] or {}
-        table.insert(by_row[hl.row], hl)
       elseif hl.col_end > hl.col_start then
         MarkSpec.add(out, row, hl.col_start, {
           end_col = hl.col_end,
@@ -85,8 +55,17 @@ local function highlights(out, block, first)
       end
     end
   end
+end
 
-  words(out, block, first, by_row)
+local function words(out, block, first)
+  for _, word in ipairs(block.patch.words or {}) do
+    MarkSpec.add(out, first + word.row, word.col, {
+      virt_text = word.texts,
+      virt_text_pos = 'overlay',
+      hl_mode = 'combine',
+      priority = MarkSpec.PRIORITY + 100,
+    })
+  end
 end
 
 return function(block)
@@ -95,10 +74,11 @@ return function(block)
   path_row(out, block)
 
   if block.patch then
-    local first = block.start + 2
+    local first = block.start + Block.DIFF_HEADER
 
     rows(out, block, first)
     highlights(out, block, first)
+    words(out, block, first)
   end
 
   return out

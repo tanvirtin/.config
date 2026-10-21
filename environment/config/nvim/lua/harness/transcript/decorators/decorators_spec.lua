@@ -116,10 +116,10 @@ describe('harness.transcript.decorators:', function()
           highlights = {
             { row = 0, hl_group = 'GitSignsDeleteLn', line = true },
             { row = 1, hl_group = 'GitSignsAddLn', line = true },
-            { row = 1, col_start = 4, col_end = 5, hl_group = 'GitWordAdd' },
             { row = 2, col_start = 0, col_end = 2, hl_group = 'GitPatchHeaderMarker' },
             { row = 3, hl_group = 'GitPatchContext', line = true },
           },
+          words = { { row = 1, col = 4, texts = { { '2', 'GitWordAdd' } } } },
         },
       })
     end

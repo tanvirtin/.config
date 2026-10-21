@@ -1,3 +1,4 @@
+local Block = require('harness.transcript.Block')
 local EditResolver = require('harness.transcript.EditResolver')
 local Object = require('core.Object')
 local settings = require('harness.settings.transcript')
@@ -19,6 +20,14 @@ function Edit:patch()
   self._patch = self._patch or vgit.patch(self.file, { header = false, context = settings:get('diff_context') })
 
   return self._patch
+end
+
+function Edit:stat()
+  if self._patch then return self._patch.stat end
+
+  self._stat = self._stat or vgit.stat(self.file)
+
+  return self._stat
 end
 
 function Edit:text()
@@ -77,7 +86,7 @@ function EditPatches.of(owner, file_lines)
 end
 
 function EditPatches.line_at(block, row)
-  local entry = block.patch and block.whole and block.patch.rows[row - block.start - 1]
+  local entry = block.patch and block.whole and block.patch.rows[row - block.start - Block.DIFF_HEADER + 1]
 
   return entry and (entry.new_lnum or entry.old_lnum) or nil
 end

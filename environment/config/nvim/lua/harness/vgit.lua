@@ -12,6 +12,10 @@ function vgit.patch(file, opts)
   return api.patch({ file }, opts)
 end
 
+function vgit.stat(file)
+  return api.diff(file.old_lines, file.new_lines).stat or { added = 0, removed = 0 }
+end
+
 function vgit.patch_text(file, opts)
   return api.patch_text({ file }, opts)
 end

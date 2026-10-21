@@ -41,22 +41,6 @@ local function diff_block(edit, path, text)
   return lines
 end
 
-local function text_stats(lines)
-  local added, removed = 0, 0
-
-  for _, line in ipairs(lines) do
-    local mark = line:sub(1, 1)
-
-    if mark == '+' then
-      added = added + 1
-    elseif mark == '-' then
-      removed = removed + 1
-    end
-  end
-
-  return { added = added, removed = removed }
-end
-
 local PLAN_MARK = { [Block.STATUS.completed] = 'x', [Block.STATUS.in_progress] = '~' }
 
 local function plan_lines(entries)
@@ -240,13 +224,13 @@ local function build_turn(history, from, to, opts, last_turn, updates)
         edits:get(diff, id .. ':' .. index, FINISHED[state.status] == true, state.status == Block.STATUS.failed)
       local lines = diff_block(edit, tool_label.relative(diff.path, opts.dir), text)
       local patch = not text and edit:patch() or nil
-      local stat = patch and patch.stat or text_stats(edit:text())
+      local stat = edit:stat()
       local added, removed = stat.added, stat.removed
       local last = list[#list]
 
       add(Block.KIND.diff, lines, {
         id = id,
-        patch = patch and { rows = patch.rows, highlights = patch.highlights } or nil,
+        patch = patch and { rows = patch.rows, highlights = patch.highlights, words = patch.words } or nil,
         whole = edit.whole,
         edit = edit.file,
         attached = last ~= nil and last.id == id and (last.kind == Block.KIND.tool or last.kind == Block.KIND.diff),
