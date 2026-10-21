@@ -11,6 +11,7 @@ return Config({
     previous_turn = '[[',
     cycle_mode = '<S-Tab>',
     options = 'go',
+    plan = 'gp',
   },
   composer = {
     send = '<CR>',

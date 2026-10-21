@@ -6,6 +6,7 @@ local Layout = require('harness.transcript.calculators.Layout')
 local Document = require('harness.ui.document')
 local EVENT, NOTICE = require('harness.events').KIND, require('harness.events').NOTICE
 local Object = require('core.Object')
+local PlanPanel = require('harness.ui.PlanPanel')
 local Timer = require('core.Timer')
 local Window = require('core.Window')
 local console = require('core.console')
@@ -78,6 +79,7 @@ function TranscriptView:constructor(session, opts)
     source_win = opts.source_win,
     source_buf = opts.source_buf,
     timer = Timer(),
+    plan = PlanPanel(),
     frame = 1,
     cache = {},
     dirty = true,
@@ -100,6 +102,24 @@ function TranscriptView:sticky(window)
   local top = window:get_visible_range()
 
   return Layout.prompt_above(self.document.blocks, top)
+end
+
+function TranscriptView:plan_window()
+  local current = Window.get_current()
+
+  if current:get_buffer().bufnr == self.bufnr then return current end
+
+  for _, window in ipairs(Window.list_tab()) do
+    if window:get_buffer().bufnr == self.bufnr then return window end
+  end
+end
+
+function TranscriptView:update_plan()
+  self.plan:update(self.session.history, self:plan_window())
+end
+
+function TranscriptView:toggle_plan()
+  self.plan:toggle(self.session.history, self:plan_window())
 end
 
 function TranscriptView:set_winbar(window)
@@ -174,6 +194,8 @@ function TranscriptView:render()
   for _, window in ipairs(following) do
     TranscriptView.to_bottom(window)
   end
+
+  self:update_plan()
 
   if state.running and not self.timer:is_active() then
     self.timer:every(settings.transcript:get('tick_ms'), function()
@@ -335,6 +357,14 @@ function TranscriptView:mount(callbacks)
       self:set_winbar(window)
     end
   end)
+  self.group.on({ 'WinResized', 'TabEnter' }, function()
+    self:update_plan()
+  end)
+  self.group.on('BufWinLeave', function()
+    Timer.schedule(function()
+      if not self.disposed then self:update_plan() end
+    end)
+  end, { buffer = self.buffer })
   self.group.on('BufEnter', function()
     if callbacks.on_enter then callbacks.on_enter(self) end
   end, { buffer = self.buffer })
@@ -362,6 +392,7 @@ function TranscriptView:dispose()
   if self.unsubscribe then self.unsubscribe() end
 
   follow.stop(self.session)
+  self.plan:hide()
   self.timer:close()
   self.document:dispose()
 

@@ -321,6 +321,13 @@ function transcript.bindings(view)
       'Next session mode',
     },
     {
+      keys.plan,
+      function()
+        view:toggle_plan()
+      end,
+      'Show or hide the plan',
+    },
+    {
       keys.options,
       function()
         transcript.pick_option(session)

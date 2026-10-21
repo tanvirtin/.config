@@ -392,6 +392,11 @@ function Element:_apply_win_options()
   return self
 end
 
+function Element:set_config(config)
+  if self:is_valid() then self._window:set_config(config) end
+  return self
+end
+
 function Element:set_window_mode(mode)
   self._config.window_mode = mode
   return self

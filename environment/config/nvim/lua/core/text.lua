@@ -19,6 +19,10 @@ function text.changed_rows(old, new)
   return rows
 end
 
+function text.width(value)
+  return vim.fn.strdisplaywidth(value)
+end
+
 function text.read_file(path)
   return vim.fn.readfile(path)
 end
