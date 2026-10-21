@@ -11,6 +11,7 @@ local keymap = require('core.keymap')
 local permission_prompt = require('harness.ui.permission_prompt')
 local settings = require('harness.settings')
 local tools = require('nvim_mcp.tools')
+local theme = require('harness.transcript.theme')
 
 local display = lazy('harness.ui.display')
 
@@ -35,15 +36,19 @@ function composer.winbar(session)
   if not session then return '' end
 
   local title = (session.title or 'untitled'):gsub('%%', '%%%%')
-  local parts = { '%#UiTitle# → ' .. session.key .. ' ' .. title .. ' %*' }
+  local parts = { '%#UiTitle# ' .. theme.PROMPT_ICON .. ' ' .. session.key .. ' ' .. title .. ' %*' }
 
   local mode = session:mode()
 
-  if mode then parts[#parts + 1] = '%#UiAccent#󰒓 ' .. (mode.name or mode.id):gsub('%%', '%%%%') .. ' ' end
-  if #session.queue > 0 then parts[#parts + 1] = string.format('%%#UiMuted#⏳ %d queued ', #session.queue) end
+  if mode then
+    parts[#parts + 1] = '%#UiAccent#' .. theme.MODE_FORMAT:format(mode.name or mode.id):gsub('%%', '%%%%') .. ' '
+  end
+  if #session.queue > 0 then
+    parts[#parts + 1] = string.format('%%#UiMuted#%s%d queued ', theme.QUEUE_ICON, #session.queue)
+  end
   if session.external then parts[#parts + 1] = '%#UiWarn#⇄ also driven elsewhere: sending forks it ' end
   if #permission_prompt.asks_of(session) > 0 then
-    parts[#parts + 1] = '%#UiWarn#󰀦 answer with 1/2/3 in the transcript '
+    parts[#parts + 1] = '%#UiWarn#' .. theme.WAITING_ICON[1] .. 'answer with 1/2/3 in the transcript '
   end
 
   parts[#parts + 1] = '%='

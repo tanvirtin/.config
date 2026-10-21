@@ -1,3 +1,4 @@
+local Block = require('harness.transcript.Block')
 local Buffer = require('core.Buffer')
 local FoldCalculator = require('harness.transcript.calculators.FoldCalculator')
 local Layout = require('harness.transcript.calculators.Layout')
@@ -14,6 +15,8 @@ local theme = require('harness.transcript.theme')
 local Document = Object:extend()
 
 Document.NAMESPACE = Buffer.namespace('harness.document')
+
+Document.RAW = { [Block.KIND.prompt] = true }
 Document.STATUS_NAMESPACE = Buffer.namespace('harness.document.status')
 
 Document.PRIORITY = MarkSpec.PRIORITY
@@ -259,7 +262,9 @@ function Document:decorate_visible()
       due[#due + 1] = block
       self.pending[i] = nil
 
-      if group and group[2] == block.start then
+      if Document.RAW[block.kind] then
+        flush()
+      elseif group and group[2] == block.start then
         group[2] = block.finish
       else
         flush()

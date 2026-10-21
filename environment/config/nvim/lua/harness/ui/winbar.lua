@@ -2,6 +2,7 @@ local EVENT = require('harness.events').KIND
 local compact = require('compact')
 local core_text = require('core.text')
 local follow = require('harness.follow')
+local theme = require('harness.transcript.theme')
 
 local winbar = {}
 
@@ -24,7 +25,7 @@ end
 
 function winbar.sticky(prompt, width)
   local first = (prompt.lines[1] or ''):gsub('^> ?', '')
-  local head = '%#UiPromptBar# ❯ %#UiMuted#'
+  local head = '%#UiPromptBar# ' .. theme.PROMPT_ICON .. ' %#UiMuted#'
   local room = math.max(math.min(width or winbar.STICKY_WIDTH, winbar.STICKY_WIDTH) - winbar.visible_width(head), 8)
 
   return head .. escape(compact.line(first, room))
@@ -36,17 +37,17 @@ local function status(session)
   if session.external and follow.is_following(session) then parts[#parts + 1] = '%#UiWarn#⇄ external  ' end
 
   if session:running() then
-    parts[#parts + 1] = '%#UiAccent#● running'
+    parts[#parts + 1] = '%#UiAccent#' .. theme.RUNNING_ICON .. 'running'
   elseif session.state == 'closed' then
-    parts[#parts + 1] = '%#UiMuted#○ closed'
+    parts[#parts + 1] = '%#UiMuted#' .. theme.IDLE_ICON .. 'closed'
   else
-    parts[#parts + 1] = '%#UiMuted#○ idle'
+    parts[#parts + 1] = '%#UiMuted#' .. theme.IDLE_ICON .. 'idle'
   end
 
   local mode = session:mode()
   local model = session:choice('model')
 
-  if mode then parts[#parts + 1] = '%#UiAccent#  󰒓 ' .. escape(mode.name or mode.id) end
+  if mode then parts[#parts + 1] = '%#UiAccent#  ' .. escape(theme.MODE_FORMAT:format(mode.name or mode.id)) end
   if model then parts[#parts + 1] = '%#UiMuted#  ' .. escape(model.name or model.value) end
 
   local usage = last_usage(session)

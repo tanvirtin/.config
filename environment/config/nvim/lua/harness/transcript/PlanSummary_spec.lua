@@ -31,9 +31,9 @@ describe('harness.transcript.PlanSummary:', function()
     local summary = PlanSummary.render(ENTRIES)
 
     eq(' Plan  1/3', summary.lines[1])
-    eq(' ' .. PlanSummary.MARKS.completed[1] .. 'read', summary.lines[2])
-    eq(' ' .. PlanSummary.MARKS.in_progress[1] .. 'edit', summary.lines[3])
-    eq(' ' .. PlanSummary.PENDING[1] .. 'test', summary.lines[4])
+    eq(' ✓ read', summary.lines[2])
+    eq(' ◆ edit', summary.lines[3])
+    eq(' ○ test', summary.lines[4])
     eq('UiTitle', summary.highlights[1].hl)
     eq(2, #vim.tbl_filter(function(highlight)
       return highlight.row == 1

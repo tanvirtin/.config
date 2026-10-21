@@ -476,7 +476,7 @@ describe('harness.ui.transcript:', function()
         return vim.wo.winbar:find('Plan', 1, true) ~= nil
       end)
 
-      assert.is_truthy(vim.wo.winbar:find('󰒓 Plan', 1, true))
+      assert.is_truthy(vim.wo.winbar:find('[Plan]', 1, true))
       assert.is_truthy(vim.wo.winbar:find('Opus', 1, true))
 
       vim.api.nvim_set_current_buf(buf)

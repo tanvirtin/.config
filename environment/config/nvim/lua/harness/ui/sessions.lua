@@ -3,6 +3,7 @@ local Timer = require('core.Timer')
 local console = require('core.console')
 local hub = require('harness.hub')
 local surfaces = require('surfaces')
+local theme = require('harness.transcript.theme')
 
 local sessions = {}
 
@@ -17,7 +18,7 @@ function sessions.rows(listed)
 
   for _, item in ipairs(listed) do
     local live = item.session
-    local mark = live and (live:running() and '● ' or '○ ') or '  '
+    local mark = live and (live:running() and theme.RUNNING_ICON or theme.IDLE_ICON) or '  '
     local status = live and (live:running() and 'running' or 'open') or when(item.updated_at)
 
     rows[#rows + 1] = {

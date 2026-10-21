@@ -5,18 +5,18 @@ local nodes = {}
 
 nodes.PRIORITY = 200
 
-nodes.HEADING_ICONS = { '󰉫 ', '󰉬 ', '󰉭 ', '󰉮 ', '󰉯 ', '󰉰 ' }
+nodes.HEADING_ICONS = { '', '', '', '', '', '' }
 
 nodes.BULLETS = { '•', '◦', '▪', '▫' }
 
 nodes.CALLOUTS = {
-  note = { icon = '󰋽 ', hl = 'UiInfo' },
-  info = { icon = '󰋽 ', hl = 'UiInfo' },
-  tip = { icon = '󰌶 ', hl = 'UiHint' },
-  important = { icon = '󰅾 ', hl = 'UiHint' },
-  warning = { icon = '󰀪 ', hl = 'UiWarn' },
-  caution = { icon = '󰳦 ', hl = 'UiError' },
-  thought = { icon = '󰟶 ', hl = 'UiMuted' },
+  note = { icon = 'ℹ ', hl = 'UiInfo' },
+  info = { icon = 'ℹ ', hl = 'UiInfo' },
+  tip = { icon = '◇ ', hl = 'UiHint' },
+  important = { icon = '◆ ', hl = 'UiHint' },
+  warning = { icon = '! ', hl = 'UiWarn' },
+  caution = { icon = '✗ ', hl = 'UiError' },
+  thought = { icon = '◇ ', hl = 'UiMuted' },
 }
 
 nodes.RULE_WIDTH = 400
@@ -87,11 +87,12 @@ function NODES.heading(out, node, src)
   local text = src:line(row)
   local hide = marker_end + (text:sub(marker_end + 1, marker_end + 1) == ' ' and 1 or 0)
 
+  local icon = nodes.HEADING_ICONS[level] or ''
+
   mark(out, row, 0, { end_col = hide, conceal = '' })
   mark(out, row, 0, {
-    virt_text = { { nodes.HEADING_ICONS[level], 'UiMarkdownHeading' .. level } },
-    virt_text_pos = 'inline',
-    line_hl_group = 'UiMarkdownHeading',
+    virt_text = icon ~= '' and { { icon, 'UiMarkdownHeading' .. level } } or nil,
+    virt_text_pos = icon ~= '' and 'inline' or nil,
     hl_group = 'UiMarkdownHeading' .. level,
     end_row = row,
     end_col = #text,
@@ -151,8 +152,8 @@ local function checkbox(icon, hl)
   end
 end
 
-NODES.checked = checkbox('󰱒', 'UiMarkdownChecked')
-NODES.unchecked = checkbox('󰄱', 'UiMarkdownUnchecked')
+NODES.checked = checkbox('✓', 'UiMarkdownChecked')
+NODES.unchecked = checkbox('○', 'UiMarkdownUnchecked')
 
 function NODES.quote(out, node, src)
   local start_row = src:start(node)

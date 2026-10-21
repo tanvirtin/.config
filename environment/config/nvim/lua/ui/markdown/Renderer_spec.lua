@@ -44,11 +44,17 @@ describe('ui.markdown.Renderer:', function()
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
 
-  it('swaps a heading\'s markers for its level\'s icon and gives the line a bar', function()
+  it('hides a heading\'s markers and colours it by level, with no icon or bar', function()
     render({ '## Plan' })
 
-    eq({ Renderer.HEADING_ICONS[2] }, virt_text(0))
-    eq('UiMarkdownHeading', find(0, 'line_hl_group').line_hl_group)
+    eq({}, virt_text(0))
+    assert.is_nil(find(0, 'line_hl_group'))
+    assert.is_truthy(vim.tbl_contains(
+      vim.tbl_map(function(mark)
+        return mark.hl_group
+      end, marks(0)),
+      'UiMarkdownHeading2'
+    ))
     eq(3, find(0, 'conceal').end_col)
   end)
 
@@ -70,8 +76,8 @@ describe('ui.markdown.Renderer:', function()
 
     eq({ Renderer.BULLETS[1] }, virt_text(0))
     eq({ Renderer.BULLETS[2] }, virt_text(1))
-    eq({ '󰱒' }, virt_text(2))
-    eq({ '󰄱' }, virt_text(3))
+    eq({ '✓' }, virt_text(2))
+    eq({ '○' }, virt_text(3))
     eq(2, find(2, 'conceal').end_col)
   end)
 
@@ -97,8 +103,8 @@ describe('ui.markdown.Renderer:', function()
     render({ '# One', '', '# Two' })
     Renderer(buf):render(2)
 
-    eq(1, #virt_text(0))
-    eq(1, #virt_text(2))
+    assert.is_truthy(find(0, 'hl_group'))
+    assert.is_truthy(find(2, 'hl_group'))
   end)
 
   it('renders the rows it is given as a document of their own', function()

@@ -303,7 +303,7 @@ function transcript.yank(buf, name)
 end
 
 local function describe(choice, current)
-  local mark = choice.value == current and '● ' or '  '
+  local mark = choice.value == current and theme.CURRENT_ICON or '  '
 
   return mark .. (choice.name or choice.value) .. (choice.description and ('  ' .. choice.description) or '')
 end

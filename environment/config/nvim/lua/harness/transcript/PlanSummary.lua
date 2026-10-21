@@ -2,17 +2,17 @@ local Block = require('harness.transcript.Block')
 local EVENT = require('harness.events').KIND
 local compact = require('compact')
 local text = require('core.text')
+local theme = require('harness.transcript.theme')
 
 local PlanSummary = {}
 
 PlanSummary.MAX_WIDTH = 50
 
-PlanSummary.MARKS = {
-  [Block.STATUS.completed] = { '󰄬 ', 'UiMuted' },
-  [Block.STATUS.in_progress] = { '󰔟 ', 'UiAccent' },
-}
+function PlanSummary.mark(status)
+  local icons = theme.PLAN_ICONS
 
-PlanSummary.PENDING = { '○ ', 'UiMuted' }
+  return icons[status] or icons.pending
+end
 
 function PlanSummary.latest(history)
   for i = #history, 1, -1 do
@@ -43,7 +43,7 @@ function PlanSummary.render(entries)
   local width = text.width(title)
 
   for i, entry in ipairs(entries) do
-    local mark = PlanSummary.MARKS[entry.status] or PlanSummary.PENDING
+    local mark = PlanSummary.mark(entry.status)
     local prefix = ' ' .. mark[1]
     local content = compact.line(entry.content or '', PlanSummary.MAX_WIDTH - text.width(prefix) - 1)
     local line = prefix .. content

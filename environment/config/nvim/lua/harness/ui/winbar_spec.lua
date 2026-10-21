@@ -30,12 +30,12 @@ describe('harness.ui.winbar:', function()
 
     assert.truthy(text:find(winbar.HINTS, 1, true))
     assert.truthy(text:find('○ idle', 1, true))
-    assert.truthy(text:find('󰒓 Plan', 1, true))
+    assert.truthy(text:find('[Plan]', 1, true))
     assert.truthy(text:find('Sonnet', 1, true))
   end)
 
   it('shows running and closed states', function()
-    assert.truthy(winbar.transcript(session({ state = 'running' })):find('● running', 1, true))
+    assert.truthy(winbar.transcript(session({ state = 'running' })):find('◆ running', 1, true))
     assert.truthy(winbar.transcript(session({ state = 'closed' })):find('○ closed', 1, true))
   end)
 
@@ -63,7 +63,7 @@ describe('harness.ui.winbar:', function()
     }, 60)
 
     assert.is_true(winbar.visible_width(text) <= 60)
-    assert.truthy(text:find('󰒓 Plan', 1, true))
+    assert.truthy(text:find('[Plan]', 1, true))
   end)
 
   it('measures what a winbar shows, without its highlight codes', function()

@@ -38,6 +38,21 @@ describe('harness.ui.document:', function()
     document:write(blocks.build(history))
   end
 
+  it('leaves a prompt as typed, with no markdown drawn over it', function()
+    emit(events.prompt('see [x] and `code`'))
+
+    local prompt = document.blocks[2]
+    local drawn = vim.api.nvim_buf_get_extmarks(
+      buf,
+      require('ui.markdown.Renderer').NAMESPACE,
+      { prompt.start, 0 },
+      { prompt.finish - 1, -1 },
+      {}
+    )
+
+    eq({}, drawn)
+  end)
+
   it('writes the transcript and leaves the buffer read-only and unmodified', function()
     emit(events.prompt('hi'))
 
