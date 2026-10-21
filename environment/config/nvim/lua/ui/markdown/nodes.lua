@@ -1,4 +1,5 @@
 local MarkSpec = require('ui.MarkSpec')
+local table_layout = require('ui.markdown.table')
 
 local nodes = {}
 
@@ -66,6 +67,10 @@ function Source:last_row(node)
   local _, _, end_row, end_col = self:range(node)
 
   return end_col == 0 and end_row - 1 or end_row
+end
+
+function Source:last_line()
+  return self.offset + #self.lines - 1
 end
 
 function Source:node_text(node)
@@ -186,6 +191,70 @@ function NODES.rule(out, node, src)
     virt_text_pos = 'overlay',
     virt_text_win_col = 0,
   })
+end
+
+local ALIGN = {
+  pipe_table_align_left = table_layout.ALIGN.left,
+  pipe_table_align_right = table_layout.ALIGN.right,
+}
+
+local function delimiter_align(cell)
+  local left, right
+
+  for child in cell:iter_children() do
+    if child:type() == 'pipe_table_align_left' then left = true end
+    if child:type() == 'pipe_table_align_right' then right = true end
+  end
+
+  if left and right then return table_layout.ALIGN.center end
+  if right then return ALIGN.pipe_table_align_right end
+
+  return ALIGN.pipe_table_align_left
+end
+
+local function cells(row, src)
+  local out = {}
+
+  for child in row:iter_children() do
+    if child:type() == 'pipe_table_cell' then out[#out + 1] = vim.trim(src:node_text(child)) end
+  end
+
+  return out
+end
+
+function NODES.table(out, node, src)
+  local header, rows, aligns = nil, {}, {}
+
+  for child in node:iter_children() do
+    local type = child:type()
+
+    if type == 'pipe_table_header' then
+      header = cells(child, src)
+    elseif type == 'pipe_table_delimiter_row' then
+      for cell in child:iter_children() do
+        if cell:type() == 'pipe_table_delimiter_cell' then aligns[#aligns + 1] = delimiter_align(cell) end
+      end
+    elseif type == 'pipe_table_row' then
+      rows[#rows + 1] = cells(child, src)
+    end
+  end
+
+  if not header then return end
+
+  local first, last = src:start(node), src:last_row(node)
+  local box = table_layout.lines(header, rows, aligns)
+
+  if last + 1 <= src:last_line() then
+    mark(out, last + 1, 0, { virt_lines = box, virt_lines_above = true })
+  elseif first - 1 >= src.offset then
+    mark(out, first - 1, 0, { virt_lines = box })
+  else
+    return
+  end
+
+  for row = first, last do
+    mark(out, row, 0, { conceal_lines = '' })
+  end
 end
 
 nodes.NODES = NODES

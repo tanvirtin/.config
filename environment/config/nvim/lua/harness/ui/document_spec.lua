@@ -282,8 +282,17 @@ describe('harness.ui.document:', function()
 
     local first, reply, second = document.blocks[2], document.blocks[3], document.blocks[4]
 
+    local function below(row)
+      for _, mark in
+        ipairs(vim.api.nvim_buf_get_extmarks(buf, Document.NAMESPACE, { row, 0 }, { row, -1 }, { details = true }))
+      do
+        if mark[4].virt_lines and not mark[4].virt_lines_above then return mark[4].virt_lines[1][1][1] end
+      end
+    end
+
     eq({ ' ' .. theme.USER_ICON .. 'You' }, above(first.start))
-    eq({ ' ' .. theme.AGENT_ICON .. 'Claude' }, above(reply.start))
+    eq(reply.start, first.finish)
+    eq(' ' .. theme.AGENT_ICON .. 'Claude', below(first.finish - 1))
     eq(string.rep('─', theme.SEPARATOR_WIDTH), above(second.start)[1])
     eq(' ' .. theme.USER_ICON .. 'You', above(second.start)[2])
 

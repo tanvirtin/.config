@@ -116,16 +116,24 @@ describe('harness.transcript.decorators:', function()
     eq(0, #decorators.decorate(make(Block.KIND.note, { 'a' }), {}))
   end)
 
-  it('adds the gutter to nested blocks and the agent header to the block opening a reply', function()
-    local marks =
-      decorators.decorate(make(Block.KIND.message, { 'a' }, { depth = 1, opens_reply = true }), { agent = 'Claude' })
+  it('adds the gutter to nested blocks', function()
+    local marks = decorators.decorate(make(Block.KIND.message, { 'a' }, { depth = 1 }), {})
 
     eq(2, #vim.tbl_filter(function(mark)
       return virt(mark.opts) == theme.GUTTER
     end, marks))
-    assert.truthy(find(marks, function(opts)
+  end)
+
+  it('heads the reply from the answered prompt\'s blank line, which nothing conceals', function()
+    local marks = decorators.decorate(make(Block.KIND.prompt, { '> hi' }, { first = true, answered = true }), {
+      agent = 'Claude',
+    })
+    local header = find(marks, function(opts)
       return opts.virt_lines and opts.virt_lines[1][1][1] == ' ' .. theme.AGENT_ICON .. 'Claude'
-    end))
+    end)
+
+    eq(1, header.row)
+    assert.is_falsy(header.opts.virt_lines_above)
   end)
 
   it('shows a collapsed block muted behind an icon, with the key to open it accented', function()

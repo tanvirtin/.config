@@ -18,6 +18,7 @@ Block = dataclass.define('Block', {
   first = BOOLEAN,
   steered = BOOLEAN,
   opens_reply = BOOLEAN,
+  answered = BOOLEAN,
   error = BOOLEAN,
   id = STRING,
   parent = STRING,

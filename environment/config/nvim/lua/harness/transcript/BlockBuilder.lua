@@ -210,6 +210,7 @@ local function build_turn(history, from, to, opts, last_turn, updates)
 
     if opens and kind ~= Block.KIND.prompt then
       list[#list].opens_reply = true
+      if list[#list - 1] then list[#list - 1].answered = true end
       opens = false
     end
 

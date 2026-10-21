@@ -1,7 +1,7 @@
 local MarkSpec = require('ui.MarkSpec')
 local theme = require('harness.transcript.theme')
 
-return function(block)
+return function(block, ctx)
   local out = {}
   local header = {
     { { ' ' .. theme.USER_ICON .. 'You', 'UiSpeakerUser' }, block.steered and { ' · steered', 'UiMuted' } or nil },
@@ -19,6 +19,12 @@ return function(block)
       virt_text = { { '▌', 'UiPromptBar' } },
       virt_text_pos = 'overlay',
       line_hl_group = 'UiPrompt',
+    })
+  end
+
+  if block.answered then
+    MarkSpec.add(out, block.finish - 1, 0, {
+      virt_lines = { { { ' ' .. theme.AGENT_ICON .. (ctx and ctx.agent or 'Agent'), 'UiSpeakerAgent' } } },
     })
   end
 

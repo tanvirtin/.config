@@ -29,6 +29,7 @@ local QUERY = vim.treesitter.query.parse(
   (task_list_marker_unchecked) @unchecked
   (block_quote) @quote
   (thematic_break) @rule
+  (pipe_table) @table
 ]]
 )
 

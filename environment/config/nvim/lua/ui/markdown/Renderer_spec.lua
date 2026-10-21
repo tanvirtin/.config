@@ -184,4 +184,33 @@ describe('ui.markdown.Renderer:', function()
       end, Renderer(0):annotate({ '' }, 0))
     )
   end)
+
+  it('draws a pipe table as a box above its rows and hides the source rows', function()
+    local marks = Renderer(0):annotate({ '| a | b |', '| --- | --: |', '| 1 | 22 |', '' }, 4)
+    local box, hidden = nil, {}
+
+    for _, mark in ipairs(marks) do
+      if mark.opts.virt_lines then box = mark end
+      if mark.opts.conceal_lines then hidden[mark.row] = true end
+    end
+
+    eq(7, box.row)
+    eq(true, box.opts.virt_lines_above)
+    eq(5, #box.opts.virt_lines)
+    eq({ [4] = true, [5] = true, [6] = true }, hidden)
+  end)
+
+  it('hangs the box below the line before a table that ends the text, and leaves a lone table raw', function()
+    local function box_of(lines)
+      for _, mark in ipairs(Renderer(0):annotate(lines, 0)) do
+        if mark.opts.virt_lines then return mark end
+      end
+    end
+
+    local below = box_of({ 'intro', '', '| a |', '| - |' })
+
+    eq(1, below.row)
+    assert.is_falsy(below.opts.virt_lines_above)
+    assert.is_nil(box_of({ '| a |', '| - |' }))
+  end)
 end)

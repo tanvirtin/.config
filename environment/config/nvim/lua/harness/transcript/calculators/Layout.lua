@@ -90,6 +90,7 @@ function Layout.signature(block)
     tostring(block.finished),
     tostring(block.live),
     tostring(block.added),
+    tostring(block.answered),
   }, ':')
 end
 

@@ -1,7 +1,7 @@
 local MarkSpec = require('ui.MarkSpec')
 local theme = require('harness.transcript.theme')
 
-return function(block, ctx)
+return function(block)
   local out = {}
 
   if block.depth then
@@ -12,13 +12,6 @@ return function(block, ctx)
         priority = theme.GUTTER_PRIORITY,
       })
     end
-  end
-
-  if block.opens_reply then
-    MarkSpec.add(out, block.start, 0, {
-      virt_lines = { { { ' ' .. theme.AGENT_ICON .. (ctx.agent or 'Agent'), 'UiSpeakerAgent' } } },
-      virt_lines_above = true,
-    })
   end
 
   return out
