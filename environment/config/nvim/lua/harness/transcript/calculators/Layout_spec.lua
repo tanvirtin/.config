@@ -56,6 +56,7 @@ describe('harness.transcript.calculators.Layout:', function()
 
     assert.are_not.equal(Layout.signature(a), Layout.signature(b))
     eq(Layout.signature(a), Layout.signature({ kind = 'tool', status = 'pending', lines = { 'other' } }))
+    assert.are_not.equal(Layout.signature(a), Layout.signature({ kind = 'tool', status = 'pending', nested = 2 }))
   end)
 
   it('finds the prompt of the turn a row is in, once that prompt starts above the row', function()

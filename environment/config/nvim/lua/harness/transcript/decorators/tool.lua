@@ -32,6 +32,7 @@ local function subagent_summary(block, live)
   local tools = theme.plural(block.nested, 'tool')
 
   if live or not context.FINISHED[block.status] then return tools end
+  if block.finished == nil then return tools end
 
   local failed = block.status == Block.STATUS.failed
   local duration = block.started and block.finished and theme.duration(block.finished - block.started)

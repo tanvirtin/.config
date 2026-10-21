@@ -146,6 +146,18 @@ function TranscriptView.to_bottom(window)
   if window:is_valid() then window:set_cursor({ window:get_buffer():get_line_count(), 0 }) end
 end
 
+TranscriptView.ACTIVE = { running = true, active = true, working = true, in_progress = true }
+
+function TranscriptView.active_subagents(session)
+  local active = {}
+
+  for _, child in pairs(session.children or {}) do
+    if child.tool and TranscriptView.ACTIVE[child.state] then active[child.tool] = true end
+  end
+
+  return active
+end
+
 function TranscriptView:state()
   local session = self.session
 
@@ -158,6 +170,7 @@ function TranscriptView:state()
     waiting = session:waiting(),
     asks = permission_prompt.asks_of(session),
     choices = permission_prompt.CHOICES,
+    active = TranscriptView.active_subagents(session),
   }
 end
 
@@ -197,7 +210,7 @@ function TranscriptView:render()
 
   self:update_plan()
 
-  if state.running and not self.timer:is_active() then
+  if (state.running or next(state.active)) and not self.timer:is_active() then
     self.timer:every(settings.transcript:get('tick_ms'), function()
       self:tick()
     end)
@@ -207,13 +220,15 @@ end
 function TranscriptView:_step()
   if not self.buffer:is_valid() then return self.timer:stop() end
 
-  if not self.session:running() then
+  local active = TranscriptView.active_subagents(self.session)
+
+  if not self.session:running() and not next(active) then
     self.timer:stop()
     return self:render()
   end
 
   self.frame = self.frame + 1
-  self.document:tick({ frame = self.frame })
+  self.document:tick({ frame = self.frame, active = active })
 end
 
 function TranscriptView:tick()

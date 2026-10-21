@@ -355,7 +355,7 @@ describe('harness.ui.document:', function()
     events.append(history, { kind = 'message', text = 'parent done' })
     document:write(blocks.build(history))
 
-    local task, inner, report, after = document.blocks[2], document.blocks[3], document.blocks[4], document.blocks[5]
+    local task, inner, report = document.blocks[2], document.blocks[3], document.blocks[4]
 
     assert.is_truthy(texts(inner.start):find(theme.GUTTER, 1, true))
     assert.is_truthy(texts(report.start):find(theme.GUTTER, 1, true))
@@ -368,7 +368,15 @@ describe('harness.ui.document:', function()
       { kind = 'tool_update', id = 'read', status = Block.STATUS.completed, output = 'a\nb', diffs = {} }
     document:write(blocks.build(history))
 
-    local read = document.blocks[#document.blocks]
+    local read
+
+    for _, block in ipairs(document.blocks) do
+      if block.id == 'read' then read = block end
+    end
+
+    eq('parent done', document.blocks[#document.blocks].lines[1])
+    eq(1, read.depth)
+
     local summary
 
     for _, mark in
@@ -391,6 +399,6 @@ describe('harness.ui.document:', function()
     eq('1', document:fold_level(inner.start + 1))
     eq('>2', document:fold_level(inner.start + 2 + require('harness.settings.transcript'):get('preview_lines')))
     eq('1', document:fold_level(report.start))
-    eq('0', document:fold_level(after.start))
+    eq('0', document:fold_level(document.blocks[#document.blocks].start))
   end)
 end)

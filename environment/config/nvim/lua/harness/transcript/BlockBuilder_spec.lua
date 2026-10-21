@@ -432,4 +432,59 @@ describe('harness.transcript.BlockBuilder:', function()
       end
     end)
   end)
+
+  it('nests each parallel sub-agent\'s work under its own call, whatever order it arrives in', function()
+    local function call(id, name, parent)
+      return { kind = 'tool_call', id = id, name = name, category = 'other', parent = parent, diffs = {} }
+    end
+
+    local function done(id)
+      return { kind = 'tool_update', id = id, status = Block.STATUS.completed, output = 'x', diffs = {} }
+    end
+
+    local history = {
+      events.prompt('two agents'),
+      call('A', 'Agent'),
+      call('B', 'Agent'),
+      done('A'),
+      done('B'),
+      call('a1', 'Read', 'A'),
+      { kind = 'message', text = 'started both' },
+      call('a2', 'Bash', 'A'),
+      call('b1', 'Read', 'B'),
+      call('b2', 'Bash', 'B'),
+      { kind = 'message', text = 'report A', parent = 'A' },
+      { kind = 'message', text = 'report B', parent = 'B' },
+      events.stop('end_turn'),
+    }
+
+    local list = blocks.build(history)
+    local order = vim.tbl_map(function(block)
+      return block.name or block.lines[1]
+    end, vim.list_slice(list, 3))
+
+    eq(
+      { 'Agent', 'Read', 'Bash', 'report A', 'Agent', 'Read', 'Bash', 'report B', 'started both', '*end_turn*' },
+      order
+    )
+    eq(2, list[3].nested)
+    eq(2, list[7].nested)
+    eq({ 'A', 'A', 'A' }, { list[4].parent, list[5].parent, list[6].parent })
+  end)
+
+  it('finishes a delegating tool when its nested work last moved, not when the call returned', function()
+    local history = {
+      events.prompt('go'),
+      { kind = 'tool_call', id = 'A', name = 'Agent', category = 'other', diffs = {} },
+      { kind = 'tool_update', id = 'A', status = Block.STATUS.completed, diffs = {} },
+      { kind = 'tool_call', id = 'a1', name = 'Bash', category = 'execute', parent = 'A', diffs = {} },
+      { kind = 'tool_update', id = 'a1', status = Block.STATUS.completed, output = 'x', diffs = {} },
+      { kind = 'message', text = 'report', parent = 'A' },
+    }
+    local times = { 0, 100, 1000, 2000, 9000, 11000 }
+    local agent = blocks.build(history, nil, { times = times })[3]
+
+    eq(100, agent.started)
+    eq(11000, agent.finished)
+  end)
 end)

@@ -374,7 +374,50 @@ local function build_turn(history, from, to, opts, last_turn, updates)
     end
   end
 
-  return list
+  return blocks.nest(list, times)
+end
+
+local function last_activity(block, times)
+  return block.finished
+    or (block.last_event and times[block.last_event + 1] or times[block.last_event])
+    or block.started
+end
+
+function blocks.nest(list, times)
+  local owners, children = {}, {}
+
+  for _, block in ipairs(list) do
+    if block.kind == Block.KIND.tool and block.id and not block.parent then owners[block.id] = true end
+  end
+
+  for _, block in ipairs(list) do
+    if block.parent and owners[block.parent] then
+      children[block.parent] = children[block.parent] or {}
+      table.insert(children[block.parent], block)
+    end
+  end
+
+  if not next(children) then return list end
+
+  local out = {}
+
+  for _, block in ipairs(list) do
+    if not (block.parent and owners[block.parent]) then
+      out[#out + 1] = block
+
+      if block.kind == Block.KIND.tool and children[block.id] then
+        for _, child in ipairs(children[block.id]) do
+          local at = times and last_activity(child, times)
+
+          if at and block.finished and at > block.finished then block.finished = at end
+        end
+
+        vim.list_extend(out, children[block.id])
+      end
+    end
+  end
+
+  return out
 end
 
 local GROUPABLE = { [Block.CATEGORY.read] = 'file', [Block.CATEGORY.search] = 'pattern' }

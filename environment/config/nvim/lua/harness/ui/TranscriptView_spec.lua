@@ -105,4 +105,17 @@ describe('harness.ui.TranscriptView:', function()
     settings:set('live_turns', saved)
     view:dispose()
   end)
+
+  it('lists the tool calls whose sub-agents are still running', function()
+    local active = TranscriptView.active_subagents({
+      children = {
+        c1 = { tool = 'A', state = 'running' },
+        c2 = { tool = 'B', state = 'idle' },
+        c3 = { state = 'running' },
+      },
+    })
+
+    eq({ A = true }, active)
+    eq({}, TranscriptView.active_subagents({}))
+  end)
 end)

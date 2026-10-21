@@ -79,6 +79,7 @@ function Document:_context()
     running = state.running,
     frame = state.frame,
     waiting = state.waiting,
+    active = state.active,
     agent = state.agent,
     now = Timer.now(),
     syntax = self.syntax,

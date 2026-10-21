@@ -91,6 +91,7 @@ function Layout.signature(block)
     tostring(block.live),
     tostring(block.added),
     tostring(block.answered),
+    tostring(block.nested),
   }, ':')
 end
 

@@ -164,4 +164,20 @@ describe('harness.transcript.decorators:', function()
       now = 2000,
     }):find('^  3 tools', 1))
   end)
+
+  it('spins a delegating tool while its sub-agent runs, even after the call returned and the turn ended', function()
+    local block = make(
+      Block.KIND.tool,
+      { '-> Agent' },
+      { id = 'A', name = 'Agent', status = Block.STATUS.completed, nested = 2 }
+    )
+    local marks = decorators.decorate(block, { running = false, frame = 2, active = { A = true } })
+
+    assert.truthy(find(marks, function(opts)
+      return virt(opts) == theme.SPINNER[2] .. ' '
+    end))
+    assert.truthy(find(marks, function(opts)
+      return opts.virt_text_pos == 'eol' and virt(opts) == '  2 tools'
+    end))
+  end)
 end)
