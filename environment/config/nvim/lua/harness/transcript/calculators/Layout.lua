@@ -69,6 +69,20 @@ function Layout.place(list, from, row)
   return lines
 end
 
+function Layout.prompt_above(list, row)
+  if #list == 0 or row <= 0 then return nil end
+
+  local block = Layout.block_at(list, row)
+
+  for i = block and block.index or 0, 1, -1 do
+    local candidate = list[i]
+
+    if candidate.kind == Block.KIND.prompt and not candidate.steered then
+      return candidate.start < row and candidate or nil
+    end
+  end
+end
+
 function Layout.signature(block)
   return table.concat({
     block.kind,

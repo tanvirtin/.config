@@ -57,4 +57,39 @@ describe('harness.transcript.calculators.Layout:', function()
     assert.are_not.equal(Layout.signature(a), Layout.signature(b))
     eq(Layout.signature(a), Layout.signature({ kind = 'tool', status = 'pending', lines = { 'other' } }))
   end)
+
+  it('finds the prompt of the turn a row is in, once that prompt starts above the row', function()
+    local list = {
+      block('title', { '# t' }),
+      block('prompt', { '> one' }),
+      block('message', { 'a', 'b', 'c' }),
+      block('prompt', { '> two' }),
+      block('message', { 'd' }),
+    }
+
+    list[4].steered = nil
+    Layout.place(list, 1, 0)
+
+    for i, item in ipairs(list) do
+      item.index = i
+    end
+
+    assert.is_nil(Layout.prompt_above(list, 0))
+    assert.is_nil(Layout.prompt_above(list, list[2].start))
+    eq(list[2], Layout.prompt_above(list, list[3].start + 1))
+    eq(list[4], Layout.prompt_above(list, list[5].start))
+  end)
+
+  it('skips steering prompts, which belong to the turn they steer', function()
+    local list = { block('prompt', { '> one' }), block('prompt', { '> nudge' }), block('message', { 'x' }) }
+
+    list[2].steered = true
+    Layout.place(list, 1, 0)
+
+    for i, item in ipairs(list) do
+      item.index = i
+    end
+
+    eq(list[1], Layout.prompt_above(list, list[3].start))
+  end)
 end)

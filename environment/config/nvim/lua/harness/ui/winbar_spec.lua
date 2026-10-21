@@ -47,4 +47,11 @@ describe('harness.ui.winbar:', function()
     assert.truthy(text:find('$0.50', 1, true))
     assert.truthy(text:find('100%%', 1, true))
   end)
+
+  it('shows the scrolled-past prompt in place of the hints', function()
+    local text = winbar.transcript(session({}), { lines = { '> fix the 100% bug', '> please' } })
+
+    assert.is_nil(text:find(winbar.HINTS, 1, true))
+    assert.truthy(text:find('▌ %#UiMuted#fix the 100%% bug', 1, true))
+  end)
 end)

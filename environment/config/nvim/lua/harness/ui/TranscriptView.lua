@@ -2,6 +2,7 @@ local lazy = require('core.lazy')
 
 local Buffer = require('core.Buffer')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
+local Layout = require('harness.transcript.calculators.Layout')
 local Document = require('harness.ui.document')
 local EVENT, NOTICE = require('harness.events').KIND, require('harness.events').NOTICE
 local Object = require('core.Object')
@@ -95,8 +96,14 @@ function TranscriptView:is_visible()
   return #self:windows() > 0
 end
 
+function TranscriptView:sticky(window)
+  local top = window:get_visible_range()
+
+  return Layout.prompt_above(self.document.blocks, top)
+end
+
 function TranscriptView:set_winbar(window)
-  local text = winbar.transcript(self.session)
+  local text = winbar.transcript(self.session, self:sticky(window))
 
   if window:get_option('winbar') ~= text then window:set_option('winbar', text) end
 end
@@ -323,6 +330,11 @@ function TranscriptView:mount(callbacks)
   self.group.on('BufWinEnter', function()
     self:on_show()
   end, { buffer = self.buffer })
+  self.group.on('WinScrolled', function()
+    for _, window in ipairs(self:windows()) do
+      self:set_winbar(window)
+    end
+  end)
   self.group.on('BufEnter', function()
     if callbacks.on_enter then callbacks.on_enter(self) end
   end, { buffer = self.buffer })
