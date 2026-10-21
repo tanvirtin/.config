@@ -31,6 +31,7 @@ local NEOVIM = {
 local LAYERS = {
   { 'harness.acp', 1 },
   { 'harness.async', 1 },
+  { 'harness.settings', 1 },
   { 'harness.events', 2 },
   { 'harness.context', 2 },
   { 'harness.agent', 2 },

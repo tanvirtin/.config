@@ -1,3 +1,4 @@
+local settings = require('harness.settings.follow')
 local Connection = require('harness.acp.connection')
 local Session = require('harness.session')
 local async = require('harness.async')
@@ -10,19 +11,19 @@ describe('harness.follow:', function()
   local dir, path, session, reloads, saved, fake
 
   local function settle(ms)
-    vim.wait(ms or (follow.DEBOUNCE_MS * 3))
+    vim.wait(ms or (settings:get('debounce_ms') * 3))
   end
 
   before_each(function()
     saved = {
-      debounce = follow.DEBOUNCE_MS,
-      grace = follow.GRACE_MS,
-      poll = follow.POLL_MS,
+      debounce = settings:get('debounce_ms'),
+      grace = settings:get('grace_ms'),
+      poll = settings:get('poll_ms'),
       reload = follow.reload_session,
     }
-    follow.DEBOUNCE_MS = 30
-    follow.GRACE_MS = 150
-    follow.POLL_MS = 60
+    settings:set('debounce_ms', 30)
+    settings:set('grace_ms', 150)
+    settings:set('poll_ms', 60)
     dir = vim.fn.tempname()
     vim.fn.mkdir(dir, 'p')
     path = dir .. '/s1.jsonl'
@@ -50,9 +51,9 @@ describe('harness.follow:', function()
 
   after_each(function()
     follow.stop(session)
-    follow.DEBOUNCE_MS = saved.debounce
-    follow.GRACE_MS = saved.grace
-    follow.POLL_MS = saved.poll
+    settings:set('debounce_ms', saved.debounce)
+    settings:set('grace_ms', saved.grace)
+    settings:set('poll_ms', saved.poll)
     follow.reload_session = saved.reload
     vim.fn.delete(dir, 'rf')
   end)
@@ -108,7 +109,7 @@ describe('harness.follow:', function()
     settle()
     session.state = 'idle'
     session.turn_ended = vim.uv.now()
-    settle(follow.GRACE_MS * 3)
+    settle(settings:get('grace_ms') * 3)
 
     eq(0, reloads)
 
@@ -146,7 +147,7 @@ describe('harness.follow:', function()
     follow.start(session)
     eq('poll', follow.source(session))
 
-    settle(follow.POLL_MS * 3)
+    settle(settings:get('poll_ms') * 3)
     fake.stored[1].updatedAt = 't2'
     vim.wait(1000, function()
       return reloads > 0

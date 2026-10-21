@@ -65,7 +65,7 @@ describe('harness.ui.composer:', function()
 
     eq('', vim.api.nvim_win_get_config(win).relative)
     eq({ 'col', { { 'leaf', above }, { 'leaf', win } } }, vim.fn.winlayout())
-    eq(composer.HEIGHT, vim.api.nvim_win_get_height(win))
+    eq(require('harness.settings.composer'):get('height'), vim.api.nvim_win_get_height(win))
     eq(true, vim.wo[win].winfixheight)
     eq(composer.WINBAR, vim.wo[win].winbar)
     assert.is_truthy(composer.winbar():find(session.key, 1, true))

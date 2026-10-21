@@ -1,10 +1,8 @@
 local compact = require('compact')
+local settings = require('harness.settings.transcript')
 local theme = require('harness.transcript.theme')
 
 local StatusLine = {}
-
-StatusLine.QUEUE_PREVIEW = 120
-StatusLine.REQUEST_PREVIEW = 80
 
 local function queue_lines(state)
   local lines = {}
@@ -15,7 +13,7 @@ local function queue_lines(state)
     lines[#lines + 1] = {
       { '  ' .. theme.QUEUE_ICON, 'UiMuted' },
       { 'queued ', 'UiMuted' },
-      { compact.line(first, StatusLine.QUEUE_PREVIEW), 'UiPromptBar' },
+      { compact.line(first, settings:get('queue_preview')), 'UiPromptBar' },
     }
   end
 
@@ -47,7 +45,7 @@ local function working_line(state, now)
     return {
       theme.WAITING_ICON,
       { 'Waiting for you: ', 'UiWarn' },
-      { compact.line(request.title or request.tool or 'a tool', StatusLine.REQUEST_PREVIEW), 'UiPromptBar' },
+      { compact.line(request.title or request.tool or 'a tool', settings:get('request_preview')), 'UiPromptBar' },
       { ' · answer the prompt, or ', 'UiMuted' },
       { '<C-c>', 'UiAccent' },
       { ' to interrupt', 'UiMuted' },

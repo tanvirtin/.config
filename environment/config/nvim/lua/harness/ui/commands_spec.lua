@@ -200,21 +200,4 @@ describe('harness.ui.commands:', function()
     assert.is_truthy(lines[3]:find('| ' .. session.key .. ' |', 1, true))
     assert.is_truthy(lines[3]:find('2 tokens in 1 calls | 99 tokens |', 1, true))
   end)
-
-  it('registers its commands', function()
-    commands.setup()
-
-    local registered = vim.api.nvim_get_commands({})
-
-    for _, name in ipairs({
-      'Harness',
-      'HarnessNew',
-      'HarnessSessions',
-      'HarnessCancel',
-      'HarnessClear',
-      'HarnessStats',
-    }) do
-      eq(name, registered[name].name)
-    end
-  end)
 end)

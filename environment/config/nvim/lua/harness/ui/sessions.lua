@@ -1,11 +1,10 @@
+local settings = require('harness.settings.sessions')
 local Timer = require('core.Timer')
 local console = require('core.console')
 local hub = require('harness.hub')
 local surfaces = require('surfaces')
 
 local sessions = {}
-
-sessions.CONFIRM_MS = 3000
 
 local NEW = { label = '+ New session', description = 'start a fresh conversation', action = 'new' }
 
@@ -63,7 +62,7 @@ function sessions.open(opts)
           row.description = 'press <C-x> again to delete for good'
           picker:set_items(rows)
 
-          Timer.defer(sessions.CONFIRM_MS, function()
+          Timer.defer(settings:get('confirm_ms'), function()
             if pending == row.id then
               pending = nil
               row.description = row.key and 'open' or when(row.updated_at)

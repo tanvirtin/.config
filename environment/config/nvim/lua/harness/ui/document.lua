@@ -11,6 +11,7 @@ local Timer = require('core.Timer')
 local buffers = require('core.buffers')
 local context = require('harness.transcript.decorators.context')
 local decorators = require('harness.transcript.decorators')
+local settings = require('harness.settings.transcript')
 local theme = require('harness.transcript.theme')
 
 local Document = Object:extend()
@@ -18,18 +19,7 @@ local Document = Object:extend()
 Document.NAMESPACE = Buffer.namespace('harness.document')
 Document.STATUS_NAMESPACE = Buffer.namespace('harness.document.status')
 
-Document.SPINNER = theme.SPINNER
-Document.TOOL_ICONS = theme.TOOL_ICONS
-Document.STOP_ICONS = theme.STOP_ICONS
-Document.WAITING_ICON = theme.WAITING_ICON
-Document.QUEUE_ICON = theme.QUEUE_ICON
-Document.USER_ICON = theme.USER_ICON
-Document.AGENT_ICON = theme.AGENT_ICON
-Document.GUTTER = theme.GUTTER
-Document.GUTTER_PRIORITY = theme.GUTTER_PRIORITY
-Document.SEPARATOR_WIDTH = theme.SEPARATOR_WIDTH
 Document.PRIORITY = MarkSpec.PRIORITY
-Document.MARGIN_SCREENS = 2
 
 Document.duration = theme.duration
 Document.diff_numbers = DiffLineCalculator.numbers
@@ -205,7 +195,7 @@ function Document:visible_ranges()
 
   for _, window in ipairs(self.buffer:get_windows()) do
     local top, bottom = window:get_visible_range()
-    local margin = window:get_height() * Document.MARGIN_SCREENS
+    local margin = window:get_height() * settings:get('margin_screens')
 
     ranges[#ranges + 1] = { math.max(top - margin, 0), bottom + margin }
   end

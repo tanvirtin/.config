@@ -4,7 +4,7 @@ local events = require('harness.events')
 local fake_agent = require('harness.fake_agent')
 local jsonrpc = require('harness.acp.jsonrpc')
 local transcript = require('harness.ui.transcript')
-local blocks_preview = require('harness.transcript.BlockBuilder').Block.PREVIEW
+local blocks_preview = require('harness.settings.transcript'):get('preview_lines')
 
 local eq = assert.are.same
 
@@ -377,7 +377,7 @@ describe('harness.ui.transcript:', function()
       session:_emit(events.prompt('go'))
       session:_emit({ kind = 'tool_call', id = 't1', name = 'Bash', status = 'pending', diffs = {} })
 
-      local ok, err = pcall(vim.wait, transcript.TICK_MS * 4, function()
+      local ok, err = pcall(vim.wait, require('harness.settings.transcript'):get('tick_ms') * 4, function()
         return false
       end)
 
@@ -386,7 +386,7 @@ describe('harness.ui.transcript:', function()
 
       session.state = 'idle'
       session:_emit(events.stop('end_turn'))
-      vim.wait(transcript.TICK_MS * 3, function()
+      vim.wait(require('harness.settings.transcript'):get('tick_ms') * 3, function()
         return status() == 0
       end)
 

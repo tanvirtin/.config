@@ -48,9 +48,6 @@ Block.STATUS = dataclass.enum({ 'pending', 'in_progress', 'completed', 'failed' 
 
 Block.CATEGORY = dataclass.enum({ 'read', 'edit', 'delete', 'move', 'search', 'execute', 'think', 'fetch', 'other' })
 
-Block.PREVIEW = 5
-Block.OUTPUT_MAX = 200
-
 function Block.make(kind, lines, fields)
   local all = { kind = kind, lines = lines }
 

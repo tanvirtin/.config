@@ -115,7 +115,7 @@ describe('harness.transcript.BlockBuilder:', function()
     eq('```output', tool.lines[2])
     eq('10', tool.lines[12])
     eq('```', tool.lines[13])
-    eq({ { 2 + Block.PREVIEW, 12 } }, tool.folds)
+    eq({ { 2 + require('harness.settings.transcript'):get('preview_lines'), 12 } }, tool.folds)
   end)
 
   it('leaves reads and agent transcripts without output', function()

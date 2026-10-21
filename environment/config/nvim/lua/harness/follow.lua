@@ -4,12 +4,9 @@ local FileWatch = lazy('core.FileWatch')
 local Timer = lazy('core.Timer')
 local async = lazy('harness.async')
 local events = lazy('harness.events')
+local settings = lazy('harness.settings.follow')
 
 local follow = {}
-
-follow.DEBOUNCE_MS = 300
-follow.GRACE_MS = 1500
-follow.POLL_MS = 3000
 
 local followers = {}
 
@@ -20,7 +17,7 @@ end
 local function own_writes(session)
   if session:running() or session.reloading then return true end
 
-  return session.turn_ended ~= nil and Timer.now() - session.turn_ended < follow.GRACE_MS
+  return session.turn_ended ~= nil and Timer.now() - session.turn_ended < settings:get('grace_ms')
 end
 
 function follow.reload(session)
@@ -54,7 +51,7 @@ function follow.check(session, absorb)
   if follower.path and now == follower.seen then return end
 
   if own_writes(session) then
-    follower.grace:after(follow.GRACE_MS, function()
+    follower.grace:after(settings:get('grace_ms'), function()
       follow.check(session, true)
     end)
     return
@@ -72,7 +69,7 @@ local function watch_file(session, follower, path)
   follower.path = path
   follower.seen = FileWatch.fingerprint(path)
   follower.watch = FileWatch(path, {
-    debounce_ms = follow.DEBOUNCE_MS,
+    debounce_ms = settings:get('debounce_ms'),
     on_change = function()
       if followers[session] == follower then follow.check(session) end
     end,
@@ -89,7 +86,7 @@ local function visible(follower)
 end
 
 local function poll(session, follower)
-  follower.poller = Timer():every(follow.POLL_MS, function()
+  follower.poller = Timer():every(settings:get('poll_ms'), function()
     if followers[session] ~= follower or follower.loading then return end
 
     local path = session.agent and session.agent.transcript and session.agent:transcript(session.id)

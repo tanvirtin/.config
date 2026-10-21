@@ -4,6 +4,7 @@ local tool_label = require('harness.transcript.tool_label')
 local compact = require('compact')
 local context = require('harness.context')
 local EVENT = require('harness.events').KIND
+local settings = require('harness.settings.transcript')
 
 local blocks = { Block = Block, fence_for = fences.fence_for, fences = fences.fences, fenced_at = fences.fenced_at }
 
@@ -174,10 +175,10 @@ local BODY = {
 
 local function output_lines(output)
   local lines = split(output:gsub('%s+$', ''))
-  local hidden = #lines - Block.OUTPUT_MAX
+  local hidden = #lines - settings:get('output_max')
 
   if hidden > 0 then
-    lines = vim.list_slice(lines, 1, Block.OUTPUT_MAX)
+    lines = vim.list_slice(lines, 1, settings:get('output_max'))
     lines[#lines + 1] = string.format('… %d more lines', hidden)
   end
 
@@ -284,7 +285,9 @@ local function build_turn(history, from, to, opts, last_turn, updates)
           vim.list_extend(lines, body)
           lines[#lines + 1] = fence
 
-          if #body > Block.PREVIEW + 1 then folds[1] = { 2 + Block.PREVIEW, #lines - 1 } end
+          if #body > settings:get('preview_lines') + 1 then
+            folds[1] = { 2 + settings:get('preview_lines'), #lines - 1 }
+          end
         end
       end
 

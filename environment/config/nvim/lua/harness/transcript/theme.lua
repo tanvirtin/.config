@@ -1,35 +1,37 @@
-local Block = require('harness.transcript.Block')
+local settings = require('harness.settings.theme')
 
 local theme = {}
 
-theme.SPINNER = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' }
-
-theme.TOOL_ICONS = {
-  [Block.STATUS.pending] = { '󰔟 ', 'UiToolPending' },
-  [Block.STATUS.in_progress] = { '󰔟 ', 'UiToolPending' },
-  [Block.STATUS.completed] = { '󰄬 ', 'UiToolDone' },
-  [Block.STATUS.failed] = { '󰅖 ', 'UiToolFailed' },
-}
-
-theme.STOP_ICONS = {
-  end_turn = { '󰄬 ', 'UiToolDone' },
-  cancelled = { '󰜺 ', 'UiWarn' },
-}
-
-theme.STOP_FALLBACK_ICON = { '󰀪 ', 'UiWarn' }
-theme.WAITING_ICON = { '󰀦 ', 'UiWarn' }
-theme.QUEUE_ICON = '󰔟 '
-theme.USER_ICON = '󰀄 '
-theme.AGENT_ICON = '󰚩 '
-theme.PATH_ICON = '󰈔 '
-theme.GUTTER = '  │ '
 theme.GUTTER_PRIORITY = 10
 theme.SYNTAX_PRIORITY = 150
 theme.SEPARATOR_WIDTH = 400
-theme.HUNK = '┈┈┈┈'
+
+local FROM_SETTINGS = {
+  SPINNER = 'spinner',
+  TOOL_ICONS = 'tool_icons',
+  STOP_ICONS = 'stop_icons',
+  STOP_FALLBACK_ICON = 'stop_fallback_icon',
+  WAITING_ICON = 'waiting_icon',
+  QUEUE_ICON = 'queue_icon',
+  USER_ICON = 'user_icon',
+  AGENT_ICON = 'agent_icon',
+  PATH_ICON = 'path_icon',
+  GUTTER = 'gutter',
+  HUNK = 'hunk',
+}
+
+setmetatable(theme, {
+  __index = function(_, key)
+    local name = FROM_SETTINGS[key]
+
+    if name then return settings:get(name) end
+  end,
+})
 
 function theme.spinner(frame)
-  return theme.SPINNER[((frame or 1) - 1) % #theme.SPINNER + 1]
+  local spinner = settings:get('spinner')
+
+  return spinner[((frame or 1) - 1) % #spinner + 1]
 end
 
 function theme.duration(ms)

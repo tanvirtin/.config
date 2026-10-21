@@ -1,4 +1,5 @@
 local Document = require('harness.ui.document')
+local theme = require('harness.transcript.theme')
 local blocks = require('harness.transcript.BlockBuilder')
 local events = require('harness.events')
 
@@ -80,14 +81,14 @@ describe('harness.ui.document:', function()
       end
     end
 
-    eq(Document.TOOL_ICONS[Block.STATUS.pending][1], icon())
+    eq(theme.TOOL_ICONS[Block.STATUS.pending][1], icon())
 
     local tick = vim.api.nvim_buf_get_changedtick(buf)
 
     emit({ kind = 'tool_update', id = 't1', status = Block.STATUS.completed, diffs = {} })
 
     eq(tick, vim.api.nvim_buf_get_changedtick(buf))
-    eq(Document.TOOL_ICONS[Block.STATUS.completed][1], icon())
+    eq(theme.TOOL_ICONS[Block.STATUS.completed][1], icon())
   end)
 
   it('rewrites everything after reset', function()
@@ -207,7 +208,7 @@ describe('harness.ui.document:', function()
     eq('0', document:fold_level(thought.start))
     eq('>1', document:fold_level(thought.start + 1))
     eq('1', document:fold_level(thought.start + 2))
-    eq('>1', document:fold_level(tool.start + 2 + Block.PREVIEW))
+    eq('>1', document:fold_level(tool.start + 2 + require('harness.settings.transcript'):get('preview_lines')))
     eq('0', document:fold_level(tool.start + 2))
   end)
 
@@ -220,7 +221,7 @@ describe('harness.ui.document:', function()
     events.append(history, events.stop('end_turn'))
     document:write(blocks.build(history, nil, { times = history_times }))
 
-    eq(Document.STOP_ICONS.end_turn[1] .. '|Done in 13s · 1 tool', texts(document.blocks[4].start))
+    eq(theme.STOP_ICONS.end_turn[1] .. '|Done in 13s · 1 tool', texts(document.blocks[4].start))
   end)
 
   it('shows a working line with a spinner only while the turn runs', function()
@@ -258,10 +259,10 @@ describe('harness.ui.document:', function()
 
     local first, reply, second = document.blocks[2], document.blocks[3], document.blocks[4]
 
-    eq({ ' ' .. Document.USER_ICON .. 'You' }, above(first.start))
-    eq({ ' ' .. Document.AGENT_ICON .. 'Claude' }, above(reply.start))
-    eq(string.rep('─', Document.SEPARATOR_WIDTH), above(second.start)[1])
-    eq(' ' .. Document.USER_ICON .. 'You', above(second.start)[2])
+    eq({ ' ' .. theme.USER_ICON .. 'You' }, above(first.start))
+    eq({ ' ' .. theme.AGENT_ICON .. 'Claude' }, above(reply.start))
+    eq(string.rep('─', theme.SEPARATOR_WIDTH), above(second.start)[1])
+    eq(' ' .. theme.USER_ICON .. 'You', above(second.start)[2])
 
     events.append(history, events.prompt('change course', { steered = true }))
     document:write(blocks.build(history), { agent = 'Claude' })
@@ -301,7 +302,7 @@ describe('harness.ui.document:', function()
 
     eq('Waiting for you: ', line[2])
     eq('Edit a.lua', line[3])
-    assert.is_truthy(texts(document.blocks[3].start):find(Document.WAITING_ICON[1], 1, true))
+    assert.is_truthy(texts(document.blocks[3].start):find(theme.WAITING_ICON[1], 1, true))
     assert.is_truthy(texts(document.blocks[3].start):find('waiting for you', 1, true))
   end)
 
@@ -324,9 +325,9 @@ describe('harness.ui.document:', function()
 
     local task, inner, report, after = document.blocks[2], document.blocks[3], document.blocks[4], document.blocks[5]
 
-    assert.is_truthy(texts(inner.start):find(Document.GUTTER, 1, true))
-    assert.is_truthy(texts(report.start):find(Document.GUTTER, 1, true))
-    assert.is_falsy(texts(task.start):find(Document.GUTTER, 1, true))
+    assert.is_truthy(texts(inner.start):find(theme.GUTTER, 1, true))
+    assert.is_truthy(texts(report.start):find(theme.GUTTER, 1, true))
+    assert.is_falsy(texts(task.start):find(theme.GUTTER, 1, true))
     assert.is_truthy(texts(task.start):find('1 tool', 1, true))
 
     history[#history + 1] =
@@ -352,11 +353,11 @@ describe('harness.ui.document:', function()
       if mark[4].virt_lines then summary = mark[4].virt_lines[1] end
     end
 
-    eq(Document.GUTTER, summary[1][1])
+    eq(theme.GUTTER, summary[1][1])
 
     eq('>1', document:fold_level(inner.start))
     eq('1', document:fold_level(inner.start + 1))
-    eq('>2', document:fold_level(inner.start + 2 + Block.PREVIEW))
+    eq('>2', document:fold_level(inner.start + 2 + require('harness.settings.transcript'):get('preview_lines')))
     eq('1', document:fold_level(report.start))
     eq('0', document:fold_level(after.start))
   end)

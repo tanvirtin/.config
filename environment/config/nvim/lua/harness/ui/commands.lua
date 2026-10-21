@@ -1,7 +1,6 @@
 local Buffer = require('core.Buffer')
 local Window = require('core.Window')
 local console = require('core.console')
-local event = require('core.event')
 local async = require('harness.async')
 local context = require('harness.context')
 local hub = require('harness.hub')
@@ -141,40 +140,6 @@ function commands.stats_lines()
   )
 
   return lines
-end
-
-function commands.setup()
-  event.command('Harness', function(args)
-    commands.run(args.args, nil, args.range > 0 and { args.line1, args.line2 } or nil)
-  end, { nargs = '+', range = true, desc = 'Ask an agent (over ACP) to work in this editor' })
-
-  event.command('HarnessNew', function(args)
-    commands.new(args.args ~= '' and args.args or nil)
-  end, {
-    nargs = '?',
-    complete = function()
-      return require('harness.agent').names()
-    end,
-    desc = 'Open a new Harness session',
-  })
-
-  event.command('HarnessSessions', function()
-    commands.sessions()
-  end, { desc = 'Open, start or delete this directory\'s Harness sessions' })
-
-  event.command('HarnessStats', function()
-    require('surfaces').panel({ title = 'Harness tokens', lines = commands.stats_lines() })
-  end, { desc = 'Tokens per Harness session, and what compact tool output saved' })
-
-  event.command('HarnessCancel', function()
-    commands.cancel()
-  end, { desc = 'Stop the running Harness turn' })
-
-  event.command('HarnessClear', function()
-    console.notify_now(string.format('Harness: removed %d things scripts created', require('nvim_mcp.script').clear()))
-  end, { desc = 'Remove the autocmds, keymaps, windows, timers and highlights Harness scripts created' })
-
-  event.augroup('harness').on('VimLeavePre', hub.shutdown)
 end
 
 require('harness.session_store').on('start', function(session)

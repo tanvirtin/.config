@@ -12,6 +12,7 @@ local event = require('core.event')
 local keymap = require('core.keymap')
 local links = require('harness.ui.links')
 local permission_prompt = require('harness.ui.permission_prompt')
+local settings = require('harness.settings')
 local winbar = require('harness.ui.winbar')
 
 local composer = lazy('harness.ui.composer')
@@ -20,8 +21,6 @@ local follow = lazy('harness.follow')
 local TranscriptView = Object:extend()
 
 TranscriptView.FILETYPE = 'harness'
-TranscriptView.TICK_MS = 100
-TranscriptView.INSERT_KEYS = { 'i', 'a', 'o', 'I', 'A', 'O' }
 
 TranscriptView.WINDOW_OPTIONS = {
   wrap = true,
@@ -167,7 +166,7 @@ function TranscriptView:render()
   end
 
   if state.running and not self.timer:is_active() then
-    self.timer:every(TranscriptView.TICK_MS, function()
+    self.timer:every(settings.transcript:get('tick_ms'), function()
       self:tick()
     end)
   end
@@ -252,7 +251,7 @@ end
 function TranscriptView:bind(actions)
   local session = self.session
 
-  for _, lhs in ipairs(TranscriptView.INSERT_KEYS) do
+  for _, lhs in ipairs(settings.keymaps:get('transcript').write) do
     self:map(lhs, function()
       composer.open(session, { insert = true })
     end, 'Write to this session')

@@ -13,6 +13,7 @@ local fences = require('harness.transcript.fences')
 local links = require('harness.ui.links')
 local permission_prompt = require('harness.ui.permission_prompt')
 local register = require('core.register')
+local settings = require('harness.settings')
 local winbar = require('harness.ui.winbar')
 
 local composer = lazy('harness.ui.composer')
@@ -20,7 +21,6 @@ local composer = lazy('harness.ui.composer')
 local transcript = {}
 
 transcript.FILETYPE = TranscriptView.FILETYPE
-transcript.TICK_MS = TranscriptView.TICK_MS
 transcript.WINBAR = winbar.HINTS
 transcript.CHOICES = permission_prompt.CHOICES
 
@@ -235,31 +235,32 @@ end
 
 function transcript.bindings(view)
   local session, buf = view.session, view.bufnr
+  local keys = settings.keymaps:get('transcript')
 
   return {
     {
-      '<C-c>',
+      keys.interrupt,
       function()
         composer.interrupt(session)
       end,
       'Interrupt this session',
     },
     {
-      '<CR>',
+      keys.activate,
       function()
         if not transcript.activate(buf) then Window.get_current():normal('j') end
       end,
       'Open or fold what is under the cursor',
     },
     {
-      'gf',
+      keys.open,
       function()
         if not transcript.open_target(buf) then console.notify_now('Harness: nothing to open here', 'info') end
       end,
       'Open the file under the cursor in a new tab',
     },
     {
-      'gy',
+      keys.yank,
       function()
         local text, code = transcript.yank(buf)
 
@@ -271,28 +272,28 @@ function transcript.bindings(view)
       'Yank the code block under the cursor, or the whole block',
     },
     {
-      ']]',
+      keys.next_turn,
       function()
         transcript.jump(1, buf)
       end,
       'Next turn',
     },
     {
-      '[[',
+      keys.previous_turn,
       function()
         transcript.jump(-1, buf)
       end,
       'Previous turn',
     },
     {
-      '<S-Tab>',
+      keys.cycle_mode,
       function()
         session:cycle_mode()
       end,
       'Next session mode',
     },
     {
-      'go',
+      keys.options,
       function()
         transcript.pick_option(session)
       end,

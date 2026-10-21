@@ -9,13 +9,12 @@ local context = require('harness.context')
 local hub = require('harness.hub')
 local keymap = require('core.keymap')
 local permission_prompt = require('harness.ui.permission_prompt')
+local settings = require('harness.settings')
 local tools = require('nvim_mcp.tools')
 
 local display = lazy('harness.ui.display')
 
 local composer = {}
-
-composer.HEIGHT = 6
 
 local current
 local drafts = {}
@@ -197,10 +196,11 @@ function composer.open(session, opts)
       relativenumber = false,
       signcolumn = 'no',
     },
-    win_plot = { split = 'below', win = -1, height = composer.HEIGHT },
+    win_plot = { split = 'below', win = -1, height = settings.composer:get('height') },
   })
 
   local origin = Window.get_current().win_id
+  local keys = settings.keymaps:get('composer')
   local view = display.view_of(session)
 
   element:mount()
@@ -219,30 +219,30 @@ function composer.open(session, opts)
   element:focus()
   element:set_cursor({ element:get_line_count(), #(element:get_lines()[element:get_line_count()] or '') })
 
-  element:set_keymap('n', '<CR>', function()
+  element:set_keymap('n', keys.send, function()
     composer.send()
   end, 'Send, or queue while the agent works')
 
   for _, mode in ipairs({ 'n', 'i' }) do
-    element:set_keymap(mode, '<C-s>', function()
+    element:set_keymap(mode, keys.steer, function()
       Window.stop_insert()
       composer.send({ steer = true })
     end, 'Steer the running turn (queues if the agent cannot steer)')
   end
 
-  element:set_keymap('n', '<C-c>', function()
+  element:set_keymap('n', keys.interrupt, function()
     composer.interrupt(session)
   end, 'Interrupt the running turn')
 
   for _, mode in ipairs({ 'n', 'i' }) do
-    element:set_keymap(mode, '<S-Tab>', function()
+    element:set_keymap(mode, keys.cycle_mode, function()
       session:cycle_mode()
     end, 'Next session mode')
   end
 
   element:set_buf_option('omnifunc', 'v:lua.require\'harness.ui.composer\'.complete')
-  element:set_keymap('i', '/', composer.slash, 'Slash commands')
-  element:set_keymap('n', 'q', function()
+  element:set_keymap('i', keys.slash, composer.slash, 'Slash commands')
+  element:set_keymap('n', keys.close, function()
     composer.close()
   end, 'Close (keeps the draft)')
 
