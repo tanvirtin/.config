@@ -26,13 +26,14 @@ Bottom up. A layer only requires layers below it, and no harness module calls Ne
 | --- | --- | --- | --- |
 | 1 | protocol | `acp/jsonrpc.lua`, `acp/transport.lua`, `acp/connection.lua` | A **Connection** is one agent process serving many sessions. It routes updates and requests by `sessionId`. It covers new, load, list, prompt, cancel and close, and nothing else: no UI and no policy. |
 | 1 | settings | `settings/*.lua` | Every tunable as a `core.Config`, read at use time (see Settings). |
+| 1 | vgit | `vgit.lua` | The only module that talks to vgit, the diff engine: `patch` and `patch_text` (from `vgit.api`), `show` (vgit's diff views for in-memory content) and `git_diff`. The architecture spec rejects a `vgit` require anywhere else. |
 | 2 | events | `events.lua` | Typed events (`message`, `tool_call`, `plan`, `permission`, `stop`, ...) normalized from `session/update`, as dataclasses with a `KIND` enum. Views never parse ACP. |
 | 2 | agent | `agent.lua` | **Agent** definitions, loaded from tin's `~/.local/share/tin/nvim/agents.json`, with a built-in `claude` as fallback. It spawns the process and reads `$NAME` env values at spawn time. |
 | 3 | session | `session.lua`, `session/*.lua` | **Session**: one conversation, a coordinator over its parts: `History` (events, times, replay and adoption), `PermissionGate` (open requests, cancel), `PromptQueue` (queue, drain, steer), `SessionConfig` (options, modes, commands) and `Subagents` (child sessions). Its `history` is the source of truth. It provides `subscribe`, `prompt`, `enqueue`, `steer`, `cancel` and `close`. |
 | 4 | workspace | `workspace.lua` | **Workspace**: the sessions of one directory. It runs one process per agent, shared by that agent's sessions. `list()` merges live sessions with the agent's stored ones (`session/list`), and `load_session` replays a stored one. |
 | 4 | store | `session_store.lua` | Every session in the editor, with lifecycle dispatch that features subscribe to (see Store events). It fires `User HarnessEvent`. |
 | 5 | hub | `hub.lua` | Policy: what a session gets (agent, permissions, the editor as the `nvim` MCP server), `max_running` and `max_depth`. |
-| 6 | transcript | `transcript/*.lua` | The render pipeline, pure data with no buffers: `BlockBuilder` (history to typed `Block`s), `calculators/` (`Layout`, `FoldCalculator`, `DiffLineCalculator`), `decorators/` (one per block kind, each returning `MarkSpec`s), `StatusLine`, `PlanSummary`, `theme`, and `TextRenderer` (compact text for agents). |
+| 6 | transcript | `transcript/*.lua` | The render pipeline, pure data with no buffers: `BlockBuilder` (history to typed `Block`s), `calculators/` (`Layout`, `FoldCalculator`), `EditResolver` and `EditPatches` (an edit's whole file before and after, laid out by vgit), `SessionChanges`, `decorators/` (one per block kind, each returning `MarkSpec`s), `StatusLine`, `PlanSummary`, `theme`, and `TextRenderer` (compact text for agents). |
 | 6 | features | `features/*.lua`, `follow.lua` | Behaviour that reacts to the store: reload buffers after an agent's edit (`EditCheckTime`), follow sessions driven elsewhere. |
 | 6 | tools | `tools.lua` | The `session` toolset, which lets an agent run sessions (see below). |
 | 7 | ui | `ui/*.lua` | `TranscriptView` (one transcript buffer: render loop, timer, keymaps, folds, winbar), `display` (which view shows where, reveal), `document` (applies the pipeline's marks to the buffer), `composer`, `permission_prompt`, `winbar`, `PlanPanel`, `links`, `sessions`, and `transcript`, the facade the rest of the editor calls. |
@@ -166,7 +167,7 @@ The MCP server reads the editor's tool definitions when it connects, so a new to
 - *Fast route first.* `search` returns compact results at once from the same sources the pickers use: files, grep, lsp, diagnostics, buffers. Showing is optional: with `show = true` the search also plays out in a picker the user can watch and take over.
 - *Surfaces are state machines that commands drive.* A picker goes `loading -> ready -> chosen` through `query`, `move` and `select`; a list takes `cursor`, `open` and `add`; a panel takes `write`. `ui_command` runs one step, the same step a person takes with keys, and returns what the surface shows. `ui_read` reads it, and `ui_pick` lets the user choose while the agent reads the choice later.
 - *Any UI.* `ui_screen` returns what the user sees: every window, its visible lines and the cursor. `ui_keys` types into anything, such as vgit's views.
-- *Git through vgit.* `git_view` opens vgit's UI and returns once vgit has finished, using `require('vgit').run`, which returns the command's task. The reads come straight from git, as compact text. `git_stage` and `git_discard` apply exactly the hunk at a line with `git apply`.
+- *Git through vgit.* `git_view` opens vgit's UI and returns once vgit has finished, using `require('vgit').run` when vgit has it, else `:VGit`. The reads come straight from git, as compact text. `git_stage` and `git_discard` apply exactly the hunk at a line with `git apply`.
 - *Tokens.* Every result goes through `lua/compact.lua`, which applies rtk's techniques: grouping by file, relative paths, joined duplicates, budgets with `… N more (offset=K)`. `:HarnessStats` shows each session's context use and what compact output saved against plain JSON.
 - People get the same pickers from the keymaps (`<C-p>`, `<leader>/`, `<leader>l*`, `<leader>b`) and `vim.ui.select`.
 
@@ -218,6 +219,7 @@ Add another ACP agent (Gemini, Codex, ...) as another YAML file, then open a ses
 :HarnessCancel
 :HarnessClear                " remove what agents' scripts left behind
 :HarnessStats                " tokens per session, and what compact output saved
+:HarnessChanges              " every file the session changed, in vgit; also gC
 ```
 
 ```lua
@@ -251,7 +253,7 @@ In a transcript:
 | `✓ bash    seq 1 20` with a spinner while it runs, then `✓` or `✗` | the tool call: a lowercase verb and its main argument (command, path, pattern, url) |
 | `1 line`, `12 results` at the right edge | the result of reads and searches |
 | Output under a `│` rail, the first 5 lines shown and the rest folded | commands, searches and fetches; failures show their error. Output is shown verbatim: its fence is longer than any backtick run in it |
-| `✓ edit    a.lua   +2 −2`, then the diff under a `│` rail with file line numbers, diff colours and the file's own syntax colours | edits. Numbers come from finding the edit in the file, and are left off when it can't be found. A diff shown away from its edit keeps a path line |
+| `✓ edit    a.lua   +2 −2`, then the change under a `│` rail as vgit lays it out: three lines of context, file line numbers, add and delete backgrounds, changed words marked on top of the file's own syntax colours | edits. ACP sends a snippet; `EditResolver` finds it in the file to rebuild the whole file before and after (from the old text while the edit waits for permission), and `vgit.api.patch` lays that out. An edit it can't find, or one that failed, shows just its snippet with no numbers. A finished edit is frozen, so later changes to the file don't move it. Agents reading the session get the same change as a classic `+`/`-` diff. A diff shown away from its edit keeps a path line |
 | `[!thought]` callout with how long it took, folded | thoughts |
 | `✓ agent   List files   2 tools` while it runs, then `6s · 2 tools`, with the sub-agent's tools (`├`) and report (`│`) on a tree closed by `└`, folded as one | sub-agents (Agent/Task calls), from the block's own status and times. Their prose is indented two spaces so wrapped lines keep the rail |
 | `✓ read 3 files, searched 1 pattern` over `⋯ 3 tools` | a run of two or more finished reads and searches in a turn; live and failed tools never group, and agents reading the session still see each tool |
@@ -269,10 +271,12 @@ Keys in a transcript:
 | Key | Does |
 | --- | --- |
 | `<CR>` | on a link or a file named in inline code (`lua/a.lua:42`): open it in a new tab. On a diff line: open the file at that line. On a tool: open what it touched. On a fold: open or close it. On a tool group: show or hide its tools. On the earlier-turns line: show them |
-| `gd` | open vgit's diff of the file under the cursor (a diff, a tool's file, a link): `vgit.run` when vgit has it, else `:VGit diff -- <path>` |
+| `gd` | open the edit under the cursor (its diff or its tool line) in vgit's diff view, as the whole file before and after |
+| `gD` | open the git diff of the file under the cursor (a diff, a tool's file, a link): `:VGit diff -- <path>` |
+| `gC` | open every file this session changed in vgit, each from before the session's first edit to it to now (also `:HarnessChanges`) |
 | `gp` | show or hide the plan panel |
 | `gf` | open what is under the cursor in a new tab |
-| `gy` | yank the code block under the cursor without its fences, or else the whole block (a prompt without its `>`) |
+| `gy` | yank the code block under the cursor without its fences, or else the whole block (a prompt without its `>`); on an edit, its change as a patch |
 | `za`, `zR`, `zM` | folds, as anywhere |
 | `]]`, `[[` | next and previous turn |
 | `<C-c>` | interrupt the running turn |

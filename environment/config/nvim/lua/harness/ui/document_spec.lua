@@ -1,4 +1,6 @@
 local Document = require('harness.ui.document')
+local EditPatches = require('harness.transcript.EditPatches')
+local buffers = require('core.buffers')
 local theme = require('harness.transcript.theme')
 local blocks = require('harness.transcript.BlockBuilder')
 local events = require('harness.events')
@@ -148,35 +150,46 @@ describe('harness.ui.document:', function()
     return table.concat(out, '|')
   end
 
-  local function diff_rows(path)
-    emit({
+  local function diff_rows(path, status)
+    local edits = EditPatches(buffers.lines_of)
+
+    history = history or {}
+
+    local function build()
+      document:write(blocks.build(history, nil, { edits = edits }))
+
+      local block = document.blocks[3]
+      local rows = {}
+
+      for offset, line in ipairs(block.lines) do
+        rows[line] = block.start + offset - 1
+      end
+
+      return block, rows
+    end
+
+    events.append(history, {
       kind = 'tool_call',
       id = 't1',
       name = 'Edit',
+      status = status,
       diffs = { { path = path, old = 'local a = 1\nlocal b = 2\n', new = 'local a = 1\nlocal c = 2\n' } },
     })
 
-    local block = document.blocks[3]
-    local rows = {}
-
-    for offset, line in ipairs(block.lines) do
-      rows[line] = block.start + offset - 1
-    end
-
-    return block, rows
+    return build, build()
   end
 
-  it('numbers diff lines where the edit sits in the file, coloured by its language', function()
+  it('numbers an edit by where it sits in the file, coloured by its language', function()
     local path = vim.fn.tempname() .. '.lua'
 
     vim.fn.writefile({ '-- a', '', '', '', 'local a = 1', 'local c = 2' }, path)
 
-    local block, rows = diff_rows(path)
+    local _, block, rows = diff_rows(path, Block.STATUS.completed)
 
-    assert.is_truthy(texts(rows['-local b = 2']):find('   6 ', 1, true))
-    assert.is_truthy(texts(rows['+local c = 2']):find('   6 ', 1, true))
-    assert.is_truthy(texts(rows[' local a = 1']):find('   5 ', 1, true))
-    eq(6, document:diff_line(block, rows['+local c = 2']))
+    assert.is_truthy(texts(rows['local b = 2']):find('  6 ', 1, true))
+    assert.is_truthy(texts(rows['local c = 2']):find('  6 ', 1, true))
+    assert.is_truthy(texts(rows['local a = 1']):find('  5 ', 1, true))
+    eq(6, EditPatches.line_at(block, rows['local c = 2']))
 
     local syntax = vim.tbl_filter(
       function(mark)
@@ -185,8 +198,8 @@ describe('harness.ui.document:', function()
       vim.api.nvim_buf_get_extmarks(
         buf,
         Document.NAMESPACE,
-        { rows['+local c = 2'], 0 },
-        { rows['+local c = 2'], -1 },
+        { rows['local c = 2'], 0 },
+        { rows['local c = 2'], -1 },
         { details = true }
       )
     )
@@ -196,27 +209,29 @@ describe('harness.ui.document:', function()
     vim.fn.delete(path)
   end)
 
-  it('numbers a diff from the old text while the edit waits for permission, then from the new', function()
+  it('numbers an edit from the file before it lands while it waits for permission, then from after', function()
     local path = vim.fn.tempname() .. '.lua'
 
     vim.fn.writefile({ '-- a', '', 'local a = 1', 'local b = 2' }, path)
 
-    local _, rows = diff_rows(path)
+    local build, _, rows = diff_rows(path)
 
-    assert.is_truthy(texts(rows['+local c = 2']):find('   4 ', 1, true))
+    assert.is_truthy(texts(rows['local c = 2']):find('  4 ', 1, true))
 
     vim.fn.writefile({ '-- a', '', '', 'local a = 1', 'local c = 2' }, path)
-    emit({ kind = 'tool_update', id = 't1', status = Block.STATUS.completed, diffs = {} })
+    events.append(history, { kind = 'tool_update', id = 't1', status = Block.STATUS.completed, diffs = {} })
 
-    assert.is_truthy(texts(rows['+local c = 2']):find('   5 ', 1, true))
+    local _, after = build()
+
+    assert.is_truthy(texts(after['local c = 2']):find('  5 ', 1, true))
     vim.fn.delete(path)
   end)
 
-  it('leaves diff lines unnumbered when the edit cannot be found in the file', function()
-    local block, rows = diff_rows('/nowhere/a.lua')
+  it('leaves an edit unnumbered when it cannot be found in the file', function()
+    local _, block, rows = diff_rows('/nowhere/a.lua')
 
-    assert.is_falsy(texts(rows['+local c = 2']):find('%d'))
-    assert.is_nil(document:diff_line(block, rows['+local c = 2']))
+    assert.is_falsy(texts(rows['local c = 2']):find('%d'))
+    assert.is_nil(EditPatches.line_at(block, rows['local c = 2']))
   end)
 
   it('folds long output and thoughts', function()

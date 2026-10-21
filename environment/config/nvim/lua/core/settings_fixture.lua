@@ -1,6 +1,12 @@
 local settings = require('core.settings')
 local Config = require('core.Config')
 
+local vgit_lua = (os.getenv('VGIT_DIR') or (os.getenv('HOME') .. '/workspace/vgit.nvim')) .. '/lua/'
+
+if not package.path:find(vgit_lua, 1, true) then
+  package.path = vgit_lua .. '?.lua;' .. vgit_lua .. '?/init.lua;' .. package.path
+end
+
 local function register_fixture_settings()
   settings.register(
     'signs',

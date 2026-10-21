@@ -35,7 +35,6 @@ hl.GROUPS = {
   UiTurnSeparator = 'WinSeparator',
   UiExternalChange = 'DiffChange',
   UiToolName = 'Function',
-  UiDiffLineNr = 'LineNr',
   UiToolPending = 'DiagnosticInfo',
   UiToolDone = 'DiagnosticOk',
   UiToolFailed = 'DiagnosticError',
@@ -90,8 +89,6 @@ end
 hl.COMPUTED = {
   UiMarkdownCode = surface(0.06, 'ColorColumn'),
   UiToolOutput = tint({ 'Comment' }, 0.08, 'ColorColumn'),
-  UiDiffAdd = tint({ 'Added', 'DiffAdd', 'DiagnosticOk' }, 0.16, 'DiffAdd'),
-  UiDiffDelete = tint({ 'Removed', 'DiffDelete', 'DiagnosticError' }, 0.16, 'DiffDelete'),
   UiPromptBar = function()
     return { fg = color('UiAccent', 'fg'), bold = true }
   end,

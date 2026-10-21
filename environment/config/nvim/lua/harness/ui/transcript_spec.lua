@@ -640,13 +640,19 @@ describe('harness.ui.transcript:', function()
     end)
   end)
 
-  describe('git_diff', function()
-    local saved, path, session
+  describe('vgit views', function()
+    local path, session, vgit, shown, saved_show
 
     before_each(function()
       vim.cmd('silent! tabonly!')
       vim.cmd('enew!')
-      saved = package.loaded.vgit
+      vgit = require('harness.vgit')
+      saved_show = vgit.show
+      shown = nil
+      vgit.show = function(files)
+        shown = files
+        return true
+      end
       path = vim.fn.tempname() .. '.lua'
       vim.fn.writefile({ 'local z = 2' }, path)
       session = Session({ key = 'h' .. math.random(1e6), id = 's1', connection = Connection(fake_agent.new()) })
@@ -656,39 +662,42 @@ describe('harness.ui.transcript:', function()
         id = 't1',
         name = 'Edit',
         category = 'edit',
+        status = 'completed',
         locations = { { path = path } },
         diffs = { { path = path, old = 'local y = 2', new = 'local z = 2' } },
       })
       transcript.open(session)
 
       for _, block in ipairs(transcript.view().document.blocks) do
-        if block.kind == 'diff' then vim.api.nvim_win_set_cursor(0, { block.start + 4, 0 }) end
+        if block.kind == 'diff' then vim.api.nvim_win_set_cursor(0, { block.start + 3, 0 }) end
       end
     end)
 
     after_each(function()
-      package.loaded.vgit = saved
+      vgit.show = saved_show
       pcall(vim.api.nvim_del_user_command, 'VGit')
       os.remove(path)
     end)
 
-    it('hands the file under the cursor to vgit.run when vgit has it', function()
-      local ran
+    it('opens the edit under the cursor, as the whole file before and after', function()
+      assert.is_true(transcript.show_edit())
+      eq({ { filename = path, old_lines = { 'local y = 2' }, new_lines = { 'local z = 2' } } }, shown)
 
-      package.loaded.vgit = {
-        run = function(args)
-          ran = args
-        end,
-      }
-
-      assert.is_true(transcript.git_diff())
-      eq({ 'diff', '--', path }, ran)
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      eq({ false, 'no edit here' }, { transcript.show_edit() })
     end)
 
-    it('falls back to the :VGit command', function()
+    it('opens every file the session changed, from before its first edit to now', function()
+      assert.is_true(transcript.show_changes(transcript.view()))
+      eq({ { filename = path, old_lines = { 'local y = 2' }, new_lines = { 'local z = 2' } } }, shown)
+
+      vim.fn.writefile({ 'local y = 2' }, path)
+      eq({ false, 'this session has not changed any file' }, { transcript.show_changes(transcript.view()) })
+    end)
+
+    it('hands the file under the cursor to :VGit diff for its git diff', function()
       local ran
 
-      package.loaded.vgit = {}
       vim.api.nvim_create_user_command('VGit', function(args)
         ran = args.fargs
       end, { nargs = '*' })
@@ -698,12 +707,16 @@ describe('harness.ui.transcript:', function()
     end)
 
     it('says why when there is no file or no vgit', function()
-      package.loaded.vgit = {}
-
       eq({ false, 'vgit is not available' }, { transcript.git_diff() })
 
       vim.api.nvim_win_set_cursor(0, { 1, 0 })
       eq({ false, 'no file here' }, { transcript.git_diff() })
+    end)
+
+    it('yanks an edit as a patch', function()
+      local text = transcript.yank()
+
+      eq({ '--- ' .. path, '+++ ' .. path, '@@ -1 +1 @@', '-local y = 2', '+local z = 2' }, text)
     end)
   end)
 end)

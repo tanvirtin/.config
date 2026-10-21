@@ -1,7 +1,9 @@
 local hub = require('harness.hub')
 local schema = require('nvim_mcp.schema')
 local tools = require('nvim_mcp.tools')
+local EditPatches = require('harness.transcript.EditPatches')
 local TextRenderer = require('harness.transcript.TextRenderer')
+local buffers = require('core.buffers')
 
 local session_tools = {}
 
@@ -95,7 +97,7 @@ local function session_read(args, ctx)
   local session = target(args.session, ctx)
   local since = args.since or 0
   local events = vim.list_slice(session.history, since + 1)
-  local lines = TextRenderer.render(events, session.title)
+  local lines = TextRenderer.render(events, session.title, { edits = EditPatches.of(session, buffers.lines_of) })
 
   return {
     session = session.key,

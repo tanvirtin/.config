@@ -13,6 +13,8 @@ return Config({
     options = 'go',
     plan = 'gp',
     diff = 'gd',
+    git_diff = 'gD',
+    changes = 'gC',
   },
   composer = {
     send = '<CR>',

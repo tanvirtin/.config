@@ -4,11 +4,13 @@ local Buffer = require('core.Buffer')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 local Layout = require('harness.transcript.calculators.Layout')
 local Document = require('harness.ui.document')
+local EditPatches = require('harness.transcript.EditPatches')
 local EVENT, NOTICE = require('harness.events').KIND, require('harness.events').NOTICE
 local Object = require('core.Object')
 local PlanPanel = require('harness.ui.PlanPanel')
 local Timer = require('core.Timer')
 local Window = require('core.Window')
+local buffers = require('core.buffers')
 local console = require('core.console')
 local event = require('core.event')
 local keymap = require('core.keymap')
@@ -81,6 +83,7 @@ function TranscriptView:constructor(session, opts)
     plan = PlanPanel(),
     frame = 1,
     cache = {},
+    edits = EditPatches.of(session, buffers.lines_of),
     dirty = true,
     scheduled = false,
     disposed = false,
@@ -192,6 +195,7 @@ function TranscriptView:render()
       dir = session.dir,
       running = state.running,
       cache = self.cache,
+      edits = self.edits,
       groups = true,
       live_turns = not self.expanded and settings.transcript:get('live_turns') or nil,
     }),
@@ -408,7 +412,6 @@ function TranscriptView:dispose()
   follow.stop(self.session)
   self.plan:hide()
   self.timer:close()
-  self.document:dispose()
 
   if self.group then self.group.dispose() end
 

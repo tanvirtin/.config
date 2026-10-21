@@ -32,6 +32,7 @@ local LAYERS = {
   { 'harness.acp', 1 },
   { 'harness.async', 1 },
   { 'harness.settings', 1 },
+  { 'harness.vgit', 1 },
   { 'harness.events', 2 },
   { 'harness.context', 2 },
   { 'harness.agent', 2 },
@@ -173,6 +174,18 @@ describe('harness architecture:', function()
 
     table.sort(stale)
     eq({}, stale)
+  end)
+
+  it('talks to vgit only through harness.vgit', function()
+    local found = {}
+
+    for _, module in ipairs(modules()) do
+      if module.name ~= 'harness.vgit' and module.source:find('[\'"]vgit[%.\'"]') then
+        found[#found + 1] = module.name
+      end
+    end
+
+    eq({}, found)
   end)
 
   it('places every harness module in a layer', function()

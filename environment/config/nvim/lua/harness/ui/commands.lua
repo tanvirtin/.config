@@ -3,6 +3,7 @@ local Window = require('core.Window')
 local console = require('core.console')
 local async = require('harness.async')
 local context = require('harness.context')
+local display = require('harness.ui.display')
 local hub = require('harness.hub')
 local transcript = require('harness.ui.transcript')
 local tools = require('nvim_mcp.tools')
@@ -87,6 +88,14 @@ function commands.cancel()
   end
 
   if session then require('harness.ui.composer').interrupt(session) end
+end
+
+function commands.changes()
+  local ok, why = transcript.show_changes(transcript.view() or display.last())
+
+  if not ok then console.notify_now('Harness: no changes to show: ' .. why, 'info') end
+
+  return ok
 end
 
 function commands.sessions()

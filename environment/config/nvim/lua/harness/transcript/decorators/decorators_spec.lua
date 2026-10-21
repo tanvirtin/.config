@@ -101,22 +101,63 @@ describe('harness.transcript.decorators:', function()
     end))
   end)
 
-  it('numbers diff lines by the injected file offset, hides the first hunk header and rails the rest', function()
-    local block = make(Block.KIND.diff, { '```diff', '+++ a.txt', '@@ -1 +1 @@', '+x', '```' }, { path = 'a.txt' })
-    local marks = decorators.decorate(block, {
-      diff_offset = function()
-        return 9
-      end,
-    })
+  it('draws a vgit patch: rails, file line numbers, line backgrounds and changed words', function()
+    local function block(whole)
+      return make(Block.KIND.diff, { '```edit', '--- a.lua', 'x = 1', 'x = 2', '@@ -9 +9 @@', 'y', '```' }, {
+        path = 'a.lua',
+        whole = whole,
+        patch = {
+          rows = {
+            { kind = 'remove', old_lnum = 4, number = { text = '  4 ', hl = 'GitSignsDelete' } },
+            { kind = 'add', new_lnum = 4, number = { text = '  4 ', hl = 'GitSignsAdd' } },
+            { kind = 'hunk' },
+            { kind = 'context', old_lnum = 9, new_lnum = 9, number = { text = '  9 ', hl = 'GitLineNr' } },
+          },
+          highlights = {
+            { row = 0, hl_group = 'GitSignsDeleteLn', line = true },
+            { row = 1, hl_group = 'GitSignsAddLn', line = true },
+            { row = 1, col_start = 4, col_end = 5, hl_group = 'GitWordAdd' },
+            { row = 2, col_start = 0, col_end = 2, hl_group = 'GitPatchHeaderMarker' },
+            { row = 3, hl_group = 'GitPatchContext', line = true },
+          },
+        },
+      })
+    end
 
-    assert.truthy(find(marks, function(opts, mark)
-      return mark.row == 3 and virt(opts) == '  10 ' and opts.line_hl_group == 'UiDiffAdd'
+    local marks = decorators.decorate(block(true), {})
+
+    local function at(row, predicate)
+      return find(marks, function(opts, mark)
+        return mark.row == row and predicate(opts)
+      end)
+    end
+
+    assert.truthy(at(2, function(opts)
+      return virt(opts) == '  4 '
     end))
-    assert.truthy(find(marks, function(opts, mark)
-      return mark.row == 2 and opts.conceal_lines == ''
+    assert.truthy(at(2, function(opts)
+      return opts.line_hl_group == 'GitSignsDeleteLn'
     end))
-    assert.truthy(find(marks, function(opts, mark)
-      return mark.row == 3 and virt(opts) == theme.GUTTER
+    assert.truthy(at(3, function(opts)
+      return opts.virt_text_pos == 'overlay'
+        and opts.hl_mode == 'combine'
+        and virt(opts) == '2'
+        and opts.virt_text[1][2] == 'GitWordAdd'
+    end))
+    assert.truthy(at(4, function(opts)
+      return virt(opts) == theme.HUNK
+    end))
+    eq(false, at(4, function(opts)
+      return opts.hl_group == 'GitPatchHeaderMarker'
+    end) ~= nil)
+    eq(false, at(5, function(opts)
+      return opts.line_hl_group ~= nil
+    end) ~= nil)
+    eq(4, #vim.tbl_filter(function(mark)
+      return virt(mark.opts) == theme.GUTTER
+    end, marks))
+    assert.truthy(find(decorators.decorate(block(false), {}), function(opts, mark)
+      return mark.row == 2 and virt(opts) == '    '
     end))
   end)
 

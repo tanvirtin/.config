@@ -3,7 +3,7 @@ local settings = require('harness.settings.theme')
 local theme = {}
 
 theme.GUTTER_PRIORITY = 10
-theme.SYNTAX_PRIORITY = 150
+theme.SYNTAX_PRIORITY = 200
 theme.RULE_WIDTH = 400
 
 local FROM_SETTINGS = {

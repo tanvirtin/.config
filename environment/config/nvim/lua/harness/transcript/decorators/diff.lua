@@ -1,53 +1,22 @@
-local DiffLineCalculator = require('harness.transcript.calculators.DiffLineCalculator')
 local MarkSpec = require('ui.MarkSpec')
-local fs = require('core.fs')
 local theme = require('harness.transcript.theme')
 
-local DIFF_HL = { ['+'] = 'UiDiffAdd', ['-'] = 'UiDiffDelete' }
-local MARK_HL = { ['+'] = 'UiAdded', ['-'] = 'UiRemoved' }
+local LINE_HL = { GitSignsAddLn = true, GitSignsDeleteLn = true }
+local NUMBERED = { context = true, add = true, remove = true }
 
-local function syntax(out, block, ctx, sides, filetype)
-  local seen = {}
+local function path_row(out, block)
+  local row = block.start + 1
 
-  for _, side in pairs(sides) do
-    for _, highlight in ipairs(ctx.syntax:annotate(side.lines, filetype)) do
-      local row = side.rows[highlight.row + 1]
-      local key = row and string.format('%d:%d:%s', row, highlight.col_start, highlight.hl_group)
+  if block.attached then return MarkSpec.add(out, row, 0, { conceal_lines = '' }) end
 
-      if row and not seen[key] then
-        seen[key] = true
-
-        local text = block.lines[row - block.start + 1]
-        local end_col = highlight.col_end == -1 and #text or highlight.col_end + 1
-
-        MarkSpec.add(out, row, highlight.col_start + 1, {
-          end_col = end_col,
-          hl_group = highlight.hl_group,
-          priority = theme.SYNTAX_PRIORITY,
-        })
-      end
-    end
-  end
+  MarkSpec.add(out, row, 0, { end_col = 4, conceal = '' })
+  MarkSpec.add(out, row, 0, { virt_text = { { theme.PATH_ICON, 'UiPath' } }, virt_text_pos = 'inline' })
+  MarkSpec.add(out, row, 4, { end_col = #block.lines[2], hl_group = 'UiPath' })
 end
 
-return function(block, ctx)
-  local out = {}
-  local path = block.lines[2]:sub(5)
-
-  if block.attached then
-    MarkSpec.add(out, block.start + 1, 0, { conceal_lines = '' })
-  else
-    MarkSpec.add(out, block.start + 1, 0, { end_col = 4, conceal = '' })
-    MarkSpec.add(out, block.start + 1, 0, { virt_text = { { theme.PATH_ICON, 'UiPath' } }, virt_text_pos = 'inline' })
-    MarkSpec.add(out, block.start + 1, 4, { end_col = #block.lines[2], hl_group = 'UiPath' })
-  end
-
-  local sides = { new = { lines = {}, rows = {} }, old = { lines = {}, rows = {} } }
-  local shift = ctx.diff_offset and ctx.diff_offset(block)
-
-  for offset, entry in pairs(DiffLineCalculator.numbers(block.lines)) do
-    local row = block.start + offset - 1
-    local line = block.lines[offset]
+local function rows(out, block, first)
+  for i, entry in ipairs(block.patch.rows) do
+    local row = first + i - 1
 
     MarkSpec.add(out, row, 0, {
       virt_text = { { theme.GUTTER, 'UiMuted' } },
@@ -55,34 +24,82 @@ return function(block, ctx)
       priority = theme.GUTTER_PRIORITY + 1,
     })
 
-    if entry.mark == '@' and offset == 3 then
-      MarkSpec.add(out, row, 0, { conceal_lines = '' })
-    elseif entry.mark == '@' then
-      MarkSpec.add(out, row, 0, { end_col = #line, conceal = '' })
+    if entry.kind == 'hunk' then
+      MarkSpec.add(out, row, 0, { end_col = #block.lines[i + 2], conceal = '' })
       MarkSpec.add(out, row, 0, { virt_text = { { theme.HUNK, 'UiMuted' } }, virt_text_pos = 'inline' })
-    else
-      MarkSpec.add(out, row, 0, {
-        virt_text = { { shift and string.format('%4d ', entry.number + shift) or '  ', 'UiDiffLineNr' } },
-        virt_text_pos = 'inline',
-        line_hl_group = DIFF_HL[entry.mark],
-      })
+    elseif NUMBERED[entry.kind] and entry.number then
+      local number = block.whole and entry.number.text or string.rep(' ', #entry.number.text)
 
-      if MARK_HL[entry.mark] then MarkSpec.add(out, row, 0, { end_col = 1, hl_group = MARK_HL[entry.mark] }) end
+      MarkSpec.add(out, row, 0, { virt_text = { { number, entry.number.hl } }, virt_text_pos = 'inline' })
+    end
+  end
+end
 
-      local targets = entry.mark == '+' and { sides.new }
-        or entry.mark == '-' and { sides.old }
-        or { sides.new, sides.old }
+local WORD = { GitWordAdd = true, GitWordDelete = true }
 
-      for _, target in ipairs(targets) do
-        target.lines[#target.lines + 1] = line:sub(2)
-        target.rows[#target.rows + 1] = row
+local function words(out, block, first, by_row)
+  for index, ranges in pairs(by_row) do
+    table.sort(ranges, function(x, y)
+      return x.col_start < y.col_start
+    end)
+
+    local line = block.lines[index + 3] or ''
+    local texts, col = {}, ranges[1].col_start
+
+    for _, range in ipairs(ranges) do
+      if range.col_start > col then texts[#texts + 1] = { line:sub(col + 1, range.col_start) } end
+
+      texts[#texts + 1] = { line:sub(range.col_start + 1, range.col_end), range.hl_group }
+      col = range.col_end
+    end
+
+    MarkSpec.add(out, first + index, ranges[1].col_start, {
+      virt_text = texts,
+      virt_text_pos = 'overlay',
+      hl_mode = 'combine',
+      priority = MarkSpec.PRIORITY + 100,
+    })
+  end
+end
+
+local function highlights(out, block, first)
+  local patch_rows = block.patch.rows
+  local by_row = {}
+
+  for _, hl in ipairs(block.patch.highlights) do
+    local entry = patch_rows[hl.row + 1]
+    local row = first + hl.row
+
+    if entry and entry.kind ~= 'hunk' then
+      if hl.line then
+        if LINE_HL[hl.hl_group] then MarkSpec.add(out, row, 0, { line_hl_group = hl.hl_group }) end
+      elseif WORD[hl.hl_group] then
+        by_row[hl.row] = by_row[hl.row] or {}
+        table.insert(by_row[hl.row], hl)
+      elseif hl.col_end > hl.col_start then
+        MarkSpec.add(out, row, hl.col_start, {
+          end_col = hl.col_end,
+          hl_group = hl.hl_group,
+          priority = theme.SYNTAX_PRIORITY,
+        })
       end
     end
   end
 
-  local filetype = ctx.syntax and fs.detect_filetype(path) or ''
+  words(out, block, first, by_row)
+end
 
-  if filetype ~= '' then syntax(out, block, ctx, sides, filetype) end
+return function(block)
+  local out = {}
+
+  path_row(out, block)
+
+  if block.patch then
+    local first = block.start + 2
+
+    rows(out, block, first)
+    highlights(out, block, first)
+  end
 
   return out
 end

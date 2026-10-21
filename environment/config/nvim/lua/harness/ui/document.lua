@@ -1,14 +1,11 @@
 local Buffer = require('core.Buffer')
-local DiffLineCalculator = require('harness.transcript.calculators.DiffLineCalculator')
 local FoldCalculator = require('harness.transcript.calculators.FoldCalculator')
 local Layout = require('harness.transcript.calculators.Layout')
 local MarkSpec = require('ui.MarkSpec')
 local Object = require('core.Object')
 local Renderer = require('ui.markdown.Renderer')
 local StatusLine = require('harness.transcript.StatusLine')
-local SyntaxAnnotator = require('ui.annotators.SyntaxAnnotator')
 local Timer = require('core.Timer')
-local buffers = require('core.buffers')
 local context = require('harness.transcript.decorators.context')
 local decorators = require('harness.transcript.decorators')
 local settings = require('harness.settings.transcript')
@@ -22,7 +19,6 @@ Document.STATUS_NAMESPACE = Buffer.namespace('harness.document.status')
 Document.PRIORITY = MarkSpec.PRIORITY
 
 Document.duration = theme.duration
-Document.diff_numbers = DiffLineCalculator.numbers
 
 local documents = setmetatable({}, { __mode = 'v' })
 
@@ -46,13 +42,11 @@ function Document:constructor(bufnr)
     scheduled = false,
     lines = {},
     blocks = {},
-    offsets = {},
     state = { running = false, frame = 1 },
     renderer = Renderer(bufnr, {
-      hidden_labels = { output = true, diff = true },
+      hidden_labels = { output = true, diff = true, edit = true },
       code_hl = { output = 'UiToolOutput' },
     }),
-    syntax = SyntaxAnnotator(),
   }
 end
 
@@ -62,14 +56,6 @@ local function merge(state, update)
   end
 
   return state
-end
-
-function Document:diff_offset(block)
-  return DiffLineCalculator.offset(block, buffers.lines_of, self.offsets)
-end
-
-function Document:diff_line(block, row)
-  return DiffLineCalculator.line(block, row, self:diff_offset(block))
 end
 
 function Document:_context()
@@ -82,10 +68,6 @@ function Document:_context()
     active = state.active,
     width = self.width,
     now = Timer.now(),
-    syntax = self.syntax,
-    diff_offset = function(block)
-      return self:diff_offset(block)
-    end,
   }
 end
 
@@ -323,10 +305,6 @@ function Document:_status()
   local last = math.max(buffer:get_line_count() - 1, 0)
 
   buffer:set_extmark(Document.STATUS_NAMESPACE, last, 0, { virt_lines = lines })
-end
-
-function Document:dispose()
-  self.syntax:dispose()
 end
 
 return Document

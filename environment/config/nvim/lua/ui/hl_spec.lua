@@ -43,12 +43,11 @@ describe('ui.hl:', function()
       hl.clear_overrides()
     end)
 
-    it('blends code, output and diff backgrounds from the scheme\'s own colours', function()
+    it('blends code and output backgrounds from the scheme\'s own colours', function()
       hl.define()
 
       eq(hl.blend(0xffffff, 0x000000, 0.06), vim.api.nvim_get_hl(0, { name = 'UiMarkdownCode' }).bg)
       eq(hl.blend(0x808080, 0x000000, 0.08), vim.api.nvim_get_hl(0, { name = 'UiToolOutput' }).bg)
-      eq(hl.blend(0x00ff00, 0x000000, 0.16), vim.api.nvim_get_hl(0, { name = 'UiDiffAdd' }).bg)
     end)
 
     it('falls back to links when the scheme sets no background', function()
@@ -56,7 +55,6 @@ describe('ui.hl:', function()
       hl.define()
 
       eq('ColorColumn', vim.api.nvim_get_hl(0, { name = 'UiMarkdownCode' }).link)
-      eq('DiffAdd', vim.api.nvim_get_hl(0, { name = 'UiDiffAdd' }).link)
     end)
 
     it('lets overrides win, and keeps them across colour scheme changes', function()

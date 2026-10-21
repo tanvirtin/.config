@@ -1,4 +1,5 @@
 local Block = require('harness.transcript.Block')
+local EditPatches = require('harness.transcript.EditPatches')
 local fences = require('harness.transcript.fences')
 local tool_label = require('harness.transcript.tool_label')
 local compact = require('compact')
@@ -7,8 +8,6 @@ local EVENT = require('harness.events').KIND
 local settings = require('harness.settings.transcript')
 
 local blocks = { Block = Block, fence_for = fences.fence_for, fences = fences.fences, fenced_at = fences.fenced_at }
-
-local diff_text = (vim.text and vim.text.diff) or vim.diff
 
 local function split(text)
   if not text:find('\n', 1, true) then return { text } end
@@ -29,15 +28,12 @@ local function split(text)
   return lines
 end
 
-local function diff_lines(diff, dir)
-  local old, new = diff.old, diff.new
+local FINISHED = { [Block.STATUS.completed] = true, [Block.STATUS.failed] = true }
 
-  if old ~= '' and old:sub(-1) ~= '\n' then old = old .. '\n' end
-  if new ~= '' and new:sub(-1) ~= '\n' then new = new .. '\n' end
-
-  local body = split(vim.trim(diff_text(old, new, { ctxlen = 2 }) or ''))
+local function diff_block(edit, path, text)
+  local body = text and edit:text() or edit:patch().lines
   local fence = blocks.fence_for(body)
-  local lines = { fence .. 'diff', '--- ' .. tostring(tool_label.relative(diff.path, dir)) }
+  local lines = { fence .. (text and 'diff' or 'edit'), '--- ' .. tostring(path) }
 
   vim.list_extend(lines, body)
   lines[#lines + 1] = fence
@@ -45,11 +41,11 @@ local function diff_lines(diff, dir)
   return lines
 end
 
-local function diff_stats(lines)
+local function text_stats(lines)
   local added, removed = 0, 0
 
-  for i = 3, #lines - 1 do
-    local mark = lines[i]:sub(1, 1)
+  for _, line in ipairs(lines) do
+    local mark = line:sub(1, 1)
 
     if mark == '+' then
       added = added + 1
@@ -58,7 +54,7 @@ local function diff_stats(lines)
     end
   end
 
-  return added, removed
+  return { added = added, removed = removed }
 end
 
 local PLAN_MARK = { [Block.STATUS.completed] = 'x', [Block.STATUS.in_progress] = '~' }
@@ -212,6 +208,8 @@ local function build_turn(history, from, to, opts, last_turn, updates)
   local plans = last_plans(history, from, to)
   local diffs_shown = {}
   local turn = { tools = 0 }
+  local edits = opts.edits or EditPatches()
+  local text = opts.outputs == false
 
   local function add(kind, lines, fields)
     list[#list + 1] = Block.make(kind, lines, fields)
@@ -237,13 +235,20 @@ local function build_turn(history, from, to, opts, last_turn, updates)
 
     diffs_shown[id] = true
 
-    for _, diff in ipairs(state.diffs) do
-      local lines = diff_lines(diff, opts.dir)
-      local added, removed = diff_stats(lines)
+    for index, diff in ipairs(state.diffs) do
+      local edit =
+        edits:get(diff, id .. ':' .. index, FINISHED[state.status] == true, state.status == Block.STATUS.failed)
+      local lines = diff_block(edit, tool_label.relative(diff.path, opts.dir), text)
+      local patch = not text and edit:patch() or nil
+      local stat = patch and patch.stat or text_stats(edit:text())
+      local added, removed = stat.added, stat.removed
       local last = list[#list]
 
       add(Block.KIND.diff, lines, {
         id = id,
+        patch = patch and { rows = patch.rows, highlights = patch.highlights } or nil,
+        whole = edit.whole,
+        edit = edit.file,
         attached = last ~= nil and last.id == id and (last.kind == Block.KIND.tool or last.kind == Block.KIND.diff),
         path = diff.path,
         added = added,

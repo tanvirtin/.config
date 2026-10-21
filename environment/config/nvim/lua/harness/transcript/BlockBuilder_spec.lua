@@ -1,3 +1,4 @@
+local EditPatches = require('harness.transcript.EditPatches')
 local blocks = require('harness.transcript.BlockBuilder')
 local events = require('harness.events')
 
@@ -245,8 +246,51 @@ describe('harness.transcript.BlockBuilder:', function()
 
       eq(1, #shown)
       eq(Block.KIND.diff, list[3].kind)
-      assert.is_truthy(vim.tbl_contains(shown[1].lines, '+local x = 3'))
-      assert.is_falsy(vim.tbl_contains(shown[1].lines, '+local x = 2'))
+      assert.is_truthy(vim.tbl_contains(shown[1].lines, 'local x = 3'))
+      assert.is_falsy(vim.tbl_contains(shown[1].lines, 'local x = 2'))
+      eq(
+        { 'remove', 'add' },
+        vim.tbl_map(function(row)
+          return row.kind
+        end, shown[1].patch.rows)
+      )
+    end)
+
+    it('lays an edit out against the whole file when it can find it, with vgit\'s rows', function()
+      local edits = EditPatches(function()
+        return { 'local a = 0', 'local x = 3', 'return x' }
+      end)
+      local shown = diff_blocks(blocks.build({
+        {
+          kind = 'tool_call',
+          id = 't1',
+          name = 'Edit',
+          status = Block.STATUS.completed,
+          diffs = { diff('local x = 3\n') },
+        },
+      }, nil, { edits = edits }))[1]
+
+      eq({ '```edit', '--- /a.lua', 'local a = 0', 'local x = 1', 'local x = 3', 'return x', '```' }, shown.lines)
+      eq(true, shown.whole)
+      eq({ 2, 2 }, { shown.patch.rows[2].old_lnum, shown.patch.rows[3].new_lnum })
+      eq({
+        filename = '/a.lua',
+        old_lines = { 'local a = 0', 'local x = 1', 'return x' },
+        new_lines = {
+          'local a = 0',
+          'local x = 3',
+          'return x',
+        },
+      }, shown.edit)
+    end)
+
+    it('gives agents a classic +/- diff when building text', function()
+      local shown = diff_blocks(blocks.build({
+        { kind = 'tool_call', id = 't1', name = 'Edit', diffs = { diff('local x = 3\n') } },
+      }, nil, { outputs = false }))[1]
+
+      eq({ '```diff', '--- /a.lua', '@@ -1 +1 @@', '-local x = 1', '+local x = 3', '```' }, shown.lines)
+      eq({ 1, 1 }, { shown.added, shown.removed })
     end)
 
     it('shows a diff that only arrives with a later update under the tool', function()

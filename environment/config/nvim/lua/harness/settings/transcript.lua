@@ -8,4 +8,5 @@ return Config({
   queue_preview = 120,
   request_preview = 80,
   live_turns = 50,
+  diff_context = 3,
 })

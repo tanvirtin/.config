@@ -2,19 +2,22 @@ local lazy = require('core.lazy')
 
 local Block = require('harness.transcript.Block')
 local Buffer = require('core.Buffer')
+local EditPatches = require('harness.transcript.EditPatches')
+local SessionChanges = require('harness.transcript.SessionChanges')
 local Fold = require('core.Fold')
 local INLINE = require('ui.markdown.Renderer').INLINE
 local Timer = require('core.Timer')
 local TranscriptView = require('harness.ui.TranscriptView')
 local Window = require('core.Window')
+local buffers = require('core.buffers')
 local console = require('core.console')
 local display = require('harness.ui.display')
-local event = require('core.event')
 local fences = require('harness.transcript.fences')
 local links = require('harness.ui.links')
 local permission_prompt = require('harness.ui.permission_prompt')
 local register = require('core.register')
 local settings = require('harness.settings')
+local vgit = require('harness.vgit')
 local winbar = require('harness.ui.winbar')
 
 local composer = lazy('harness.ui.composer')
@@ -24,7 +27,6 @@ local transcript = {}
 transcript.FILETYPE = TranscriptView.FILETYPE
 transcript.WINBAR = winbar.HINTS
 transcript.CHOICES = permission_prompt.CHOICES
-transcript.VGIT_COMMAND = 'VGit'
 
 transcript.view = display.view
 transcript.view_of = display.view_of
@@ -95,7 +97,7 @@ local function target_at(view, window)
   if not block then return nil end
 
   if block.kind == Block.KIND.diff then
-    local line = document:diff_line(block, row)
+    local line = EditPatches.line_at(block, row)
     return links.resolve(INLINE.link, block.path, dir) and { path = block.path, line = line } or nil
   end
 
@@ -198,21 +200,46 @@ function transcript.git_diff(buf)
 
   if not path then return false, 'no file here' end
 
-  local args = { 'diff', '--', path }
-  local ok, vgit = pcall(require, 'vgit')
-  local ran, err
+  return vgit.git_diff(path)
+end
 
-  if ok and type(vgit) == 'table' and type(vgit.run) == 'function' then
-    ran, err = pcall(vgit.run, args)
-  elseif event.has_command(transcript.VGIT_COMMAND) then
-    ran, err = pcall(event.run_command, transcript.VGIT_COMMAND, args)
-  else
-    return false, 'vgit is not available'
+function transcript.edit_at(buf)
+  local view = view_for(buf)
+
+  if not view then return nil end
+
+  local blocks = view.document.blocks
+  local block = view.document:block_at(Window.get_current():get_cursor()[1] - 1)
+
+  if not block or not block.id then return nil end
+
+  local files = {}
+
+  for _, candidate in ipairs(blocks) do
+    if candidate.kind == Block.KIND.diff and candidate.id == block.id and candidate.edit then
+      files[#files + 1] = candidate.edit
+    end
   end
 
-  if not ran then return false, tostring(err) end
+  return #files > 0 and files or nil
+end
 
-  return true
+function transcript.show_edit(buf)
+  local files = transcript.edit_at(buf)
+
+  if not files then return false, 'no edit here' end
+
+  return vgit.show(files)
+end
+
+function transcript.show_changes(view)
+  if not view then return false, 'no session here' end
+
+  local files = SessionChanges.files(view.session.history, view.edits, buffers.lines_of)
+
+  if #files == 0 then return false, 'this session has not changed any file' end
+
+  return vgit.show(files)
 end
 
 function transcript.yank(buf, name)
@@ -224,6 +251,14 @@ function transcript.yank(buf, name)
   local block = view.document:block_at(row)
 
   if not block then return nil end
+
+  if block.kind == Block.KIND.diff and block.edit then
+    local patch = vgit.patch_text(block.edit)
+
+    register.set(patch, name)
+
+    return patch, true
+  end
 
   local lines = block.lines
   local first, last = fences.fenced_at(lines, row - block.start + 1)
@@ -361,11 +396,29 @@ function transcript.bindings(view)
     {
       keys.diff,
       function()
+        local ok, why = transcript.show_edit(buf)
+
+        if not ok then console.notify_now('Harness: no edit to show: ' .. why, 'info') end
+      end,
+      'Open the edit under the cursor in vgit',
+    },
+    {
+      keys.git_diff,
+      function()
         local ok, why = transcript.git_diff(buf)
 
         if not ok then console.notify_now('Harness: no git diff to show: ' .. why, 'info') end
       end,
       'Open the git diff of the file under the cursor in vgit',
+    },
+    {
+      keys.changes,
+      function()
+        local ok, why = transcript.show_changes(view)
+
+        if not ok then console.notify_now('Harness: no changes to show: ' .. why, 'info') end
+      end,
+      'Open every file this session changed in vgit',
     },
     {
       keys.options,
