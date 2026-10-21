@@ -154,6 +154,15 @@ function Buffer.namespace(name)
   return vim.api.nvim_create_namespace(name)
 end
 
+function Buffer.set_decoration_provider(namespace, on_win)
+  vim.api.nvim_set_decoration_provider(namespace, {
+    on_win = function(_, _, bufnr, top, bottom)
+      on_win(bufnr, top, bottom)
+      return false
+    end,
+  })
+end
+
 function Buffer:get_windows()
   local Window = require('core.Window')
 

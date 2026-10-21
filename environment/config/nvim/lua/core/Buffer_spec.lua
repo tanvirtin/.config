@@ -389,4 +389,25 @@ describe('Buffer:', function()
       eq('added line', marks[1][4].virt_lines[1][1][1])
     end)
   end)
+  describe('set_decoration_provider', function()
+    it('calls back with the buffer and the drawn rows for each window', function()
+      local namespace = Buffer.namespace('core.Buffer.spec.provider')
+      local buf = vim.api.nvim_create_buf(false, true)
+      local seen
+
+      Buffer.set_decoration_provider(namespace, function(bufnr, top, bottom)
+        if bufnr == buf then seen = { top, bottom } end
+      end)
+
+      local win_id =
+        vim.api.nvim_open_win(buf, false, { relative = 'editor', width = 10, height = 5, row = 1, col = 1 })
+
+      vim.cmd.redraw()
+      vim.api.nvim_set_decoration_provider(namespace, {})
+      vim.api.nvim_win_close(win_id, true)
+
+      assert.truthy(seen)
+      eq(0, seen[1])
+    end)
+  end)
 end)

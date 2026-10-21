@@ -94,6 +94,10 @@ function Window:get_position()
   return vim.api.nvim_win_get_position(self.win_id)
 end
 
+function Window:get_visible_range()
+  return vim.fn.line('w0', self.win_id) - 1, vim.fn.line('w$', self.win_id)
+end
+
 function Window:get_height()
   return vim.api.nvim_win_get_height(self.win_id)
 end

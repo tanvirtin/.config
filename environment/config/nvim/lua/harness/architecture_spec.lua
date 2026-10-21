@@ -58,7 +58,6 @@ local NEOVIM_ALLOWED = {
   ['harness.permissions'] = 3,
   ['harness.ui.commands'] = 14,
   ['harness.ui.composer'] = 24,
-  ['harness.ui.document'] = 31,
   ['harness.ui.links'] = 10,
   ['harness.ui.sessions'] = 6,
   ['harness.ui.transcript'] = 84,

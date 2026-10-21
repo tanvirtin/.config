@@ -484,6 +484,7 @@ local function create(session, opts)
         queue = session:queued(),
         waiting = session:waiting(),
         asks = transcript.asks_of(session),
+        choices = transcript.CHOICES,
       }
     )
 

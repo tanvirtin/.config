@@ -323,4 +323,22 @@ describe('Window:', function()
       assert.is_true(called)
     end)
   end)
+  describe('get_visible_range', function()
+    it('returns the zero-based top row and the last shown line', function()
+      local buf = vim.api.nvim_create_buf(false, true)
+      local lines = {}
+
+      for i = 1, 40 do
+        lines[i] = tostring(i)
+      end
+
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+      local win_id = vim.api.nvim_open_win(buf, false, default_float_opts)
+      local window = Window(win_id)
+
+      eq({ 0, 10 }, { window:get_visible_range() })
+      window:close()
+    end)
+  end)
 end)
