@@ -48,6 +48,7 @@ function Renderer:constructor(bufnr, opts)
     bufnr = bufnr,
     buffer = Buffer(bufnr),
     hidden_labels = opts.hidden_labels or {},
+    code_hl = opts.code_hl or {},
     resolve = opts.resolve,
   }
 end

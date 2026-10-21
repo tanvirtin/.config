@@ -21,4 +21,5 @@ return Config({
   gutter = '  │ ',
   hunk = '┈┈┈┈',
   collapsed_icon = '󰁝 ',
+  highlights = {},
 })

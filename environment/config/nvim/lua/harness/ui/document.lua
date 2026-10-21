@@ -48,7 +48,10 @@ function Document:constructor(bufnr)
     blocks = {},
     offsets = {},
     state = { running = false, frame = 1 },
-    renderer = Renderer(bufnr, { hidden_labels = { output = true, diff = true } }),
+    renderer = Renderer(bufnr, {
+      hidden_labels = { output = true, diff = true },
+      code_hl = { output = 'UiToolOutput' },
+    }),
     syntax = SyntaxAnnotator(),
   }
 end

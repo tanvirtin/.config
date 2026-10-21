@@ -18,7 +18,10 @@ function harness.setup(opts)
     return require('harness.ui.transcript').ask(request)
   end
 
-  local rest = require('harness.settings').assign(opts)
+  local settings = require('harness.settings')
+  local rest = settings.assign(opts)
+
+  require('ui.hl').override(settings.theme:get('highlights'))
 
   hub.config = vim.tbl_extend('force', hub.config, { ask = ask }, rest)
 

@@ -24,7 +24,6 @@ hl.GROUPS = {
   UiMarkdownHeading4 = '@markup.heading.4.markdown',
   UiMarkdownHeading5 = '@markup.heading.5.markdown',
   UiMarkdownHeading6 = '@markup.heading.6.markdown',
-  UiMarkdownCode = 'ColorColumn',
   UiMarkdownBullet = 'Special',
   UiMarkdownQuote = 'Comment',
   UiMarkdownRule = 'WinSeparator',
@@ -36,8 +35,6 @@ hl.GROUPS = {
   UiTurnSeparator = 'WinSeparator',
   UiExternalChange = 'DiffChange',
   UiToolName = 'Function',
-  UiDiffAdd = 'DiffAdd',
-  UiDiffDelete = 'DiffDelete',
   UiDiffLineNr = 'LineNr',
   UiToolPending = 'DiagnosticInfo',
   UiToolDone = 'DiagnosticOk',
@@ -65,7 +62,36 @@ function hl.blend(fg, bg, alpha)
   return out
 end
 
+local function surface(alpha, fallback)
+  return function()
+    local foreground, background = color('Normal', 'fg'), color('Normal', 'bg')
+
+    if not foreground or not background then return { link = fallback } end
+
+    return { bg = hl.blend(foreground, background, alpha) }
+  end
+end
+
+local function tint(groups, alpha, fallback)
+  return function()
+    local background = color('Normal', 'bg')
+    local accent
+
+    for _, group in ipairs(groups) do
+      accent = accent or color(group, 'fg')
+    end
+
+    if not accent or not background then return { link = fallback } end
+
+    return { bg = hl.blend(accent, background, alpha) }
+  end
+end
+
 hl.COMPUTED = {
+  UiMarkdownCode = surface(0.06, 'ColorColumn'),
+  UiToolOutput = tint({ 'Comment' }, 0.08, 'ColorColumn'),
+  UiDiffAdd = tint({ 'Added', 'DiffAdd', 'DiagnosticOk' }, 0.16, 'DiffAdd'),
+  UiDiffDelete = tint({ 'Removed', 'DiffDelete', 'DiagnosticError' }, 0.16, 'DiffDelete'),
   UiPrompt = function()
     local accent, background = color('UiAccent', 'fg'), color('Normal', 'bg')
 
@@ -84,6 +110,18 @@ hl.COMPUTED = {
   end,
 }
 
+local overrides = {}
+
+function hl.override(groups)
+  overrides = vim.tbl_extend('force', overrides, groups or {})
+  hl.define()
+end
+
+function hl.clear_overrides()
+  overrides = {}
+  hl.define()
+end
+
 function hl.define()
   for group, link in pairs(hl.GROUPS) do
     vim.api.nvim_set_hl(0, group, { link = link, default = true })
@@ -91,6 +129,10 @@ function hl.define()
 
   for group, compute in pairs(hl.COMPUTED) do
     vim.api.nvim_set_hl(0, group, compute())
+  end
+
+  for group, spec in pairs(overrides) do
+    vim.api.nvim_set_hl(0, group, spec)
   end
 end
 

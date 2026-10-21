@@ -111,8 +111,10 @@ function NODES.code(out, node, src, opts)
 
   local last = src:last_row(node)
 
+  local surface = opts.code_hl and language and opts.code_hl[language] or 'UiMarkdownCode'
+
   for row = start_row, last do
-    mark(out, row, 0, { line_hl_group = 'UiMarkdownCode', priority = 50 })
+    mark(out, row, 0, { line_hl_group = surface, priority = 50 })
   end
 
   if language and not opts.hidden_labels[language] and start_row + 1 <= last then

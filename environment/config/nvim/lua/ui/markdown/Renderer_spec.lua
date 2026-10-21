@@ -213,4 +213,16 @@ describe('ui.markdown.Renderer:', function()
     assert.is_falsy(below.opts.virt_lines_above)
     assert.is_nil(box_of({ '| a |', '| - |' }))
   end)
+
+  it('shades code blocks by language when given a surface for it', function()
+    local renderer = Renderer(0, { code_hl = { output = 'UiToolOutput' } })
+    local surfaces = {}
+
+    for _, mark in ipairs(renderer:annotate({ '```output', 'x', '```', '', '```lua', 'y', '```' }, 0)) do
+      if mark.opts.line_hl_group then surfaces[mark.row] = mark.opts.line_hl_group end
+    end
+
+    eq('UiToolOutput', surfaces[1])
+    eq('UiMarkdownCode', surfaces[5])
+  end)
 end)
