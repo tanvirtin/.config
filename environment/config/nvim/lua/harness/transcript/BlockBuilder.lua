@@ -6,6 +6,7 @@ local compact = require('compact')
 local context = require('harness.context')
 local EVENT = require('harness.events').KIND
 local keymaps = require('harness.settings.keymaps')
+local theme = require('harness.transcript.theme')
 local settings = require('harness.settings.transcript')
 
 local blocks = { Block = Block, fence_for = fences.fence_for, fences = fences.fences, fenced_at = fences.fenced_at }
@@ -267,7 +268,7 @@ local function build_turn(history, from, to, opts, last_turn, updates)
   local BUILD = {
     prompt = function(event, i)
       if not event.steered then turn = { tools = 0, started = times[i] } end
-      add(Block.KIND.prompt, quoted(vim.trim(context.strip(event.text))), { first = i == 1, steered = event.steered })
+      add(Block.KIND.prompt, quoted(vim.trim(context.strip(event.text))), { steered = event.steered })
     end,
     message = function(event, i)
       stream(Block.KIND.message, event.text, i, event.parent)
@@ -465,10 +466,6 @@ local function groupable(block)
     and GROUPABLE[block.category] ~= nil
 end
 
-local function plural(n, word)
-  return string.format('%d %s%s', n, word, n == 1 and '' or 's')
-end
-
 local function group_label(run)
   local counts, order = {}, {}
 
@@ -481,7 +478,7 @@ local function group_label(run)
 
   for i, category in ipairs(order) do
     local verb = GROUP_VERB[category]
-    parts[#parts + 1] = (i == 1 and verb or verb:lower()) .. ' ' .. plural(counts[category], GROUPABLE[category])
+    parts[#parts + 1] = (i == 1 and verb or verb:lower()) .. ' ' .. theme.plural(counts[category], GROUPABLE[category])
   end
 
   return table.concat(parts, ', ')
@@ -612,7 +609,7 @@ function blocks.build(history, title, opts)
         first == 2 and '' or 's',
         keymaps:get('transcript').activate
       ),
-    }, { hidden = first - 1 })
+    })
   end
 
   for n = first, #starts do

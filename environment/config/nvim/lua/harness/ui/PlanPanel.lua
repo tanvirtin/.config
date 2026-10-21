@@ -7,7 +7,7 @@ local PlanPanel = Object:extend()
 PlanPanel.ZINDEX = 40
 
 function PlanPanel:constructor()
-  return { element = nil, anchor = nil, lines = nil, pinned = false, dismissed = false }
+  return { element = nil, anchor = nil, lines = nil, painted = false, pinned = false, dismissed = false }
 end
 
 function PlanPanel:is_shown()

@@ -271,7 +271,7 @@ describe('harness.transcript.decorators:', function()
   end)
 
   it('shows a collapsed block muted behind an icon, with the key to open it accented', function()
-    local block = make(Block.KIND.collapsed, { '3 earlier turns · <CR> to show' }, { hidden = 3 })
+    local block = make(Block.KIND.collapsed, { '3 earlier turns · <CR> to show' })
     local marks = decorators.decorate(block, {})
 
     eq(theme.COLLAPSED_ICON, virt(marks[1].opts))

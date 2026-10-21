@@ -10,7 +10,6 @@ local Timer = require('core.Timer')
 local context = require('harness.transcript.decorators.context')
 local decorators = require('harness.transcript.decorators')
 local settings = require('harness.settings.transcript')
-local theme = require('harness.transcript.theme')
 
 local Document = Object:extend()
 
@@ -18,10 +17,6 @@ Document.NAMESPACE = Buffer.namespace('harness.document')
 
 Document.RAW = { [Block.KIND.prompt] = true, [Block.KIND.note] = true, [Block.KIND.plan] = true }
 Document.STATUS_NAMESPACE = Buffer.namespace('harness.document.status')
-
-Document.PRIORITY = MarkSpec.PRIORITY
-
-Document.duration = theme.duration
 
 local documents = setmetatable({}, { __mode = 'v' })
 

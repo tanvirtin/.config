@@ -199,7 +199,7 @@ describe('harness.transcript.BlockBuilder:', function()
     eq(true, blocks.build({ { kind = 'thought', text = 'hmm' } }, nil, { running = true })[2].live)
   end)
 
-  it('marks the first prompt, packs runs of tools and diffs tight, and attaches a diff to its tool', function()
+  it('packs runs of tools and diffs tight, and attaches a diff to its tool', function()
     local list = blocks.build({
       events.prompt('one'),
       { kind = 'tool_call', id = 't1', name = 'Read', diffs = {} },
@@ -214,7 +214,6 @@ describe('harness.transcript.BlockBuilder:', function()
         return block.kind
       end, list)
     )
-    eq({ true, false }, { list[2].first, list[7].first })
     eq({ true, true }, { list[3].tight, list[4].tight })
     assert.is_nil(list[5].tight)
     assert.is_nil(list[6].tight)
@@ -483,7 +482,6 @@ describe('harness.transcript.BlockBuilder:', function()
     local list = blocks.build(history, nil, { live_turns = 2 })
 
     eq(Block.KIND.collapsed, list[2].kind)
-    eq(3, list[2].hidden)
     eq({ '3 earlier turns · <CR> to show' }, list[2].lines)
     eq('> turn 4', list[3].lines[1])
     eq(#blocks.build(history, nil, {}) - 6 + 1, #list)

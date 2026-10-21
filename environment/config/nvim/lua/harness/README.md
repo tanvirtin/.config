@@ -33,7 +33,7 @@ Bottom up. A layer only requires layers below it, and no harness module calls Ne
 | 4 | workspace | `workspace.lua` | **Workspace**: the sessions of one directory. It runs one process per agent, shared by that agent's sessions. `list()` merges live sessions with the agent's stored ones (`session/list`), and `load_session` replays a stored one. |
 | 4 | store | `session_store.lua` | Every session in the editor, with lifecycle dispatch that features subscribe to (see Store events). It fires `User HarnessEvent`. |
 | 5 | hub | `hub.lua` | Policy: what a session gets (agent, permissions, the editor as the `nvim` MCP server), `max_running` and `max_depth`. |
-| 6 | transcript | `transcript/*.lua` | The render pipeline, pure data with no buffers: `BlockBuilder` (history to typed `Block`s), `calculators/` (`Layout`, `FoldCalculator`), `EditResolver` and `EditPatches` (an edit's whole file before and after, laid out by vgit), `SessionChanges`, `decorators/` (one per block kind, each returning `MarkSpec`s), `StatusLine`, `PlanSummary`, `theme`, and `TextRenderer` (compact text for agents). |
+| 6 | transcript | `transcript/*.lua` | The render pipeline, pure data with no buffers: `BlockBuilder` (history to typed `Block`s), `calculators/` (`Layout`, `FoldCalculator`), `EditResolver` and `EditPatches` (an edit's whole file before and after, laid out by vgit), `SessionChanges`, `decorators/` (prompt, tool, diff, thought, plan, note, stop, collapsed and nesting, each returning `MarkSpec`s; titles and replies are drawn by the markdown renderer), `StatusLine`, `PlanSummary`, `theme`, and `TextRenderer` (compact text for agents). |
 | 6 | features | `features/*.lua`, `follow.lua` | Behaviour that reacts to the store: reload buffers after an agent's edit (`EditCheckTime`), follow sessions driven elsewhere. |
 | 6 | tools | `tools.lua` | The `session` toolset, which lets an agent run sessions (see below). |
 | 7 | ui | `ui/*.lua` | `TranscriptView` (one transcript buffer: render loop, timer, keymaps, folds, winbar), `display` (which view shows where, reveal), `document` (applies the pipeline's marks to the buffer), `composer`, `permission_prompt`, `winbar`, `PlanPanel`, `links`, `sessions`, and `transcript`, the facade the rest of the editor calls. |
@@ -69,7 +69,11 @@ The harness follows vgit's shape: a domain that knows nothing of buffers, stores
 ```lua
 require('harness').setup({
   max_running = 4,                                      -- hub policy: agent, auto_allow, max_depth, ask
-  transcript = { live_turns = 50, tick_ms = 100, preview_lines = 5, output_max = 200, diff_context = 3, diff_preview_lines = 12 },
+  transcript = {
+    live_turns = 50, tick_ms = 100, margin_screens = 2, preview_lines = 5, output_max = 200, argument_max = 120,
+    queue_preview = 120, request_preview = 80, diff_context = 3, diff_preview_lines = 12,
+  },
+  sessions = { confirm_ms = 3000 },
   composer = { height = 6 },
   follow = { debounce_ms = 300, grace_ms = 1500, poll_ms = 3000 },
   keymaps = { transcript = { yank = 'gy', plan = 'gp', diff = 'gd' }, composer = { steer = '<C-s>' } },
@@ -83,7 +87,7 @@ A session is a buffer: `harness://h3 <title>`, listed like any other buffer. Ses
 
 - **Like any buffer.** Opening a session shows its buffer full screen in the current window. Split it, move it with `<C-w>L`, cycle with `:bn`, or jump back to your code with `<C-^>`.
 - **Closing doesn't end a session.** Leaving the buffer or `:bd`-ing it leaves the session running. Bring it back from the selector, and it re-renders from its history.
-- **The selector** (`<leader>.`, or `:HarnessSessions`) is a dropdown like vgit's log, listing the directory's sessions. It starts with `+ New session`, then live sessions (`●` running, `○` open), then the ones Claude Code has stored for the directory.
+- **The selector** (`<leader>.`, or `:HarnessSessions`) is a dropdown like vgit's log, listing the directory's sessions. It starts with `+ New session`, then live sessions (`◆` running, `○` idle, stored ones with how long ago they were used), then the ones Claude Code has stored for the directory.
   - A footer along its bottom border names its keys, as on every picker.
   - `<CR>` opens the selected session, loading and replaying a stored one, or starts a new one.
   - `<C-x>` deletes the selected session. Press it twice: deleting removes the stored transcript for good, including from `claude --resume`.
@@ -101,14 +105,14 @@ In the transcript the child's tools and report sit under its Agent/Task call beh
 
 Agents describe their settings as ACP config options (`configOptions`: mode, model, effort, …), or only as session `modes`. Both are kept on the session, not in the history, and follow `config_option_update` and `current_mode_update`.
 
-- The winbar shows the current mode (`󰒓 Plan`) and model.
+- The winbar shows the current mode (`[Plan]`) and model.
 - `<S-Tab>` cycles the mode; `go` picks any option and value. They are set with `session/set_config_option`, or `session/set_mode` for agents that only have modes. A mode is real: in Accept edits Claude edits without asking.
 - The agent's slash commands (`available_commands_update`) complete in the composer when `/` starts the message (or `<C-x><C-o>`), with their argument hint and description. They are sent as ordinary prompt text.
 
 ## Queue, steer and interrupt
 
-- **Queue.** Sending while the agent works queues the message; queued messages show under the transcript (`󰔟 queued …`) and are sent one by one as turns end. Works with any agent.
-- **Steer.** `<C-s>` in the composer injects the message into the running turn when the agent advertises steering (`initialize` `_meta.steering.supported`, `_session/steering`); otherwise it queues. It shows in the turn it steered as `You · steered`, and the turn keeps its clock. Claude takes it within a second, moving a running command to the background. If the turn ended first, the message goes as a normal prompt.
+- **Queue.** Sending while the agent works queues the message; queued messages show under the transcript (`· queued …`) and are sent one by one as turns end. Works with any agent.
+- **Steer.** `<C-s>` in the composer injects the message into the running turn when the agent advertises steering (`initialize` `_meta.steering.supported`, `_session/steering`); otherwise it queues. It shows in the turn it steered with a muted `steered` after it, and the turn keeps its clock. Claude takes it within a second, moving a running command to the background. If the turn ended first, the message goes as a normal prompt.
 - **Interrupt.** `<C-c>` in the transcript or the composer sends `session/cancel`, answers every open permission request with `cancelled` and closes its prompt, and moves queued messages back into the composer.
 
 ## The composer
@@ -131,7 +135,7 @@ It belongs to the session, not to the session's buffer:
 | You `q` it, `:q` it or close its window | Closes and keeps the draft, which is saved as you type. Nothing complains about unsaved changes. |
 | You `:wq` it | Sends and closes only the composer, never the window under it. |
 | The session is deleted | Closes and drops the draft. |
-| The session ended, or is still replying | Stays open with your text, and says why it couldn't send. |
+| The session ended | Stays open with your text, and says why it couldn't send. While the agent is still replying, sending queues instead. |
 
 
 ## Tools
@@ -215,7 +219,7 @@ Add another ACP agent (Gemini, Codex, ...) as another YAML file, then open a ses
 :'<,'>Harness explain these lines
 :Harness now fix it          " asks the session in the session window again
 :HarnessNew [agent]          " a new session (a new buffer); also <leader>an
-:HarnessSessions             " the session selector: new, open, delete; also <leader>.
+:HarnessSessions             " the session selector: new, open, delete; also <leader>. and <leader>aa
 :HarnessCancel
 :HarnessClear                " remove what agents' scripts left behind
 :HarnessStats                " tokens per session, and what compact output saved
@@ -238,11 +242,11 @@ A transcript is plain markdown with the `harness` filetype, drawn entirely by ou
 It works for any ACP agent. It reads only standard ACP fields (`kind`, `title`, `rawInput`, `locations`, `content`, `rawOutput`, diffs, plans, thoughts, usage, stop reasons). A tool name under any agent's `_meta` (`_meta.<vendor>.toolName`) is used when present, and otherwise the label comes from the title.
 
 - **Blocks.** `transcript/BlockBuilder.lua` turns history into typed blocks: title, collapsed, prompt, message, thought, tool, diff, plan, note, stop. Turns before the last can't change, so their blocks are built once and cached.
-- **Earlier turns wait.** Turns older than `transcript.live_turns` (50) show as one line, `󰁝 120 earlier turns · <CR> to show`, and are not built until you ask, so opening a session costs about the same at 40 turns as at 1000 (around 20 ms).
+- **Earlier turns wait.** Turns older than `transcript.live_turns` (50) show as one line, `⋯ 120 earlier turns · <CR> to show`, and are not built until you ask, so opening a session costs about the same at 40 turns as at 1000 (around 20 ms).
 - **Incremental writes.** `ui/document.lua` lays out and writes only from the first block that changed, comparing cached blocks by identity. A streamed chunk costs well under a millisecond whatever the length of the session.
 - **Lazy drawing.** Extmarks are drawn only for blocks in or near a window (two screens either side), starting where the window lands. A decoration provider draws the rest as they scroll into view.
 - **Markdown.** `lua/ui/markdown/Renderer.lua` annotates text into `MarkSpec`s with a treesitter string parser (markdown, inline markdown and code-fence languages), applying the same highlight and conceal captures the built-in highlighter would, then applies them. Only blocks being drawn are parsed, and streaming redraws only the tail block. The renderer compiles its own copy of each highlights query, because the cached query is shared and plugins change it (render-markdown disables the fence `conceal_lines` patterns for its own drawing). On top (`ui/markdown/nodes.lua`) it draws heading icons and bars, shaded code blocks with a language label, bullets by depth, checkboxes, quote bars, callouts (`> [!NOTE]`, `> [!thought]`), rules, links, and pipe tables as a box aligned by display width. The cursor line shows the raw text.
-- **A ledger, not a chat.** There are no speaker headers: your prompt is the bold text after `❯`, and everything under it is the agent. Tools line up as a status icon, a lowercase verb and their argument, with the result aligned right when the window has room (else at the end of the line). Runs of tools and their diffs sit on consecutive lines; a sub-agent's work hangs off a `├ │ └` tree that stays on wrapped lines; each turn ends on a rule carrying its time and tool count.
+- **A ledger, not a chat.** There are no speaker headers: your prompt is the bold text after `❯`, and everything under it is the agent. Tools line up as a status icon, a lowercase verb and their argument, with the result aligned right when the window has room (else at the end of the line). Runs of tools and their diffs sit on consecutive lines; a sub-agent's work hangs off a `├ │ └` tree whose prose keeps the rail on wrapped lines (a very long tool line still wraps to the left edge; arguments are capped at `argument_max`); each turn ends on a rule carrying its time and tool count.
 - **Surfaces.** Code blocks, tool output and diff lines get backgrounds blended from the colour scheme's own `Normal`, `Comment` and `Added`/`Removed` colours, recomputed on `ColorScheme`, so any scheme gets a coherent palette. `theme.highlights` overrides any group.
 
 In a transcript:
@@ -255,16 +259,20 @@ In a transcript:
 | Output under a `│` rail, the first 5 lines shown and the rest folded | commands, searches and fetches; failures show their error. Output is shown verbatim: its fence is longer than any backtick run in it |
 | `✓ edit    a.lua   +2 −2`, then the change under a `│` rail as vgit lays it out: three lines of context, file line numbers, add and delete backgrounds, changed words marked on top of the file's own syntax colours | edits. ACP sends a snippet; `EditResolver` finds it in the file to rebuild the whole file before and after (from the old text while the edit waits for permission), and `vgit.api.patch` lays that out. An edit it can't find, or one that failed, shows just its snippet with no numbers. A finished edit is frozen, so later changes to the file don't move it. Past 12 rows the rest of a diff is folded. Agents reading the session get the same change as a classic `+`/`-` diff. A diff shown away from its edit keeps a path line |
 | `[!thought]` callout with how long it took, folded | thoughts |
-| `✓ agent   List files   2 tools` while it runs, then `6s · 2 tools`, with the sub-agent's tools (`├`) and report (`│`) on a tree closed by `└`, folded as one | sub-agents (Agent/Task calls), from the block's own status and times. Folded, the tree shows what it holds on its rail (`│ ⋯ 2 tools · 1 reply`). Their prose is indented two spaces so wrapped lines keep the rail |
+| `⠋ agent   List files   2 tools` while it runs, then `✓ agent   List files   6s · 2 tools`, with the sub-agent's tools (`├`) and report (`│`) on a tree closed by `└`, folded as one | sub-agents (Agent/Task calls), from the block's own status and times. Folded, the tree shows what it holds on its rail (`│ ⋯ 2 tools · 1 reply`). Their prose is indented two spaces so wrapped lines keep the rail |
 | `✓ read 3 files, searched 1 pattern` over `└ ⋯ 3 tools` | a run of two or more finished reads and searches in a turn; live and failed tools never group, and agents reading the session still see each tool |
-| `󰁝 120 earlier turns · <CR> to show` | turns older than `live_turns` |
+| `⋯ 120 earlier turns · <CR> to show` | turns older than `live_turns` |
+| `plan` over `✓ read`, `◆ edit`, `○ test` | the turn's latest ACP plan |
+| `✗ edit    a.lua   refused` (or `cancelled` when you interrupted) | a permission you refused, on its tool |
+| `✗ bash    sleep 20   interrupted` | a tool the turn ended without finishing |
+| `✗ error: not logged in` | errors, and failures or refusals with no tool to put them on |
 | A box-drawn table | pipe tables in a reply |
 | The current turn's prompt in the winbar (`❯ fix the parser`) | once that prompt scrolls out of view |
 | A floating `Plan  2/5` checklist at the top right | the latest ACP plan while any entry is unfinished |
 | `──────── 12s · 3 tools ──` | the end of each turn; `interrupted` or the limit hit is named in the warning colour |
-| `⠋ Working · 12s · <C-c> interrupt` under the last line | a running turn |
-| `◆ Waiting for you: Edit a.lua` on the tool and the working line, and a notification when the transcript is out of sight | a permission request waiting for an answer |
-| `● running  ctx 3%  $0.07` in the winbar | the session's state and its latest usage |
+| `⠋ working · 12s · <C-c> interrupt` under the last line | a running turn |
+| `◆ waiting for you: Edit a.lua` on the tool and the working line, and a notification when the transcript is out of sight | a permission request waiting for an answer |
+| `◆ running  [Plan]  ctx 3%  $0.07` in the winbar | the session's state and its latest usage |
 
 Keys in a transcript:
 
@@ -283,7 +291,7 @@ Keys in a transcript:
 | `1` `2` `3` | while the agent asks permission: allow once, allow always (this session), reject. Otherwise they are counts |
 | `<S-Tab>` | next session mode (also in the composer) |
 | `go` | pick a session option (mode, model, effort, …) and its value |
-| `i`, `a`, `o` | write to the session |
+| `i`, `a`, `o`, `I`, `A`, `O` | write to the session |
 
 **Links.** Replies are told to reference code as `[label](nvim://file/<path>#L<line>)`, relative to the session's directory. `nvim://buf/<n>` names a buffer. Links show an icon and open on `<CR>`. A link to a file that no longer exists is greyed out. Inline code that names an existing file is a link too.
 
@@ -314,7 +322,7 @@ A session can be open in Neovim while another program drives it, for example `cl
 `harness/permissions.lua` sets these rules:
 - Read and write tools are allowed without asking.
 - Exec tools follow the agent's `policy.auto_allow`, which `setup({ auto_allow = ... })` overrides.
-- Claude's built-ins that reach the gate are asked in the transcript, and so are exec tools when `auto_allow` is off. The question sits under the transcript (`󰀦 Allow Edit a.lua?` with `1 Allow once  2 Allow always (this session)  3 Reject`); `1` `2` `3` answer it there. A session without a transcript gets one in the background, and you are notified when it is out of sight. `setup({ ask = require('harness.permissions').ui_ask })` brings back the popup.
+- Claude's built-ins that reach the gate are asked in the transcript, and so are exec tools when `auto_allow` is off. The question sits under the transcript (`◆ Allow Edit a.lua?` with `1 Allow once  2 Allow always (this session)  3 Reject`); `1` `2` `3` answer it there. A session without a transcript gets one in the background, and you are notified when it is out of sight. `setup({ ask = require('harness.permissions').ui_ask })` brings back the popup.
 - Anything that would need asking is refused when there is no UI.
 - "Allow always" is remembered per session. The adapter is sent `allow_once`, so no lasting rule lands in the user's Claude Code settings.
 
