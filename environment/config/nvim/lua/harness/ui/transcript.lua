@@ -53,11 +53,28 @@ function transcript.foldexpr()
   return view and view.document:fold_level(Fold.lnum() - 1) or '0'
 end
 
+local function tools_in(view, first, last)
+  local count = 0
+
+  for _, block in ipairs(view.document.blocks) do
+    if block.start >= first and block.finish <= last then
+      if block.kind ~= Block.KIND.tool or not block.depth then return nil end
+      count = count + 1
+    end
+  end
+
+  return count > 0 and count or nil
+end
+
 function transcript.foldtext()
   local first, last = Fold.range()
   local hidden = last - first + 1
+  local view = display.view()
+  local tools = view and tools_in(view, first - 1, last)
+  local text = tools and string.format('  ⋯ %d tool%s', tools, tools == 1 and '' or 's')
+    or string.format('  ⋯ %d more line%s', hidden, hidden == 1 and '' or 's')
 
-  return { { string.format('  ⋯ %d more line%s', hidden, hidden == 1 and '' or 's'), 'UiMuted' } }
+  return { { text, 'UiMuted' } }
 end
 
 local function target_at(view, window)
@@ -141,6 +158,11 @@ function transcript.activate(buf)
   end
 
   local block = view.document:block_at(row - 1)
+
+  if block and block.grouped then
+    toggle_at(window, block.finish + 1, row)
+    return true
+  end
 
   if block and block.kind == Block.KIND.collapsed then
     view:expand()

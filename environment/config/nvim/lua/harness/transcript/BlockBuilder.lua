@@ -376,6 +376,87 @@ local function build_turn(history, from, to, opts, last_turn, updates)
   return list
 end
 
+local GROUPABLE = { [Block.CATEGORY.read] = 'file', [Block.CATEGORY.search] = 'pattern' }
+local GROUP_VERB = { [Block.CATEGORY.read] = 'Read', [Block.CATEGORY.search] = 'Searched' }
+
+local function groupable(block)
+  return block.kind == Block.KIND.tool
+    and not block.parent
+    and block.status == Block.STATUS.completed
+    and GROUPABLE[block.category] ~= nil
+end
+
+local function plural(n, word)
+  return string.format('%d %s%s', n, word, n == 1 and '' or 's')
+end
+
+local function group_label(run)
+  local counts, order = {}, {}
+
+  for _, block in ipairs(run) do
+    if not counts[block.category] then order[#order + 1] = block.category end
+    counts[block.category] = (counts[block.category] or 0) + 1
+  end
+
+  local parts = {}
+
+  for i, category in ipairs(order) do
+    local verb = GROUP_VERB[category]
+    parts[#parts + 1] = (i == 1 and verb or verb:lower()) .. ' ' .. plural(counts[category], GROUPABLE[category])
+  end
+
+  return table.concat(parts, ', ')
+end
+
+local function make_group(run)
+  local label = group_label(run)
+  local id = 'group:' .. (run[1].id or '')
+  local header = Block.make(Block.KIND.tool, { '-> ' .. label }, {
+    id = id,
+    name = label,
+    status = Block.STATUS.completed,
+    category = run[1].category,
+    grouped = #run,
+    started = run[1].started,
+    finished = run[#run].finished,
+    folds = {},
+    opens_reply = run[1].opens_reply,
+  })
+
+  run[1].opens_reply = nil
+
+  for _, block in ipairs(run) do
+    block.parent = id
+    block.depth = 1
+  end
+
+  return header
+end
+
+function blocks.group(list, live)
+  local out, run = {}, {}
+
+  local function flush(at_end)
+    if #run >= 2 and not (at_end and live) then out[#out + 1] = make_group(run) end
+
+    vim.list_extend(out, run)
+    run = {}
+  end
+
+  for _, block in ipairs(list) do
+    if groupable(block) then
+      run[#run + 1] = block
+    else
+      flush(false)
+      out[#out + 1] = block
+    end
+  end
+
+  flush(true)
+
+  return out
+end
+
 local function turn_starts(history)
   local starts = { 1 }
 
@@ -450,6 +531,7 @@ function blocks.build(history, title, opts)
       turn = cached.blocks
     else
       turn = build_turn(history, from, to, opts, last_turn, updates)
+      if opts.groups then turn = blocks.group(turn, last_turn and opts.running) end
       if cache and not last_turn then cache[from] = { to = to, blocks = turn } end
     end
 

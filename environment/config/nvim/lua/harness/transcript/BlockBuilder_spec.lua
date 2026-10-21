@@ -372,4 +372,64 @@ describe('harness.transcript.BlockBuilder:', function()
       assert.are_not.equal(Block.KIND.collapsed, block.kind)
     end
   end)
+
+  describe('tool groups', function()
+    local function tool(id, category, status)
+      return {
+        { kind = 'tool_call', id = id, name = id, category = category, diffs = {} },
+        { kind = 'tool_update', id = id, status = status or Block.STATUS.completed, output = 'x', diffs = {} },
+      }
+    end
+
+    local function history_of(...)
+      local out = { events.prompt('look') }
+
+      for _, events_of in ipairs({ ... }) do
+        vim.list_extend(out, events_of)
+      end
+
+      return out
+    end
+
+    it('groups a run of finished reads and searches under one header, nesting the tools', function()
+      local list = blocks.build(
+        history_of(tool('a', 'read'), tool('b', 'read'), tool('c', 'search'), tool('d', 'execute')),
+        nil,
+        { groups = true }
+      )
+
+      eq({ 'title', 'prompt', 'tool', 'tool', 'tool', 'tool', 'tool' }, kinds(list))
+      eq('Read 2 files, searched 1 pattern', list[3].name)
+      eq(3, list[3].grouped)
+      eq(true, list[3].opens_reply)
+      eq({ 1, list[3].id }, { list[4].depth, list[4].parent })
+      assert.is_nil(list[4].opens_reply)
+      assert.is_nil(list[7].depth)
+    end)
+
+    it('leaves single tools, failed tools and other categories ungrouped', function()
+      local list = blocks.build(
+        history_of(tool('a', 'read'), tool('b', 'execute'), tool('c', 'read'), tool('d', 'read', Block.STATUS.failed)),
+        nil,
+        { groups = true }
+      )
+
+      for _, block in ipairs(list) do
+        assert.is_nil(block.grouped)
+      end
+    end)
+
+    it('waits for a run at the live end of a running turn to finish before grouping it', function()
+      local history = history_of(tool('a', 'read'), tool('b', 'read'))
+
+      assert.is_nil(blocks.build(history, nil, { groups = true, running = true })[3].grouped)
+      eq(2, blocks.build(history, nil, { groups = true })[3].grouped)
+    end)
+
+    it('groups only when asked, so agents reading the session see every tool', function()
+      for _, block in ipairs(blocks.build(history_of(tool('a', 'read'), tool('b', 'read')))) do
+        assert.is_nil(block.grouped)
+      end
+    end)
+  end)
 end)

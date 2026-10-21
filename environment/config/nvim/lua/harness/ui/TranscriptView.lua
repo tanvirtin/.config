@@ -154,6 +154,7 @@ function TranscriptView:render()
       dir = session.dir,
       running = state.running,
       cache = self.cache,
+      groups = true,
       live_turns = not self.expanded and settings.transcript:get('live_turns') or nil,
     }),
     state

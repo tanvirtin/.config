@@ -39,6 +39,7 @@ Block = dataclass.define('Block', {
   duration = NUMBER,
   tools = NUMBER,
   hidden = NUMBER,
+  grouped = NUMBER,
   start = NUMBER,
   finish = NUMBER,
   index = NUMBER,

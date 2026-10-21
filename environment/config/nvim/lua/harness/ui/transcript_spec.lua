@@ -593,4 +593,50 @@ describe('harness.ui.transcript:', function()
       end)
     end)
   end)
+
+  describe('foldtext', function()
+    local Fold = require('core.Fold')
+    local original
+
+    before_each(function()
+      original = Fold.range
+      vim.cmd('enew!')
+    end)
+
+    after_each(function()
+      Fold.range = original
+    end)
+
+    it('counts tools when a fold hides only grouped tools, and lines otherwise', function()
+      local session = Session({ key = 'h' .. math.random(1e6), id = 's1', connection = Connection(fake_agent.new()) })
+
+      session:_emit(events.prompt('look'))
+
+      for _, id in ipairs({ 'a', 'b' }) do
+        session:_emit({ kind = 'tool_call', id = id, name = 'Read', category = 'read', diffs = {} })
+        session:_emit({ kind = 'tool_update', id = id, status = 'completed', output = 'x', diffs = {} })
+      end
+
+      transcript.open(session)
+
+      local blocks = transcript.view().document.blocks
+      local header
+
+      for _, block in ipairs(blocks) do
+        if block.grouped then header = block end
+      end
+
+      local last = blocks[header.index + 2]
+
+      Fold.range = function()
+        return header.finish + 1, last.finish
+      end
+      eq('  ⋯ 2 tools', transcript.foldtext()[1][1])
+
+      Fold.range = function()
+        return 1, 3
+      end
+      eq('  ⋯ 3 more lines', transcript.foldtext()[1][1])
+    end)
+  end)
 end)
