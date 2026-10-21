@@ -92,6 +92,14 @@ function commands.cancel()
   if session then require('harness.ui.composer').interrupt(session) end
 end
 
+function commands.fork()
+  local ok, why = transcript.fork()
+
+  if not ok then console.notify_now('Harness: ' .. why, 'info') end
+
+  return ok
+end
+
 function commands.changes()
   local ok, why = transcript.show_changes(transcript.view() or display.last())
 

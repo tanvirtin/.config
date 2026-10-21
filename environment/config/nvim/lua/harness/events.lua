@@ -62,7 +62,7 @@ local function tool_schema(extra)
 end
 
 local text_schema = function(name, extra)
-  local fields = { text = { type = 'string', required = true }, parent = STRING }
+  local fields = { text = { type = 'string', required = true }, parent = STRING, message_id = STRING }
 
   for key, value in pairs(extra or {}) do
     fields[key] = value
@@ -253,7 +253,13 @@ end
 local FROM_UPDATE = {
   agent_message_chunk = function(update)
     local text = text_of(update)
-    return text and events.new({ kind = K.message, text = text, parent = events.parent_of(update) })
+    return text
+      and events.new({
+        kind = K.message,
+        text = text,
+        parent = events.parent_of(update),
+        message_id = str(update.messageId),
+      })
   end,
 
   agent_thought_chunk = function(update)
@@ -392,6 +398,7 @@ function events.append(history, event)
 
   if events.TEXT[event.kind] and last and last.kind == event.kind and last.parent == event.parent then
     last.text = last.text .. event.text
+    last.message_id = event.message_id or last.message_id
   else
     history[#history + 1] = vim.deepcopy(event)
   end

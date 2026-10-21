@@ -22,6 +22,7 @@ local vgit = require('harness.vgit')
 local winbar = require('harness.ui.winbar')
 
 local composer = lazy('harness.ui.composer')
+local hub = lazy('harness.hub')
 
 local transcript = {}
 
@@ -267,6 +268,48 @@ function transcript.show_changes(view)
   return vgit.show(files)
 end
 
+local function reply_with_id(block)
+  return block and block.kind == Block.KIND.message and not block.depth and block.message_id ~= nil
+end
+
+function transcript.fork_point(view, row)
+  local blocks = view.document.blocks
+  local block = view.document:block_at(row)
+
+  if not block then return nil end
+
+  local from = block.kind == Block.KIND.prompt and block.index - 1 or block.index
+
+  for i = from, 1, -1 do
+    if reply_with_id(blocks[i]) then return blocks[i].message_id end
+  end
+end
+
+function transcript.fork(buf)
+  local view = view_for(buf)
+
+  if not view then return false, 'no session here' end
+
+  local session = view.session
+
+  if not session.connection:can_fork() then return false, 'this agent cannot fork sessions' end
+
+  local message_id = transcript.fork_point(view, Window.get_current():get_cursor()[1] - 1)
+
+  if not message_id then console.notify_now('Harness: no reply before this point; forking from the latest message') end
+
+  hub.fork(session, message_id):on_complete(function(err, forked)
+    Timer.schedule(function()
+      if err then return console.notify_now('Harness: could not fork: ' .. tostring(err), 'warn') end
+
+      transcript.open(forked)
+    end)
+  end)
+  require('harness.async').drain()
+
+  return true
+end
+
 function transcript.yank(buf, name)
   local view = view_for(buf)
 
@@ -444,6 +487,15 @@ function transcript.bindings(view)
         if not ok then console.notify_now('Harness: ' .. why, 'info') end
       end,
       'Open every file this session changed in vgit',
+    },
+    {
+      keys.fork,
+      function()
+        local ok, why = transcript.fork(buf)
+
+        if not ok then console.notify_now('Harness: ' .. why, 'info') end
+      end,
+      'Fork the session from the reply under the cursor (or the one before this prompt)',
     },
     {
       keys.options,

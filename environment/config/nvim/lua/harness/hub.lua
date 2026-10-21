@@ -149,6 +149,19 @@ function hub.load(opts)
   end)
 end
 
+function hub.fork(session, message_id)
+  return async.run(function()
+    local workspace = hub.workspace(session.dir)
+    local forked = workspace:fork(session, message_id, {
+      key = new_key(),
+      approve = approve_for(session.agent),
+      title = (session.title or 'untitled') .. ' (fork)',
+    })
+
+    return register(forked)
+  end)
+end
+
 function hub.list(dir, agent_name)
   return async.run(function()
     return hub.workspace(dir):list(resolve_agent(agent_name))

@@ -17,7 +17,16 @@ describe('harness.cli.router:', function()
     end
 
     eq(
-      { 'Harness', 'HarnessNew', 'HarnessSessions', 'HarnessStats', 'HarnessCancel', 'HarnessClear', 'HarnessChanges' },
+      {
+        'Harness',
+        'HarnessNew',
+        'HarnessSessions',
+        'HarnessStats',
+        'HarnessCancel',
+        'HarnessClear',
+        'HarnessChanges',
+        'HarnessFork',
+      },
       vim.tbl_map(function(command)
         return command.name
       end, router.commands())

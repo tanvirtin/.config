@@ -275,6 +275,24 @@ function Connection:list_sessions(cwd)
   return sessions
 end
 
+function Connection:can_fork()
+  return self:supports('fork')
+end
+
+function Connection:fork_session(session_id, opts)
+  if not self:can_fork() then error('this agent cannot fork sessions', 0) end
+
+  local params = session_params(opts)
+
+  params.sessionId = session_id
+
+  if opts.message_id then
+    params._meta = { jetbrains = { air = { fork = { version = 1, messageId = opts.message_id } } } }
+  end
+
+  return async.await(self:request('session/fork', params))
+end
+
 function Connection:prompt(session_id, blocks)
   return async.await(self:request('session/prompt', { sessionId = session_id, prompt = blocks }))
 end

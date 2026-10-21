@@ -2,7 +2,7 @@ local event = require('core.event')
 
 local router = {}
 
-router.COMMANDS = { 'prompt', 'new', 'sessions', 'stats', 'cancel', 'clear', 'changes' }
+router.COMMANDS = { 'prompt', 'new', 'sessions', 'stats', 'cancel', 'clear', 'changes', 'fork' }
 
 local disposers = {}
 

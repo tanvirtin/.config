@@ -81,6 +81,26 @@ function fake_agent.new(script)
     ['session/set_config_option'] = function(message)
       return { jsonrpc.result(message.id, { configOptions = {} }) }
     end,
+    ['session/fork'] = function(message)
+      local source = message.params.sessionId
+      local meta = message.params._meta
+      local point = meta and meta.jetbrains and meta.jetbrains.air and meta.jetbrains.air.fork
+      local copied = {}
+
+      for _, update in ipairs(agent.histories[source] or {}) do
+        copied[#copied + 1] = update
+        if point and update.messageId == point.messageId then break end
+      end
+
+      agent.sessions = agent.sessions + 1
+      agent.forked = { source = source, message_id = point and point.messageId }
+
+      local id = 's' .. agent.sessions
+
+      agent.histories[id] = copied
+
+      return { jsonrpc.result(message.id, { sessionId = id }) }
+    end,
     ['session/set_mode'] = function(message)
       return { jsonrpc.result(message.id, {}) }
     end,

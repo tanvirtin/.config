@@ -22,6 +22,7 @@ Block = dataclass.define('Block', {
   indented = BOOLEAN,
   tight = BOOLEAN,
   label = STRING,
+  message_id = STRING,
   denied = STRING,
   interrupted = BOOLEAN,
   statuses = TABLE,

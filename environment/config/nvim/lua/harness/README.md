@@ -41,6 +41,8 @@ Bottom up. A layer only requires layers below it, and no harness module calls Ne
 
 `context.lua` captures where the user is (file, cursor, selection). It is sent ahead of each prompt inside an `<editor-context>` tag, so the agent always sees fresh context. With a range (`:'<,'>Harness …`) the selected lines go along as content: an ACP embedded resource (`file://…#L10-20`) when the agent advertises `embeddedContext`, else a fenced block. Transcripts strip the tag when a session replays.
 
+**Forking.** Replies keep their ACP `messageId`. `gF` sends `session/fork` (when the agent advertises `sessionCapabilities.fork`) with the fork point in `_meta.jetbrains.air.fork` (`{ version = 1, messageId }`), the extension the Claude adapter reads to fork at a given message; without a point it forks at the latest message. The fork is then loaded like any stored session, so its history replays into a new transcript titled `<title> (fork)`.
+
 What the agent sends that is not text is shown, not dropped: resource links as links, embedded resources as fenced blocks, images and audio as `⟨image: image/png⟩`, and a tool call that arrives already finished with its output (a JSON `rawOutput` is shown as JSON). The client introduces itself (`clientInfo`), warns when the agent speaks another ACP version, explains a sign-in error with the agent's `authMethods`, checks `loadSession` before loading, and falls back to `session/set_model` (then a warning, not a failed start) when the agent has no model option.
 
 ## Architecture
@@ -226,6 +228,7 @@ Add another ACP agent (Gemini, Codex, ...) as another YAML file, then open a ses
 :HarnessClear                " remove what agents' scripts left behind
 :HarnessStats                " tokens per session, and what compact output saved
 :HarnessChanges              " every file the session changed, in vgit; also gC
+:HarnessFork                 " fork the session from the reply under the cursor; also gF
 ```
 
 ```lua
@@ -283,6 +286,7 @@ Keys in a transcript:
 | `<CR>` | on a link or a file named in inline code (`lua/a.lua:42`): open it in a new tab. On a diff line: open the file at that line. On a tool: open what it touched. On a fold: open or close it. On a tool group: show or hide its tools. On the earlier-turns line: show them |
 | `gd` | open the edit under the cursor (its diff or its tool line) in vgit's diff view, as the whole file before and after |
 | `gD` | open the git diff of the file under the cursor (a diff, a tool's file, a link): `:VGit diff -- <path>` |
+| `gF` | fork the session from the reply under the cursor (on a prompt, from the reply before it, so you can ask differently). The fork opens with the conversation up to that reply; the original is untouched. Needs an agent with `session/fork` |
 | `gC` | open every file this session changed in vgit, each from before the session's first edit to it to now (also `:HarnessChanges`) |
 | `gp` | show or hide the plan panel |
 | `gf` | open what is under the cursor in a new tab |

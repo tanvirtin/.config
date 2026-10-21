@@ -210,14 +210,22 @@ local function build_turn(history, from, to, opts, last_turn, updates)
     return list[#list]
   end
 
-  local function stream(kind, text, i, parent)
+  local function stream(kind, text, i, parent, message_id)
     local last = list[#list]
 
     if last and last.kind == kind and last.parent == parent then
       last.text = last.text .. text
       last.last_event = i
+      last.message_id = message_id or last.message_id
     else
-      add(kind, {}, { text = text, first_event = i, last_event = i, parent = parent, depth = parent and 1 or nil })
+      add(kind, {}, {
+        text = text,
+        first_event = i,
+        last_event = i,
+        parent = parent,
+        depth = parent and 1 or nil,
+        message_id = message_id,
+      })
     end
   end
 
@@ -271,7 +279,7 @@ local function build_turn(history, from, to, opts, last_turn, updates)
       add(Block.KIND.prompt, quoted(vim.trim(context.strip(event.text))), { steered = event.steered })
     end,
     message = function(event, i)
-      stream(Block.KIND.message, event.text, i, event.parent)
+      stream(Block.KIND.message, event.text, i, event.parent, event.message_id)
     end,
     thought = function(event, i)
       stream(Block.KIND.thought, event.text, i, event.parent)

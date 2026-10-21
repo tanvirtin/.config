@@ -15,6 +15,7 @@ return Config({
     diff = 'gd',
     git_diff = 'gD',
     changes = 'gC',
+    fork = 'gF',
   },
   composer = {
     send = '<CR>',

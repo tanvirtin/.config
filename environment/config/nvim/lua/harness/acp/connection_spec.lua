@@ -203,6 +203,34 @@ describe('harness.acp.connection:', function()
     eq('Claude needs you to sign in (Log in with Claude): Authentication required', err)
   end)
 
+  it('forks a session, at a message when given one, only when the agent can', function()
+    local caps = { protocolVersion = 1, agentCapabilities = { sessionCapabilities = { fork = {} } } }
+    local conn, agent = connected({
+      initialize = function(message)
+        return { jsonrpc.result(message.id, caps) }
+      end,
+    })
+
+    run(function()
+      conn:fork_session('s1', { cwd = '/w', message_id = 'm7' })
+      conn:fork_session('s1', { cwd = '/w' })
+    end)
+
+    local forks = vim.tbl_filter(function(message)
+      return message.method == 'session/fork'
+    end, agent.sent)
+
+    eq({ version = 1, messageId = 'm7' }, forks[1].params._meta.jetbrains.air.fork)
+    eq(nil, forks[2].params._meta)
+
+    local plain = connected()
+    local ok, err = pcall(run, function()
+      plain:fork_session('s1', { cwd = '/w' })
+    end)
+
+    eq({ false, 'this agent cannot fork sessions' }, { ok, err })
+  end)
+
   it('refuses to load a session the agent cannot load', function()
     local conn = connected({
       initialize = function(message)

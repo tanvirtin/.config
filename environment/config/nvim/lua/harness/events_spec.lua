@@ -251,4 +251,29 @@ describe('harness.events:', function()
       eq('{"files":2}', call.output)
     end)
   end)
+
+  describe('message ids', function()
+    it('keeps the id of the message a reply belongs to, the latest one when chunks join', function()
+      local history = {}
+
+      events.append(
+        history,
+        events.from_update({
+          sessionUpdate = 'agent_message_chunk',
+          messageId = 'm1',
+          content = { type = 'text', text = 'a' },
+        })
+      )
+      events.append(
+        history,
+        events.from_update({
+          sessionUpdate = 'agent_message_chunk',
+          messageId = 'm1',
+          content = { type = 'text', text = 'b' },
+        })
+      )
+
+      eq({ { kind = 'message', text = 'ab', message_id = 'm1' } }, history)
+    end)
+  end)
 end)

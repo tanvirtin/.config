@@ -214,6 +214,43 @@ describe('harness.workspace:', function()
     eq(session, ws:find('old'))
   end)
 
+  it('forks a session at a reply and opens the fork with the history up to it', function()
+    local ws, spawned = workspace({
+      initialize = function(message)
+        return {
+          jsonrpc.result(message.id, {
+            protocolVersion = 1,
+            agentCapabilities = { loadSession = true, sessionCapabilities = { fork = {} } },
+          }),
+        }
+      end,
+    })
+
+    run(function()
+      ws:connection(claude)
+    end)
+
+    local fake = spawned[1].fake
+
+    fake.histories.old = {
+      { sessionUpdate = 'user_message_chunk', content = { type = 'text', text = 'one' } },
+      { sessionUpdate = 'agent_message_chunk', messageId = 'm1', content = { type = 'text', text = 'first' } },
+      { sessionUpdate = 'user_message_chunk', content = { type = 'text', text = 'two' } },
+      { sessionUpdate = 'agent_message_chunk', messageId = 'm2', content = { type = 'text', text = 'second' } },
+    }
+
+    local source = run(function()
+      return ws:load_session(claude, 'old', { key = 'h1' })
+    end)
+    local forked = run(function()
+      return ws:fork(source, 'm1', { key = 'h2' })
+    end)
+
+    eq({ source = 'old', message_id = 'm1' }, fake.forked)
+    eq({ { kind = 'user', text = 'one' }, { kind = 'message', text = 'first', message_id = 'm1' } }, forked.history)
+    eq(4, #source.history)
+  end)
+
   describe('reload', function()
     local function loaded()
       local ws, spawned = workspace()

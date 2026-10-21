@@ -117,6 +117,18 @@ function Workspace:load_session(agent, id, opts)
   return session
 end
 
+function Workspace:fork(session, message_id, opts)
+  local agent = session.agent
+  local forked = session.connection:fork_session(session.id, {
+    cwd = self.dir,
+    mcp_servers = servers(self, agent, opts.key),
+    system_prompt = agent and agent.system,
+    message_id = message_id,
+  })
+
+  return self:load_session(agent, forked.sessionId, opts)
+end
+
 function Workspace:reload(session)
   if session.state ~= 'idle' or session.reloading then return false end
 

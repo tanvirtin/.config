@@ -670,6 +670,28 @@ describe('harness.ui.transcript:', function()
     end)
   end)
 
+  describe('fork', function()
+    it('forks from the reply under the cursor, or from the reply before a prompt', function()
+      vim.cmd('enew!')
+
+      local session = Session({ key = 'h' .. math.random(1e6), id = 's1', connection = Connection(fake_agent.new()) })
+
+      session:_emit(events.prompt('one'))
+      session:_emit({ kind = 'message', text = 'first', message_id = 'm1' })
+      session:_emit(events.prompt('two'))
+      session:_emit({ kind = 'message', text = 'second', message_id = 'm2' })
+      transcript.open(session)
+
+      local view = transcript.view()
+      local blocks = view.document.blocks
+
+      eq('m2', transcript.fork_point(view, blocks[5].start))
+      eq('m1', transcript.fork_point(view, blocks[4].start))
+      assert.is_nil(transcript.fork_point(view, blocks[2].start))
+      eq({ false, 'this agent cannot fork sessions' }, { transcript.fork() })
+    end)
+  end)
+
   describe('vgit views', function()
     local path, session, vgit, shown, saved_show
 
