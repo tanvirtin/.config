@@ -1,5 +1,5 @@
 local DiffLineCalculator = require('harness.transcript.calculators.DiffLineCalculator')
-local MarkSpec = require('harness.transcript.MarkSpec')
+local MarkSpec = require('ui.MarkSpec')
 local fs = require('core.fs')
 local theme = require('harness.transcript.theme')
 

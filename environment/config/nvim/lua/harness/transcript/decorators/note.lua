@@ -1,4 +1,4 @@
-local MarkSpec = require('harness.transcript.MarkSpec')
+local MarkSpec = require('ui.MarkSpec')
 
 return function(block)
   local out = {}

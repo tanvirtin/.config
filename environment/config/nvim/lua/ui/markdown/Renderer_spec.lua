@@ -162,4 +162,26 @@ describe('ui.markdown.Renderer:', function()
     assert.is_truthy(find(1, 'conceal_lines'))
     assert.is_truthy(find(3, 'conceal_lines'))
   end)
+  it('annotates lines into mark specs without a buffer, shifted by the offset', function()
+    local marks = Renderer(0):annotate({ '# Title', '', '- item' }, 10)
+    local rows = {}
+
+    for _, mark in ipairs(marks) do
+      rows[mark.row] = true
+      eq('table', type(mark.opts))
+    end
+
+    assert.is_true(rows[10])
+    assert.is_true(rows[12])
+    assert.is_nil(rows[0])
+  end)
+
+  it('annotates nothing for empty input', function()
+    eq(
+      {},
+      vim.tbl_filter(function(mark)
+        return mark.opts.virt_text ~= nil
+      end, Renderer(0):annotate({ '' }, 0))
+    )
+  end)
 end)

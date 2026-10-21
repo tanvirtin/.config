@@ -1,5 +1,5 @@
 local BlockBuilder = require('harness.transcript.BlockBuilder')
-local MarkSpec = require('harness.transcript.MarkSpec')
+local MarkSpec = require('ui.MarkSpec')
 local theme = require('harness.transcript.theme')
 
 return function(block)

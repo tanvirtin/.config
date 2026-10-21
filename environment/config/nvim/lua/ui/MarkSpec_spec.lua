@@ -1,8 +1,8 @@
-local MarkSpec = require('harness.transcript.MarkSpec')
+local MarkSpec = require('ui.MarkSpec')
 
 local eq = assert.are.same
 
-describe('harness.transcript.MarkSpec:', function()
+describe('ui.MarkSpec:', function()
   it('adds a mark with the default priority unless one is given', function()
     local out = {}
 

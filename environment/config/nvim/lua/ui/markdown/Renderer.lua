@@ -1,27 +1,23 @@
+local Buffer = require('core.Buffer')
+local MarkSpec = require('ui.MarkSpec')
 local Object = require('core.Object')
+local nodes = require('ui.markdown.nodes')
 require('ui.hl')
 
 local Renderer = Object:extend()
 
-Renderer.NAMESPACE = vim.api.nvim_create_namespace('ui.markdown')
+Renderer.NAMESPACE = Buffer.namespace('ui.markdown')
 
 Renderer.INLINE = require('core.dataclass').enum({ 'link', 'code' })
 
-Renderer.HEADING_ICONS = { '󰉫 ', '󰉬 ', '󰉭 ', '󰉮 ', '󰉯 ', '󰉰 ' }
+Renderer.HEADING_ICONS = nodes.HEADING_ICONS
+Renderer.BULLETS = nodes.BULLETS
+Renderer.CALLOUTS = nodes.CALLOUTS
+Renderer.RULE_WIDTH = nodes.RULE_WIDTH
+Renderer.NODES = nodes.NODES
 
-Renderer.BULLETS = { '•', '◦', '▪', '▫' }
-
-Renderer.CALLOUTS = {
-  note = { icon = '󰋽 ', hl = 'UiInfo' },
-  info = { icon = '󰋽 ', hl = 'UiInfo' },
-  tip = { icon = '󰌶 ', hl = 'UiHint' },
-  important = { icon = '󰅾 ', hl = 'UiHint' },
-  warning = { icon = '󰀪 ', hl = 'UiWarn' },
-  caution = { icon = '󰳦 ', hl = 'UiError' },
-  thought = { icon = '󰟶 ', hl = 'UiMuted' },
-}
-
-Renderer.RULE_WIDTH = 400
+Renderer.HIGHLIGHT_PRIORITY = 100
+Renderer.LINK_PRIORITY = 190
 
 local QUERY = vim.treesitter.query.parse(
   'markdown',
@@ -47,179 +43,13 @@ local INLINE_QUERY = vim.treesitter.query.parse(
 function Renderer:constructor(bufnr, opts)
   opts = opts or {}
 
-  return { bufnr = bufnr, hidden_labels = opts.hidden_labels or {}, resolve = opts.resolve }
+  return {
+    bufnr = bufnr,
+    buffer = Buffer(bufnr),
+    hidden_labels = opts.hidden_labels or {},
+    resolve = opts.resolve,
+  }
 end
-
-Renderer.HIGHLIGHT_PRIORITY = 100
-
-function Renderer:_mark(row, col, opts)
-  opts.priority = opts.priority or 200
-  opts.strict = false
-  pcall(vim.api.nvim_buf_set_extmark, self.bufnr, Renderer.NAMESPACE, row, col, opts)
-end
-
-local function depth(node, type)
-  local count = 0
-  local parent = node:parent()
-
-  while parent do
-    if parent:type() == type then count = count + 1 end
-    parent = parent:parent()
-  end
-
-  return count
-end
-
-local Source = {}
-Source.__index = Source
-
-local function source(lines, offset)
-  return setmetatable({ lines = lines, offset = offset, text = table.concat(lines, '\n') .. '\n' }, Source)
-end
-
-function Source:line(row)
-  return self.lines[row - self.offset + 1] or ''
-end
-
-function Source:range(node)
-  local start_row, start_col, end_row, end_col = node:range()
-
-  return start_row + self.offset, start_col, end_row + self.offset, end_col
-end
-
-function Source:start(node)
-  local row, col = node:start()
-
-  return row + self.offset, col
-end
-
-function Source:last_row(node)
-  local _, _, end_row, end_col = self:range(node)
-
-  return end_col == 0 and end_row - 1 or end_row
-end
-
-function Source:node_text(node)
-  return vim.treesitter.get_node_text(node, self.text)
-end
-
-local NODES = {}
-
-function NODES.heading(self, node, src)
-  local row = src:start(node)
-  local marker = node:child(0)
-  local level = tonumber(marker:type():match('atx_h(%d)_marker')) or 1
-  local _, _, _, marker_end = marker:range()
-  local text = src:line(row)
-  local hide = marker_end + (text:sub(marker_end + 1, marker_end + 1) == ' ' and 1 or 0)
-
-  self:_mark(row, 0, { end_col = hide, conceal = '' })
-  self:_mark(row, 0, {
-    virt_text = { { Renderer.HEADING_ICONS[level], 'UiMarkdownHeading' .. level } },
-    virt_text_pos = 'inline',
-    line_hl_group = 'UiMarkdownHeading',
-    hl_group = 'UiMarkdownHeading' .. level,
-    end_row = row,
-    end_col = #text,
-  })
-end
-
-function NODES.code(self, node, src)
-  local start_row = src:start(node)
-  local language
-
-  for child in node:iter_children() do
-    if child:type() == 'info_string' then
-      local lang = child:named_child(0)
-      language = src:node_text(lang or child)
-    end
-  end
-
-  local last = src:last_row(node)
-
-  for row = start_row, last do
-    self:_mark(row, 0, { line_hl_group = 'UiMarkdownCode', priority = 50 })
-  end
-
-  if language and not self.hidden_labels[language] and start_row + 1 <= last then
-    self:_mark(start_row + 1, 0, { virt_text = { { language .. ' ', 'UiMuted' } }, virt_text_pos = 'right_align' })
-  end
-end
-
-local function is_task(marker)
-  local next = marker:next_named_sibling()
-  local type = next and next:type() or ''
-
-  return type == 'task_list_marker_checked' or type == 'task_list_marker_unchecked'
-end
-
-function NODES.bullet(self, node, src)
-  local row, col, _, end_col = src:range(node)
-  local bullets = Renderer.BULLETS
-
-  if is_task(node) then return self:_mark(row, col, { end_col = end_col, conceal = '' }) end
-
-  self:_mark(row, col, {
-    end_col = col + 1,
-    virt_text = { { bullets[(depth(node, 'list') - 1) % #bullets + 1], 'UiMarkdownBullet' } },
-    virt_text_pos = 'overlay',
-  })
-end
-
-local function checkbox(icon, hl)
-  return function(self, node, src)
-    local row, col, _, end_col = src:range(node)
-
-    self:_mark(row, col, { end_col = end_col, conceal = '' })
-    self:_mark(row, col, { virt_text = { { icon, hl } }, virt_text_pos = 'inline' })
-  end
-end
-
-NODES.checked = checkbox('󰱒', 'UiMarkdownChecked')
-NODES.unchecked = checkbox('󰄱', 'UiMarkdownUnchecked')
-
-function NODES.quote(self, node, src)
-  local start_row = src:start(node)
-  local first = src:line(start_row)
-  local name = first:match('^[%s>]*%[!(%a+)%]')
-  local callout = name and Renderer.CALLOUTS[name:lower()]
-  local bar_hl = callout and callout.hl or 'UiMarkdownQuote'
-
-  for row = start_row, src:last_row(node) do
-    local text = src:line(row)
-    local markers = text:match('^[%s>]*')
-
-    for col = 1, #markers do
-      if markers:sub(col, col) == '>' then
-        self:_mark(row, col - 1, { end_col = col, virt_text = { { '▎', bar_hl } }, virt_text_pos = 'overlay' })
-      end
-    end
-
-    if callout and row == start_row then
-      local title = text:sub(#markers + 1):gsub('^%[!%a+%]%s*', '')
-
-      self:_mark(row, #markers, { end_col = #text, conceal = '' })
-      self:_mark(row, #markers, {
-        virt_text = {
-          { callout.icon .. (title ~= '' and title or name:sub(1, 1):upper() .. name:sub(2):lower()), callout.hl },
-        },
-        virt_text_pos = 'inline',
-      })
-    end
-  end
-end
-
-function NODES.rule(self, node, src)
-  local row = src:start(node)
-
-  self:_mark(row, 0, {
-    virt_text = { { string.rep('─', Renderer.RULE_WIDTH), 'UiMarkdownRule' } },
-    virt_text_pos = 'overlay',
-    virt_text_win_col = 0,
-  })
-end
-
-Renderer.NODES = NODES
 
 local function inline_text(text, kind)
   if kind == Renderer.INLINE.code then return (text:gsub('^`+%s?', ''):gsub('%s?`+$', '')) end
@@ -251,7 +81,7 @@ local function capture_option(metadata, id, key)
   return metadata[key] or (metadata[id] and metadata[id][key])
 end
 
-function Renderer:_highlight(parser, src)
+local function highlight(out, parser, src)
   parser:for_each_tree(function(tree, ltree)
     local lang = ltree:lang()
     local query = Renderer.highlights(lang)
@@ -274,13 +104,13 @@ function Renderer:_highlight(parser, src)
         if name ~= 'conceal' then opts.hl_group = '@' .. name .. '.' .. lang end
         if capture_option(metadata, id, 'conceal_lines') then opts.conceal_lines = '' end
 
-        self:_mark(range[1] + src.offset, range[2], opts)
+        nodes.mark(out, range[1] + src.offset, range[2], opts)
       end
     end
   end)
 end
 
-function Renderer:_inline(parser, src)
+function Renderer:_inline(out, parser, src)
   if not self.resolve then return end
 
   local child = parser:children().markdown_inline
@@ -295,15 +125,41 @@ function Renderer:_inline(parser, src)
       if decoration then
         local row, col, end_row, end_col = src:range(kind == Renderer.INLINE.link and node:parent() or node)
 
-        self:_mark(row, col, { virt_text = { decoration.icon }, virt_text_pos = 'inline' })
-        self:_mark(row, col, { end_row = end_row, end_col = end_col, hl_group = 'UiMarkdownLink', priority = 190 })
+        nodes.mark(out, row, col, { virt_text = { decoration.icon }, virt_text_pos = 'inline' })
+        nodes.mark(out, row, col, {
+          end_row = end_row,
+          end_col = end_col,
+          hl_group = 'UiMarkdownLink',
+          priority = Renderer.LINK_PRIORITY,
+        })
       end
     end
   end
 end
 
+function Renderer:annotate(lines, offset)
+  local out = {}
+  local src = nodes.source(lines, offset or 0)
+  local ok, parser = pcall(vim.treesitter.get_string_parser, src.text, 'markdown')
+
+  if not ok or not parser then return out end
+
+  local tree = parser:parse(true)[1]
+
+  if not tree then return out end
+
+  for id, node in QUERY:iter_captures(tree:root(), src.text) do
+    nodes.NODES[QUERY.captures[id]](out, node, src, self)
+  end
+
+  highlight(out, parser, src)
+  self:_inline(out, parser, src)
+
+  return out
+end
+
 function Renderer:inline_at(row, col)
-  local line = vim.api.nvim_buf_get_lines(self.bufnr, row, row + 1, false)[1]
+  local line = self.buffer:get_lines(row, row + 1)[1]
 
   if not line or line == '' then return nil end
 
@@ -337,30 +193,19 @@ function Renderer:inline_at(row, col)
 end
 
 function Renderer:clear(from_row, to_row)
-  vim.api.nvim_buf_clear_namespace(self.bufnr, Renderer.NAMESPACE, from_row, to_row or -1)
+  self.buffer:clear_namespace(Renderer.NAMESPACE, from_row, to_row or -1)
+end
+
+function Renderer:apply(marks)
+  MarkSpec.apply(self.buffer, Renderer.NAMESPACE, marks)
 end
 
 function Renderer:render(from_row, to_row)
-  if not vim.api.nvim_buf_is_valid(self.bufnr) then return end
+  if not self.buffer:is_valid() then return end
 
-  to_row = to_row or vim.api.nvim_buf_line_count(self.bufnr)
+  to_row = to_row or self.buffer:get_line_count()
   self:clear(from_row, to_row)
-
-  local src = source(vim.api.nvim_buf_get_lines(self.bufnr, from_row, to_row, false), from_row)
-  local ok, parser = pcall(vim.treesitter.get_string_parser, src.text, 'markdown')
-
-  if not ok or not parser then return end
-
-  local tree = parser:parse(true)[1]
-
-  if not tree then return end
-
-  for id, node in QUERY:iter_captures(tree:root(), src.text) do
-    NODES[QUERY.captures[id]](self, node, src)
-  end
-
-  self:_highlight(parser, src)
-  self:_inline(parser, src)
+  self:apply(self:annotate(self.buffer:get_lines(from_row, to_row), from_row))
 end
 
 return Renderer

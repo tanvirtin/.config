@@ -8,9 +8,15 @@ local MarkSpec = dataclass.define('MarkSpec', {
 
 MarkSpec.PRIORITY = 300
 
-function MarkSpec.add(out, row, col, opts)
-  opts.priority = opts.priority or MarkSpec.PRIORITY
+function MarkSpec.add(out, row, col, opts, priority)
+  opts.priority = opts.priority or priority or MarkSpec.PRIORITY
   out[#out + 1] = MarkSpec({ row = row, col = col, opts = opts })
+end
+
+function MarkSpec.apply(buffer, namespace, marks)
+  for _, mark in ipairs(marks) do
+    buffer:set_extmark(namespace, mark.row, mark.col, mark.opts)
+  end
 end
 
 return MarkSpec

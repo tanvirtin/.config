@@ -2,6 +2,7 @@ local Buffer = require('core.Buffer')
 local DiffLineCalculator = require('harness.transcript.calculators.DiffLineCalculator')
 local FoldCalculator = require('harness.transcript.calculators.FoldCalculator')
 local Layout = require('harness.transcript.calculators.Layout')
+local MarkSpec = require('ui.MarkSpec')
 local Object = require('core.Object')
 local Renderer = require('ui.markdown.Renderer')
 local StatusLine = require('harness.transcript.StatusLine')
@@ -27,7 +28,7 @@ Document.AGENT_ICON = theme.AGENT_ICON
 Document.GUTTER = theme.GUTTER
 Document.GUTTER_PRIORITY = theme.GUTTER_PRIORITY
 Document.SEPARATOR_WIDTH = theme.SEPARATOR_WIDTH
-Document.PRIORITY = require('harness.transcript.MarkSpec').PRIORITY
+Document.PRIORITY = MarkSpec.PRIORITY
 Document.MARGIN_SCREENS = 2
 
 Document.duration = theme.duration
@@ -94,17 +95,9 @@ function Document:_context()
   }
 end
 
-function Document:_apply(marks)
-  local buffer = self.buffer
-
-  for _, mark in ipairs(marks) do
-    buffer:set_extmark(Document.NAMESPACE, mark.row, mark.col, mark.opts)
-  end
-end
-
 function Document:_decorate(block, ctx)
   self.buffer:clear_namespace(Document.NAMESPACE, block.start, block.finish)
-  self:_apply(decorators.decorate(block, ctx or self:_context()))
+  MarkSpec.apply(self.buffer, Document.NAMESPACE, decorators.decorate(block, ctx or self:_context()))
 end
 
 function Document:_live(block)
