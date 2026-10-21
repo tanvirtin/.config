@@ -9,6 +9,7 @@ local SessionConfig = require('harness.session.SessionConfig')
 local Subagents = require('harness.session.Subagents')
 local Timer = require('core.Timer')
 local async = require('harness.async')
+local editor_context = require('harness.context')
 local dataclass = require('core.dataclass')
 local events = require('harness.events')
 local permissions = require('harness.permissions')
@@ -27,10 +28,10 @@ function Session.is_state_event(event)
   return STATE_EVENTS[event.kind] == true
 end
 
-function Session.blocks_of(text, context)
-  local blocks = { { type = 'text', text = text } }
+function Session.blocks_of(text, captured, capabilities)
+  local blocks = editor_context.blocks(captured, capabilities)
 
-  if context then table.insert(blocks, 1, { type = 'text', text = context }) end
+  blocks[#blocks + 1] = { type = 'text', text = text }
 
   return blocks
 end
@@ -173,7 +174,7 @@ function Session:prompt(text, context, opts)
   self._turn = { text = {}, permissions = {} }
   if not (opts and opts.shown) then self:_emit(events.prompt(text)) end
 
-  local blocks = Session.blocks_of(text, context)
+  local blocks = Session.blocks_of(text, context, self.connection:prompt_capabilities())
 
   return async.run(function()
     local ok, result = pcall(self.connection.prompt, self.connection, self.id, blocks)

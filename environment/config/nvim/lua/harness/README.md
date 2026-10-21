@@ -39,7 +39,9 @@ Bottom up. A layer only requires layers below it, and no harness module calls Ne
 | 7 | ui | `ui/*.lua` | `TranscriptView` (one transcript buffer: render loop, timer, keymaps, folds, winbar), `display` (which view shows where, reveal), `document` (applies the pipeline's marks to the buffer), `composer`, `permission_prompt`, `winbar`, `PlanPanel`, `links`, `sessions`, and `transcript`, the facade the rest of the editor calls. |
 | 8 | cli | `cli/router.lua`, `cli/commands/*.lua` | One module per `:Harness*` command, with a name, options and `execute(args)`; the router registers them. |
 
-`context.lua` captures where the user is (file, cursor, selection). It is sent ahead of each prompt inside an `<editor-context>` tag, so the agent always sees fresh context. Transcripts strip the tag when a session replays.
+`context.lua` captures where the user is (file, cursor, selection). It is sent ahead of each prompt inside an `<editor-context>` tag, so the agent always sees fresh context. With a range (`:'<,'>Harness …`) the selected lines go along as content: an ACP embedded resource (`file://…#L10-20`) when the agent advertises `embeddedContext`, else a fenced block. Transcripts strip the tag when a session replays.
+
+What the agent sends that is not text is shown, not dropped: resource links as links, embedded resources as fenced blocks, images and audio as `⟨image: image/png⟩`, and a tool call that arrives already finished with its output (a JSON `rawOutput` is shown as JSON). The client introduces itself (`clientInfo`), warns when the agent speaks another ACP version, explains a sign-in error with the agent's `authMethods`, checks `loadSession` before loading, and falls back to `session/set_model` (then a warning, not a failed start) when the agent has no model option.
 
 ## Architecture
 
@@ -269,7 +271,7 @@ In a transcript:
 | A box-drawn table | pipe tables in a reply |
 | The current turn's prompt in the winbar (`❯ fix the parser`) | once that prompt scrolls out of view |
 | A floating `Plan  2/5` checklist at the top right | the latest ACP plan while any entry is unfinished |
-| `──────── 12s · 3 tools ──` | the end of each turn; `interrupted` or the limit hit is named in the warning colour |
+| `──────── 12s · 3 tools ──` | the end of each turn; `interrupted` or the limit hit is named in the warning colour, and `failed` (a turn the agent could not run) in the error colour |
 | `⠋ working · 12s · <C-c> interrupt` under the last line | a running turn |
 | `◆ waiting for you: Edit a.lua` on the tool and the working line, and a notification when the transcript is out of sight | a permission request waiting for an answer |
 | `◆ running  [Plan]  ctx 3%  $0.07` in the winbar | the session's state and its latest usage |
@@ -322,7 +324,7 @@ A session can be open in Neovim while another program drives it, for example `cl
 `harness/permissions.lua` sets these rules:
 - Read and write tools are allowed without asking.
 - Exec tools follow the agent's `policy.auto_allow`, which `setup({ auto_allow = ... })` overrides.
-- Claude's built-ins that reach the gate are asked in the transcript, and so are exec tools when `auto_allow` is off. The question sits under the transcript (`◆ Allow Edit a.lua?` with `1 Allow once  2 Allow always (this session)  3 Reject`); `1` `2` `3` answer it there. A session without a transcript gets one in the background, and you are notified when it is out of sight. `setup({ ask = require('harness.permissions').ui_ask })` brings back the popup.
+- Claude's built-ins that reach the gate are asked in the transcript, and so are exec tools when `auto_allow` is off. The question sits under the transcript (`◆ Allow Edit a.lua?` with the agent's own options, numbered: `1 Yes  2 Yes, allow all edits during this session  3 No`); the numbers answer it there, and the chosen option goes back to the agent as is, so its "always" is remembered by the agent. An agent that sends no options gets `1 Allow once  2 Allow always (this session)  3 Reject`, with "always" remembered by the harness. A session without a transcript gets one in the background, and you are notified when it is out of sight. `setup({ ask = require('harness.permissions').ui_ask })` brings back the popup.
 - Anything that would need asking is refused when there is no UI.
 - "Allow always" is remembered per session. The adapter is sent `allow_once`, so no lasting rule lands in the user's Claude Code settings.
 

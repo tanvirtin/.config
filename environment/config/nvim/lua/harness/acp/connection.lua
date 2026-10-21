@@ -1,4 +1,5 @@
 local Object = require('core.Object')
+local console = require('core.console')
 local dataclass = require('core.dataclass')
 local async = require('harness.async')
 local jsonrpc = require('harness.acp.jsonrpc')
@@ -6,6 +7,10 @@ local jsonrpc = require('harness.acp.jsonrpc')
 local Connection = Object:extend()
 
 Connection.PROTOCOL_VERSION = 1
+
+Connection.CLIENT_INFO = { name = 'harness', title = 'Neovim harness', version = '0.1.0' }
+
+Connection.AUTH_REQUIRED = -32000
 
 function Connection:constructor(transport)
   local conn = {
@@ -27,6 +32,10 @@ function Connection:constructor(transport)
   end)
 
   return conn
+end
+
+function Connection:prompt_capabilities()
+  return self.capabilities.promptCapabilities or {}
 end
 
 function Connection:_closed(out)
@@ -93,7 +102,7 @@ function Connection:_dispatch(message)
     self._pending[message.id] = nil
 
     if message.error then
-      future:set_exception(message.error.message or vim.inspect(message.error))
+      future:set_exception(self:_failure(message.error))
     else
       future:set_result(message.result)
     end
@@ -183,15 +192,45 @@ function Connection.permission_outcome(options, kind)
   return { outcome = 'selected', optionId = chosen.optionId }
 end
 
+function Connection:_failure(err)
+  local text = type(err.message) == 'string' and err.message or vim.inspect(err)
+  local auth = err.code == Connection.AUTH_REQUIRED or text:lower():find('authentication required', 1, true)
+  local methods = {}
+
+  for _, method in ipairs(self.auth_methods or {}) do
+    if type(method) == 'table' then methods[#methods + 1] = method.name or method.id end
+  end
+
+  if not auth or #methods == 0 then return text end
+
+  local agent = type(self.info) == 'table' and (self.info.title or self.info.name) or 'the agent'
+
+  return string.format('%s needs you to sign in (%s): %s', agent, table.concat(methods, ', '), text)
+end
+
 function Connection:initialize()
   local result = async.await(self:request('initialize', {
     protocolVersion = Connection.PROTOCOL_VERSION,
+    clientInfo = Connection.CLIENT_INFO,
     clientCapabilities = { subagents = vim.empty_dict() },
   }))
 
   self.capabilities = (result and result.agentCapabilities) or {}
   self.info = result and result.agentInfo
+  self.auth_methods = type(result) == 'table' and result.authMethods or {}
   self.extensions = type(result) == 'table' and type(result._meta) == 'table' and result._meta or {}
+
+  local version = type(result) == 'table' and result.protocolVersion
+
+  if version and version ~= Connection.PROTOCOL_VERSION then
+    console.warn(
+      string.format(
+        'Harness: the agent speaks ACP version %s; this client speaks %d',
+        tostring(version),
+        Connection.PROTOCOL_VERSION
+      )
+    )
+  end
 
   return result
 end
@@ -210,7 +249,13 @@ function Connection:new_session(opts)
   return async.await(self:request('session/new', session_params(opts)))
 end
 
+function Connection:can_load()
+  return self.capabilities.loadSession == true
+end
+
 function Connection:load_session(session_id, opts)
+  if not self:can_load() then error('this agent cannot load stored sessions', 0) end
+
   local params = session_params(opts)
   params.sessionId = session_id
 
@@ -240,6 +285,10 @@ function Connection:set_config(session_id, config_id, value)
     configId = config_id,
     value = value,
   }))
+end
+
+function Connection:set_model(session_id, model_id)
+  return async.await(self:request('session/set_model', { sessionId = session_id, modelId = model_id }))
 end
 
 function Connection:set_mode(session_id, mode_id)

@@ -76,7 +76,7 @@ events.TYPES = {
   [K.thought] = text_schema('Thought'),
   [K.user] = text_schema('User'),
   [K.prompt] = text_schema('Prompt', { steered = { type = 'boolean' } }),
-  [K.tool_call] = dataclass.define('ToolCall', tool_schema()),
+  [K.tool_call] = dataclass.define('ToolCall', tool_schema({ output = STRING })),
   [K.tool_update] = dataclass.define('ToolUpdate', tool_schema({ output = STRING })),
   [K.plan] = dataclass.define('Plan', schema({ entries = { type = 'table', required = true } })),
   [K.title] = dataclass.define('Title', schema({ title = { type = 'string', required = true } })),
@@ -148,21 +148,66 @@ local function unfence(text)
   return body or text
 end
 
+local function language_of(resource)
+  local mime = str(resource.mimeType)
+  local extension = str(resource.uri) and resource.uri:match('%.([%w_]+)$')
+
+  return (mime and mime:match('^text/x%-(.+)$')) or extension or ''
+end
+
+local function fenced(text, language)
+  local fence = text:find('```', 1, true) and '````' or '```'
+
+  return string.format('\n%s%s\n%s\n%s\n', fence, language, text:gsub('\n$', ''), fence)
+end
+
+function events.block_text(block)
+  if type(block) ~= 'table' then return nil end
+
+  if block.type == 'text' or block.type == nil then return str(block.text) end
+
+  if block.type == 'resource_link' then
+    local uri = str(block.uri)
+    local name = str(block.title) or str(block.name) or uri
+
+    return uri and string.format('[%s](%s)', name, uri) or name
+  end
+
+  if block.type == 'resource' and type(block.resource) == 'table' then
+    local resource = block.resource
+
+    if str(resource.text) then return fenced(resource.text, language_of(resource)) end
+
+    return string.format('⟨binary resource: %s⟩', str(resource.uri) or 'unnamed')
+  end
+
+  if block.type == 'image' then return string.format('⟨image: %s⟩', str(block.mimeType) or 'image') end
+  if block.type == 'audio' then return string.format('⟨audio: %s⟩', str(block.mimeType) or 'audio') end
+end
+
+local function raw_output(raw)
+  if type(raw) == 'string' then return str(raw) end
+  if type(raw) == 'table' and next(raw) ~= nil then
+    local ok, encoded = pcall(vim.json.encode, raw)
+    return ok and encoded or nil
+  end
+end
+
 local function output(update)
   if not FINISHED[update.status] then return nil end
 
   local parts = {}
 
   for _, item in ipairs(type(update.content) == 'table' and update.content or {}) do
-    if type(item) == 'table' and item.type == 'content' and type(item.content) == 'table' then
-      local text = str(item.content.text)
+    if type(item) == 'table' and item.type == 'content' then
+      local text = events.block_text(item.content)
       if text then parts[#parts + 1] = unfence(text) end
     end
   end
 
   if #parts > 0 then return table.concat(parts, '\n') end
 
-  return str(update.rawOutput)
+  return raw_output(update.rawOutput)
 end
 
 local function locations(update)
@@ -202,7 +247,7 @@ function events.tool_name(call)
 end
 
 local function text_of(update)
-  return type(update.content) == 'table' and str(update.content.text) or nil
+  return events.block_text(update.content)
 end
 
 local FROM_UPDATE = {
@@ -251,6 +296,7 @@ local FROM_UPDATE = {
       status = str(update.status),
       input = input(update),
       locations = locations(update),
+      output = output(update),
       diffs = diffs(update.content),
     })
   end,

@@ -525,7 +525,7 @@ describe('harness.ui.transcript:', function()
         return table.concat(out)
       end
 
-      it('asks under the transcript and takes the answer from 1, 2 or 3', function()
+      it('asks under the transcript with the agent\'s own options, and sends the one picked by number', function()
         local asked = asking_session()
         local buf = transcript.open(asked)
         local task = asked:prompt('edit it')
@@ -537,8 +537,7 @@ describe('harness.ui.transcript:', function()
         local shown = status_text(buf)
 
         assert.is_truthy(shown:find('Allow Edit?', 1, true))
-        assert.is_truthy(shown:find('1 Allow once', 1, true))
-        assert.is_truthy(shown:find('3 Reject', 1, true))
+        assert.is_truthy(shown:find('1 Allow   2 Always allow   3 Reject', 1, true))
 
         vim.api.nvim_set_current_buf(buf)
         vim.api.nvim_feedkeys('2', 'x', false)
@@ -550,7 +549,7 @@ describe('harness.ui.transcript:', function()
           return message.id == 'perm-1' and message.result ~= nil
         end)
 
-        eq('allow', reply.result.outcome.optionId)
+        eq('always', reply.result.outcome.optionId)
         eq({ kind = 'permission', tool = 'Edit', allowed = true, id = 't1' }, asked.history[2])
         eq({}, transcript.asks_of(asked))
       end)
@@ -587,7 +586,7 @@ describe('harness.ui.transcript:', function()
         end)
 
         assert.is_truthy(transcript.buffer_of(asked))
-        assert.is_truthy(require('harness.ui.composer').winbar(asked):find('1/2/3', 1, true))
+        assert.is_truthy(require('harness.ui.composer').winbar(asked):find('answer in the transcript', 1, true))
         transcript.asks_of(asked)[1].future:set_result('reject_once')
         async.drain()
       end)

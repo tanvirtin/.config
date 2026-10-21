@@ -48,7 +48,7 @@ function composer.winbar(session)
   end
   if session.external then parts[#parts + 1] = '%#UiWarn#⇄ also driven elsewhere: sending forks it ' end
   if #permission_prompt.asks_of(session) > 0 then
-    parts[#parts + 1] = '%#UiWarn#' .. theme.WAITING_ICON[1] .. 'answer with 1/2/3 in the transcript '
+    parts[#parts + 1] = '%#UiWarn#' .. theme.WAITING_ICON[1] .. 'answer in the transcript '
   end
 
   parts[#parts + 1] = '%='

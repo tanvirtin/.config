@@ -115,6 +115,10 @@ function fake_agent.new(script)
 
     local handler = message.method and (script[message.method] or defaults[message.method]) or script.reply
 
+    if message.method and message.id ~= nil and not handler then
+      return self._deliver(jsonrpc.error(message.id, jsonrpc.METHOD_NOT_FOUND, 'Method not found: ' .. message.method))
+    end
+
     for _, reply in ipairs(handler and handler(message, self) or {}) do
       self._deliver(reply)
     end

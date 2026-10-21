@@ -89,7 +89,8 @@ describe('harness.ui.commands:', function()
 
     assert.is_truthy(blocks[1].text:find('(bufnr ' .. source .. ')', 1, true))
     assert.is_truthy(blocks[1].text:find('selected lines 2-4', 1, true))
-    eq('explain', blocks[2].text)
+    assert.is_truthy(blocks[2].text:find('Selected lines 2-4', 1, true))
+    eq('explain', blocks[3].text)
     assert.is_truthy(require('nvim_mcp.tools').run('editor_state', {}):find('bufnr ' .. source .. ',', 1, true))
   end)
 

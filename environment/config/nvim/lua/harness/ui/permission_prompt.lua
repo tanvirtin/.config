@@ -10,11 +10,7 @@ local permissions = lazy('harness.permissions')
 
 local permission_prompt = {}
 
-permission_prompt.CHOICES = {
-  { key = '1', kind = DECISION.allow_once, label = 'Allow once' },
-  { key = '2', kind = DECISION.allow_always, label = 'Allow always (this session)' },
-  { key = '3', kind = DECISION.reject_once, label = 'Reject' },
-}
+permission_prompt.KEYS = { '1', '2', '3', '4', '5', '6', '7', '8', '9' }
 
 local asks = setmetatable({}, { __mode = 'k' })
 
@@ -33,7 +29,12 @@ end
 function permission_prompt.ask(request)
   local session = request.session
   local future = async.Future.new()
-  local ask = { future = future, text = permissions.describe(request), tool = request.tool }
+  local ask = {
+    future = future,
+    text = permissions.describe(request),
+    tool = request.tool,
+    choices = permissions.choices(request),
+  }
 
   asks[session] = asks[session] or {}
   table.insert(asks[session], ask)
@@ -55,12 +56,20 @@ function permission_prompt.ask(request)
   return future
 end
 
-function permission_prompt.answer(session, kind)
+function permission_prompt.answer(session, key)
   local pending = permission_prompt.asks_of(session)[1]
 
   if not pending then return false end
 
-  pending.future:set_result(kind)
+  local chosen
+
+  for _, choice in ipairs(pending.choices or {}) do
+    if choice.key == key or choice.kind == key then chosen = choice end
+  end
+
+  if not chosen then return false end
+
+  pending.future:set_result(chosen.kind)
   async.drain()
 
   return true

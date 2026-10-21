@@ -176,6 +176,48 @@ describe('harness.acp.connection:', function()
     assert.is_truthy(tostring(err):find('not logged in', 1, true))
   end)
 
+  it('introduces itself, and says how to sign in when the agent needs it', function()
+    local conn, agent = connected({
+      initialize = function(message)
+        return {
+          jsonrpc.result(message.id, {
+            protocolVersion = 1,
+            agentCapabilities = {},
+            agentInfo = { name = 'claude', title = 'Claude' },
+            authMethods = { { id = 'login', name = 'Log in with Claude' } },
+          }),
+        }
+      end,
+      ['session/new'] = function(message)
+        return { jsonrpc.error(message.id, Connection.AUTH_REQUIRED, 'Authentication required') }
+      end,
+    })
+
+    eq(Connection.CLIENT_INFO, agent.sent[1].params.clientInfo)
+
+    local ok, err = pcall(run, function()
+      conn:new_session({ cwd = '/w' })
+    end)
+
+    eq(false, ok)
+    eq('Claude needs you to sign in (Log in with Claude): Authentication required', err)
+  end)
+
+  it('refuses to load a session the agent cannot load', function()
+    local conn = connected({
+      initialize = function(message)
+        return { jsonrpc.result(message.id, { protocolVersion = 1, agentCapabilities = {} }) }
+      end,
+    })
+
+    local ok, err = pcall(run, function()
+      conn:load_session('s1', { cwd = '/w' })
+    end)
+
+    eq(false, ok)
+    eq('this agent cannot load stored sessions', err)
+  end)
+
   it('fails pending requests and tells listeners when the agent exits', function()
     local conn, agent = connected({
       ['session/prompt'] = function()

@@ -177,7 +177,7 @@ describe('harness.events:', function()
 
     it('skips updates no view needs', function()
       eq(nil, events.from_update({ sessionUpdate = 'session_info_update', _meta = {} }))
-      eq(nil, events.from_update({ sessionUpdate = 'agent_message_chunk', content = { type = 'image' } }))
+      eq(nil, events.from_update({ sessionUpdate = 'agent_message_chunk', content = { type = 'hologram' } }))
       eq(nil, events.from_update(nil))
     end)
   end)
@@ -217,6 +217,38 @@ describe('harness.events:', function()
       prompt.text = 'changed'
 
       eq({ events.prompt('one'), events.prompt('two') }, history)
+    end)
+  end)
+
+  describe('content blocks', function()
+    it('turns links, embedded resources, images and audio into text the transcript can show', function()
+      eq('[a.lua](file:///a.lua)', events.block_text({ type = 'resource_link', uri = 'file:///a.lua', name = 'a.lua' }))
+      eq(
+        '\n```lua\nlocal x = 1\n```\n',
+        events.block_text({ type = 'resource', resource = { uri = 'file:///a.lua', text = 'local x = 1\n' } })
+      )
+      eq(
+        '⟨binary resource: file:///a.bin⟩',
+        events.block_text({ type = 'resource', resource = { uri = 'file:///a.bin', blob = 'AA' } })
+      )
+      eq('⟨image: image/png⟩', events.block_text({ type = 'image', mimeType = 'image/png', data = '' }))
+      eq('⟨audio: audio/wav⟩', events.block_text({ type = 'audio', mimeType = 'audio/wav', data = '' }))
+    end)
+
+    it('shows a reply link, and the output of a tool call that arrives already finished', function()
+      local message = events.from_update({
+        sessionUpdate = 'agent_message_chunk',
+        content = { type = 'resource_link', uri = 'https://x.dev', name = 'docs' },
+      })
+      local call = events.from_update({
+        sessionUpdate = 'tool_call',
+        toolCallId = 't',
+        status = 'completed',
+        rawOutput = { files = 2 },
+      })
+
+      eq('[docs](https://x.dev)', message.text)
+      eq('{"files":2}', call.output)
     end)
   end)
 end)

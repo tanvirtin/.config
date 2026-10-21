@@ -29,7 +29,46 @@ describe('harness.permissions:', function()
     end)
   end)
 
+  describe('choices', function()
+    it('numbers the agent\'s own options with their names, reject always included', function()
+      local asked = request('Bash')
+
+      asked.params.options = {
+        { optionId = 'y', kind = 'allow_once', name = 'Yes' },
+        { optionId = 'a', kind = 'allow_always', name = 'Yes, and don\'t ask again' },
+        { optionId = 'n', kind = 'reject_once', name = 'No' },
+        { optionId = 'N', kind = 'reject_always', name = 'No, never' },
+      }
+
+      eq({
+        { key = '1', kind = 'allow_once', label = 'Yes' },
+        { key = '2', kind = 'allow_always', label = 'Yes, and don\'t ask again' },
+        { key = '3', kind = 'reject_once', label = 'No' },
+        { key = '4', kind = 'reject_always', label = 'No, never' },
+      }, permissions.choices(asked))
+    end)
+
+    it('falls back to allow once, allow always and reject when the agent sends no options', function()
+      eq(permissions.CHOICES, permissions.choices(request('Bash')))
+    end)
+  end)
+
   describe('new', function()
+    it('hands allow always to the agent when it offers it, and remembers it itself when not', function()
+      local approve = permissions.new({
+        ask = function()
+          return 'allow_always'
+        end,
+      })
+      local offered = request('Bash')
+
+      offered.params.options = { { optionId = 'a', kind = 'allow_always', name = 'Always' } }
+
+      eq('allow_always', approve(offered))
+      eq('allow_once', approve(request('Grep')))
+      eq('allow_once', approve(request('Grep')))
+    end)
+
     it('allows read and write tools without asking', function()
       local approve = permissions.new({
         ask = function()

@@ -26,7 +26,6 @@ local composer = lazy('harness.ui.composer')
 local transcript = {}
 
 transcript.FILETYPE = TranscriptView.FILETYPE
-transcript.CHOICES = permission_prompt.CHOICES
 
 transcript.view = display.view
 transcript.view_of = display.view_of

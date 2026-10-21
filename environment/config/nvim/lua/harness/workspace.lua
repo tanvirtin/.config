@@ -1,4 +1,5 @@
 local Object = require('core.Object')
+local console = require('core.console')
 local Connection = require('harness.acp.connection')
 local Session = require('harness.session')
 local async = require('harness.async')
@@ -44,9 +45,15 @@ local function use_model(connection, agent, id)
 
   local ok, result = pcall(connection.set_config, connection, id, 'model', agent.model)
 
-  if not ok then error(string.format('could not use model %s: %s', agent.model, tostring(result)), 0) end
+  if ok then return result end
 
-  return result
+  local fallback, why = pcall(connection.set_model, connection, id, agent.model)
+
+  if not fallback then
+    console.warn(string.format('Harness: could not use model %s: %s', agent.model, tostring(why or result)))
+  end
+
+  return nil
 end
 
 local function configure(session, ...)

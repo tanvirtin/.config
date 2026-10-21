@@ -24,7 +24,7 @@ end
 local function ask_lines(state, ask)
   local choices = { { '   ' } }
 
-  for _, choice in ipairs(state.choices or {}) do
+  for _, choice in ipairs(ask.choices or state.choices or {}) do
     choices[#choices + 1] = { choice.key, 'UiAccent' }
     choices[#choices + 1] = { ' ' .. choice.label .. '   ' }
   end

@@ -21,10 +21,44 @@ function permissions.tier(tool_name)
 end
 
 permissions.CHOICES = {
-  { kind = DECISION.allow_once, label = 'Allow once' },
-  { kind = DECISION.allow_always, label = 'Allow always (this session)' },
-  { kind = DECISION.reject_once, label = 'Reject' },
+  { key = '1', kind = DECISION.allow_once, label = 'Allow once' },
+  { key = '2', kind = DECISION.allow_always, label = 'Allow always (this session)' },
+  { key = '3', kind = DECISION.reject_once, label = 'Reject' },
 }
+
+permissions.MAX_CHOICES = 9
+
+local KINDS = {
+  [DECISION.allow_once] = true,
+  [DECISION.allow_always] = true,
+  [DECISION.reject_once] = true,
+  [DECISION.reject_always] = true,
+}
+
+function permissions.choices(request)
+  local options = ((request and request.params) or {}).options
+  local choices = {}
+
+  for _, option in ipairs(type(options) == 'table' and options or {}) do
+    if type(option) == 'table' and KINDS[option.kind] and #choices < permissions.MAX_CHOICES then
+      choices[#choices + 1] = {
+        key = tostring(#choices + 1),
+        kind = option.kind,
+        label = type(option.name) == 'string' and option.name ~= '' and option.name or option.kind,
+      }
+    end
+  end
+
+  return #choices > 0 and choices or permissions.CHOICES
+end
+
+function permissions.offers(request, kind)
+  for _, option in ipairs(((request and request.params) or {}).options or {}) do
+    if type(option) == 'table' and option.kind == kind then return true end
+  end
+
+  return false
+end
 
 local WIDTH = 160
 
@@ -50,7 +84,11 @@ function permissions.describe(request)
       local content = input.content or input.new_string
 
       local path = fs.display(input.file_path)
-      local size = type(content) == 'string' and string.format('%d lines', count_lines(content)) or nil
+      local size = type(content) == 'string'
+          and (function(n)
+            return string.format('%d line%s', n, n == 1 and '' or 's')
+          end)(count_lines(content))
+        or nil
 
       if request.tool:find(path, 1, true) then
         return require('compact').line(request.tool .. (size and (' (' .. size .. ')') or ''), WIDTH)
@@ -73,7 +111,7 @@ function permissions.ui_ask(request)
   Timer.schedule(function()
     if future.done then return end
 
-    local picker = console.select(permissions.CHOICES, {
+    local picker = console.select(permissions.choices(request), {
       prompt = 'Harness wants to run ' .. permissions.describe(request),
       format_item = function(choice)
         return choice.label
@@ -121,7 +159,7 @@ function permissions.new(opts)
 
       if kind == DECISION.allow_always then
         always[request.tool] = true
-        return DECISION.allow_once
+        return permissions.offers(request, DECISION.allow_always) and DECISION.allow_always or DECISION.allow_once
       end
 
       return kind

@@ -74,7 +74,8 @@ function PromptQueue:steer(text, context)
   local steered = session.history[#session.history]
 
   return async.run(function()
-    local result = session.connection:steer(session.id, session.blocks_of(text, context))
+    local result =
+      session.connection:steer(session.id, session.blocks_of(text, context, session.connection:prompt_capabilities()))
 
     if type(result) == 'table' and result.outcome == PromptQueue.STEER_FALLBACK then
       steered.steered = nil

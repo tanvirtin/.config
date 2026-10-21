@@ -79,19 +79,37 @@ describe('harness.workspace:', function()
     eq('old', sets[2].params.sessionId)
   end)
 
-  it('fails clearly when the agent refuses the model', function()
+  it('falls back to session/set_model, and starts anyway with a warning when the agent refuses the model', function()
+    local models = {}
     local ws = workspace({
       ['session/set_config_option'] = function(message)
         return { jsonrpc.error(message.id, jsonrpc.INTERNAL_ERROR, 'Invalid value for config option model') }
       end,
+      ['session/set_model'] = function(message)
+        models[#models + 1] = message.params.modelId
+        return { jsonrpc.error(message.id, jsonrpc.INTERNAL_ERROR, 'unknown model') }
+      end,
     })
+    local warned = {}
+    local notify = vim.notify
 
-    local ok, err = pcall(run, function()
-      ws:new_session(claude, { key = 'h1' })
+    vim.notify = function(message)
+      warned[#warned + 1] = message
+    end
+
+    local ok, session = pcall(run, function()
+      return ws:new_session(claude, { key = 'h1' })
     end)
 
-    eq(false, ok)
-    eq('could not use model claude-sonnet-5-5: Invalid value for config option model', err)
+    vim.wait(500, function()
+      return #warned > 0
+    end)
+    vim.notify = notify
+
+    eq(true, ok)
+    eq({ 'claude-sonnet-5-5' }, models)
+    assert.is_truthy(session)
+    assert.is_truthy(table.concat(warned, '\n'):find('could not use model claude-sonnet-5-5', 1, true))
   end)
 
   it('starts a new process after the last one exited', function()

@@ -170,7 +170,6 @@ function TranscriptView:state()
     queue = session:queued(),
     waiting = session:waiting(),
     asks = permission_prompt.asks_of(session),
-    choices = permission_prompt.CHOICES,
     active = TranscriptView.active_subagents(session),
   }
 end
@@ -335,16 +334,25 @@ function TranscriptView:bind(actions)
     self:map(binding[1], binding[2], binding[3])
   end
 
-  for _, choice in ipairs(permission_prompt.CHOICES) do
-    self:map(choice.key, function()
-      if #permission_prompt.asks_of(session) == 0 then return choice.key end
+  for _, key in ipairs(permission_prompt.KEYS) do
+    self:map(key, function()
+      local ask = permission_prompt.asks_of(session)[1]
+      local known = ask
+        and vim.tbl_contains(
+          vim.tbl_map(function(choice)
+            return choice.key
+          end, ask.choices or {}),
+          key
+        )
+
+      if not known then return key end
 
       Timer.schedule(function()
-        permission_prompt.answer(session, choice.kind)
+        permission_prompt.answer(session, key)
       end)
 
       return ''
-    end, choice.label .. ' (when the agent asks)', { expr = true })
+    end, 'Answer the agent\'s question with choice ' .. key, { expr = true })
   end
 end
 
