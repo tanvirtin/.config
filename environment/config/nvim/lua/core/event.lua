@@ -154,6 +154,14 @@ function event.augroup(name)
   return group
 end
 
+function event.has_command(name)
+  return vim.api.nvim_get_commands({})[name] ~= nil
+end
+
+function event.run_command(name, args)
+  vim.api.nvim_cmd({ cmd = name, args = args or {} }, {})
+end
+
 function event.file_changed_reason()
   return vim.v.fcs_reason
 end

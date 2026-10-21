@@ -35,12 +35,9 @@ describe('harness.transcript.PlanSummary:', function()
     eq(' ' .. PlanSummary.MARKS.in_progress[1] .. 'edit', summary.lines[3])
     eq(' ' .. PlanSummary.PENDING[1] .. 'test', summary.lines[4])
     eq('UiTitle', summary.highlights[1].hl)
-    eq(
-      2,
-      #vim.tbl_filter(function(highlight)
-        return highlight.row == 1
-      end, summary.highlights)
-    )
+    eq(2, #vim.tbl_filter(function(highlight)
+      return highlight.row == 1
+    end, summary.highlights))
     assert.is_true(summary.width > #' Plan  1/3')
   end)
 

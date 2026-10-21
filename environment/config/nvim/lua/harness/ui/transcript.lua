@@ -9,6 +9,7 @@ local TranscriptView = require('harness.ui.TranscriptView')
 local Window = require('core.Window')
 local console = require('core.console')
 local display = require('harness.ui.display')
+local event = require('core.event')
 local fences = require('harness.transcript.fences')
 local links = require('harness.ui.links')
 local permission_prompt = require('harness.ui.permission_prompt')
@@ -23,6 +24,7 @@ local transcript = {}
 transcript.FILETYPE = TranscriptView.FILETYPE
 transcript.WINBAR = winbar.HINTS
 transcript.CHOICES = permission_prompt.CHOICES
+transcript.VGIT_COMMAND = 'VGit'
 
 transcript.view = display.view
 transcript.view_of = display.view_of
@@ -184,6 +186,35 @@ function transcript.open_target(buf)
   return view and links.open(target_at(view, Window.get_current())) or false
 end
 
+function transcript.path_at(buf)
+  local view = view_for(buf)
+  local target = view and target_at(view, Window.get_current())
+
+  return target and target.path or nil
+end
+
+function transcript.git_diff(buf)
+  local path = transcript.path_at(buf)
+
+  if not path then return false, 'no file here' end
+
+  local args = { 'diff', '--', path }
+  local ok, vgit = pcall(require, 'vgit')
+  local ran, err
+
+  if ok and type(vgit) == 'table' and type(vgit.run) == 'function' then
+    ran, err = pcall(vgit.run, args)
+  elseif event.has_command(transcript.VGIT_COMMAND) then
+    ran, err = pcall(event.run_command, transcript.VGIT_COMMAND, args)
+  else
+    return false, 'vgit is not available'
+  end
+
+  if not ran then return false, tostring(err) end
+
+  return true
+end
+
 function transcript.yank(buf, name)
   local view = view_for(buf)
 
@@ -326,6 +357,15 @@ function transcript.bindings(view)
         view:toggle_plan()
       end,
       'Show or hide the plan',
+    },
+    {
+      keys.diff,
+      function()
+        local ok, why = transcript.git_diff(buf)
+
+        if not ok then console.notify_now('Harness: no git diff to show: ' .. why, 'info') end
+      end,
+      'Open the git diff of the file under the cursor in vgit',
     },
     {
       keys.options,

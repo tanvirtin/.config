@@ -416,4 +416,21 @@ describe('event:', function()
       assert.is_false(pcall(vim.api.nvim_get_autocmds, { group = group.id }))
     end)
   end)
+  describe('has_command and run_command', function()
+    it('finds a user command and runs it with arguments', function()
+      local got
+
+      vim.api.nvim_create_user_command('CoreEventSpecCmd', function(args)
+        got = args.fargs
+      end, { nargs = '*' })
+
+      assert.is_true(event.has_command('CoreEventSpecCmd'))
+      assert.is_false(event.has_command('CoreEventSpecNope'))
+
+      event.run_command('CoreEventSpecCmd', { 'a', 'b c' })
+      vim.api.nvim_del_user_command('CoreEventSpecCmd')
+
+      assert.are.same({ 'a', 'b c' }, got)
+    end)
+  end)
 end)

@@ -12,6 +12,7 @@ return Config({
     cycle_mode = '<S-Tab>',
     options = 'go',
     plan = 'gp',
+    diff = 'gd',
   },
   composer = {
     send = '<CR>',

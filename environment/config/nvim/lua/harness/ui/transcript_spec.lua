@@ -639,4 +639,71 @@ describe('harness.ui.transcript:', function()
       eq('  ⋯ 3 more lines', transcript.foldtext()[1][1])
     end)
   end)
+
+  describe('git_diff', function()
+    local saved, path, session
+
+    before_each(function()
+      vim.cmd('silent! tabonly!')
+      vim.cmd('enew!')
+      saved = package.loaded.vgit
+      path = vim.fn.tempname() .. '.lua'
+      vim.fn.writefile({ 'local z = 2' }, path)
+      session = Session({ key = 'h' .. math.random(1e6), id = 's1', connection = Connection(fake_agent.new()) })
+      session:_emit(events.prompt('edit'))
+      session:_emit({
+        kind = 'tool_call',
+        id = 't1',
+        name = 'Edit',
+        category = 'edit',
+        locations = { { path = path } },
+        diffs = { { path = path, old = 'local y = 2', new = 'local z = 2' } },
+      })
+      transcript.open(session)
+
+      for _, block in ipairs(transcript.view().document.blocks) do
+        if block.kind == 'diff' then vim.api.nvim_win_set_cursor(0, { block.start + 4, 0 }) end
+      end
+    end)
+
+    after_each(function()
+      package.loaded.vgit = saved
+      pcall(vim.api.nvim_del_user_command, 'VGit')
+      os.remove(path)
+    end)
+
+    it('hands the file under the cursor to vgit.run when vgit has it', function()
+      local ran
+
+      package.loaded.vgit = {
+        run = function(args)
+          ran = args
+        end,
+      }
+
+      assert.is_true(transcript.git_diff())
+      eq({ 'diff', '--', path }, ran)
+    end)
+
+    it('falls back to the :VGit command', function()
+      local ran
+
+      package.loaded.vgit = {}
+      vim.api.nvim_create_user_command('VGit', function(args)
+        ran = args.fargs
+      end, { nargs = '*' })
+
+      assert.is_true(transcript.git_diff())
+      eq({ 'diff', '--', path }, ran)
+    end)
+
+    it('says why when there is no file or no vgit', function()
+      package.loaded.vgit = {}
+
+      eq({ false, 'vgit is not available' }, { transcript.git_diff() })
+
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      eq({ false, 'no file here' }, { transcript.git_diff() })
+    end)
+  end)
 end)
