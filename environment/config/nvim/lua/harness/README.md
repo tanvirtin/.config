@@ -2,7 +2,7 @@
 
 Neovim hosts ACP agents and gives each one the running editor as an MCP server. Neovim controls everything: every agent process, every session, every tool. Sessions belong to a directory.
 
-tin defines the agents, and Neovim runs them. The default agent is Claude, through `claude-agent-acp` (installed by the `claude-code-acp` recipe). It runs on the Claude subscription, so no API key is involved, and the user's Claude Code settings, skills and CLAUDE.md all apply.
+tin defines the agents, and Neovim runs them. The default agent is Claude, through `claude-agent-acp` (installed by the `claude-code-acp` recipe). It runs on the Claude subscription, so no API key is involved, and the user's Claude Code settings, skills and CLAUDE.md all apply. opencode is built in too (`opencode acp`, `:HarnessNew opencode`); it uses whatever models and logins opencode itself is set up with.
 
 ```
 tin                                       Neovim
@@ -28,7 +28,7 @@ Bottom up. A layer only requires layers below it, and no harness module calls Ne
 | 1 | settings | `settings/*.lua` | Every tunable as a `core.Config`, read at use time (see Settings). |
 | 1 | vgit | `vgit.lua` | The only module that talks to vgit, the diff engine: `patch` and `patch_text` (from `vgit.api`), `show` (vgit's diff views for in-memory content) and `git_diff`. The architecture spec rejects a `vgit` require anywhere else. |
 | 2 | events | `events.lua` | Typed events (`message`, `tool_call`, `plan`, `permission`, `stop`, ...) normalized from `session/update`, as dataclasses with a `KIND` enum. Views never parse ACP. |
-| 2 | agent | `agent.lua` | **Agent** definitions, loaded from tin's `~/.local/share/tin/nvim/agents.json`, with a built-in `claude` as fallback. It spawns the process and reads `$NAME` env values at spawn time. |
+| 2 | agent | `agent.lua` | **Agent** definitions, loaded from tin's `~/.local/share/tin/nvim/agents.json`, with built-in `claude` and `opencode` as fallbacks. It spawns the process and reads `$NAME` env values at spawn time. |
 | 3 | session | `session.lua`, `session/*.lua` | **Session**: one conversation, a coordinator over its parts: `History` (events, times, replay and adoption), `PermissionGate` (open requests, cancel), `PromptQueue` (queue, drain, steer), `SessionConfig` (options, modes, commands) and `Subagents` (child sessions). Its `history` is the source of truth. It provides `subscribe`, `prompt`, `enqueue`, `steer`, `cancel` and `close`. |
 | 4 | workspace | `workspace.lua` | **Workspace**: the sessions of one directory. It runs one process per agent, shared by that agent's sessions. `list()` merges live sessions with the agent's stored ones (`session/list`), and `load_session` replays a stored one. |
 | 4 | store | `session_store.lua` | Every session in the editor, with lifecycle dispatch that features subscribe to (see Store events). It fires `User HarnessEvent`. |

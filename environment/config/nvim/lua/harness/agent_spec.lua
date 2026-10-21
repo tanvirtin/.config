@@ -37,7 +37,7 @@ describe('harness.agent:', function()
     eq('my-claude', agent.get('claude').command)
     eq('from tin', agent.get('claude').system)
     eq({ '--experimental-acp' }, agent.get('gemini').args)
-    eq({ 'claude', 'gemini' }, agent.names())
+    eq({ 'claude', 'gemini', 'opencode' }, agent.names())
   end)
 
   it('ignores an unreadable file with a warning', function()
@@ -52,7 +52,10 @@ describe('harness.agent:', function()
 
     vim.notify = notify
 
-    eq({ 'claude' }, vim.tbl_keys(loaded))
+    local names = vim.tbl_keys(loaded)
+
+    table.sort(names)
+    eq({ 'claude', 'opencode' }, names)
     assert.is_truthy(warned:find('unreadable', 1, true))
   end)
 

@@ -8,7 +8,7 @@ local agent = {}
 agent.PATH = fs.expand('~/.local/share/tin/nvim/agents.json')
 agent.DEFAULT = 'claude'
 
-local CLAUDE_SYSTEM = table.concat({
+local SYSTEM = table.concat({
   'You are running inside the user\'s Neovim, driven by its harness.',
   'The nvim MCP tools act on that live editor; prefer them to reading files from disk.',
   'Each prompt starts with where the user is (their file, cursor and selection) in an <editor-context> tag.',
@@ -29,7 +29,14 @@ agent.BUILTIN = {
     description = 'Claude Code over ACP, on the Claude subscription',
     command = 'claude-agent-acp',
     model = 'claude-sonnet-5-5',
-    system = CLAUDE_SYSTEM,
+    system = SYSTEM,
+    policy = { auto_allow = true },
+  },
+  opencode = {
+    description = 'opencode over ACP, with the models opencode is set up for',
+    command = 'opencode',
+    args = { 'acp' },
+    system = SYSTEM,
     policy = { auto_allow = true },
   },
 }
