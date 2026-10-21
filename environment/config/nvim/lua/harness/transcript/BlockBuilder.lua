@@ -1,70 +1,11 @@
-local dataclass = require('core.dataclass')
+local Block = require('harness.transcript.Block')
+local fences = require('harness.transcript.fences')
+local tool_label = require('harness.transcript.tool_label')
 local compact = require('compact')
 local context = require('harness.context')
 local EVENT = require('harness.events').KIND
 
-local Block
-
-local KIND = dataclass.enum({ 'title', 'prompt', 'message', 'thought', 'tool', 'diff', 'plan', 'note', 'stop' })
-
-local STRING, NUMBER, BOOLEAN, TABLE =
-  { type = 'string' }, { type = 'number' }, { type = 'boolean' }, { type = 'table' }
-
-Block = dataclass.define('Block', {
-  kind = { type = 'string', required = true, enum = KIND },
-  lines = { type = 'table', required = true },
-  text = STRING,
-  first_event = NUMBER,
-  last_event = NUMBER,
-  live = BOOLEAN,
-  first = BOOLEAN,
-  steered = BOOLEAN,
-  opens_reply = BOOLEAN,
-  error = BOOLEAN,
-  id = STRING,
-  parent = STRING,
-  depth = NUMBER,
-  nested = NUMBER,
-  path = STRING,
-  name = STRING,
-  argument = STRING,
-  status = STRING,
-  category = STRING,
-  locations = TABLE,
-  output = STRING,
-  folds = TABLE,
-  added = NUMBER,
-  removed = NUMBER,
-  started = NUMBER,
-  finished = NUMBER,
-  reason = STRING,
-  duration = NUMBER,
-  tools = NUMBER,
-  start = NUMBER,
-  finish = NUMBER,
-  index = NUMBER,
-})
-
-Block.KIND = KIND
-
-Block.STATUS = dataclass.enum({ 'pending', 'in_progress', 'completed', 'failed' })
-
-Block.CATEGORY = dataclass.enum({ 'read', 'edit', 'delete', 'move', 'search', 'execute', 'think', 'fetch', 'other' })
-
-Block.PREVIEW = 5
-Block.OUTPUT_MAX = 200
-
-function Block.make(kind, lines, fields)
-  local all = { kind = kind, lines = lines }
-
-  for key, value in pairs(fields or {}) do
-    all[key] = value
-  end
-
-  return Block(all)
-end
-
-local blocks = { Block = Block }
+local blocks = { Block = Block, fence_for = fences.fence_for, fences = fences.fences, fenced_at = fences.fenced_at }
 
 local diff_text = (vim.text and vim.text.diff) or vim.diff
 
@@ -87,65 +28,6 @@ local function split(text)
   return lines
 end
 
-local function relative(path, dir)
-  if type(path) ~= 'string' then return path end
-
-  if dir and path:sub(1, #dir + 1) == dir .. '/' then return path:sub(#dir + 2) end
-
-  return vim.fn.fnamemodify(path, ':~:.')
-end
-
-local function fence_marks(line)
-  local marks, rest = line:match('^ ? ? ?(```+)(.*)$')
-
-  if not marks then
-    marks, rest = line:match('^ ? ? ?(~~~+)(.*)$')
-  end
-
-  return marks, rest
-end
-
-function blocks.fence_for(lines)
-  local longest = 0
-
-  for _, line in ipairs(lines) do
-    local run = line:match('^ ? ? ?(`+)')
-
-    if run and #run > longest then longest = #run end
-  end
-
-  return string.rep('`', math.max(3, longest + 1))
-end
-
-function blocks.fences(lines)
-  local spans, open, start = {}, nil, nil
-
-  for i, line in ipairs(lines) do
-    local marks, rest = fence_marks(line)
-
-    if marks then
-      if not open then
-        open, start = marks, i
-      elseif marks:sub(1, 1) == open:sub(1, 1) and #marks >= #open and vim.trim(rest) == '' then
-        spans[#spans + 1] = { start, i }
-        open = nil
-      end
-    end
-  end
-
-  return spans, open and { start, nil, open } or nil
-end
-
-function blocks.fenced_at(lines, index)
-  local spans, unclosed = blocks.fences(lines)
-
-  if unclosed then spans[#spans + 1] = { unclosed[1], #lines + 1 } end
-
-  for _, span in ipairs(spans) do
-    if index > span[1] and index < span[2] then return span[1] + 1, span[2] - 1 end
-  end
-end
-
 local function diff_lines(diff, dir)
   local old, new = diff.old, diff.new
 
@@ -154,7 +36,7 @@ local function diff_lines(diff, dir)
 
   local body = split(vim.trim(diff_text(old, new, { ctxlen = 2 }) or ''))
   local fence = blocks.fence_for(body)
-  local lines = { fence .. 'diff', '--- ' .. tostring(relative(diff.path, dir)) }
+  local lines = { fence .. 'diff', '--- ' .. tostring(tool_label.relative(diff.path, dir)) }
 
   vim.list_extend(lines, body)
   lines[#lines + 1] = fence
@@ -210,12 +92,6 @@ local function flatten(items)
   end
 
   return out
-end
-
-local function open_fence(lines)
-  local _, unclosed = blocks.fences(lines)
-
-  return unclosed and unclosed[3] or nil
 end
 
 local TOOL = { tool_call = true, tool_update = true }
@@ -287,66 +163,6 @@ local function last_plans(history, from, to)
   if latest then last[latest] = true end
 
   return last
-end
-
-local ARGUMENT_KEYS = {
-  'command',
-  'cmd',
-  'file_path',
-  'filePath',
-  'absolute_path',
-  'path',
-  'pattern',
-  'query',
-  'url',
-  'description',
-  'code',
-  'bufnr',
-}
-
-local function argument_text(key, value, dir)
-  if type(value) == 'table' then
-    local parts = {}
-
-    for _, part in ipairs(value) do
-      parts[#parts + 1] = tostring(part)
-    end
-
-    value = table.concat(parts, ' ')
-  end
-
-  value = tostring(value)
-
-  return key:lower():find('path') and relative(value, dir) or value
-end
-
-local function tool_label(state, id, dir)
-  local raw = state.name or (state.title and state.title:match('^(%S+)')) or 'tool'
-  local name = raw
-  local server, tool = name:match('^mcp__(.-)__(.+)$')
-
-  if server then name = server .. ':' .. tool end
-
-  local argument
-
-  for _, key in ipairs(ARGUMENT_KEYS) do
-    local value = state.input[key]
-
-    if value ~= nil and value ~= vim.NIL and value ~= '' then
-      argument = argument_text(key, value, dir)
-      break
-    end
-  end
-
-  if not argument and state.locations and state.locations[1] then argument = relative(state.locations[1].path, dir) end
-
-  if not argument and state.title and state.title:find('%s') then
-    argument = state.title:gsub('^' .. vim.pesc(raw) .. '%s*', '')
-  end
-
-  if not argument and not state.name and not state.title then argument = id end
-
-  return compact.line(name, 80), argument and compact.line(argument, 200) or nil
 end
 
 local BODY = {
@@ -454,7 +270,7 @@ local function build_turn(history, from, to, opts, last_turn, updates)
     end,
     tool_call = function(event)
       local state = states[event.id] or { input = {} }
-      local name, argument = tool_label(state, event.id, opts.dir)
+      local name, argument = tool_label.label(state, event.id, opts.dir)
       local lines = { '-> ' .. name .. (argument and ' ' .. argument or '') }
       local category = state.category or Block.CATEGORY.other
       local folds = {}
@@ -543,7 +359,7 @@ local function build_turn(history, from, to, opts, last_turn, updates)
         block.live = tail and opts.running or false
       else
         block.lines = split(block.text)
-        local open = not tail and open_fence(block.lines)
+        local open = not tail and fences.open(block.lines)
 
         if open then block.lines[#block.lines + 1] = open end
       end

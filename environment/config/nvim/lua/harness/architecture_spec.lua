@@ -56,7 +56,6 @@ local NEOVIM_ALLOWED = {
   ['harness.context'] = 7,
   ['harness.hub'] = 3,
   ['harness.permissions'] = 3,
-  ['harness.ui.blocks'] = 1,
   ['harness.ui.commands'] = 14,
   ['harness.ui.composer'] = 24,
   ['harness.ui.document'] = 31,
@@ -65,9 +64,7 @@ local NEOVIM_ALLOWED = {
   ['harness.ui.transcript'] = 84,
 }
 
-local UPWARD_ALLOWED = {
-  ['harness.tools -> harness.ui.transcript'] = true,
-}
+local UPWARD_ALLOWED = {}
 
 local function modules()
   local out = {}

@@ -1,7 +1,7 @@
 local hub = require('harness.hub')
 local schema = require('nvim_mcp.schema')
 local tools = require('nvim_mcp.tools')
-local transcript = require('harness.ui.transcript')
+local TextRenderer = require('harness.transcript.TextRenderer')
 
 local session_tools = {}
 
@@ -95,7 +95,7 @@ local function session_read(args, ctx)
   local session = target(args.session, ctx)
   local since = args.since or 0
   local events = vim.list_slice(session.history, since + 1)
-  local lines = transcript.render(events, session.title)
+  local lines = TextRenderer.render(events, session.title)
 
   return {
     session = session.key,

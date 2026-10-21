@@ -1,5 +1,5 @@
 local Document = require('harness.ui.document')
-local blocks = require('harness.ui.blocks')
+local blocks = require('harness.transcript.BlockBuilder')
 local events = require('harness.events')
 
 local Block = blocks.Block

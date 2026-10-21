@@ -1,4 +1,4 @@
-local blocks = require('harness.ui.blocks')
+local blocks = require('harness.transcript.BlockBuilder')
 local events = require('harness.events')
 
 local Block = blocks.Block
@@ -11,7 +11,7 @@ local function kinds(list)
   end, list)
 end
 
-describe('harness.ui.blocks:', function()
+describe('harness.transcript.BlockBuilder:', function()
   it('streams consecutive text into one block, even across events it does not show', function()
     local list = blocks.build({
       { kind = 'message', text = 'Look' },
@@ -205,42 +205,6 @@ describe('harness.ui.blocks:', function()
     eq({ '-> Searching for foo in src' }, list[4].lines)
   end)
 
-  describe('fences', function()
-    it('makes a fence longer than any backtick run in the content, instead of escaping it', function()
-      eq('```', blocks.fence_for({ 'plain' }))
-      eq('````', blocks.fence_for({ 'a', '```lua', 'b', '```' }))
-      eq('`````', blocks.fence_for({ '  ````' }))
-      eq('````', blocks.fence_for({ ' ```', '+x' }))
-    end)
-
-    it('shows tool output verbatim inside a fence it cannot close', function()
-      local list = blocks.build({
-        { kind = 'tool_call', id = 't1', name = 'Bash', category = 'execute', diffs = {} },
-        { kind = 'tool_update', id = 't1', status = 'completed', output = 'before\n```\nafter', diffs = {} },
-      })
-
-      eq({ '-> Bash', '````output', 'before', '```', 'after', '````' }, list[2].lines)
-    end)
-
-    it('finds the fenced lines around a line, honouring fence length and kind', function()
-      local lines = { 'intro', '````md', '```lua', 'x', '```', '````', '~~~', 'y' }
-
-      eq({ 3, 5 }, { blocks.fenced_at(lines, 4) })
-      eq({ 3, 5 }, { blocks.fenced_at(lines, 3) })
-      eq({ 8, 8 }, { blocks.fenced_at(lines, 8) })
-      assert.is_nil(blocks.fenced_at(lines, 1))
-    end)
-
-    it('closes a finished message\'s open fence with the same marker', function()
-      local list = blocks.build({
-        { kind = 'message', text = '````md\n```lua\nx\n```' },
-        events.stop('end_turn'),
-      })
-
-      eq('````', list[2].lines[#list[2].lines])
-    end)
-  end)
-
   describe('diffs', function()
     local function diff(new)
       return { path = '/a.lua', old = 'local x = 1\n', new = new }
@@ -359,6 +323,26 @@ describe('harness.ui.blocks:', function()
       history[#history + 1] = { kind = 'tool_update', id = 'bg', status = Block.STATUS.completed, diffs = {} }
 
       eq(Block.STATUS.completed, blocks.build(history, nil, { cache = cache })[3].status)
+    end)
+  end)
+
+  describe('fenced output', function()
+    it('shows tool output verbatim inside a fence it cannot close', function()
+      local list = blocks.build({
+        { kind = 'tool_call', id = 't1', name = 'Bash', category = 'execute', diffs = {} },
+        { kind = 'tool_update', id = 't1', status = 'completed', output = 'before\n```\nafter', diffs = {} },
+      })
+
+      eq({ '-> Bash', '````output', 'before', '```', 'after', '````' }, list[2].lines)
+    end)
+
+    it('closes a finished message\'s open fence with the same marker', function()
+      local list = blocks.build({
+        { kind = 'message', text = '````md\n```lua\nx\n```' },
+        events.stop('end_turn'),
+      })
+
+      eq('````', list[2].lines[#list[2].lines])
     end)
   end)
 end)

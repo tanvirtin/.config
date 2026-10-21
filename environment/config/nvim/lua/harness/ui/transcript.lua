@@ -1,4 +1,4 @@
-local blocks = require('harness.ui.blocks')
+local blocks = require('harness.transcript.BlockBuilder')
 local DECISION = require('harness.acp.connection').DECISION
 local EVENT, NOTICE = require('harness.events').KIND, require('harness.events').NOTICE
 local INLINE = require('ui.markdown.Renderer').INLINE
@@ -15,7 +15,7 @@ local views = {}
 transcript.TICK_MS = 100
 
 function transcript.render(history, title)
-  return blocks.lines(blocks.build(history, title, { outputs = false }))
+  return require('harness.transcript.TextRenderer').render(history, title)
 end
 
 function transcript.view(buf)

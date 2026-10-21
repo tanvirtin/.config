@@ -4,7 +4,7 @@ local events = require('harness.events')
 local fake_agent = require('harness.fake_agent')
 local jsonrpc = require('harness.acp.jsonrpc')
 local transcript = require('harness.ui.transcript')
-local blocks_preview = require('harness.ui.blocks').Block.PREVIEW
+local blocks_preview = require('harness.transcript.BlockBuilder').Block.PREVIEW
 
 local eq = assert.are.same
 

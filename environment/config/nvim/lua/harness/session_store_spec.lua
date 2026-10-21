@@ -50,9 +50,12 @@ describe('harness.session_store:', function()
     session_store.add(session('h10'))
     session_store.add(Session({ key = 'h3', id = 's3', dir = '/other', connection = Connection(fake_agent.new()) }))
 
-    eq({ 'h2', 'h10' }, vim.tbl_map(function(s)
-      return s.key
-    end, session_store.list('/w')))
+    eq(
+      { 'h2', 'h10' },
+      vim.tbl_map(function(s)
+        return s.key
+      end, session_store.list('/w'))
+    )
   end)
 
   it('fires User HarnessEvent for every session event', function()

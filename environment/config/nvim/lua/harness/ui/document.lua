@@ -1,7 +1,7 @@
 local Object = require('core.Object')
 local Renderer = require('ui.markdown.Renderer')
 local SyntaxAnnotator = require('ui.annotators.SyntaxAnnotator')
-local blocks = require('harness.ui.blocks')
+local blocks = require('harness.transcript.BlockBuilder')
 
 local Block = blocks.Block
 
