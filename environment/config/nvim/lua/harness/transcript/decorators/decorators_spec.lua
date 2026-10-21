@@ -136,4 +136,24 @@ describe('harness.transcript.decorators:', function()
     eq('UiMuted', marks[2].opts.hl_group)
     eq({ 19, 23, 'UiAccent' }, { marks[3].col, marks[3].opts.end_col, marks[3].opts.hl_group })
   end)
+
+  it('sums up a finished sub-agent by outcome, time and tools, and counts tools while it runs', function()
+    local function tail(fields, ctx)
+      local marks = decorators.decorate(make(Block.KIND.tool, { '-> Task' }, fields), ctx or {})
+      local found = find(marks, function(opts)
+        return opts.virt_text_pos == 'eol'
+      end)
+
+      return found and virt(found.opts)
+    end
+
+    local base = { name = 'Task', nested = 3, started = 0, finished = 4000 }
+
+    eq('  done in 4s · 3 tools', tail(vim.tbl_extend('force', base, { status = Block.STATUS.completed })))
+    eq('  failed in 4s · 3 tools', tail(vim.tbl_extend('force', base, { status = Block.STATUS.failed })))
+    assert.truthy(tail(vim.tbl_extend('force', base, { status = Block.STATUS.in_progress, finished = nil }), {
+      running = true,
+      now = 2000,
+    }):find('^  3 tools', 1))
+  end)
 end)

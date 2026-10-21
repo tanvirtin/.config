@@ -28,10 +28,21 @@ local function icon_of(block, ctx, live, waiting)
   return theme.TOOL_ICONS[block.status] or theme.TOOL_ICONS[Block.STATUS.pending]
 end
 
+local function subagent_summary(block, live)
+  local tools = theme.plural(block.nested, 'tool')
+
+  if live or not context.FINISHED[block.status] then return tools end
+
+  local failed = block.status == Block.STATUS.failed
+  local duration = block.started and block.finished and theme.duration(block.finished - block.started)
+
+  return (failed and 'failed' or 'done') .. (duration and ' in ' .. duration or '') .. ' · ' .. tools
+end
+
 local function tail_of(block, ctx, live, waiting)
   local tail = {}
 
-  if block.nested then tail[#tail + 1] = { theme.plural(block.nested, 'tool'), 'UiMuted' } end
+  if block.nested then tail[#tail + 1] = { subagent_summary(block, live), 'UiMuted' } end
 
   if block.added or block.removed then
     if #tail > 0 then tail[#tail + 1] = { '  ' } end
