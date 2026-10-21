@@ -41,16 +41,15 @@ local function diff_block(edit, path, text)
   return lines
 end
 
-local PLAN_MARK = { [Block.STATUS.completed] = 'x', [Block.STATUS.in_progress] = '~' }
-
 local function plan_lines(entries)
-  local lines = { '**plan**' }
+  local lines, statuses = { 'plan' }, {}
 
-  for _, entry in ipairs(entries) do
-    lines[#lines + 1] = string.format('- [%s] %s', PLAN_MARK[entry.status] or ' ', entry.content)
+  for i, entry in ipairs(entries) do
+    lines[#lines + 1] = string.format('- [%s] %s', entry.status == Block.STATUS.completed and 'x' or ' ', entry.content)
+    statuses[i] = entry.status or Block.STATUS.pending
   end
 
-  return lines
+  return lines, statuses
 end
 
 local function quoted(text, prefix)
@@ -83,6 +82,14 @@ local function flatten(items)
   end
 
   return out
+end
+
+local function note_lines(label, detail)
+  return flatten({ label .. ': ' .. detail })
+end
+
+local function label_of(name, dir)
+  return (tool_label.label({ name = name, input = {} }, name, dir))
 end
 
 local TOOL = { tool_call = true, tool_update = true }
@@ -176,11 +183,11 @@ local function output_lines(output)
 end
 
 local STOP_REASONS = {
-  end_turn = 'Done',
-  cancelled = 'Interrupted',
-  max_tokens = 'Hit the token limit',
-  max_turn_requests = 'Hit the turn limit',
-  refusal = 'Refused',
+  cancelled = 'interrupted',
+  max_tokens = 'hit the token limit',
+  max_turn_requests = 'hit the turn limit',
+  refusal = 'refused',
+  error = 'failed',
 }
 
 blocks.STOP_REASONS = STOP_REASONS
@@ -315,28 +322,44 @@ local function build_turn(history, from, to, opts, last_turn, updates)
     end,
     tool_update = function(event)
       if event.status == Block.STATUS.failed and not tools[event.id] then
-        add(Block.KIND.note, { '*failed:* `' .. compact.line(event.title or event.name or event.id, 200) .. '`' })
+        add(Block.KIND.note, note_lines('failed', compact.line(event.title or event.name or event.id, 200)), {
+          label = 'failed',
+        })
       end
 
       show_diffs(event.id, tools[event.id])
     end,
     plan = function(event, i)
-      if plans[i] then add(Block.KIND.plan, plan_lines(event.entries)) end
+      if plans[i] then
+        local lines, statuses = plan_lines(event.entries)
+        add(Block.KIND.plan, lines, { statuses = statuses })
+      end
     end,
     permission = function(event)
-      if not event.allowed then add(Block.KIND.note, { '*refused:* `' .. compact.line(event.tool, 200) .. '`' }) end
+      if event.allowed then return end
+
+      local tool = event.id and tools[event.id]
+      local outcome = event.cancelled and 'cancelled' or 'refused'
+
+      if tool then
+        tool.denied = outcome
+      elseif not event.cancelled then
+        add(Block.KIND.note, note_lines('refused', label_of(event.tool, opts.dir)), { label = 'refused' })
+      end
     end,
     stop = function(event, i)
       local duration = turn.started and times[i] and times[i] - turn.started or nil
+      local reason = event.reason or 'end_turn'
 
-      add(Block.KIND.stop, { '*' .. tostring(event.reason) .. '*' }, {
-        reason = event.reason,
+      turn.stopped = true
+      add(Block.KIND.stop, { '*' .. reason .. '*' }, {
+        reason = reason,
         duration = duration,
         tools = turn.tools,
       })
     end,
     error = function(event)
-      add(Block.KIND.note, flatten({ '**error:** ' .. event.message }), { error = true })
+      add(Block.KIND.note, note_lines('error', event.message), { label = 'error' })
     end,
   }
 
@@ -348,8 +371,12 @@ local function build_turn(history, from, to, opts, last_turn, updates)
     if BUILD[event.kind] then BUILD[event.kind](event, i) end
   end
 
+  local ended = turn.stopped or not last_turn
+
   for i, block in ipairs(list) do
     local tail = last_turn and i == #list
+
+    if ended and block.kind == Block.KIND.tool and not FINISHED[block.status] then block.interrupted = true end
 
     if block.text then
       if block.kind == Block.KIND.thought then

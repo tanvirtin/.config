@@ -16,7 +16,7 @@ local Document = Object:extend()
 
 Document.NAMESPACE = Buffer.namespace('harness.document')
 
-Document.RAW = { [Block.KIND.prompt] = true }
+Document.RAW = { [Block.KIND.prompt] = true, [Block.KIND.note] = true, [Block.KIND.plan] = true }
 Document.STATUS_NAMESPACE = Buffer.namespace('harness.document.status')
 
 Document.PRIORITY = MarkSpec.PRIORITY

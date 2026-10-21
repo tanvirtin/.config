@@ -86,7 +86,12 @@ events.TYPES = {
   ),
   [K.permission] = dataclass.define(
     'Permission',
-    schema({ tool = { type = 'string', required = true }, allowed = { type = 'boolean', required = true } })
+    schema({
+      tool = { type = 'string', required = true },
+      allowed = { type = 'boolean', required = true },
+      id = STRING,
+      cancelled = { type = 'boolean' },
+    })
   ),
   [K.stop] = dataclass.define('Stop', schema({ reason = STRING })),
   [K.error] = dataclass.define('Error', schema({ message = { type = 'string', required = true } })),
@@ -320,8 +325,10 @@ function events.prompt(text, opts)
   return events.new({ kind = K.prompt, text = text, steered = opts and opts.steered or nil })
 end
 
-function events.permission(tool, allowed)
-  return events.new({ kind = K.permission, tool = tool, allowed = allowed })
+function events.permission(tool, allowed, opts)
+  opts = opts or {}
+
+  return events.new({ kind = K.permission, tool = tool, allowed = allowed, id = opts.id, cancelled = opts.cancelled })
 end
 
 function events.stop(reason)

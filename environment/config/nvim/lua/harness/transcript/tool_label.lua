@@ -1,4 +1,5 @@
 local compact = require('compact')
+local settings = require('harness.settings.transcript')
 local text = require('core.text')
 
 local tool_label = {}
@@ -71,7 +72,7 @@ function tool_label.label(state, id, dir)
 
   if not argument and not state.name and not state.title then argument = id end
 
-  return compact.line(name, 80), argument and compact.line(argument, 200) or nil
+  return compact.line(name, 80), argument and compact.line(argument, settings:get('argument_max')) or nil
 end
 
 return tool_label

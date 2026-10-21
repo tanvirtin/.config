@@ -8,7 +8,7 @@ return function(block)
   local parts = {}
   local duration = theme.duration(block.duration)
 
-  if not done then parts[1] = (BlockBuilder.STOP_REASONS[block.reason] or tostring(block.reason)):lower() end
+  if not done then parts[1] = BlockBuilder.STOP_REASONS[block.reason] or tostring(block.reason) end
   if duration then parts[#parts + 1] = duration end
   if block.tools and block.tools > 0 then parts[#parts + 1] = theme.plural(block.tools, 'tool') end
   if #parts == 0 then parts[1] = 'done' end
@@ -21,7 +21,10 @@ return function(block)
   })
   MarkSpec.add(out, block.start, 0, {
     virt_text = {
-      { ' ' .. table.concat(parts, ' · ') .. ' ', done and 'UiMuted' or 'UiWarn' },
+      {
+        ' ' .. table.concat(parts, ' · ') .. ' ',
+        done and 'UiMuted' or block.reason == 'error' and 'UiError' or 'UiWarn',
+      },
       { string.rep(theme.RULE, 2), 'UiTurnSeparator' },
     },
     virt_text_pos = 'right_align',

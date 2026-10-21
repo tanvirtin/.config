@@ -9,8 +9,46 @@ local sessions = {}
 
 local NEW = { label = '+ New session', description = 'start a fresh conversation', action = 'new' }
 
-local function when(updated_at)
-  return updated_at and updated_at:sub(1, 16):gsub('T', ' ') or nil
+local function days_from_civil(y, m, d)
+  y = m <= 2 and y - 1 or y
+
+  local era = math.floor(y / 400)
+  local year_of_era = y - era * 400
+  local day_of_year = math.floor((153 * ((m + 9) % 12) + 2) / 5) + d - 1
+  local day_of_era = year_of_era * 365 + math.floor(year_of_era / 4) - math.floor(year_of_era / 100) + day_of_year
+
+  return era * 146097 + day_of_era - 719468
+end
+
+local function epoch(iso)
+  local y, m, d, hour, min, sec = iso:match('^(%d+)-(%d+)-(%d+)T(%d+):(%d+):?(%d*)')
+
+  if not y then return nil end
+
+  local days = days_from_civil(tonumber(y), tonumber(m), tonumber(d))
+
+  return days * 86400 + tonumber(hour) * 3600 + tonumber(min) * 60 + (tonumber(sec) or 0)
+end
+
+function sessions.when(updated_at, now)
+  local at = updated_at and epoch(updated_at)
+
+  if not at then return updated_at end
+
+  local ago = (now or os.time()) - at
+
+  if ago < 60 then return 'just now' end
+  if ago < 3600 then return string.format('%d min ago', math.floor(ago / 60)) end
+  if ago < 86400 then return string.format('%dh ago', math.floor(ago / 3600)) end
+  if ago < 7 * 86400 then return string.format('%dd ago', math.floor(ago / 86400)) end
+
+  return os.date('%Y-%m-%d', at)
+end
+
+local function status_of(live, updated_at)
+  if live then return live:running() and 'running' or 'idle' end
+
+  return sessions.when(updated_at)
 end
 
 function sessions.rows(listed)
@@ -19,7 +57,7 @@ function sessions.rows(listed)
   for _, item in ipairs(listed) do
     local live = item.session
     local mark = live and (live:running() and theme.RUNNING_ICON or theme.IDLE_ICON) or '  '
-    local status = live and (live:running() and 'running' or 'open') or when(item.updated_at)
+    local status = status_of(live, item.updated_at)
 
     rows[#rows + 1] = {
       label = mark .. (item.title or (live and live.title) or 'untitled'),
@@ -66,7 +104,7 @@ function sessions.open(opts)
           Timer.defer(settings:get('confirm_ms'), function()
             if pending == row.id then
               pending = nil
-              row.description = row.key and 'open' or when(row.updated_at)
+              row.description = status_of(row.key and hub.session(row.key), row.updated_at)
               if picker:is_open() then picker:set_items(rows) end
             end
           end)
@@ -118,7 +156,7 @@ function sessions.open(opts)
         actions = { { key = '<C-x>', desc = 'Delete the session (press twice)', run = delete } },
         hints = {
           { '<CR>', 'open / new' },
-          { '<C-x><C-x>', 'delete' },
+          { '<C-x>', 'delete (press twice)' },
           { '<C-n>/<C-p>', 'move' },
           { '<Esc>', 'close' },
         },

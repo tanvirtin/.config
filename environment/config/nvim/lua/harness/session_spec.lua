@@ -133,7 +133,7 @@ describe('harness.session:', function()
     eq(session, asked.session)
     eq('always', agent:selected())
     eq({ { tool = 'Bash', allowed = true } }, result.permissions)
-    eq({ kind = 'permission', tool = 'Bash', allowed = true }, session.history[2])
+    eq({ kind = 'permission', tool = 'Bash', allowed = true, id = 't1' }, session.history[2])
   end)
 
   it('waits for an approve that answers later', function()
@@ -355,7 +355,10 @@ describe('harness.session:', function()
 
       eq({ outcome = { outcome = 'cancelled' } }, reply().result)
       eq(true, dismissed)
-      eq({ kind = 'permission', tool = 'Edit', allowed = false }, session.history[#session.history])
+      eq(
+        { kind = 'permission', tool = 'Edit', allowed = false, id = 't1', cancelled = true },
+        session.history[#session.history]
+      )
       eq(nil, next(session._pending))
     end)
 

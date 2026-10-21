@@ -25,6 +25,12 @@ function display.view_of(session)
   end
 end
 
+function display.showing(session)
+  local view = display.view_of(session)
+
+  return view ~= nil and view:is_visible()
+end
+
 function display.buffer_of(session)
   local view = display.view_of(session)
 

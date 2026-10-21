@@ -183,9 +183,55 @@ describe('harness.transcript.decorators:', function()
     eq('  2s', virt(done[1].opts))
   end)
 
-  it('marks error notes and leaves others plain', function()
-    eq(2, #decorators.decorate(make(Block.KIND.note, { 'a', 'b' }, { error = true }), {}))
+  it('draws every note as a cross, its label and its detail, with errors in the error colour', function()
+    local error =
+      decorators.decorate(make(Block.KIND.note, { 'error: not logged in', 'retry' }, { label = 'error' }), {})
+    local refused = decorators.decorate(make(Block.KIND.note, { 'refused: Bash' }, { label = 'refused' }), {})
+
+    eq(theme.TOOL_ICONS.failed[1], virt(error[1].opts))
+    eq({ 0, 6, 'UiError' }, { error[2].col, error[2].opts.end_col, error[2].opts.hl_group })
+    eq('UiError', error[3].opts.hl_group)
+    eq('UiError', error[5].opts.hl_group)
+    eq('UiMuted', refused[3].opts.hl_group)
     eq(0, #decorators.decorate(make(Block.KIND.note, { 'a' }), {}))
+  end)
+
+  it('draws plan entries with the plan marks, muting what is done', function()
+    local marks = decorators.decorate(
+      make(Block.KIND.plan, { 'plan', '- [x] read', '- [ ] edit' }, { statuses = { 'completed', 'in_progress' } }),
+      {}
+    )
+
+    assert.truthy(find(marks, function(opts, mark)
+      return mark.row == 1 and virt(opts) == theme.PLAN_ICONS.completed[1]
+    end))
+    assert.truthy(find(marks, function(opts, mark)
+      return mark.row == 2 and virt(opts) == theme.PLAN_ICONS.in_progress[1]
+    end))
+    assert.truthy(find(marks, function(opts, mark)
+      return mark.row == 2 and opts.conceal == '' and opts.end_col == 6
+    end))
+  end)
+
+  it('marks a tool its turn left unfinished, and one whose permission was refused or cancelled', function()
+    local function tail(fields, ctx)
+      local marks = decorators.decorate(
+        make(Block.KIND.tool, { '-> Bash ls' }, vim.tbl_extend('force', { name = 'Bash', argument = 'ls' }, fields)),
+        ctx or { running = false }
+      )
+      local found = find(marks, function(opts)
+        return opts.virt_text_pos == 'eol'
+      end)
+
+      return found and virt(found.opts), marks
+    end
+
+    local text, marks = tail({ status = 'in_progress', interrupted = true })
+
+    eq('  interrupted', text)
+    eq(theme.TOOL_ICONS.failed[1], marks[2].opts.virt_text[1][1])
+    eq('  refused', tail({ status = 'failed', denied = 'refused' }))
+    eq('  cancelled', tail({ status = 'failed', denied = 'cancelled' }))
   end)
 
   it('rails nested blocks, branching at tools and closing the tree after the last child', function()

@@ -50,11 +50,13 @@ function commands.run(prompt, opts, range)
     tools.set_focus(from.win, from.buf)
     commands.open(session, { source_win = from.win, source_buf = from.buf })
 
-    return async.await(hub.prompt(session, prompt, where))
+    local _, turn = hub.send(session, prompt, where)
+
+    return turn and async.await(turn) or nil
   end)
 
   task:on_complete(function(err)
-    if err then warn(tostring(err)) end
+    if err and not (view and display.showing(view.session)) then warn(tostring(err)) end
   end)
 
   return task

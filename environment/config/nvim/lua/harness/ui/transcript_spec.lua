@@ -110,14 +110,14 @@ describe('harness.ui.transcript:', function()
         '\n'
       )
 
-      assert.is_truthy(out:find('**plan**\n- [x] rename\n- [ ] test', 1, true))
+      assert.is_truthy(out:find('plan\n- [x] rename\n- [ ] test', 1, true))
       assert.is_truthy(out:find('```diff\n--- /a.lua', 1, true))
       assert.is_truthy(out:find('-local x = 1\n+local y = 1', 1, true))
       eq(1, select(2, out:gsub('```diff', '')))
-      assert.is_truthy(out:find('*refused:* `Bash`', 1, true))
-      eq(nil, out:find('`Read`', 1, true))
-      assert.is_truthy(out:find('*failed:* `Bash`', 1, true))
-      assert.is_truthy(out:find('**error:** not logged in', 1, true))
+      assert.is_truthy(out:find('refused: Bash', 1, true))
+      eq(nil, out:find('Read', 1, true))
+      assert.is_truthy(out:find('failed: Bash', 1, true))
+      assert.is_truthy(out:find('error: not logged in', 1, true))
     end)
   end)
 
@@ -551,7 +551,7 @@ describe('harness.ui.transcript:', function()
         end)
 
         eq('allow', reply.result.outcome.optionId)
-        eq({ kind = 'permission', tool = 'Edit', allowed = true }, asked.history[2])
+        eq({ kind = 'permission', tool = 'Edit', allowed = true, id = 't1' }, asked.history[2])
         eq({}, transcript.asks_of(asked))
       end)
 

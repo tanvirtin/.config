@@ -184,7 +184,9 @@ function Session:prompt(text, context, opts)
     if self:running() then self.state = Session.STATE.idle end
 
     if not ok then
+      self.turn_ended = Timer.now()
       self:_emit(events.error(tostring(result)))
+      self:_emit(events.stop('error'))
       error(result, 0)
     end
 

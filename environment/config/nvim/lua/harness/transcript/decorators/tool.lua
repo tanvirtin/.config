@@ -25,6 +25,7 @@ local SUMMARY = {
 local function icon_of(block, ctx, live, waiting)
   if waiting then return theme.WAITING_ICON end
   if live then return { context.spinner(ctx) .. ' ', 'UiToolPending' } end
+  if block.interrupted then return { theme.TOOL_ICONS.failed[1], 'UiMuted' } end
 
   return theme.TOOL_ICONS[block.status] or theme.TOOL_ICONS[Block.STATUS.pending]
 end
@@ -61,6 +62,12 @@ local function tail_of(block, ctx, live, waiting)
   if block.nested then add({ subagent_summary(block, live), 'UiMuted' }) end
   if block.added or block.removed then
     add({ '+' .. (block.added or 0), 'UiAdded' }, { ' ' }, { '−' .. (block.removed or 0), 'UiRemoved' })
+  end
+
+  if block.denied then
+    add({ block.denied, 'UiWarn' })
+  elseif block.interrupted and not live then
+    add({ 'interrupted', 'UiMuted' })
   end
 
   if waiting then

@@ -128,9 +128,11 @@ local function deliver(outgoing, opts)
 
   if source.buf then tools.set_focus(source.win, source.buf) end
 
-  if task then task:on_complete(function(err)
-    if err then warn(tostring(err)) end
-  end) end
+  if task then
+    task:on_complete(function(err)
+      if err and not display.showing(session) then warn(tostring(err)) end
+    end)
+  end
 
   return true, how
 end

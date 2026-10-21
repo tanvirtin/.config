@@ -10,4 +10,5 @@ return Config({
   live_turns = 50,
   diff_context = 3,
   diff_preview_lines = 12,
+  argument_max = 120,
 })

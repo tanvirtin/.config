@@ -48,8 +48,21 @@ describe('harness.ui.sessions:', function()
     local rows = sessions.rows(hub.list('/w'):wait())
 
     eq('+ New session', rows[1].label)
-    eq({ '○ Today', 'open', live.key }, { rows[2].label, rows[2].description, rows[2].key })
-    eq({ '  Yesterday', '2026-10-17 09:30', 'old' }, { rows[3].label, rows[3].description, rows[3].id })
+    eq({ '○ Today', 'idle', live.key }, { rows[2].label, rows[2].description, rows[2].key })
+    eq(
+      { '  Yesterday', sessions.when('2026-10-17T09:30:00Z'), 'old' },
+      { rows[3].label, rows[3].description, rows[3].id }
+    )
+  end)
+
+  it('says how long ago a stored session was used, in plain words', function()
+    local now = 1792229400
+
+    eq('just now', sessions.when('2026-10-17T09:30:00Z', now + 30))
+    eq('5 min ago', sessions.when('2026-10-17T09:30:00Z', now + 300))
+    eq('3h ago', sessions.when('2026-10-17T09:30:00Z', now + 3 * 3600))
+    eq('2d ago', sessions.when('2026-10-17T09:30:00Z', now + 2 * 86400))
+    eq('2026-10-17', sessions.when('2026-10-17T09:30:00Z', now + 30 * 86400))
   end)
 
   it('tells the user its keys', function()
@@ -58,7 +71,7 @@ describe('harness.ui.sessions:', function()
       return hint[1] .. ' ' .. hint[2]
     end, picker:hints())
 
-    eq({ '<CR> open / new', '<C-x><C-x> delete', '<C-n>/<C-p> move', '<Esc> close' }, hints)
+    eq({ '<CR> open / new', '<C-x> delete (press twice)', '<C-n>/<C-p> move', '<Esc> close' }, hints)
   end)
 
   it('opens a stored session, loading it', function()

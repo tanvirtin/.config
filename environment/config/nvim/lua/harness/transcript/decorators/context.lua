@@ -7,7 +7,9 @@ context.FINISHED = { [Block.STATUS.completed] = true, [Block.STATUS.failed] = tr
 
 function context.live_tool(block, ctx)
   if block.kind ~= Block.KIND.tool then return false end
-  if ctx.active and block.id and ctx.active[block.id] then return true end
+  if ctx.active and ((block.id and ctx.active[block.id]) or (block.parent and ctx.active[block.parent])) then
+    return true
+  end
 
   return ctx.running == true and not context.FINISHED[block.status]
 end

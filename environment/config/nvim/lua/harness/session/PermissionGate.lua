@@ -37,7 +37,7 @@ function PermissionGate:request(params)
     local allowed = kind:sub(1, 5) == 'allow'
 
     session:_record_permission(tool, allowed)
-    session:_emit(events.permission(tool, allowed))
+    session:_emit(events.permission(tool, allowed, { id = pending.id }))
     answer:set_result({ outcome = Connection.permission_outcome(params.options, kind) })
   end
 
@@ -74,7 +74,7 @@ function PermissionGate:cancel_all()
   for pending in pairs(self.pending) do
     self.pending[pending] = nil
     if pending.dismiss then pcall(pending.dismiss) end
-    self.session:_emit(events.permission(pending.tool, false))
+    self.session:_emit(events.permission(pending.tool, false, { id = pending.id, cancelled = true }))
     pending.answer:set_result({ outcome = Connection.permission_outcome(nil, Connection.DECISION.cancelled) })
   end
 

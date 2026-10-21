@@ -21,7 +21,7 @@ describe('harness.session.PermissionGate:', function()
     local answer = gate:request(PARAMS)
 
     eq({ outcome = { outcome = 'selected', optionId = 'yes' } }, answer.result)
-    eq({ kind = events.KIND.permission, tool = 'Edit', allowed = true }, session.emitted[1])
+    eq({ kind = events.KIND.permission, tool = 'Edit', allowed = true, id = 't1' }, session.emitted[1])
     eq({}, gate:waiting())
   end)
 

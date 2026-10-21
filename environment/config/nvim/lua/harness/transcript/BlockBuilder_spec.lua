@@ -48,7 +48,44 @@ describe('harness.transcript.BlockBuilder:', function()
       Block.KIND.prompt,
       Block.KIND.plan,
     }, kinds(list))
-    eq({ '**plan**', '- [x] a' }, list[4].lines)
+    eq({ 'plan', '- [x] a' }, list[4].lines)
+    eq({ Block.STATUS.completed }, list[4].statuses)
+  end)
+
+  it('puts a refusal on its tool, keeps a cancel quiet, and notes a refusal with no tool', function()
+    local list = blocks.build({
+      events.prompt('go'),
+      { kind = 'tool_call', id = 'a', name = 'Edit', diffs = {} },
+      events.permission('Edit', false, { id = 'a' }),
+      { kind = 'tool_call', id = 'b', name = 'Bash', diffs = {} },
+      events.permission('Bash', false, { id = 'b', cancelled = true }),
+      events.permission('mcp__nvim__lua', false),
+    })
+
+    eq({ 'refused', 'cancelled' }, { list[3].denied, list[4].denied })
+    eq({ 'refused: nvim:lua' }, list[5].lines)
+    eq('refused', list[5].label)
+  end)
+
+  it('marks tools a finished turn left unfinished, but not those of the turn still running', function()
+    local ended = blocks.build({
+      events.prompt('go'),
+      { kind = 'tool_call', id = 'a', name = 'Bash', status = 'in_progress', diffs = {} },
+      events.stop('cancelled'),
+    })
+    local running = blocks.build({
+      events.prompt('go'),
+      { kind = 'tool_call', id = 'a', name = 'Bash', status = 'in_progress', diffs = {} },
+    })
+
+    eq(true, ended[3].interrupted)
+    assert.is_nil(running[3].interrupted)
+  end)
+
+  it('treats a stop without a reason as done, and keeps a failed turn\'s stop', function()
+    local list = blocks.build({ events.prompt('go'), events.stop(nil), events.prompt('again'), events.stop('error') })
+
+    eq({ 'end_turn', 'error' }, { list[3].reason, list[5].reason })
   end)
 
   it('gives a tool block the latest title and status of its call', function()
