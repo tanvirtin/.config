@@ -27,6 +27,28 @@ describe('harness.transcript.calculators.FoldCalculator:', function()
     eq('1', FoldCalculator.level(blocks, 6))
   end)
 
+  it('leaves the row that closes a nested run out of its fold, unless a tool follows it tight', function()
+    local function blocks(tight)
+      return {
+        { start = 0, finish = 2, lines = { 'a' }, index = 1 },
+        { start = 2, finish = 4, lines = { 'b' }, depth = 1, parent = 't', index = 2 },
+        {
+          start = 4,
+          finish = 6,
+          lines = { 'c' },
+          depth = 1,
+          parent = 't',
+          last_child = true,
+          tight = tight,
+          index = 3,
+        },
+      }
+    end
+
+    eq({ '1', '0' }, { FoldCalculator.level(blocks(nil), 4), FoldCalculator.level(blocks(nil), 5) })
+    eq('1', FoldCalculator.level(blocks(true), 5))
+  end)
+
   it('leaves rows outside every block unfolded', function()
     eq('0', FoldCalculator.level({ { start = 0, finish = 2, index = 1 } }, 5))
     eq('0', FoldCalculator.level({}, 0))

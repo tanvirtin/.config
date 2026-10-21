@@ -227,12 +227,17 @@ local function build_turn(history, from, to, opts, last_turn, updates)
       local stat = edit:stat()
       local added, removed = stat.added, stat.removed
       local last = list[#list]
+      local preview = settings:get('diff_preview_lines')
+      local folds = {}
+
+      if patch and #patch.lines > preview + 1 then folds[1] = { Block.DIFF_HEADER + preview, #lines - 2 } end
 
       add(Block.KIND.diff, lines, {
         id = id,
         patch = patch and { rows = patch.rows, highlights = patch.highlights, words = patch.words } or nil,
         whole = edit.whole,
         edit = edit.file,
+        folds = folds,
         attached = last ~= nil and last.id == id and (last.kind == Block.KIND.tool or last.kind == Block.KIND.diff),
         path = diff.path,
         added = added,
@@ -279,7 +284,7 @@ local function build_turn(history, from, to, opts, last_turn, updates)
           lines[#lines + 1] = fence
 
           if #body > settings:get('preview_lines') + 1 then
-            folds[1] = { 2 + settings:get('preview_lines'), #lines - 1 }
+            folds[1] = { 2 + settings:get('preview_lines'), #lines - 2 }
           end
         end
       end

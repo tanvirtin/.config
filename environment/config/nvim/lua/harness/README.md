@@ -69,7 +69,7 @@ The harness follows vgit's shape: a domain that knows nothing of buffers, stores
 ```lua
 require('harness').setup({
   max_running = 4,                                      -- hub policy: agent, auto_allow, max_depth, ask
-  transcript = { live_turns = 50, tick_ms = 100, preview_lines = 5, output_max = 200 },
+  transcript = { live_turns = 50, tick_ms = 100, preview_lines = 5, output_max = 200, diff_context = 3, diff_preview_lines = 12 },
   composer = { height = 6 },
   follow = { debounce_ms = 300, grace_ms = 1500, poll_ms = 3000 },
   keymaps = { transcript = { yank = 'gy', plan = 'gp', diff = 'gd' }, composer = { steer = '<C-s>' } },
@@ -253,10 +253,10 @@ In a transcript:
 | `✓ bash    seq 1 20` with a spinner while it runs, then `✓` or `✗` | the tool call: a lowercase verb and its main argument (command, path, pattern, url) |
 | `1 line`, `12 results` at the right edge | the result of reads and searches |
 | Output under a `│` rail, the first 5 lines shown and the rest folded | commands, searches and fetches; failures show their error. Output is shown verbatim: its fence is longer than any backtick run in it |
-| `✓ edit    a.lua   +2 −2`, then the change under a `│` rail as vgit lays it out: three lines of context, file line numbers, add and delete backgrounds, changed words marked on top of the file's own syntax colours | edits. ACP sends a snippet; `EditResolver` finds it in the file to rebuild the whole file before and after (from the old text while the edit waits for permission), and `vgit.api.patch` lays that out. An edit it can't find, or one that failed, shows just its snippet with no numbers. A finished edit is frozen, so later changes to the file don't move it. Agents reading the session get the same change as a classic `+`/`-` diff. A diff shown away from its edit keeps a path line |
+| `✓ edit    a.lua   +2 −2`, then the change under a `│` rail as vgit lays it out: three lines of context, file line numbers, add and delete backgrounds, changed words marked on top of the file's own syntax colours | edits. ACP sends a snippet; `EditResolver` finds it in the file to rebuild the whole file before and after (from the old text while the edit waits for permission), and `vgit.api.patch` lays that out. An edit it can't find, or one that failed, shows just its snippet with no numbers. A finished edit is frozen, so later changes to the file don't move it. Past 12 rows the rest of a diff is folded. Agents reading the session get the same change as a classic `+`/`-` diff. A diff shown away from its edit keeps a path line |
 | `[!thought]` callout with how long it took, folded | thoughts |
-| `✓ agent   List files   2 tools` while it runs, then `6s · 2 tools`, with the sub-agent's tools (`├`) and report (`│`) on a tree closed by `└`, folded as one | sub-agents (Agent/Task calls), from the block's own status and times. Their prose is indented two spaces so wrapped lines keep the rail |
-| `✓ read 3 files, searched 1 pattern` over `⋯ 3 tools` | a run of two or more finished reads and searches in a turn; live and failed tools never group, and agents reading the session still see each tool |
+| `✓ agent   List files   2 tools` while it runs, then `6s · 2 tools`, with the sub-agent's tools (`├`) and report (`│`) on a tree closed by `└`, folded as one | sub-agents (Agent/Task calls), from the block's own status and times. Folded, the tree shows what it holds on its rail (`│ ⋯ 2 tools · 1 reply`). Their prose is indented two spaces so wrapped lines keep the rail |
+| `✓ read 3 files, searched 1 pattern` over `└ ⋯ 3 tools` | a run of two or more finished reads and searches in a turn; live and failed tools never group, and agents reading the session still see each tool |
 | `󰁝 120 earlier turns · <CR> to show` | turns older than `live_turns` |
 | A box-drawn table | pipe tables in a reply |
 | The current turn's prompt in the winbar (`❯ fix the parser`) | once that prompt scrolls out of view |

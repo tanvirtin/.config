@@ -116,7 +116,7 @@ describe('harness.transcript.BlockBuilder:', function()
     eq('```output', tool.lines[2])
     eq('10', tool.lines[12])
     eq('```', tool.lines[13])
-    eq({ { 2 + require('harness.settings.transcript'):get('preview_lines'), 12 } }, tool.folds)
+    eq({ { 2 + require('harness.settings.transcript'):get('preview_lines'), 11 } }, tool.folds)
   end)
 
   it('leaves reads and agent transcripts without output', function()
@@ -282,6 +282,32 @@ describe('harness.transcript.BlockBuilder:', function()
           'return x',
         },
       }, shown.edit)
+    end)
+
+    it('folds a long diff after its preview, like long output', function()
+      local lines = {}
+
+      for i = 1, 40 do
+        lines[i] = 'n = ' .. i
+      end
+
+      local shown = diff_blocks(blocks.build({
+        {
+          kind = 'tool_call',
+          id = 't1',
+          name = 'Write',
+          diffs = { { path = '/n.py', old = '', new = table.concat(lines, '\n') } },
+        },
+      }))[1]
+      local preview = require('harness.settings.transcript'):get('diff_preview_lines')
+
+      eq({ { Block.DIFF_HEADER + preview, #shown.lines - 2 } }, shown.folds)
+      eq(
+        {},
+        diff_blocks(blocks.build({
+          { kind = 'tool_call', id = 't1', name = 'Edit', diffs = { diff('local x = 3\n') } },
+        }))[1].folds
+      )
     end)
 
     it('gives agents a classic +/- diff when building text', function()

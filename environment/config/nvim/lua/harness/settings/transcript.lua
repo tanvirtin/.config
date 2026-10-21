@@ -9,4 +9,5 @@ return Config({
   request_preview = 80,
   live_turns = 50,
   diff_context = 3,
+  diff_preview_lines = 12,
 })

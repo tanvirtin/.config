@@ -18,6 +18,8 @@ function FoldCalculator.level(blocks, row)
     end
   end
 
+  if base > 0 and block.last_child and not block.tight and row >= block.start + #block.lines then return '0' end
+
   if base > 0 then
     local previous = block.index and blocks[block.index - 1]
     local opens = not previous or previous.parent ~= block.parent

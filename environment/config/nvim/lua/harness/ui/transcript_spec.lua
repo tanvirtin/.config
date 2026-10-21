@@ -607,36 +607,67 @@ describe('harness.ui.transcript:', function()
       Fold.range = original
     end)
 
-    it('counts tools when a fold hides only grouped tools, and lines otherwise', function()
+    local function text()
+      return table.concat(vim.tbl_map(function(chunk)
+        return chunk[1]
+      end, transcript.foldtext()))
+    end
+
+    it(
+      'counts tools when a fold hides only grouped tools, and lines otherwise, closing the tree when it takes its end',
+      function()
+        local session = Session({ key = 'h' .. math.random(1e6), id = 's1', connection = Connection(fake_agent.new()) })
+
+        session:_emit(events.prompt('look'))
+
+        for _, id in ipairs({ 'a', 'b' }) do
+          session:_emit({ kind = 'tool_call', id = id, name = 'Read', category = 'read', diffs = {} })
+          session:_emit({ kind = 'tool_update', id = id, status = 'completed', output = 'x', diffs = {} })
+        end
+
+        transcript.open(session)
+
+        local blocks = transcript.view().document.blocks
+        local header
+
+        for _, block in ipairs(blocks) do
+          if block.grouped then header = block end
+        end
+
+        local last = blocks[header.index + 2]
+
+        Fold.range = function()
+          return header.finish + 1, last.finish
+        end
+        eq(require('harness.transcript.theme').BRANCH_END .. '⋯ 2 tools', text())
+
+        Fold.range = function()
+          return 1, 3
+        end
+        eq('  ⋯ 3 more lines', text())
+      end
+    )
+
+    it('sums up a folded sub-agent by its tools and replies', function()
       local session = Session({ key = 'h' .. math.random(1e6), id = 's1', connection = Connection(fake_agent.new()) })
 
-      session:_emit(events.prompt('look'))
-
-      for _, id in ipairs({ 'a', 'b' }) do
-        session:_emit({ kind = 'tool_call', id = id, name = 'Read', category = 'read', diffs = {} })
-        session:_emit({ kind = 'tool_update', id = id, status = 'completed', output = 'x', diffs = {} })
-      end
-
+      session:_emit(events.prompt('delegate'))
+      session:_emit({ kind = 'tool_call', id = 'A', name = 'Agent', diffs = {} })
+      session:_emit({ kind = 'tool_call', id = 'r', name = 'Bash', parent = 'A', diffs = {} })
+      session:_emit({ kind = 'message', text = 'found it', parent = 'A' })
       transcript.open(session)
 
       local blocks = transcript.view().document.blocks
-      local header
+      local agent
 
       for _, block in ipairs(blocks) do
-        if block.grouped then header = block end
+        if block.id == 'A' then agent = block end
       end
-
-      local last = blocks[header.index + 2]
 
       Fold.range = function()
-        return header.finish + 1, last.finish
+        return agent.finish + 1, blocks[agent.index + 2].finish
       end
-      eq('  ⋯ 2 tools', transcript.foldtext()[1][1])
-
-      Fold.range = function()
-        return 1, 3
-      end
-      eq('  ⋯ 3 more lines', transcript.foldtext()[1][1])
+      eq(require('harness.transcript.theme').GUTTER .. '⋯ 1 tool · 1 reply', text())
     end)
   end)
 

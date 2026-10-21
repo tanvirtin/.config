@@ -17,6 +17,7 @@ local links = require('harness.ui.links')
 local permission_prompt = require('harness.ui.permission_prompt')
 local register = require('core.register')
 local settings = require('harness.settings')
+local theme = require('harness.transcript.theme')
 local vgit = require('harness.vgit')
 local winbar = require('harness.ui.winbar')
 
@@ -57,28 +58,54 @@ function transcript.foldexpr()
   return view and view.document:fold_level(Fold.lnum() - 1) or '0'
 end
 
-local function tools_in(view, first, last)
-  local count = 0
+local SUMMED = { [Block.KIND.tool] = 'tool', [Block.KIND.message] = 'reply' }
+
+local function children_in(view, first, last)
+  local counts = {}
 
   for _, block in ipairs(view.document.blocks) do
-    if block.start >= first and block.finish <= last then
-      if block.kind ~= Block.KIND.tool or not block.depth then return nil end
-      count = count + 1
+    if block.start >= first and block.start < last then
+      if not block.depth then return nil end
+
+      local noun = SUMMED[block.kind]
+
+      if noun then counts[noun] = (counts[noun] or 0) + 1 end
     end
   end
 
-  return count > 0 and count or nil
+  local parts = {}
+
+  for _, noun in ipairs({ 'tool', 'reply' }) do
+    local n = counts[noun]
+
+    if n then
+      parts[#parts + 1] = string.format('%d %s', n, n == 1 and noun or (noun == 'reply' and 'replies' or noun .. 's'))
+    end
+  end
+
+  return #parts > 0 and table.concat(parts, ' · ') or nil
+end
+
+local function rails(view, row, last)
+  local block = view and view.document:block_at(row)
+  local depth = block and (block.depth or 0) + (row > block.start and 1 or 0) or 0
+
+  if depth == 0 then return '  ' end
+
+  local tail = view.document:block_at(last)
+  local closes = tail and tail.last_child and last >= tail.start + #tail.lines and row == block.start
+
+  return string.rep(theme.GUTTER, depth - 1) .. (closes and theme.BRANCH_END or theme.GUTTER)
 end
 
 function transcript.foldtext()
   local first, last = Fold.range()
   local hidden = last - first + 1
   local view = display.view()
-  local tools = view and tools_in(view, first - 1, last)
-  local text = tools and string.format('  ⋯ %d tool%s', tools, tools == 1 and '' or 's')
-    or string.format('  ⋯ %d more line%s', hidden, hidden == 1 and '' or 's')
+  local children = view and children_in(view, first - 1, last)
+  local text = children and '⋯ ' .. children or string.format('⋯ %d more line%s', hidden, hidden == 1 and '' or 's')
 
-  return { { text, 'UiMuted' } }
+  return { { rails(view, first - 1, last - 1), 'UiMuted' }, { text, 'UiMuted' } }
 end
 
 local function target_at(view, window)
