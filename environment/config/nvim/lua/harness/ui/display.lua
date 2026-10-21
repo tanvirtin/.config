@@ -74,11 +74,7 @@ function display.open(session, opts)
   end
 
   if not opts.background then
-    local window = Window.get_current()
-
-    window:set_buffer(view.buffer)
-    TranscriptView.to_bottom(window)
-    view.document:decorate_visible()
+    view:show_in(Window.get_current())
     last_buf = view.bufnr
   end
 

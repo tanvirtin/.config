@@ -2,7 +2,8 @@ local dataclass = require('core.dataclass')
 
 local Block
 
-local KIND = dataclass.enum({ 'title', 'prompt', 'message', 'thought', 'tool', 'diff', 'plan', 'note', 'stop' })
+local KIND =
+  dataclass.enum({ 'title', 'collapsed', 'prompt', 'message', 'thought', 'tool', 'diff', 'plan', 'note', 'stop' })
 
 local STRING, NUMBER, BOOLEAN, TABLE =
   { type = 'string' }, { type = 'number' }, { type = 'boolean' }, { type = 'table' }
@@ -37,6 +38,7 @@ Block = dataclass.define('Block', {
   reason = STRING,
   duration = NUMBER,
   tools = NUMBER,
+  hidden = NUMBER,
   start = NUMBER,
   finish = NUMBER,
   index = NUMBER,

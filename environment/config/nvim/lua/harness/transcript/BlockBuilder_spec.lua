@@ -345,4 +345,31 @@ describe('harness.transcript.BlockBuilder:', function()
       eq('````', list[2].lines[#list[2].lines])
     end)
   end)
+
+  it('collapses turns older than live_turns into one block, building only the recent ones', function()
+    local history = {}
+
+    for i = 1, 5 do
+      events.append(history, events.prompt('turn ' .. i))
+      events.append(history, { kind = 'message', text = 'reply ' .. i })
+    end
+
+    local list = blocks.build(history, nil, { live_turns = 2 })
+
+    eq(Block.KIND.collapsed, list[2].kind)
+    eq(3, list[2].hidden)
+    eq({ '3 earlier turns · <CR> to show' }, list[2].lines)
+    eq('> turn 4', list[3].lines[1])
+    eq(#blocks.build(history, nil, {}) - 6 + 1, #list)
+  end)
+
+  it('collapses nothing when the session is within live_turns', function()
+    local history = {}
+
+    events.append(history, events.prompt('only'))
+
+    for _, block in ipairs(blocks.build(history, nil, { live_turns = 2 })) do
+      assert.are_not.equal(Block.KIND.collapsed, block.kind)
+    end
+  end)
 end)

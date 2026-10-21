@@ -95,7 +95,7 @@ function Document:_live(block)
 end
 
 function Document:reset()
-  self.lines = {}
+  self.lines = self.buffer:is_valid() and self.buffer:get_lines() or {}
   self.blocks = {}
   self.pending = {}
 end

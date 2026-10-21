@@ -142,6 +142,12 @@ function transcript.activate(buf)
 
   local block = view.document:block_at(row - 1)
 
+  if block and block.kind == Block.KIND.collapsed then
+    view:expand()
+    window:set_cursor({ 1, 0 })
+    return true
+  end
+
   if block and block.folds and block.folds[1] then
     toggle_at(window, block.start + block.folds[1][1] + 1, row)
     return true

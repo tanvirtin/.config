@@ -428,7 +428,19 @@ function blocks.build(history, title, opts)
     end
   end
 
-  for n, from in ipairs(starts) do
+  local first = 1
+
+  if opts.live_turns and #starts > opts.live_turns then
+    first = #starts - opts.live_turns + 1
+    list[#list + 1] = Block.make(
+      Block.KIND.collapsed,
+      { string.format('%d earlier turn%s · <CR> to show', first - 1, first == 2 and '' or 's') },
+      { hidden = first - 1 }
+    )
+  end
+
+  for n = first, #starts do
+    local from = starts[n]
     local to = (starts[n + 1] or #history + 1) - 1
     local last_turn = n == #starts
     local cached = cache and cache[from]

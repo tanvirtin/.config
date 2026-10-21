@@ -149,11 +149,13 @@ function TranscriptView:render()
   local state = self:state()
 
   self.document:write(
-    BlockBuilder.build(
-      session.history,
-      session.title,
-      { times = session.times, dir = session.dir, running = state.running, cache = self.cache }
-    ),
+    BlockBuilder.build(session.history, session.title, {
+      times = session.times,
+      dir = session.dir,
+      running = state.running,
+      cache = self.cache,
+      live_turns = not self.expanded and settings.transcript:get('live_turns') or nil,
+    }),
     state
   )
 
@@ -232,6 +234,31 @@ function TranscriptView:on_show()
     self.document:reset()
     self.dirty = true
   end
+
+  if self.opening then return end
+
+  if self.dirty then
+    self:render()
+  else
+    self.document:decorate_visible()
+  end
+end
+
+function TranscriptView:expand()
+  if self.expanded then return false end
+
+  self.expanded = true
+  self.dirty = true
+  self:render()
+
+  return true
+end
+
+function TranscriptView:show_in(window)
+  self.opening = true
+  window:set_buffer(self.buffer)
+  self.opening = false
+  TranscriptView.to_bottom(window)
 
   if self.dirty then
     self:render()

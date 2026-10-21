@@ -3,6 +3,7 @@ local Block = require('harness.transcript.Block')
 local decorators = {}
 
 decorators.KIND = {
+  [Block.KIND.collapsed] = require('harness.transcript.decorators.collapsed'),
   [Block.KIND.prompt] = require('harness.transcript.decorators.prompt'),
   [Block.KIND.tool] = require('harness.transcript.decorators.tool'),
   [Block.KIND.diff] = require('harness.transcript.decorators.diff'),

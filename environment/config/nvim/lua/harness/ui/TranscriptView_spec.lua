@@ -47,6 +47,32 @@ describe('harness.ui.TranscriptView:', function()
     view:dispose()
   end)
 
+  it('lands at the bottom when shown, decorating only around where the window lands', function()
+    for i = 1, 60 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    local view = TranscriptView(session):mount()
+
+    view:show_in(require('core.Window').get_current())
+
+    local win = vim.api.nvim_get_current_win()
+    local document = require('harness.ui.document')
+
+    eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
+    eq({}, vim.api.nvim_buf_get_extmarks(view.bufnr, document.NAMESPACE, 0, { 3, 0 }, {}))
+    assert.is_true(
+      #vim.api.nvim_buf_get_extmarks(
+          view.bufnr,
+          document.NAMESPACE,
+          { view.document.blocks[#view.document.blocks].start, 0 },
+          -1,
+          {}
+        ) > 0
+    )
+    view:dispose()
+  end)
+
   it('lets go of the session, its timer and its autocmds when disposed', function()
     local view = TranscriptView(session):mount()
     local group = view.group.id
@@ -57,5 +83,26 @@ describe('harness.ui.TranscriptView:', function()
     eq({}, session._listeners)
     eq(false, view.timer:is_active())
     eq(false, pcall(vim.api.nvim_get_autocmds, { group = group }))
+  end)
+
+  it('collapses old turns until expanded, then shows them all', function()
+    local settings = require('harness.settings.transcript')
+    local saved = settings:get('live_turns')
+
+    settings:set('live_turns', 2)
+
+    for i = 1, 5 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    local view = TranscriptView(session):mount()
+
+    eq('collapsed', view.document.blocks[2].kind)
+    assert.is_true(view:expand())
+    assert.is_false(view:expand())
+    eq('> turn 1', vim.api.nvim_buf_get_lines(view.bufnr, 2, 3, false)[1])
+
+    settings:set('live_turns', saved)
+    view:dispose()
   end)
 end)

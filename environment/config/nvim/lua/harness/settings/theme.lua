@@ -20,4 +20,5 @@ return Config({
   path_icon = '󰈔 ',
   gutter = '  │ ',
   hunk = '┈┈┈┈',
+  collapsed_icon = '󰁝 ',
 })

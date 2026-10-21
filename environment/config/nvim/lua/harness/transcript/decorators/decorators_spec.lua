@@ -127,4 +127,13 @@ describe('harness.transcript.decorators:', function()
       return opts.virt_lines and opts.virt_lines[1][1][1] == ' ' .. theme.AGENT_ICON .. 'Claude'
     end))
   end)
+
+  it('shows a collapsed block muted behind an icon, with the key to open it accented', function()
+    local block = make(Block.KIND.collapsed, { '3 earlier turns · <CR> to show' }, { hidden = 3 })
+    local marks = decorators.decorate(block, {})
+
+    eq(theme.COLLAPSED_ICON, virt(marks[1].opts))
+    eq('UiMuted', marks[2].opts.hl_group)
+    eq({ 19, 23, 'UiAccent' }, { marks[3].col, marks[3].opts.end_col, marks[3].opts.hl_group })
+  end)
 end)

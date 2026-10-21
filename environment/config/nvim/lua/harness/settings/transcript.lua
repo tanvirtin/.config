@@ -7,4 +7,5 @@ return Config({
   output_max = 200,
   queue_preview = 120,
   request_preview = 80,
+  live_turns = 50,
 })

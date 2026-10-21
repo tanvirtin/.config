@@ -103,6 +103,29 @@ describe('harness.ui.document:', function()
     eq({ '# Harness', '', '> hi', '' }, lines(buf))
   end)
 
+  it('after reset rewrites only from the first line the buffer gets wrong', function()
+    emit(events.prompt('one'))
+    emit(events.prompt('two'))
+
+    vim.bo[buf].modifiable = true
+    vim.api.nvim_buf_set_lines(buf, -2, -1, false, { 'edited' })
+    vim.bo[buf].modifiable = false
+
+    local writes = {}
+
+    vim.api.nvim_buf_attach(buf, false, {
+      on_lines = function(_, _, _, first)
+        writes[#writes + 1] = first
+      end,
+    })
+
+    document:reset()
+    document:write(blocks.build(history))
+
+    eq({ #lines(buf) - 1 }, writes)
+    eq('', lines(buf)[#lines(buf)])
+  end)
+
   it('finds the block under a row', function()
     emit(events.prompt('hi'))
     emit({ kind = 'tool_call', id = 't1', title = 'Read', diffs = {} })

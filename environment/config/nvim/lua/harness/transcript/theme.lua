@@ -18,6 +18,7 @@ local FROM_SETTINGS = {
   PATH_ICON = 'path_icon',
   GUTTER = 'gutter',
   HUNK = 'hunk',
+  COLLAPSED_ICON = 'collapsed_icon',
 }
 
 setmetatable(theme, {
