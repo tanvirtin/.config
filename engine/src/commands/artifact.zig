@@ -404,7 +404,7 @@ fn exportAgents(
         output.err("failed to discover MCP servers: {s}", .{@errorName(e)});
         return 1;
     };
-    const json = Artifact.Agent.renderExport(allocator, agents, rules, servers) catch |e| {
+    const json = Artifact.Agent.renderExport(allocator, agents, rules, servers, target.default_agent) catch |e| {
         output.record(.err, .{ .action = "export", .target = target.name, .status = "failed" }, "agents export failed for {s}: {s}", .{ target.name, @errorName(e) });
         return 1;
     };

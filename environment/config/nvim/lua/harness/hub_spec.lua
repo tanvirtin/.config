@@ -163,6 +163,43 @@ describe('harness.hub:', function()
     eq(loaded, hub.load({ dir = '/w', id = 'old' }):wait())
   end)
 
+  it('lists, loads and deletes through the configured default agent', function()
+    hub.config.agent = 'opencode'
+
+    local live = hub.start({ dir = '/w' }):wait()
+    local fake = spawned[1].fake
+
+    eq('opencode', spawned[1].agent)
+
+    fake.stored = { { sessionId = 'old', cwd = '/w', title = 'yesterday' } }
+    fake.histories.old = { { sessionUpdate = 'agent_message_chunk', content = { type = 'text', text = 'hi' } } }
+
+    local items = hub.list('/w'):wait()
+
+    eq({ live.id, 'old' }, { items[1].id, items[2].id })
+
+    local loaded = hub.load({ dir = '/w', id = 'old', title = 'yesterday' }):wait()
+
+    eq('yesterday', loaded.title)
+
+    hub.delete({ dir = '/w', id = 'old' }):wait()
+
+    eq('old', fake:sent_method('session/delete').params.sessionId)
+  end)
+
+  it('falls back to the exported default agent when none is configured', function()
+    local agent = require('harness.agent')
+    local previous = agent.default_name
+
+    agent.default_name = 'opencode'
+
+    hub.start({ dir = '/w' }):wait()
+
+    agent.default_name = previous
+
+    eq('opencode', spawned[1].agent)
+  end)
+
   it('closes a session and forgets it', function()
     local session = hub.start({ dir = '/w' }):wait()
 

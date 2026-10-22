@@ -40,6 +40,19 @@ describe('harness.agent:', function()
     eq({ 'claude', 'gemini', 'opencode' }, agent.names())
   end)
 
+  it('defaults to the agent tin marks as default, else claude', function()
+    agent.load(write_json({
+      agents = { claude = { command = 'claude-agent-acp' }, opencode = { command = 'opencode' } },
+      default = 'opencode',
+    }))
+
+    eq('opencode', agent.get(nil).command)
+
+    agent.load(write_json({ agents = { claude = { command = 'claude-agent-acp' } } }))
+
+    eq('claude-agent-acp', agent.get(nil).command)
+  end)
+
   it('ignores an unreadable file with a warning', function()
     local notify = vim.notify
     local warned

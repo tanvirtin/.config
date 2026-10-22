@@ -125,6 +125,7 @@ pub fn renderExport(
     agents: []const Agent,
     rules: []const Rule,
     servers: []const mcp_mod.Server,
+    default_agent: ?[]const u8,
 ) ![]const u8 {
     const sorted = try allocator.dupe(Agent, agents);
     std.mem.sort(Agent, sorted, {}, lessThan);
@@ -165,6 +166,8 @@ pub fn renderExport(
 
     var root = std.json.ObjectMap.init(allocator);
     try root.put("agents", .{ .object = by_id });
+
+    if (default_agent) |id| try root.put("default", .{ .string = id });
 
     var out = std.io.Writer.Allocating.init(allocator);
     try std.json.Stringify.value(std.json.Value{ .object = root }, .{ .whitespace = .indent_2 }, &out.writer);
@@ -225,7 +228,7 @@ test "renderExport composes the system prompt from rules" {
     }};
     const rules = [_]Rule{.{ .id = "nvim/editor", .description = "r", .content = "use the editor" }};
 
-    const json = try renderExport(a, &agents, &rules, &.{});
+    const json = try renderExport(a, &agents, &rules, &.{}, null);
     const parsed = try std.json.parseFromSlice(std.json.Value, a, json, .{});
     const claude = parsed.value.object.get("agents").?.object.get("claude").?.object;
 
@@ -260,7 +263,7 @@ test "renderExport hands MCP servers over in ACP shape, secrets as variable name
     };
     const agents = [_]Agent{.{ .id = "claude", .description = "d", .command = "c", .mcp = &.{ "tools/search", "mem0" } }};
 
-    const json = try renderExport(a, &agents, &.{}, &servers);
+    const json = try renderExport(a, &agents, &.{}, &servers, null);
     const parsed = try std.json.parseFromSlice(std.json.Value, a, json, .{});
     const list = parsed.value.object.get("agents").?.object.get("claude").?.object.get("mcp").?.array.items;
 
@@ -275,19 +278,37 @@ test "renderExport hands MCP servers over in ACP shape, secrets as variable name
     try std.testing.expectEqualStrings("$MEM0_API_KEY", http.get("headers").?.array.items[0].object.get("value").?.string);
 }
 
+test "renderExport writes the default agent when one is named" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const agents = [_]Agent{
+        .{ .id = "zed", .description = "d", .command = "c" },
+        .{ .id = "claude", .description = "d", .command = "c" },
+    };
+
+    const json = try renderExport(a, &agents, &.{}, &.{}, "zed");
+    const parsed = try std.json.parseFromSlice(std.json.Value, a, json, .{});
+    try std.testing.expectEqualStrings("zed", parsed.value.object.get("default").?.string);
+
+    const none = try renderExport(a, &agents, &.{}, &.{}, null);
+    const parsed_none = try std.json.parseFromSlice(std.json.Value, a, none, .{});
+    try std.testing.expect(parsed_none.value.object.get("default") == null);
+}
+
 test "renderExport refuses an unknown MCP server and orders agents by id" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
 
     const missing = [_]Agent{.{ .id = "x", .description = "d", .command = "c", .mcp = &.{"nope"} }};
-    try std.testing.expectError(Error.UnknownMcpServer, renderExport(a, &missing, &.{}, &.{}));
+    try std.testing.expectError(Error.UnknownMcpServer, renderExport(a, &missing, &.{}, &.{}, null));
 
     const two = [_]Agent{
         .{ .id = "zed", .description = "d", .command = "c" },
         .{ .id = "claude", .description = "d", .command = "c" },
     };
-    const json = try renderExport(a, &two, &.{}, &.{});
+    const json = try renderExport(a, &two, &.{}, &.{}, null);
     try std.testing.expect(std.mem.indexOf(u8, json, "\"claude\"").? < std.mem.indexOf(u8, json, "\"zed\"").?);
-    try std.testing.expectEqualStrings(json, try renderExport(a, &two, &.{}, &.{}));
+    try std.testing.expectEqualStrings(json, try renderExport(a, &two, &.{}, &.{}, null));
 }

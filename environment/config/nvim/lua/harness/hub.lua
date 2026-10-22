@@ -9,7 +9,7 @@ local session_store = require('harness.session_store')
 local hub = {}
 
 hub.config = {
-  agent = agent.DEFAULT,
+  agent = nil,
   auto_allow = nil,
   max_running = 4,
   max_depth = 2,
@@ -74,7 +74,11 @@ end
 local function resolve_agent(name)
   local found = agent.get(name or hub.config.agent)
 
-  if not found then error('unknown agent: ' .. tostring(name or hub.config.agent), 0) end
+  if not found then
+    local wanted = name or hub.config.agent or agent.default_name or agent.DEFAULT
+
+    error('unknown agent: ' .. tostring(wanted), 0)
+  end
 
   return found
 end

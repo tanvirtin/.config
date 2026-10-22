@@ -2,7 +2,7 @@
 
 Neovim hosts ACP agents and gives each one the running editor as an MCP server. Neovim controls everything: every agent process, every session, every tool. Sessions belong to a directory.
 
-tin defines the agents, and Neovim runs them. The default agent is Claude, through `claude-agent-acp` (installed by the `claude-code-acp` recipe). It runs on the Claude subscription, so no API key is involved, and the user's Claude Code settings, skills and CLAUDE.md all apply. opencode is built in too (`opencode acp`, `:HarnessNew opencode`); it uses whatever models and logins opencode itself is set up with.
+tin defines the agents, and Neovim runs them. The default agent is Claude, through `claude-agent-acp` (installed by the `claude-code-acp` recipe); `exports.nvim.default` in tinrc.yml changes it. It runs on the Claude subscription, so no API key is involved, and the user's Claude Code settings, skills and CLAUDE.md all apply. opencode is built in too (`opencode acp`, `:HarnessNew opencode`); it uses whatever models and logins opencode itself is set up with.
 
 ```
 tin                                       Neovim
@@ -208,11 +208,13 @@ policy:
 exports:
   nvim:
     agents: ~/.local/share/tin/nvim/agents.json
+    default: opencode   # the agent :HarnessSessions, :Harness, <leader>. use by default
 ```
 
 `tin artifact validate` checks an agent's rule and MCP references. `tin artifact export nvim` writes the JSON, composing each system prompt from its rules.
 - An agent's `mcp:` lists `artifacts/mcp/` servers to give every session, alongside the editor.
 - Secrets are written as `$NAME` and read by Neovim when the agent starts.
+- `default` names the agent the harness uses when a session starts without one. It may name a built-in (`claude`, `opencode`) even when that agent is not in the exported list; without it, the harness falls back to `claude`.
 
 Add another ACP agent (Gemini, Codex, ...) as another YAML file, then open a session with `:HarnessNew <agent>`.
 

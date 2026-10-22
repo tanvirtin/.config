@@ -45,6 +45,9 @@ fields:
         - name: agents
           type: string
           required: false
+        - name: default
+          type: string
+          required: false
       additional: forbid
     required: false
   - name: runtimes

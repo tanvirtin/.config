@@ -24,6 +24,7 @@ describe('harness.tools:', function()
     async.drain()
     hub.shutdown()
     hub.config = vim.deepcopy(defaults)
+    hub.config.agent = 'claude'
     fakes = {}
     hub.config.spawn = function()
       local fake = fake_agent.new({

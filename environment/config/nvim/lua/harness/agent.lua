@@ -125,7 +125,7 @@ local loaded
 local function read_exported(path)
   local file = io.open(path, 'r')
 
-  if not file then return {} end
+  if not file then return {}, nil end
 
   local text = file:read('*a')
   file:close()
@@ -134,26 +134,30 @@ local function read_exported(path)
 
   if not ok or type(decoded) ~= 'table' or type(decoded.agents) ~= 'table' then
     console.notify_now('Harness: ignoring unreadable agents file ' .. path, 'warn')
-    return {}
+    return {}, nil
   end
 
-  return decoded.agents
+  return decoded.agents, decoded.default
 end
 
 function agent.load(path)
-  local specs = vim.tbl_extend('force', agent.BUILTIN, read_exported(path or agent.PATH))
+  local specs, default = read_exported(path or agent.PATH)
 
   loaded = {}
 
-  for name, spec in pairs(specs) do
+  for name, spec in pairs(vim.tbl_extend('force', agent.BUILTIN, specs)) do
     loaded[name] = Agent(name, spec)
   end
+
+  agent.default_name = type(default) == 'string' and default or nil
 
   return loaded
 end
 
 function agent.get(name)
-  return (loaded or agent.load())[name or agent.DEFAULT]
+  local all = loaded or agent.load()
+
+  return all[name or agent.default_name or agent.DEFAULT]
 end
 
 function agent.names()

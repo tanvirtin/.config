@@ -144,6 +144,7 @@ pub fn getExportTargets(allocator: std.mem.Allocator, config: Config, paths: Pat
 pub const AgentExport = struct {
     name: []const u8,
     path: []const u8,
+    default_agent: ?[]const u8 = null,
 };
 
 pub fn getAgentExports(allocator: std.mem.Allocator, config: Config, paths: Paths) ![]const AgentExport {
@@ -166,9 +167,16 @@ pub fn getAgentExports(allocator: std.mem.Allocator, config: Config, paths: Path
         const target = yaml.Value{ .tree = exports_section.tree, .idx = val_idx, .arena = exports_section.arena };
         if (target.getMapping("agents")) |raw| {
             if (raw.getString()) |path| {
+                var default_agent: ?[]const u8 = null;
+
+                if (target.getMapping("default")) |default_raw| {
+                    if (default_raw.getString()) |default_str| default_agent = try allocator.dupe(u8, default_str);
+                }
+
                 try collected.append(allocator, .{
                     .name = try allocator.dupe(u8, name),
                     .path = try paths.absolutePath(allocator, path),
+                    .default_agent = default_agent,
                 });
             }
         }
@@ -361,6 +369,7 @@ test "getAgentExports reads agents paths and getExportTargets skips targets with
         \\    dir: ~/.claude/skills
         \\  nvim:
         \\    agents: ~/.local/share/tin/nvim/agents.json
+        \\    default: opencode
     );
     const config = Config{ .doc = doc };
     const paths = Paths{ .tin_dir = "/tin", .home_dir = "/home/u" };
@@ -369,6 +378,7 @@ test "getAgentExports reads agents paths and getExportTargets skips targets with
     try std.testing.expectEqual(@as(usize, 1), agents.len);
     try std.testing.expectEqualStrings("nvim", agents[0].name);
     try std.testing.expectEqualStrings("/home/u/.local/share/tin/nvim/agents.json", agents[0].path);
+    try std.testing.expectEqualStrings("opencode", agents[0].default_agent.?);
 
     const targets = try getExportTargets(a, config, paths);
     try std.testing.expectEqual(@as(usize, 1), targets.len);
