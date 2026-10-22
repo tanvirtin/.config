@@ -33,13 +33,17 @@ Bottom up. A layer only requires layers below it, and no harness module calls Ne
 | 4 | workspace | `workspace.lua` | **Workspace**: the sessions of one directory. It runs one process per agent, shared by that agent's sessions. `list()` merges live sessions with the agent's stored ones (`session/list`), and `load_session` replays a stored one. |
 | 4 | store | `session_store.lua` | Every session in the editor, with lifecycle dispatch that features subscribe to (see Store events). It fires `User HarnessEvent`. |
 | 5 | hub | `hub.lua` | Policy: what a session gets (agent, permissions, the editor as the `nvim` MCP server), `max_running` and `max_depth`. |
-| 6 | transcript | `transcript/*.lua` | The render pipeline, pure data with no buffers: `BlockBuilder` (history to typed `Block`s), `calculators/` (`Layout`, `FoldCalculator`), `EditResolver` and `EditPatches` (an edit's whole file before and after, laid out by vgit), `SessionChanges`, `decorators/` (prompt, tool, diff, thought, plan, note, stop, collapsed and nesting, each returning `MarkSpec`s; titles and replies are drawn by the markdown renderer), `StatusLine`, `PlanSummary`, `theme`, and `TextRenderer` (compact text for agents). |
+| 6 | transcript | `transcript/*.lua` | The render pipeline, pure data with no buffers: `BlockBuilder` (history to typed `Block`s), `calculators/` (`Layout`, `FoldCalculator`), `EditResolver` and `EditPatches` (an edit's whole file before and after, laid out by vgit), `EditLog` (the session's completed edits), `SessionChanges`, `Revert` (undoing edits in the files as they are now), `EditLocations` (edits as quickfix entries), `CodeBlocks` (the code blocks of replies), `decorators/` (prompt, tool, diff, thought, plan, note, stop, collapsed and nesting, each returning `MarkSpec`s; titles and replies are drawn by the markdown renderer), `StatusLine`, `PlanSummary`, `theme`, and `TextRenderer` (compact text for agents). |
 | 6 | features | `features/*.lua`, `follow.lua` | Behaviour that reacts to the store: reload buffers after an agent's edit (`EditCheckTime`), follow sessions driven elsewhere. |
 | 6 | tools | `tools.lua` | The `session` toolset, which lets an agent run sessions (see below). |
-| 7 | ui | `ui/*.lua` | `TranscriptView` (one transcript buffer: render loop, timer, keymaps, folds, winbar), `display` (which view shows where, reveal), `document` (applies the pipeline's marks to the buffer), `composer`, `permission_prompt`, `winbar`, `PlanPanel`, `links`, `sessions`, and `transcript`, the facade the rest of the editor calls. |
+| 7 | ui | `ui/*.lua` | `TranscriptView` (one transcript buffer: render loop, timer, keymaps, folds, winbar), `display` (which view shows where, reveal), `document` (applies the pipeline's marks to the buffer), `composer`, `permission_prompt`, `winbar`, `PlanPanel`, `links`, `sessions`, `code_blocks` (motions, text objects, insert, apply), `edits` (vgit views, revert and quickfix of edits), and `transcript`, the facade the rest of the editor calls. |
 | 8 | cli | `cli/router.lua`, `cli/commands/*.lua` | One module per `:Harness*` command, with a name, options and `execute(args)`; the router registers them. |
 
 `context.lua` captures where the user is (file, cursor, selection). It is sent ahead of each prompt inside an `<editor-context>` tag, so the agent always sees fresh context. With a range (`:'<,'>Harness …`) the selected lines go along as content: an ACP embedded resource (`file://…#L10-20`) when the agent advertises `embeddedContext`, else a fenced block. Transcripts strip the tag when a session replays.
+
+**Reverting.** `gR` and `:HarnessRevert` undo agent edits in the files as they are now, newest first, by putting each edit's old text back where its new text sits, like `git revert`: changes made since, by you or the agent, are kept, and an edit whose text changed since is skipped and named. The plan opens in vgit, current against reverted, and `<C-y>` applies it: one undo step per buffer, saving buffers that had no unsaved changes of yours and leaving the others modified. From outside a transcript the commands work on the whole session.
+
+**Quickfix.** `gl`, `gL` and `:HarnessQuickfix` put edits in the quickfix list, one entry per changed hunk at its file line, as `+2 −1  · <the turn's prompt>`. Everything Neovim does with quickfix (`:cnext`, `:cdo`, `]q`, quickfix plugins) then works on what the agent changed.
 
 **Forking.** Replies keep their ACP `messageId`. `gF` sends `session/fork` (when the agent advertises `sessionCapabilities.fork`) with the fork point in `_meta.jetbrains.air.fork` (`{ version = 1, messageId }`), the extension the Claude adapter reads to fork at a given message; without a point it forks at the latest message. The fork is then loaded like any stored session, so its history replays into a new transcript titled `<title> (fork)`.
 
@@ -231,6 +235,8 @@ Add another ACP agent (Gemini, Codex, ...) as another YAML file, then open a ses
 :HarnessStats                " tokens per session, and what compact output saved
 :HarnessChanges              " every file the session changed, in vgit; also gC
 :HarnessFork                 " fork the session from the reply under the cursor; also gF
+:HarnessRevert [scope]       " revert an edit, a turn or the session after a vgit preview; also gR
+:HarnessQuickfix [scope]     " an edit's, a turn's or the session's edits in quickfix; also gl / gL
 ```
 
 ```lua
@@ -292,6 +298,12 @@ Keys in a transcript:
 | `gC` | open every file this session changed in vgit, each from before the session's first edit to it to now (also `:HarnessChanges`) |
 | `gp` | show or hide the plan panel |
 | `gf` | open what is under the cursor in a new tab |
+| `]b`, `[b` | the next or previous code block of a reply (with a count, and in visual mode) |
+| `ib`, `ab` | text objects: inside a code block, or the block with its fences (`yib`, `vab`, `"+yib`) |
+| `gi` | insert the code block under the cursor below the cursor in the code buffer you came from, as one undo step |
+| `ga` | ask the agent to apply the code block under the cursor to the code buffer you came from, merging it with what is there; the block goes along as content, and the result is an edit like any other (`gd`, `gR`) |
+| `gR` | revert the edit under the cursor, or anywhere else this turn's edits, after a preview in vgit (`<C-y>` there applies it) |
+| `gl`, `gL` | this turn's, or the whole session's, edits in the quickfix list, one entry per changed hunk |
 | `gy` | yank the code block under the cursor without its fences, or else the whole block (a prompt without its `>`); on an edit, its change as a patch |
 | `za`, `zR`, `zM` | folds, as anywhere |
 | `]]`, `[[` | next and previous turn |
