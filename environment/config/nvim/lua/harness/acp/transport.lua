@@ -14,16 +14,15 @@ function transport.process(cmd, opts)
   local function consume(chunk)
     buffer = buffer .. chunk
 
+    local from = 1
+
     while true do
-      local newline = buffer:find('\n', 1, true)
+      local newline = buffer:find('\n', from, true)
 
       if not newline then break end
 
-      local line = buffer:sub(1, newline - 1)
-      buffer = buffer:sub(newline + 1)
-
-      if #line > 0 then
-        local ok, message = pcall(jsonrpc.decode, line)
+      if newline > from then
+        local ok, message = pcall(jsonrpc.decode, buffer:sub(from, newline - 1))
 
         if ok and type(message) == 'table' then
           Timer.schedule(function()
@@ -31,7 +30,11 @@ function transport.process(cmd, opts)
           end)
         end
       end
+
+      from = newline + 1
     end
+
+    buffer = buffer:sub(from)
   end
 
   local proc = process.system(cmd, {
