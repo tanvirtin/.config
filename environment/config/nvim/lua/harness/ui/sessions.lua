@@ -2,6 +2,7 @@ local settings = require('harness.settings.sessions')
 local Timer = require('core.Timer')
 local console = require('core.console')
 local hub = require('harness.hub')
+local date = require('core.utils.date')
 local surfaces = require('surfaces')
 local theme = require('harness.transcript.theme')
 
@@ -9,40 +10,10 @@ local sessions = {}
 
 local NEW = { label = '+ New session', description = 'start a fresh conversation', action = 'new' }
 
-local function days_from_civil(y, m, d)
-  y = m <= 2 and y - 1 or y
-
-  local era = math.floor(y / 400)
-  local year_of_era = y - era * 400
-  local day_of_year = math.floor((153 * ((m + 9) % 12) + 2) / 5) + d - 1
-  local day_of_era = year_of_era * 365 + math.floor(year_of_era / 4) - math.floor(year_of_era / 100) + day_of_year
-
-  return era * 146097 + day_of_era - 719468
-end
-
-local function epoch(iso)
-  local y, m, d, hour, min, sec = iso:match('^(%d+)-(%d+)-(%d+)T(%d+):(%d+):?(%d*)')
-
-  if not y then return nil end
-
-  local days = days_from_civil(tonumber(y), tonumber(m), tonumber(d))
-
-  return days * 86400 + tonumber(hour) * 3600 + tonumber(min) * 60 + (tonumber(sec) or 0)
-end
-
 function sessions.when(updated_at, now)
-  local at = updated_at and epoch(updated_at)
+  local at = date.from_iso(updated_at)
 
-  if not at then return updated_at end
-
-  local ago = (now or os.time()) - at
-
-  if ago < 60 then return 'just now' end
-  if ago < 3600 then return string.format('%d min ago', math.floor(ago / 60)) end
-  if ago < 86400 then return string.format('%dh ago', math.floor(ago / 3600)) end
-  if ago < 7 * 86400 then return string.format('%dd ago', math.floor(ago / 86400)) end
-
-  return os.date('%Y-%m-%d', at)
+  return at and date.age(at, now).display or updated_at
 end
 
 local function status_of(live, updated_at)

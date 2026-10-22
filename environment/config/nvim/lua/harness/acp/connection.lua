@@ -263,19 +263,24 @@ function Connection:load_session(session_id, opts)
 end
 
 function Connection:list_sessions(cwd)
-  local sessions, cursor = {}, nil
+  local sessions, cursor, seen = {}, nil, {}
 
   repeat
     local result = async.await(self:request('session/list', { cwd = cwd, cursor = cursor })) or {}
     local page = result.sessions or {}
 
     vim.list_extend(sessions, page)
+    seen[cursor or ''] = true
     cursor = result.nextCursor
 
-    if #page == 0 then cursor = nil end
+    if #page == 0 or (cursor and seen[cursor]) then cursor = nil end
   until not cursor
 
   return sessions
+end
+
+function Connection.fork_point(message_id)
+  return { jetbrains = { air = { fork = { version = 1, messageId = message_id } } } }
 end
 
 function Connection:can_fork()
@@ -289,9 +294,7 @@ function Connection:fork_session(session_id, opts)
 
   params.sessionId = session_id
 
-  if opts.message_id then
-    params._meta = { jetbrains = { air = { fork = { version = 1, messageId = opts.message_id } } } }
-  end
+  if opts.message_id then params._meta = Connection.fork_point(opts.message_id) end
 
   return async.await(self:request('session/fork', params))
 end

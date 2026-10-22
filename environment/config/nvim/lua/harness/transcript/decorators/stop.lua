@@ -2,6 +2,8 @@ local BlockBuilder = require('harness.transcript.BlockBuilder')
 local MarkSpec = require('ui.MarkSpec')
 local theme = require('harness.transcript.theme')
 
+local REASON_HL = { end_turn = 'UiMuted', error = 'UiError' }
+
 return function(block)
   local out = {}
   local done = block.reason == 'end_turn'
@@ -21,10 +23,7 @@ return function(block)
   })
   MarkSpec.add(out, block.start, 0, {
     virt_text = {
-      {
-        ' ' .. table.concat(parts, ' · ') .. ' ',
-        done and 'UiMuted' or block.reason == 'error' and 'UiError' or 'UiWarn',
-      },
+      { ' ' .. table.concat(parts, ' · ') .. ' ', REASON_HL[block.reason] or 'UiWarn' },
       { string.rep(theme.RULE, 2), 'UiTurnSeparator' },
     },
     virt_text_pos = 'right_align',

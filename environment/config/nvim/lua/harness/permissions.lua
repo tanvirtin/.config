@@ -1,6 +1,7 @@
 local Timer = require('core.Timer')
 local console = require('core.console')
 local fs = require('core.fs')
+local text = require('core.text')
 local api = require('nvim_mcp.api')
 local async = require('harness.async')
 local tools = require('nvim_mcp.tools')
@@ -79,16 +80,12 @@ function permissions.describe(request)
     if type(code) == 'string' then
       local lines = count_lines(vim.trim(code))
       detail = vim.split(vim.trim(code), '\n', { plain = true })[1]
-        .. (lines > 1 and string.format(' (+%d lines)', lines - 1) or '')
+        .. (lines > 1 and ' (+' .. text.plural(lines - 1, 'line') .. ')' or '')
     elseif type(input.file_path) == 'string' then
       local content = input.content or input.new_string
 
       local path = fs.display(input.file_path)
-      local size = type(content) == 'string'
-          and (function(n)
-            return string.format('%d line%s', n, n == 1 and '' or 's')
-          end)(count_lines(content))
-        or nil
+      local size = type(content) == 'string' and text.plural(count_lines(content), 'line') or nil
 
       if request.tool:find(path, 1, true) then
         return require('compact').line(request.tool .. (size and (' (' .. size .. ')') or ''), WIDTH)

@@ -93,19 +93,11 @@ function commands.cancel()
 end
 
 function commands.fork()
-  local ok, why = transcript.fork()
-
-  if not ok then console.notify_now('Harness: ' .. why, 'info') end
-
-  return ok
+  return transcript.report(transcript.fork())
 end
 
 function commands.changes()
-  local ok, why = transcript.show_changes(transcript.view() or display.last())
-
-  if not ok then console.notify_now('Harness: ' .. why, 'info') end
-
-  return ok
+  return transcript.report(transcript.show_changes(transcript.view() or display.last()))
 end
 
 function commands.sessions()

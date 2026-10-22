@@ -1,6 +1,6 @@
 local Block = require('harness.transcript.Block')
 local EditPatches = require('harness.transcript.EditPatches')
-local fences = require('harness.transcript.fences')
+local fences = require('core.fences')
 local tool_label = require('harness.transcript.tool_label')
 local compact = require('compact')
 local context = require('harness.context')
@@ -294,11 +294,8 @@ local function build_turn(history, from, to, opts, last_turn, updates)
       if opts.outputs ~= false and state.output and state.output ~= '' then
         if BODY[category] or state.status == Block.STATUS.failed then
           local body = output_lines(state.output)
-          local fence = blocks.fence_for(body)
 
-          lines[#lines + 1] = fence .. 'output'
-          vim.list_extend(lines, body)
-          lines[#lines + 1] = fence
+          vim.list_extend(lines, fences.wrap(body, 'output'))
 
           if #body > settings:get('preview_lines') + 1 then
             folds[1] = { 2 + settings:get('preview_lines'), #lines - 2 }

@@ -1,3 +1,4 @@
+local fences = require('core.fences')
 local dataclass = require('core.dataclass')
 
 local events = {}
@@ -156,9 +157,9 @@ local function language_of(resource)
 end
 
 local function fenced(text, language)
-  local fence = text:find('```', 1, true) and '````' or '```'
+  local body = vim.split((text:gsub('\n$', '')), '\n', { plain = true })
 
-  return string.format('\n%s%s\n%s\n%s\n', fence, language, text:gsub('\n$', ''), fence)
+  return '\n' .. table.concat(fences.wrap(body, language), '\n') .. '\n'
 end
 
 function events.block_text(block)

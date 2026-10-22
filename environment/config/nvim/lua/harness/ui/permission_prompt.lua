@@ -56,16 +56,16 @@ function permission_prompt.ask(request)
   return future
 end
 
-function permission_prompt.answer(session, key)
+function permission_prompt.choice(session, key)
   local pending = permission_prompt.asks_of(session)[1]
 
-  if not pending then return false end
-
-  local chosen
-
-  for _, choice in ipairs(pending.choices or {}) do
-    if choice.key == key or choice.kind == key then chosen = choice end
+  for _, choice in ipairs(pending and pending.choices or {}) do
+    if choice.key == key or choice.kind == key then return choice, pending end
   end
+end
+
+function permission_prompt.answer(session, key)
+  local chosen, pending = permission_prompt.choice(session, key)
 
   if not chosen then return false end
 

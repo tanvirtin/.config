@@ -22,6 +22,16 @@ function fences.fence_for(lines)
   return string.rep('`', math.max(3, longest + 1))
 end
 
+function fences.wrap(body, language)
+  local fence = fences.fence_for(body)
+  local out = { fence .. (language or '') }
+
+  vim.list_extend(out, body)
+  out[#out + 1] = fence
+
+  return out
+end
+
 function fences.fences(lines)
   local spans, open, start = {}, nil, nil
 

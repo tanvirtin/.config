@@ -1,8 +1,8 @@
-local fences = require('harness.transcript.fences')
+local fences = require('core.fences')
 
 local eq = assert.are.same
 
-describe('harness.transcript.fences:', function()
+describe('core.fences:', function()
   it('makes a fence longer than any backtick run in the content, instead of escaping it', function()
     eq('```', fences.fence_for({ 'plain' }))
     eq('````', fences.fence_for({ 'a', '```lua', 'b', '```' }))

@@ -1,4 +1,5 @@
 local settings = require('harness.settings.theme')
+local text = require('core.text')
 
 local theme = {}
 
@@ -51,8 +52,6 @@ function theme.duration(ms)
   return string.format('%dm %ds', math.floor(seconds / 60), seconds % 60)
 end
 
-function theme.plural(n, word)
-  return string.format('%d %s%s', n, word, n == 1 and '' or 's')
-end
+theme.plural = text.plural
 
 return theme

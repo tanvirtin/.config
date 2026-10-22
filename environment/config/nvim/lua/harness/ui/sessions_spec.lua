@@ -58,11 +58,11 @@ describe('harness.ui.sessions:', function()
   it('says how long ago a stored session was used, in plain words', function()
     local now = 1792229400
 
-    eq('just now', sessions.when('2026-10-17T09:30:00Z', now + 30))
-    eq('5 min ago', sessions.when('2026-10-17T09:30:00Z', now + 300))
-    eq('3h ago', sessions.when('2026-10-17T09:30:00Z', now + 3 * 3600))
-    eq('2d ago', sessions.when('2026-10-17T09:30:00Z', now + 2 * 86400))
-    eq('2026-10-17', sessions.when('2026-10-17T09:30:00Z', now + 30 * 86400))
+    eq('30 seconds ago', sessions.when('2026-10-17T09:30:00Z', now + 30))
+    eq('5 minutes ago', sessions.when('2026-10-17T09:30:00Z', now + 300))
+    eq('3 hours ago', sessions.when('2026-10-17T09:30:00Z', now + 3 * 3600))
+    eq('2 days ago', sessions.when('2026-10-17T09:30:00Z', now + 2 * 86400))
+    eq('not a date', sessions.when('not a date', now))
   end)
 
   it('tells the user its keys', function()

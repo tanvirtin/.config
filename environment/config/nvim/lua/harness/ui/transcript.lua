@@ -12,16 +12,18 @@ local Window = require('core.Window')
 local buffers = require('core.buffers')
 local console = require('core.console')
 local display = require('harness.ui.display')
-local fences = require('harness.transcript.fences')
+local fences = require('core.fences')
 local links = require('harness.ui.links')
 local permission_prompt = require('harness.ui.permission_prompt')
 local register = require('core.register')
 local settings = require('harness.settings')
+local core_text = require('core.text')
 local theme = require('harness.transcript.theme')
 local vgit = require('harness.vgit')
 local winbar = require('harness.ui.winbar')
 
 local composer = lazy('harness.ui.composer')
+local async = lazy('harness.async')
 local hub = lazy('harness.hub')
 
 local transcript = {}
@@ -59,6 +61,8 @@ end
 
 local SUMMED = { [Block.KIND.tool] = 'tool', [Block.KIND.message] = 'reply' }
 
+local MANY = { tool = 'tools', reply = 'replies' }
+
 local function children_in(view, first, last)
   local counts = {}
 
@@ -77,9 +81,7 @@ local function children_in(view, first, last)
   for _, noun in ipairs({ 'tool', 'reply' }) do
     local n = counts[noun]
 
-    if n then
-      parts[#parts + 1] = string.format('%d %s', n, n == 1 and noun or (noun == 'reply' and 'replies' or noun .. 's'))
-    end
+    if n then parts[#parts + 1] = core_text.plural(n, noun, MANY[noun]) end
   end
 
   return #parts > 0 and table.concat(parts, ' · ') or nil
@@ -102,7 +104,7 @@ function transcript.foldtext()
   local hidden = last - first + 1
   local view = display.view()
   local children = view and children_in(view, first - 1, last)
-  local text = children and '⋯ ' .. children or string.format('⋯ %d more line%s', hidden, hidden == 1 and '' or 's')
+  local text = '⋯ ' .. (children or core_text.plural(hidden, 'more line'))
 
   return { { rails(view, first - 1, last - 1), 'UiMuted' }, { text, 'UiMuted' } }
 end
@@ -221,6 +223,12 @@ function transcript.path_at(buf)
   return target and target.path or nil
 end
 
+function transcript.report(ok, why)
+  if not ok and why then console.notify_now('Harness: ' .. why, 'info') end
+
+  return ok
+end
+
 function transcript.git_diff(buf)
   local path = transcript.path_at(buf)
 
@@ -305,7 +313,7 @@ function transcript.fork(buf)
       transcript.open(forked)
     end)
   end)
-  require('harness.async').drain()
+  async.drain()
 
   return true
 end
@@ -435,36 +443,28 @@ function transcript.bindings(view)
     {
       keys.diff,
       function()
-        local ok, why = transcript.show_edit(buf)
-
-        if not ok then console.notify_now('Harness: ' .. why, 'info') end
+        transcript.report(transcript.show_edit(buf))
       end,
       'Open the edit under the cursor in vgit',
     },
     {
       keys.git_diff,
       function()
-        local ok, why = transcript.git_diff(buf)
-
-        if not ok then console.notify_now('Harness: ' .. why, 'info') end
+        transcript.report(transcript.git_diff(buf))
       end,
       'Open the git diff of the file under the cursor in vgit',
     },
     {
       keys.changes,
       function()
-        local ok, why = transcript.show_changes(view)
-
-        if not ok then console.notify_now('Harness: ' .. why, 'info') end
+        transcript.report(transcript.show_changes(view))
       end,
       'Open every file this session changed in vgit',
     },
     {
       keys.fork,
       function()
-        local ok, why = transcript.fork(buf)
-
-        if not ok then console.notify_now('Harness: ' .. why, 'info') end
+        transcript.report(transcript.fork(buf))
       end,
       'Fork the session from the reply under the cursor (or the one before this prompt)',
     },

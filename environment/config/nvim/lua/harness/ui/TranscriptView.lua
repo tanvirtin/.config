@@ -336,16 +336,7 @@ function TranscriptView:bind(actions)
 
   for _, key in ipairs(permission_prompt.KEYS) do
     self:map(key, function()
-      local ask = permission_prompt.asks_of(session)[1]
-      local known = ask
-        and vim.tbl_contains(
-          vim.tbl_map(function(choice)
-            return choice.key
-          end, ask.choices or {}),
-          key
-        )
-
-      if not known then return key end
+      if not permission_prompt.choice(session, key) then return key end
 
       Timer.schedule(function()
         permission_prompt.answer(session, key)

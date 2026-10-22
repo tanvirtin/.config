@@ -1,5 +1,6 @@
 local Buffer = require('core.Buffer')
 local Window = require('core.Window')
+local fences = require('core.fences')
 local fs = require('core.fs')
 
 local context = {}
@@ -84,20 +85,12 @@ function context.blocks(captured, capabilities)
       resource = { uri = uri_of(selected.path, selected.from, selected.to), text = body, mimeType = 'text/plain' },
     }
   else
-    local fence = body:find('```', 1, true) and '````' or '```'
+    local where = selected.path and fs.display(selected.path) or '[No Name]'
+    local heading = string.format('Selected lines %d-%d of %s:', selected.from, selected.to, where)
 
     blocks[#blocks + 1] = {
       type = 'text',
-      text = string.format(
-        'Selected lines %d-%d of %s:\n%s%s\n%s\n%s',
-        selected.from,
-        selected.to,
-        selected.path and fs.display(selected.path) or '[No Name]',
-        fence,
-        selected.filetype or '',
-        body,
-        fence
-      ),
+      text = heading .. '\n' .. table.concat(fences.wrap(selected.lines, selected.filetype), '\n'),
     }
   end
 

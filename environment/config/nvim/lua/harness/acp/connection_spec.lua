@@ -273,6 +273,23 @@ describe('harness.acp.connection:', function()
     eq({ false, 'this agent cannot fork sessions' }, { ok, err })
   end)
 
+  it('stops listing when the agent hands back a cursor it already gave', function()
+    local calls = 0
+    local conn = connected({
+      ['session/list'] = function(message)
+        calls = calls + 1
+        return { jsonrpc.result(message.id, { sessions = { { sessionId = 's' .. calls } }, nextCursor = 'again' }) }
+      end,
+    })
+
+    local listed = run(function()
+      return conn:list_sessions('/w')
+    end)
+
+    eq(2, calls)
+    eq({ { sessionId = 's1' }, { sessionId = 's2' } }, listed)
+  end)
+
   it('refuses to load a session the agent cannot load', function()
     local conn = connected({
       initialize = function(message)

@@ -19,6 +19,10 @@ function text.changed_rows(old, new)
   return rows
 end
 
+function text.plural(n, word, many)
+  return string.format('%d %s', n, n == 1 and word or (many or word .. 's'))
+end
+
 function text.width(value)
   return vim.fn.strdisplaywidth(value)
 end
