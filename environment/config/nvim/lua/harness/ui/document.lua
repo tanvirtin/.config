@@ -37,6 +37,7 @@ function Document:constructor(bufnr)
     bufnr = bufnr,
     buffer = Buffer(bufnr),
     pending = {},
+    partial = {},
     scheduled = false,
     lines = {},
     blocks = {},
@@ -92,6 +93,8 @@ function Document:resize()
     self.pending[i] = true
   end
 
+  self.partial = {}
+
   self:decorate_visible()
 end
 
@@ -108,6 +111,7 @@ function Document:reset()
   self.lines = self.buffer:is_valid() and self.buffer:get_lines() or {}
   self.blocks = {}
   self.pending = {}
+  self.partial = {}
 end
 
 function Document:attach()
@@ -155,12 +159,16 @@ function Document:write(list, state)
     list[i].start, list[i].finish = old[i].start, old[i].finish
   end
 
-  local pending = {}
+  local pending, partial = {}, {}
 
   for i = 1, keep do
     local same = list[i] == old[i] or Layout.signature(list[i]) == Layout.signature(old[i])
 
-    if resized or self.pending[i] or not same or self:_live(list[i]) then pending[i] = true end
+    if resized or not same or self:_live(list[i]) then
+      pending[i] = true
+    elseif self.pending[i] then
+      pending[i], partial[i] = true, self.partial[i]
+    end
   end
 
   self.blocks = list
@@ -191,8 +199,12 @@ function Document:write(list, state)
 
     if first then self:_set_lines(vim.list_slice(tail, first), from + first - 1) end
 
+    local settled = not resized and first and self:_settled(old, list, changed, first) or from
+
     self.buffer:clear_namespace(Document.NAMESPACE, from, -1)
-    self.renderer:clear(from)
+    self.renderer:clear(settled)
+
+    if settled > from then partial[changed] = settled end
 
     for i = changed, #list do
       pending[i] = true
@@ -201,8 +213,22 @@ function Document:write(list, state)
 
   self.changedtick = self.buffer:get_changedtick()
   self.pending = pending
+  self.partial = partial
   self:decorate_visible()
   self:_status()
+end
+
+function Document:_settled(old, list, changed, first)
+  local block, previous = list[changed], old[changed]
+
+  if changed ~= #list or not previous or previous.start ~= block.start then return block.start end
+  if not Layout.streaming(list, changed) or not Layout.streaming(old, changed) then return block.start end
+
+  local row = block.start + Layout.settled(block.lines, first)
+
+  if self.pending[changed] then row = math.min(row, self.partial[changed] or block.start) end
+
+  return row
 end
 
 function Document:visible_ranges()
@@ -254,8 +280,10 @@ function Document:decorate_visible()
 
   for i, block in ipairs(self.blocks) do
     if self.pending[i] and overlaps(block, ranges) then
+      local top = self.partial[i] or block.start
+
       due[#due + 1] = block
-      self.pending[i] = nil
+      self.pending[i], self.partial[i] = nil, nil
 
       if Document.RAW[block.kind] then
         flush()
@@ -263,7 +291,7 @@ function Document:decorate_visible()
         group[2] = block.finish
       else
         flush()
-        group = { block.start, block.finish }
+        group = { top, block.finish }
       end
     else
       flush()

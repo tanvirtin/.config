@@ -1,4 +1,5 @@
 local Block = require('harness.transcript.Block')
+local fences = require('core.fences')
 
 local Layout = {}
 
@@ -67,6 +68,28 @@ function Layout.place(list, from, row)
   end
 
   return lines
+end
+
+local function fenced(spans, index)
+  for _, span in ipairs(spans) do
+    if index > span[1] and index <= span[2] then return true end
+  end
+
+  return false
+end
+
+function Layout.settled(lines, limit)
+  local spans, unclosed = fences.fences(lines)
+
+  if unclosed then spans[#spans + 1] = { unclosed[1], math.huge } end
+
+  for j = math.min(limit, #lines), 2, -1 do
+    local line = lines[j]
+
+    if lines[j - 1] == '' and line ~= '' and not line:find('^%s') and not fenced(spans, j) then return j - 1 end
+  end
+
+  return 0
 end
 
 function Layout.prompt_above(list, row)

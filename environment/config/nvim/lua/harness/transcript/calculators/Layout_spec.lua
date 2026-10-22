@@ -93,4 +93,20 @@ describe('harness.transcript.calculators.Layout:', function()
 
     eq(list[1], Layout.prompt_above(list, list[3].start))
   end)
+
+  it('settles a streaming reply up to the last top-level block that starts after a blank line', function()
+    local lines = { '# Title', '', 'one', 'two', '', '- item', '', 'three' }
+
+    eq(7, Layout.settled(lines, #lines))
+    eq(5, Layout.settled(lines, 6))
+    eq(2, Layout.settled(lines, 4))
+    eq(0, Layout.settled(lines, 1))
+  end)
+
+  it('never settles inside a code fence, closed or still streaming, or before an indented line', function()
+    eq(0, Layout.settled({ 'intro', '```lua', 'a', '', 'b' }, 5))
+    eq(0, Layout.settled({ 'intro', '```lua', 'a', '', 'b', '```', '', 'after' }, 5))
+    eq(7, Layout.settled({ 'intro', '```lua', 'a', '', 'b', '```', '', 'after' }, 8))
+    eq(0, Layout.settled({ '- one', '', '  continued' }, 3))
+  end)
 end)

@@ -108,6 +108,83 @@ describe('harness.ui.document:', function()
     eq(theme.TOOL_ICONS[Block.STATUS.completed][1], icon())
   end)
 
+  describe('a streaming reply', function()
+    local Renderer = require('ui.markdown.Renderer')
+
+    local function drawn(bufnr)
+      local out = {}
+
+      for _, mark in ipairs(marks(bufnr, Renderer.NAMESPACE)) do
+        out[#out + 1] = vim.inspect({ mark[2], mark[3], mark[4] })
+      end
+
+      table.sort(out)
+
+      return out
+    end
+
+    local function stream(text, size)
+      for i = 1, #text, size do
+        emit({ kind = 'message', text = text:sub(i, i + size - 1) })
+      end
+    end
+
+    it('redraws only the block still being written', function()
+      local annotated = {}
+      local annotate = document.renderer.annotate
+
+      document.renderer.annotate = function(renderer, rows, offset)
+        annotated[#annotated + 1] = #rows
+        return annotate(renderer, rows, offset)
+      end
+
+      emit(events.prompt('hi'))
+      stream('para one\n\npara two\n\npara th', 100)
+      emit({ kind = 'message', text = 'ree' })
+
+      eq(1, annotated[#annotated])
+      eq('para three', lines(buf)[#lines(buf)])
+    end)
+
+    it('draws the same marks as a reply written in one go, fences and all', function()
+      local text = table.concat({
+        '# Heading',
+        '',
+        'Some **bold** and `code`.',
+        '',
+        '- one',
+        '- two',
+        '',
+        '```lua',
+        'local a = 1',
+        '',
+        'return a',
+        '```',
+        '',
+        '| a | b |',
+        '| - | - |',
+        '| 1 | 2 |',
+        '',
+        '> quoted',
+        '',
+        'last line',
+      }, '\n')
+
+      emit(events.prompt('hi'))
+      stream(text, 7)
+
+      local streamed = drawn(buf)
+      local whole = vim.api.nvim_create_buf(false, true)
+
+      vim.api.nvim_win_set_buf(0, whole)
+      Document(whole):write(blocks.build(history))
+
+      eq(drawn(whole), streamed)
+      vim.api.nvim_win_set_buf(0, buf)
+      vim.api.nvim_buf_delete(whole, { force = true })
+    end)
+  end)
+
   it('rewrites everything after reset', function()
     emit(events.prompt('hi'))
     vim.bo[buf].modifiable = true
