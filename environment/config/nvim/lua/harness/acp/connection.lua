@@ -267,10 +267,13 @@ function Connection:list_sessions(cwd)
 
   repeat
     local result = async.await(self:request('session/list', { cwd = cwd, cursor = cursor })) or {}
+    local page = result.sessions or {}
 
-    vim.list_extend(sessions, result.sessions or {})
+    vim.list_extend(sessions, page)
     cursor = result.nextCursor
-  until not cursor or #sessions >= 200
+
+    if #page == 0 then cursor = nil end
+  until not cursor
 
   return sessions
 end

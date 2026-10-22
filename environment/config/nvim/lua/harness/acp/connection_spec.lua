@@ -108,6 +108,48 @@ describe('harness.acp.connection:', function()
     eq(2, pages)
   end)
 
+  it('keeps listing past 200 sessions', function()
+    local conn = connected({
+      ['session/list'] = function(message)
+        local page = {}
+        local cursor = message.params.cursor
+
+        for i = 1, 100 do
+          page[#page + 1] = { sessionId = 's' .. ((cursor or 0) + i) }
+        end
+
+        if not cursor then return { jsonrpc.result(message.id, { sessions = page, nextCursor = 100 }) } end
+        if cursor == 100 then return { jsonrpc.result(message.id, { sessions = page, nextCursor = 200 }) } end
+        if cursor == 200 then return { jsonrpc.result(message.id, { sessions = page, nextCursor = 300 }) } end
+
+        return { jsonrpc.result(message.id, { sessions = {} }) }
+      end,
+    })
+
+    local sessions = run(function()
+      return conn:list_sessions('/w')
+    end)
+
+    eq(300, #sessions)
+  end)
+
+  it('stops paginating when a page is empty, even with a cursor', function()
+    local pages = 0
+    local conn = connected({
+      ['session/list'] = function(message)
+        pages = pages + 1
+        return { jsonrpc.result(message.id, { sessions = {}, nextCursor = 'never' }) }
+      end,
+    })
+
+    local sessions = run(function()
+      return conn:list_sessions('/w')
+    end)
+
+    eq({}, sessions)
+    eq(1, pages)
+  end)
+
   it('answers a permission request with what the listener decides, even later', function()
     local conn, agent = connected()
     local answer = async.Future.new()
