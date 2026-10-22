@@ -29,6 +29,15 @@ local function text_result(value, is_error)
   return { content = { { type = 'text', text = text } }, isError = is_error == true }
 end
 
+function server.error_text(err)
+  local text = tostring(err)
+
+  text = text:gsub('\n%s*stack traceback:.*$', '')
+  text = text:gsub('^Error executing lua:?%s*', ''):gsub('^Lua:%s*', '')
+
+  return (text:gsub('%s+$', ''))
+end
+
 local SCHEMA_KEYS = { properties = true, additionalProperties = true, items = true }
 
 local function fix_objects(node)
@@ -102,7 +111,7 @@ function server.new(entries, call_rpc, call_editor)
       ok, value = pcall(call_rpc, name, positional)
     end
 
-    if not ok then return text_result(tostring(value), true) end
+    if not ok then return text_result(server.error_text(value), true) end
 
     return text_result(value)
   end

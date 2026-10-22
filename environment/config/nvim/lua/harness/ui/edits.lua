@@ -122,17 +122,10 @@ function edits.apply(files)
   return kept
 end
 
-local function describe(plan)
-  local parts = {
-    string.format('reverting %s in %s', core_text.plural(plan.undone, 'change'), core_text.plural(#plan.files, 'file')),
-  }
+local function describe(plan, confirm)
+  local text = string.format('%s reverts %s', confirm, core_text.plural(plan.undone, 'change'))
 
-  if #plan.skipped > 0 then
-    parts[#parts + 1] =
-      string.format('%s skipped (%s)', core_text.plural(#plan.skipped, 'change'), plan.skipped[1].reason)
-  end
-
-  return table.concat(parts, '; ')
+  return #plan.skipped > 0 and string.format('%s, skips %d', text, #plan.skipped) or text
 end
 
 function edits.revert(view, scope)
@@ -164,11 +157,7 @@ function edits.revert(view, scope)
           diff_view:destroy()
           console.notify_now(
             'Harness: reverted'
-              .. (
-                kept > 0
-                  and string.format('; %s left unsaved, as it had changes of yours', core_text.plural(kept, 'buffer'))
-                or ''
-              )
+              .. (kept > 0 and string.format('; %s left unsaved', core_text.plural(kept, 'buffer')) or '')
           )
         end,
       },
@@ -177,7 +166,7 @@ function edits.revert(view, scope)
 
   if not ok then return false, why end
 
-  console.notify_now(string.format('Harness: %s. %s applies, q closes', describe(plan), confirm))
+  console.notify_now('Harness: ' .. describe(plan, confirm))
 
   return true
 end

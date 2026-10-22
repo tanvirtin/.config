@@ -201,4 +201,16 @@ describe('nvim_mcp.server:', function()
       assert.is_truthy(result.content[1].text:find('Invalid buffer id', 1, true))
     end)
   end)
+
+  describe('error_text', function()
+    it('keeps a tool error\'s reason, without the Lua prefix and stack trace Neovim adds', function()
+      eq(
+        'invalid arguments for buffer_edit: old_string: required',
+        server.error_text(
+          'Lua: invalid arguments for buffer_edit: old_string: required\nstack traceback:\n  [C]: in function \'error\''
+        )
+      )
+      eq('plain', server.error_text('plain'))
+    end)
+  end)
 end)
