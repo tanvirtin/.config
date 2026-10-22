@@ -36,24 +36,32 @@ local function rows(out, block, first)
   end
 end
 
+local function highlight(out, block, first, hl)
+  local entry = block.patch.rows[hl.row + 1]
+  local row = first + hl.row
+
+  if not entry or entry.kind == 'hunk' then return end
+
+  if hl.line then
+    if LINE_HL[hl.hl_group] then MarkSpec.add(out, row, 0, { line_hl_group = hl.hl_group }) end
+  elseif hl.col_end > hl.col_start then
+    MarkSpec.add(out, row, hl.col_start, {
+      end_col = hl.col_end,
+      hl_group = hl.hl_group,
+      priority = theme.SYNTAX_PRIORITY,
+    })
+  end
+end
+
 local function highlights(out, block, first)
-  local patch_rows = block.patch.rows
+  local patch = block.patch
 
-  for _, hl in ipairs(block.patch.highlights) do
-    local entry = patch_rows[hl.row + 1]
-    local row = first + hl.row
+  for _, hl in ipairs(patch.highlights or {}) do
+    highlight(out, block, first, hl)
+  end
 
-    if entry and entry.kind ~= 'hunk' then
-      if hl.line then
-        if LINE_HL[hl.hl_group] then MarkSpec.add(out, row, 0, { line_hl_group = hl.hl_group }) end
-      elseif hl.col_end > hl.col_start then
-        MarkSpec.add(out, row, hl.col_start, {
-          end_col = hl.col_end,
-          hl_group = hl.hl_group,
-          priority = theme.SYNTAX_PRIORITY,
-        })
-      end
-    end
+  for _, hl in ipairs(patch.syntax and patch.syntax() or {}) do
+    highlight(out, block, first, hl)
   end
 end
 

@@ -251,7 +251,14 @@ local function build_turn(history, from, to, opts, last_turn, updates)
 
       add(Block.KIND.diff, lines, {
         id = id,
-        patch = patch and { rows = patch.rows, highlights = patch.highlights, words = patch.words } or nil,
+        patch = patch and {
+          rows = patch.rows,
+          highlights = patch.highlights,
+          words = patch.words,
+          syntax = function()
+            return edit:syntax()
+          end,
+        } or nil,
         whole = edit.whole,
         edit = edit.file,
         folds = folds,

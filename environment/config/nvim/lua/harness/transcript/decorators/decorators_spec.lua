@@ -120,6 +120,9 @@ describe('harness.transcript.decorators:', function()
             { row = 3, hl_group = 'GitPatchContext', line = true },
           },
           words = { { row = 1, col = 4, texts = { { '2', 'GitWordAdd' } } } },
+          syntax = function()
+            return { { row = 3, col_start = 0, col_end = 1, hl_group = '@variable' } }
+          end,
         },
       })
     end
@@ -146,6 +149,9 @@ describe('harness.transcript.decorators:', function()
     end))
     assert.truthy(at(4, function(opts)
       return virt(opts) == theme.HUNK
+    end))
+    assert.truthy(at(5, function(opts)
+      return opts.hl_group == '@variable' and opts.end_col == 1 and opts.priority == theme.SYNTAX_PRIORITY
     end))
     eq(false, at(4, function(opts)
       return opts.hl_group == 'GitPatchHeaderMarker'

@@ -39,6 +39,26 @@ describe('harness.transcript.EditPatches:', function()
     eq(first, edits:get(diff, 't:1', true))
   end)
 
+  it('highlights syntax on demand exactly as vgit would, mapped onto the patch rows', function()
+    local file = { 'local a = 0', 'local x = 2', 'return x' }
+    local edit = EditPatches(function()
+      return file
+    end):get({ path = '/a.lua', old = 'local x = 1', new = 'local x = 2' }, 't:1', true)
+    local expected = {}
+
+    for _, hl in ipairs(require('vgit.api').patch({ edit.file }, { header = false, context = 3 }).highlights) do
+      if hl.syntax then
+        expected[#expected + 1] =
+          { row = hl.row, col_start = hl.col_start, col_end = hl.col_end, hl_group = hl.hl_group }
+      end
+    end
+
+    assert.is_nil(edit:patch().highlights[1] and edit:patch().highlights[1].syntax)
+    assert.is_true(#expected > 0)
+    eq(expected, edit:syntax())
+    eq(edit:syntax(), edit:syntax())
+  end)
+
   it('keeps one set per owner, so every reader of a session sees the same frozen edits', function()
     local session = {}
 

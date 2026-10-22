@@ -9,7 +9,7 @@ local vgit = {}
 vgit.COMMAND = 'VGit'
 
 function vgit.patch(file, opts)
-  return api.patch({ file }, opts)
+  return api.patch({ file }, vim.tbl_extend('force', { syntax = false }, opts or {}))
 end
 
 function vgit.stat(file)

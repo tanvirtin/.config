@@ -292,6 +292,26 @@ describe('harness.transcript.BlockBuilder:', function()
       )
     end)
 
+    it('leaves syntax highlighting of a diff until the diff is drawn', function()
+      local edits = EditPatches(function()
+        return { 'local x = 3' }
+      end)
+      local shown = diff_blocks(blocks.build({
+        {
+          kind = 'tool_call',
+          id = 't1',
+          name = 'Edit',
+          status = Block.STATUS.completed,
+          diffs = { diff('local x = 3\n') },
+        },
+      }, nil, { edits = edits }))[1]
+      local edit = edits:get(diff('local x = 3\n'), 't1:1', true)
+
+      assert.is_nil(edit._syntax)
+      assert.is_true(#shown.patch.syntax() > 0)
+      eq(edit._syntax, shown.patch.syntax())
+    end)
+
     it('lays an edit out against the whole file when it can find it, with vgit\'s rows', function()
       local edits = EditPatches(function()
         return { 'local a = 0', 'local x = 3', 'return x' }

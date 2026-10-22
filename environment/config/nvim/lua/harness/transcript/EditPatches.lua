@@ -1,12 +1,18 @@
 local Block = require('harness.transcript.Block')
 local EditResolver = require('harness.transcript.EditResolver')
 local Object = require('core.Object')
+local SyntaxAnnotator = require('ui.annotators.SyntaxAnnotator')
+local fs = require('core.fs')
 local settings = require('harness.settings.transcript')
 local vgit = require('harness.vgit')
 
 local EditPatches = Object:extend()
 
 local Edit = Object:extend()
+
+local annotator = SyntaxAnnotator()
+
+local SOURCE = { remove = 'old', add = 'new', context = 'new' }
 
 function Edit:constructor(diff, resolved)
   return {
@@ -28,6 +34,52 @@ function Edit:stat()
   self._stat = self._stat or vgit.stat(self.file)
 
   return self._stat
+end
+
+local function by_line(lines, filetype)
+  local map = {}
+
+  for _, hl in ipairs(annotator:annotate(lines, filetype)) do
+    local line = hl.row + 1
+
+    map[line] = map[line] or {}
+    map[line][#map[line] + 1] = hl
+  end
+
+  return map
+end
+
+function Edit:syntax()
+  if self._syntax then return self._syntax end
+
+  local patch, file = self:patch(), self.file
+  local filetype = file.filename and fs.detect_filetype(file.filename) or ''
+  local maps = {}
+  local out = {}
+
+  for i, row in ipairs(patch.rows) do
+    local source = SOURCE[row.kind]
+    local lnum = source == 'old' and row.old_lnum or row.new_lnum
+
+    if source and lnum then
+      maps[source] = maps[source] or by_line(source == 'old' and file.old_lines or file.new_lines, filetype)
+
+      local length = #(patch.lines[i] or '')
+
+      for _, hl in ipairs(maps[source][lnum] or {}) do
+        out[#out + 1] = {
+          row = i - 1,
+          col_start = hl.col_start,
+          col_end = hl.col_end >= 0 and hl.col_end or length,
+          hl_group = hl.hl_group,
+        }
+      end
+    end
+  end
+
+  self._syntax = out
+
+  return out
 end
 
 function Edit:text()
