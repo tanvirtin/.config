@@ -104,6 +104,53 @@ describe('harness.ui.TranscriptView:', function()
     view:dispose()
   end)
 
+  it('renders a burst of updates once a frame, ending on the latest', function()
+    local view = TranscriptView(session):mount()
+    local renders = 0
+    local render = view.render
+
+    view.render = function(...)
+      renders = renders + 1
+      return render(...)
+    end
+
+    for i = 1, 5 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    eq(true, view.scheduled)
+    vim.wait(200, function()
+      return not view.scheduled
+    end)
+
+    eq(1, renders)
+    assert.is_true(vim.tbl_contains(vim.api.nvim_buf_get_lines(view.bufnr, 0, -1, false), '> turn 5'))
+    view:dispose()
+  end)
+
+  it('drops a paced render once the view has rendered or gone', function()
+    local view = TranscriptView(session):mount()
+    local renders = 0
+    local render = view.render
+
+    view.render = function(...)
+      renders = renders + 1
+      return render(...)
+    end
+
+    session:_emit(events.prompt('one'))
+    view:render()
+    vim.wait(50)
+
+    eq(1, renders)
+
+    session:_emit(events.prompt('two'))
+    view:dispose()
+    vim.wait(50)
+
+    eq(1, renders)
+  end)
+
   it('lists the tool calls whose sub-agents are still running', function()
     local active = TranscriptView.active_subagents({
       children = {

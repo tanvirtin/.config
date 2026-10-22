@@ -80,6 +80,7 @@ function TranscriptView:constructor(session, opts)
     source_win = opts.source_win,
     source_buf = opts.source_buf,
     timer = Timer(),
+    pacer = Timer(),
     plan = PlanPanel(),
     frame = 1,
     cache = {},
@@ -177,6 +178,7 @@ end
 function TranscriptView:render()
   self.scheduled = false
   self.dirty = false
+  self.rendered = Timer.now()
 
   if not self.buffer:is_valid() then return end
 
@@ -267,9 +269,18 @@ function TranscriptView:on_event(update)
   if self.scheduled then return end
 
   self.scheduled = true
-  Timer.schedule(function()
-    self:render()
-  end)
+
+  local function render()
+    if self.scheduled and not self.disposed then self:render() end
+  end
+
+  local wait = self.rendered and settings.transcript:get('frame_ms') - (Timer.now() - self.rendered) or 0
+
+  if wait > 0 then
+    self.pacer:after(wait, render)
+  else
+    Timer.schedule(render)
+  end
 end
 
 function TranscriptView:on_show()
@@ -411,6 +422,7 @@ function TranscriptView:dispose()
   follow.stop(self.session)
   self.plan:hide()
   self.timer:close()
+  self.pacer:close()
 
   if self.group then self.group.dispose() end
 

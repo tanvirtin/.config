@@ -78,7 +78,7 @@ The harness follows vgit's shape: a domain that knows nothing of buffers, stores
 require('harness').setup({
   max_running = 4,                                      -- hub policy: agent, auto_allow, max_depth, ask
   transcript = {
-    live_turns = 50, tick_ms = 100, margin_screens = 2, preview_lines = 5, output_max = 200, argument_max = 120,
+    live_turns = 50, tick_ms = 100, frame_ms = 16, margin_screens = 2, preview_lines = 5, output_max = 200, argument_max = 120,
     queue_preview = 120, request_preview = 80, diff_context = 3, diff_preview_lines = 12,
   },
   sessions = { confirm_ms = 3000 },
