@@ -1,4 +1,4 @@
-.PHONY: test test-filter test-file lint format format-check check ci install-deps clean
+.PHONY: test test-filter test-file bench lint format format-check check ci install-deps clean
 
 LUA_VERSION ?= 5.1
 
@@ -15,6 +15,9 @@ test-filter:
 
 test-file:
 	$(GIT_ENV) vusted $(FILE)
+
+bench:
+	nvim --headless -c 'luafile bench/harness.lua'
 
 define find_tool
 $(shell for c in $(1); do if command -v $$c >/dev/null 2>&1; then echo $$c; exit; fi; done)
