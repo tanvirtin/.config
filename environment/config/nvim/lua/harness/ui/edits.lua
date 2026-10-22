@@ -1,4 +1,5 @@
 local Block = require('harness.transcript.Block')
+local EditLocations = require('harness.transcript.EditLocations')
 local EditLog = require('harness.transcript.EditLog')
 local Revert = require('harness.transcript.Revert')
 local SessionChanges = require('harness.transcript.SessionChanges')
@@ -6,6 +7,7 @@ local Window = require('core.Window')
 local buffers = require('core.buffers')
 local console = require('core.console')
 local core_text = require('core.text')
+local quickfix = require('core.quickfix')
 local settings = require('harness.settings')
 local vgit = require('harness.vgit')
 
@@ -176,6 +178,20 @@ function edits.revert(view, scope)
   if not ok then return false, why end
 
   console.notify_now(string.format('Harness: %s. %s applies, q closes', describe(plan), confirm))
+
+  return true
+end
+
+function edits.quickfix(view, scope)
+  if not view then return false, 'no session here' end
+
+  scope = scope or edits.SCOPE.turn
+
+  local items = EditLocations.items(view.session.history, edits.scoped(view, scope), view.edits)
+
+  if #items == 0 then return false, 'no ' .. scope .. ' edits to list here' end
+
+  quickfix.set(items, { title = string.format('Harness %s: %s edits', view.session.key, scope), open = true })
 
   return true
 end

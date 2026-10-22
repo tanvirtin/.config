@@ -476,6 +476,20 @@ function transcript.bindings(view)
       'Revert the edit under the cursor, or this turn\'s edits, after a preview in vgit',
     },
     {
+      keys.quickfix,
+      function()
+        transcript.report(edits.quickfix(view, edits.SCOPE.turn))
+      end,
+      'Send this turn\'s edits to the quickfix list',
+    },
+    {
+      keys.quickfix_session,
+      function()
+        transcript.report(edits.quickfix(view, edits.SCOPE.session))
+      end,
+      'Send every edit of this session to the quickfix list',
+    },
+    {
       keys.fork,
       function()
         transcript.report(transcript.fork(buf))

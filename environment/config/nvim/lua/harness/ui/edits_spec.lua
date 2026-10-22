@@ -68,16 +68,13 @@ describe('harness.ui.edits:', function()
     cursor_on_diff('e2')
 
     assert.is_true(edits.revert(transcript.view()))
-    eq(
+    eq({
       {
-        {
-          filename = a_path,
-          old_lines = { 'local x = 3', 'local keep = true' },
-          new_lines = { 'local x = 2', 'local keep = true' },
-        },
+        filename = a_path,
+        old_lines = { 'local x = 3', 'local keep = true' },
+        new_lines = { 'local x = 2', 'local keep = true' },
       },
-      shown
-    )
+    }, shown)
 
     local destroyed = false
 
@@ -118,5 +115,40 @@ describe('harness.ui.edits:', function()
     vim.api.nvim_win_set_cursor(0, { 1, 0 })
 
     eq({ false, 'no turn edits to revert here' }, { edits.revert(transcript.view()) })
+  end)
+
+  describe('quickfix', function()
+    after_each(function()
+      vim.cmd('silent! cclose')
+    end)
+
+    it('sends the turn\'s edits to the quickfix list, one entry per changed hunk', function()
+      vim.api.nvim_win_set_cursor(0, { #vim.api.nvim_buf_get_lines(buf, 0, -1, false), 0 })
+
+      assert.is_true(edits.quickfix(transcript.view(), edits.SCOPE.turn))
+
+      local list = require('core.quickfix').get()
+
+      eq(string.format('Harness %s: turn edits', session.key), list.title)
+      eq({ 2, '+1 −1  · second' }, { #list.items, list.items[1].text })
+      eq({ 1, 1 }, { list.items[1].line, list.items[2].line })
+    end)
+  end)
+
+  describe('commands', function()
+    after_each(function()
+      vim.cmd('silent! cclose')
+    end)
+
+    it('works on the whole session from outside a transcript, and asks for one for edit or turn', function()
+      local commands = require('harness.ui.commands')
+
+      vim.cmd('enew')
+
+      eq(false, commands.quickfix('turn'))
+      eq(false, commands.revert('nonsense'))
+      eq(true, commands.quickfix(''))
+      eq(3, #require('core.quickfix').get().items)
+    end)
   end)
 end)

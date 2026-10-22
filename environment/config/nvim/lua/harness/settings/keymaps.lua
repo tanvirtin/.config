@@ -24,6 +24,8 @@ return Config({
     apply = 'ga',
     revert = 'gR',
     revert_confirm = '<C-y>',
+    quickfix = 'gl',
+    quickfix_session = 'gL',
   },
   composer = {
     send = '<CR>',

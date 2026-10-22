@@ -101,12 +101,25 @@ function commands.changes()
   return transcript.report(edits.show_changes(transcript.view() or display.last()))
 end
 
-function commands.revert(scope)
-  if scope and scope ~= '' and not edits.SCOPE[scope] then
-    return transcript.report(false, 'revert takes edit, turn or session')
-  end
+local function scoped(action, scope)
+  scope = scope ~= '' and scope or nil
 
-  return transcript.report(edits.revert(transcript.view() or display.last(), scope ~= '' and scope or nil))
+  if scope and not edits.SCOPE[scope] then return false, 'choose edit, turn or session' end
+
+  local here = transcript.view()
+
+  if here then return edits[action](here, scope) end
+  if scope and scope ~= edits.SCOPE.session then return false, scope .. ' needs the cursor in a transcript' end
+
+  return edits[action](display.last(), edits.SCOPE.session)
+end
+
+function commands.revert(scope)
+  return transcript.report(scoped('revert', scope))
+end
+
+function commands.quickfix(scope)
+  return transcript.report(scoped('quickfix', scope))
 end
 
 function commands.sessions()
