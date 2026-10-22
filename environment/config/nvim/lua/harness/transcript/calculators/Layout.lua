@@ -78,7 +78,21 @@ local function fenced(spans, index)
   return false
 end
 
+local function unquoted(lines)
+  local out = {}
+
+  for i, line in ipairs(lines) do
+    if line:sub(1, 1) ~= '>' then return lines end
+
+    out[i] = line:gsub('^> ?', '')
+  end
+
+  return out
+end
+
 function Layout.settled(lines, limit)
+  lines = unquoted(lines)
+
   local spans, unclosed = fences.fences(lines)
 
   if unclosed then spans[#spans + 1] = { unclosed[1], math.huge } end
@@ -86,7 +100,7 @@ function Layout.settled(lines, limit)
   for j = math.min(limit, #lines), 2, -1 do
     local line = lines[j]
 
-    if lines[j - 1] == '' and line ~= '' and not line:find('^%s') and not fenced(spans, j) then return j - 1 end
+    if lines[j - 1] == '' and line ~= '' and not line:find('^[%s|]') and not fenced(spans, j) then return j - 1 end
   end
 
   return 0

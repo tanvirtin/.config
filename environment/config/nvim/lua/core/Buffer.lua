@@ -213,6 +213,10 @@ function Buffer:get_extmarks(namespace, from, to, opts)
   return vim.api.nvim_buf_get_extmarks(self.bufnr, namespace, from or 0, to or -1, opts or {})
 end
 
+function Buffer:del_extmark(namespace, id)
+  return pcall(vim.api.nvim_buf_del_extmark, self.bufnr, namespace, id)
+end
+
 function Buffer:clear_namespace(namespace, from, to)
   if self:is_valid() then vim.api.nvim_buf_clear_namespace(self.bufnr, namespace, from or 0, to or -1) end
   return self

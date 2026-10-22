@@ -83,14 +83,14 @@ local function capture_option(metadata, id, key)
   return metadata[key] or (metadata[id] and metadata[id][key])
 end
 
-local function highlight(out, parser, src)
+local function highlight(out, parser, src, first, last)
   parser:for_each_tree(function(tree, ltree)
     local lang = ltree:lang()
     local query = Renderer.highlights(lang)
 
     if not query then return end
 
-    for id, node, metadata in query:iter_captures(tree:root(), src.text) do
+    for id, node, metadata in query:iter_captures(tree:root(), src.text, first, last) do
       local name = query.captures[id]
 
       if name:sub(1, 1) ~= '_' and name ~= 'spell' and name ~= 'nospell' then
@@ -112,7 +112,7 @@ local function highlight(out, parser, src)
   end)
 end
 
-function Renderer:_inline(out, parser, src)
+function Renderer:_inline(out, parser, src, first, last)
   if not self.resolve then return end
 
   local child = parser:children().markdown_inline
@@ -120,7 +120,7 @@ function Renderer:_inline(out, parser, src)
   if not child then return end
 
   for _, tree in pairs(child:trees()) do
-    for id, node in INLINE_QUERY:iter_captures(tree:root(), src.text) do
+    for id, node in INLINE_QUERY:iter_captures(tree:root(), src.text, first, last) do
       local kind = INLINE_QUERY.captures[id]
       local decoration = self.resolve(kind, inline_text(src:node_text(node), kind))
 
@@ -139,25 +139,44 @@ function Renderer:_inline(out, parser, src)
   end
 end
 
-function Renderer:annotate(lines, offset)
+function Renderer.reaches(row, opts, from)
+  if row >= from then return true end
+
+  return opts.end_row ~= nil and opts.end_row >= from
+end
+
+function Renderer:annotate(lines, offset, from)
   local out = {}
-  local src = nodes.source(lines, offset or 0)
+
+  offset = offset or 0
+
+  local src = nodes.source(lines, offset)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src.text, 'markdown')
 
   if not ok or not parser then return out end
 
-  local tree = parser:parse(true)[1]
+  local first = from and from > offset and from - offset or 0
+  local last = #lines
+  local tree = parser:parse(first > 0 and { first, last } or true)[1]
 
   if not tree then return out end
 
-  for id, node in QUERY:iter_captures(tree:root(), src.text) do
+  for id, node in QUERY:iter_captures(tree:root(), src.text, first, last) do
     nodes.NODES[QUERY.captures[id]](out, node, src, self)
   end
 
-  highlight(out, parser, src)
-  self:_inline(out, parser, src)
+  highlight(out, parser, src, first, last)
+  self:_inline(out, parser, src, first, last)
 
-  return out
+  if first == 0 then return out end
+
+  local kept = {}
+
+  for _, mark in ipairs(out) do
+    if Renderer.reaches(mark.row, mark.opts, offset + first) then kept[#kept + 1] = mark end
+  end
+
+  return kept
 end
 
 function Renderer:inline_at(row, col)
@@ -195,19 +214,29 @@ function Renderer:inline_at(row, col)
 end
 
 function Renderer:clear(from_row, to_row)
+  from_row = from_row or 0
   self.buffer:clear_namespace(Renderer.NAMESPACE, from_row, to_row or -1)
+
+  if from_row == 0 then return end
+
+  local above = from_row - 1
+
+  for _, mark in ipairs(self.buffer:get_extmarks(Renderer.NAMESPACE, { above, 0 }, { above, -1 }, { details = true })) do
+    if mark[4].virt_lines and not mark[4].virt_lines_above then self.buffer:del_extmark(Renderer.NAMESPACE, mark[1]) end
+  end
 end
 
 function Renderer:apply(marks)
   MarkSpec.apply(self.buffer, Renderer.NAMESPACE, marks)
 end
 
-function Renderer:render(from_row, to_row)
+function Renderer:render(from_row, to_row, context_row)
   if not self.buffer:is_valid() then return end
 
   to_row = to_row or self.buffer:get_line_count()
+  context_row = math.min(context_row or from_row, from_row)
   self:clear(from_row, to_row)
-  self:apply(self:annotate(self.buffer:get_lines(from_row, to_row), from_row))
+  self:apply(self:annotate(self.buffer:get_lines(context_row, to_row), context_row, from_row))
 end
 
 return Renderer

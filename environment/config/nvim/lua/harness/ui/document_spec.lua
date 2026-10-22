@@ -133,9 +133,9 @@ describe('harness.ui.document:', function()
       local annotated = {}
       local annotate = document.renderer.annotate
 
-      document.renderer.annotate = function(renderer, rows, offset)
+      document.renderer.annotate = function(renderer, rows, offset, from)
         annotated[#annotated + 1] = #rows
-        return annotate(renderer, rows, offset)
+        return annotate(renderer, rows, offset, from)
       end
 
       emit(events.prompt('hi'))
@@ -144,6 +144,111 @@ describe('harness.ui.document:', function()
 
       eq(1, annotated[#annotated])
       eq('para three', lines(buf)[#lines(buf)])
+    end)
+
+    it('draws a live thought, growing inside its callout, the same as one written in one go', function()
+      local text =
+        'First thought with `code`.\n\n- a list\n- of points\n\n```lua\nlocal a = 1\n\nreturn a\n```\n\nLast thought.'
+      local running = { running = true }
+      local annotated = {}
+      local annotate = document.renderer.annotate
+
+      document.renderer.annotate = function(renderer, rows, offset, from)
+        annotated[#annotated + 1] = (from or offset) - offset
+        return annotate(renderer, rows, offset, from)
+      end
+
+      events.append(history, events.prompt('hi'))
+
+      for i = 1, #text, 5 do
+        events.append(history, { kind = 'thought', text = text:sub(i, i + 4) })
+        document:write(blocks.build(history, nil, running))
+      end
+
+      assert.is_true(annotated[#annotated] > 0)
+
+      local streamed = drawn(buf)
+      local whole = vim.api.nvim_create_buf(false, true)
+
+      vim.api.nvim_win_set_buf(0, whole)
+      Document(whole):write(blocks.build(history, nil, running))
+
+      eq(drawn(whole), streamed)
+      vim.api.nvim_win_set_buf(0, buf)
+      vim.api.nvim_buf_delete(whole, { force = true })
+    end)
+
+    it('draws only the header of a thought folded away, and the rest once it unfolds', function()
+      local folded = true
+      local running = { running = true }
+
+      document.folded = function()
+        return folded
+      end
+
+      events.append(history, events.prompt('hi'))
+
+      for _, piece in ipairs({ 'One `a`.\n\n', '- two\n\n', 'three **b**' }) do
+        events.append(history, { kind = 'thought', text = piece })
+        document:write(blocks.build(history, nil, running))
+      end
+
+      local thought = document.blocks[#document.blocks]
+      local function rows()
+        local out = {}
+
+        for _, mark in ipairs(marks(buf, Renderer.NAMESPACE)) do
+          if mark[2] >= thought.start then out[mark[2] - thought.start] = true end
+        end
+
+        return out
+      end
+
+      eq({ [0] = true }, rows())
+
+      local ids = vim.tbl_map(function(mark)
+        return mark[1]
+      end, marks(buf, Renderer.NAMESPACE))
+
+      document:decorate_visible()
+
+      eq(
+        ids,
+        vim.tbl_map(function(mark)
+          return mark[1]
+        end, marks(buf, Renderer.NAMESPACE))
+      )
+      assert.is_true(document:has_pending(thought.start, thought.finish))
+
+      folded = false
+      document:decorate_visible()
+
+      local streamed = drawn(buf)
+      local whole = vim.api.nvim_create_buf(false, true)
+
+      vim.api.nvim_win_set_buf(0, whole)
+      Document(whole):write(blocks.build(history, nil, running))
+
+      eq(drawn(whole), streamed)
+      assert.is_false(document:has_pending(thought.start, thought.finish))
+      vim.api.nvim_win_set_buf(0, buf)
+      vim.api.nvim_buf_delete(whole, { force = true })
+    end)
+
+    it('drops a table\'s box from above once the table grows past the settled line', function()
+      emit(events.prompt('hi'))
+      stream('intro\n\n| a | b |\n| - | - |', 100)
+      stream('\n| 1 | 2 |', 100)
+
+      local streamed = drawn(buf)
+      local whole = vim.api.nvim_create_buf(false, true)
+
+      vim.api.nvim_win_set_buf(0, whole)
+      Document(whole):write(blocks.build(history))
+
+      eq(drawn(whole), streamed)
+      vim.api.nvim_win_set_buf(0, buf)
+      vim.api.nvim_buf_delete(whole, { force = true })
     end)
 
     it('draws the same marks as a reply written in one go, fences and all', function()
@@ -166,6 +271,12 @@ describe('harness.ui.document:', function()
         '| 1 | 2 |',
         '',
         '> quoted',
+        '',
+        '| c | d |',
+        '| - | - |',
+        '| 3 | 4 |',
+        '',
+        'after the table',
         '',
         'last line',
       }, '\n')

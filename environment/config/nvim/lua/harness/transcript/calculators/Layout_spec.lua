@@ -103,6 +103,11 @@ describe('harness.transcript.calculators.Layout:', function()
     eq(0, Layout.settled(lines, 1))
   end)
 
+  it('never settles at a table, which hangs its box on the line before it', function()
+    eq(2, Layout.settled({ 'intro', '', 'para', '', '| a |', '| - |' }, 6))
+    eq(6, Layout.settled({ 'intro', '', '| a |', '| - |', '', '', 'after' }, 7))
+  end)
+
   it('never settles inside a code fence, closed or still streaming, or before an indented line', function()
     eq(0, Layout.settled({ 'intro', '```lua', 'a', '', 'b' }, 5))
     eq(0, Layout.settled({ 'intro', '```lua', 'a', '', 'b', '```', '', 'after' }, 5))

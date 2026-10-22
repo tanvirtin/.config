@@ -16,6 +16,7 @@ local Document = Object:extend()
 Document.NAMESPACE = Buffer.namespace('harness.document')
 
 Document.RAW = { [Block.KIND.prompt] = true, [Block.KIND.note] = true, [Block.KIND.plan] = true }
+Document.QUOTED = { [Block.KIND.thought] = true }
 Document.STATUS_NAMESPACE = Buffer.namespace('harness.document.status')
 
 local documents = setmetatable({}, { __mode = 'v' })
@@ -38,6 +39,7 @@ function Document:constructor(bufnr)
     buffer = Buffer(bufnr),
     pending = {},
     partial = {},
+    deferred = {},
     scheduled = false,
     lines = {},
     blocks = {},
@@ -94,6 +96,7 @@ function Document:resize()
   end
 
   self.partial = {}
+  self.deferred = {}
 
   self:decorate_visible()
 end
@@ -112,6 +115,7 @@ function Document:reset()
   self.blocks = {}
   self.pending = {}
   self.partial = {}
+  self.deferred = {}
 end
 
 function Document:attach()
@@ -159,7 +163,7 @@ function Document:write(list, state)
     list[i].start, list[i].finish = old[i].start, old[i].finish
   end
 
-  local pending, partial = {}, {}
+  local pending, partial, deferred = {}, {}, {}
 
   for i = 1, keep do
     local same = list[i] == old[i] or Layout.signature(list[i]) == Layout.signature(old[i])
@@ -168,6 +172,8 @@ function Document:write(list, state)
       pending[i] = true
     elseif self.pending[i] then
       pending[i], partial[i] = true, self.partial[i]
+    elseif self.deferred[i] then
+      deferred[i] = true
     end
   end
 
@@ -214,19 +220,29 @@ function Document:write(list, state)
   self.changedtick = self.buffer:get_changedtick()
   self.pending = pending
   self.partial = partial
+  self.deferred = deferred
   self:decorate_visible()
   self:_status()
+end
+
+function Document.growing(list, i)
+  local block = list[i]
+
+  if i ~= #list then return false end
+  if block.kind == Block.KIND.thought then return block.live == true end
+
+  return Layout.streaming(list, i)
 end
 
 function Document:_settled(old, list, changed, first)
   local block, previous = list[changed], old[changed]
 
-  if changed ~= #list or not previous or previous.start ~= block.start then return block.start end
-  if not Layout.streaming(list, changed) or not Layout.streaming(old, changed) then return block.start end
+  if not previous or previous.start ~= block.start or previous.kind ~= block.kind then return block.start end
+  if not Document.growing(list, changed) or not Document.growing(old, changed) then return block.start end
 
   local row = block.start + Layout.settled(block.lines, first)
 
-  if self.pending[changed] then row = math.min(row, self.partial[changed] or block.start) end
+  if self.pending[changed] or self.deferred[changed] then row = math.min(row, self.partial[changed] or block.start) end
 
   return row
 end
@@ -253,17 +269,29 @@ local function overlaps(block, ranges)
 end
 
 function Document:has_pending(top, bottom)
-  for i in pairs(self.pending) do
-    local block = self.blocks[i]
+  for _, set in ipairs({ self.pending, self.deferred }) do
+    for i in pairs(set) do
+      local block = self.blocks[i]
 
-    if block and block.finish > top and block.start <= bottom then return true end
+      if block and block.finish > top and block.start <= bottom then return true end
+    end
   end
 
   return false
 end
 
+function Document:folded(block)
+  if #block.lines < 2 then return false end
+
+  for _, window in ipairs(self.buffer:get_windows()) do
+    if not window:fold_closed(block.start + 2) then return false end
+  end
+
+  return true
+end
+
 function Document:decorate_visible()
-  if not next(self.pending) or not self.buffer:is_valid() then return end
+  if (not next(self.pending) and not next(self.deferred)) or not self.buffer:is_valid() then return end
 
   local ranges = self:visible_ranges()
 
@@ -272,18 +300,28 @@ function Document:decorate_visible()
   local group
 
   local function flush()
-    if group then self.renderer:render(group[1], group[2]) end
+    if group then self.renderer:render(group[1], group[2], group[3]) end
     group = nil
   end
 
   local due = {}
 
   for i, block in ipairs(self.blocks) do
-    if self.pending[i] and overlaps(block, ranges) then
+    local waiting = self.pending[i] or self.deferred[i]
+
+    if waiting and overlaps(block, ranges) and Document.QUOTED[block.kind] and self:folded(block) then
+      flush()
+
+      if self.pending[i] then
+        self.renderer:render(block.start, block.start + 1)
+        due[#due + 1] = block
+        self.pending[i], self.partial[i], self.deferred[i] = nil, nil, true
+      end
+    elseif waiting and overlaps(block, ranges) then
       local top = self.partial[i] or block.start
 
       due[#due + 1] = block
-      self.pending[i], self.partial[i] = nil, nil
+      self.pending[i], self.partial[i], self.deferred[i] = nil, nil, nil
 
       if Document.RAW[block.kind] then
         flush()
@@ -291,7 +329,7 @@ function Document:decorate_visible()
         group[2] = block.finish
       else
         flush()
-        group = { top, block.finish }
+        group = { top, block.finish, Document.QUOTED[block.kind] and block.start or top }
       end
     else
       flush()

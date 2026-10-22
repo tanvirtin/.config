@@ -220,6 +220,59 @@ describe('ui.markdown.Renderer:', function()
     assert.is_nil(box_of({ '| a |', '| - |' }))
   end)
 
+  it('redraws from a row with the rows above as context, matching a full render', function()
+    local function all(bufnr)
+      local out = {}
+
+      for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(bufnr, Renderer.NAMESPACE, 0, -1, { details = true })) do
+        out[#out + 1] = vim.inspect({ mark[2], mark[3], mark[4] })
+      end
+
+      table.sort(out)
+
+      return out
+    end
+
+    render({ '> [!note]', '> one `a`', '>', '> two' })
+    vim.api.nvim_buf_set_lines(buf, 3, -1, false, { '> two **b**', '>', '> three' })
+    Renderer(buf):render(3, nil, 0)
+
+    local whole = vim.api.nvim_create_buf(false, true)
+
+    vim.api.nvim_buf_set_lines(whole, 0, -1, false, vim.api.nvim_buf_get_lines(buf, 0, -1, false))
+    Renderer(whole):render(0)
+
+    eq(all(whole), all(buf))
+    vim.api.nvim_buf_delete(whole, { force = true })
+  end)
+
+  it('annotates from a row, keeping only marks on it or reaching into it', function()
+    local lines = { '> quoted', '> more', '', 'after' }
+    local marks = Renderer(0):annotate(lines, 10, 11)
+
+    for _, mark in ipairs(marks) do
+      assert.is_true(Renderer.reaches(mark.row, mark.opts, 11))
+    end
+
+    assert.truthy(vim.iter(marks):find(function(mark)
+      return mark.row == 10 and mark.opts.end_row ~= nil
+    end))
+    assert.is_nil(vim.iter(marks):find(function(mark)
+      return mark.row == 10 and mark.opts.end_row == nil
+    end))
+  end)
+
+  it('clearing from a table also clears its box hung below the line before it', function()
+    render({ '# Title', '', '| a |', '| - |' })
+
+    assert.truthy(find(1, 'virt_lines'))
+
+    Renderer(buf):clear(2)
+
+    assert.is_nil(find(1, 'virt_lines'))
+    assert.truthy(find(0, 'conceal'))
+  end)
+
   it('shades code blocks by language when given a surface for it', function()
     local renderer = Renderer(0, { code_hl = { output = 'UiToolOutput' } })
     local surfaces = {}
