@@ -23,6 +23,7 @@ Block = dataclass.define('Block', {
   tight = BOOLEAN,
   label = STRING,
   message_id = STRING,
+  event = NUMBER,
   denied = STRING,
   interrupted = BOOLEAN,
   statuses = TABLE,

@@ -276,7 +276,7 @@ local function build_turn(history, from, to, opts, last_turn, updates)
   local BUILD = {
     prompt = function(event, i)
       if not event.steered then turn = { tools = 0, started = times[i] } end
-      add(Block.KIND.prompt, quoted(vim.trim(context.strip(event.text))), { steered = event.steered })
+      add(Block.KIND.prompt, quoted(vim.trim(context.strip(event.text))), { steered = event.steered, event = i })
     end,
     message = function(event, i)
       stream(Block.KIND.message, event.text, i, event.parent, event.message_id)

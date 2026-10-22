@@ -46,7 +46,9 @@ local function locate(text, needle)
   end
 end
 
-local function replace(text, from, length, with)
+EditResolver.locate = locate
+
+function EditResolver.replace(text, from, length, with)
   return text:sub(1, from - 1) .. with .. text:sub(from + length)
 end
 
@@ -66,7 +68,11 @@ function EditResolver.resolve(diff, file, opts)
         return { kind = EditResolver.KIND.created, old_lines = {}, new_lines = lines_of(text) }
       end
 
-      return { kind = EditResolver.KIND.applied, old_lines = lines_of(replace(text, at, #new, old)), new_lines = file }
+      return {
+        kind = EditResolver.KIND.applied,
+        old_lines = lines_of(EditResolver.replace(text, at, #new, old)),
+        new_lines = file,
+      }
     end
   end
 
@@ -74,7 +80,11 @@ function EditResolver.resolve(diff, file, opts)
     local at = locate(text, old)
 
     if at then
-      return { kind = EditResolver.KIND.pending, old_lines = file, new_lines = lines_of(replace(text, at, #old, new)) }
+      return {
+        kind = EditResolver.KIND.pending,
+        old_lines = file,
+        new_lines = lines_of(EditResolver.replace(text, at, #old, new)),
+      }
     end
   end
 

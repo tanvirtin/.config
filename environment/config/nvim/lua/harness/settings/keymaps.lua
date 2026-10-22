@@ -22,6 +22,8 @@ return Config({
     block_around = 'ab',
     insert = 'gi',
     apply = 'ga',
+    revert = 'gR',
+    revert_confirm = '<C-y>',
   },
   composer = {
     send = '<CR>',

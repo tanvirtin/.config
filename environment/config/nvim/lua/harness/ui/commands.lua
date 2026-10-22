@@ -4,6 +4,7 @@ local console = require('core.console')
 local async = require('harness.async')
 local context = require('harness.context')
 local display = require('harness.ui.display')
+local edits = require('harness.ui.edits')
 local hub = require('harness.hub')
 local transcript = require('harness.ui.transcript')
 local tools = require('nvim_mcp.tools')
@@ -97,7 +98,15 @@ function commands.fork()
 end
 
 function commands.changes()
-  return transcript.report(transcript.show_changes(transcript.view() or display.last()))
+  return transcript.report(edits.show_changes(transcript.view() or display.last()))
+end
+
+function commands.revert(scope)
+  if scope and scope ~= '' and not edits.SCOPE[scope] then
+    return transcript.report(false, 'revert takes edit, turn or session')
+  end
+
+  return transcript.report(edits.revert(transcript.view() or display.last(), scope ~= '' and scope or nil))
 end
 
 function commands.sessions()

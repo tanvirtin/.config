@@ -3,14 +3,13 @@ local lazy = require('core.lazy')
 local Block = require('harness.transcript.Block')
 local Buffer = require('core.Buffer')
 local EditPatches = require('harness.transcript.EditPatches')
-local SessionChanges = require('harness.transcript.SessionChanges')
 local Fold = require('core.Fold')
 local INLINE = require('ui.markdown.Renderer').INLINE
 local Timer = require('core.Timer')
 local TranscriptView = require('harness.ui.TranscriptView')
 local Window = require('core.Window')
 local code_blocks = require('harness.ui.code_blocks')
-local buffers = require('core.buffers')
+local edits = require('harness.ui.edits')
 local console = require('core.console')
 local display = require('harness.ui.display')
 local fences = require('core.fences')
@@ -238,45 +237,6 @@ function transcript.git_diff(buf)
   return vgit.git_diff(path)
 end
 
-function transcript.edit_at(buf)
-  local view = view_for(buf)
-
-  if not view then return nil end
-
-  local blocks = view.document.blocks
-  local block = view.document:block_at(Window.get_current():get_cursor()[1] - 1)
-
-  if not block or not block.id then return nil end
-
-  local files = {}
-
-  for _, candidate in ipairs(blocks) do
-    if candidate.kind == Block.KIND.diff and candidate.id == block.id and candidate.edit then
-      files[#files + 1] = candidate.edit
-    end
-  end
-
-  return #files > 0 and files or nil
-end
-
-function transcript.show_edit(buf)
-  local files = transcript.edit_at(buf)
-
-  if not files then return false, 'no edit here' end
-
-  return vgit.show(files)
-end
-
-function transcript.show_changes(view)
-  if not view then return false, 'no session here' end
-
-  local files = SessionChanges.files(view.session.history, view.edits, buffers.lines_of)
-
-  if #files == 0 then return false, 'this session has not changed any file' end
-
-  return vgit.show(files)
-end
-
 local function reply_with_id(block)
   return block and block.kind == Block.KIND.message and not block.depth and block.message_id ~= nil
 end
@@ -444,7 +404,7 @@ function transcript.bindings(view)
     {
       keys.diff,
       function()
-        transcript.report(transcript.show_edit(buf))
+        transcript.report(edits.show_edit(view))
       end,
       'Open the edit under the cursor in vgit',
     },
@@ -458,7 +418,7 @@ function transcript.bindings(view)
     {
       keys.changes,
       function()
-        transcript.report(transcript.show_changes(view))
+        transcript.report(edits.show_changes(view))
       end,
       'Open every file this session changed in vgit',
     },
@@ -507,6 +467,13 @@ function transcript.bindings(view)
         transcript.report(code_blocks.apply(view))
       end,
       'Ask the agent to apply the code block to your code',
+    },
+    {
+      keys.revert,
+      function()
+        transcript.report(edits.revert(view))
+      end,
+      'Revert the edit under the cursor, or this turn\'s edits, after a preview in vgit',
     },
     {
       keys.fork,

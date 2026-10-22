@@ -854,19 +854,22 @@ describe('harness.ui.transcript:', function()
     end)
 
     it('opens the edit under the cursor, as the whole file before and after', function()
-      assert.is_true(transcript.show_edit())
+      assert.is_true(require('harness.ui.edits').show_edit(transcript.view()))
       eq({ { filename = path, old_lines = { 'local y = 2' }, new_lines = { 'local z = 2' } } }, shown)
 
       vim.api.nvim_win_set_cursor(0, { 1, 0 })
-      eq({ false, 'no edit here' }, { transcript.show_edit() })
+      eq({ false, 'no edit here' }, { require('harness.ui.edits').show_edit(transcript.view()) })
     end)
 
     it('opens every file the session changed, from before its first edit to now', function()
-      assert.is_true(transcript.show_changes(transcript.view()))
+      assert.is_true(require('harness.ui.edits').show_changes(transcript.view()))
       eq({ { filename = path, old_lines = { 'local y = 2' }, new_lines = { 'local z = 2' } } }, shown)
 
       vim.fn.writefile({ 'local y = 2' }, path)
-      eq({ false, 'this session has not changed any file' }, { transcript.show_changes(transcript.view()) })
+      eq(
+        { false, 'this session has not changed any file' },
+        { require('harness.ui.edits').show_changes(transcript.view()) }
+      )
     end)
 
     it('hands the file under the cursor to :VGit diff for its git diff', function()
