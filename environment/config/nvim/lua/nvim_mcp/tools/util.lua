@@ -1,3 +1,4 @@
+local Buffer = require('core.Buffer')
 local compact = require('compact')
 local schema = require('nvim_mcp.schema')
 
@@ -90,7 +91,7 @@ function util.resolve(args, create)
 end
 
 function util.break_undo(buf)
-  vim.bo[buf].undolevels = vim.bo[buf].undolevels
+  Buffer(buf):break_undo()
 end
 
 function util.describe_buf(buf)

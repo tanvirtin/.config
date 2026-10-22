@@ -57,6 +57,14 @@ function Window:get_buffer()
   return Buffer(vim.api.nvim_win_get_buf(self.win_id))
 end
 
+function Window:select_lines(top, bottom)
+  return self:call(function()
+    if vim.api.nvim_get_mode().mode:match('^[vV\22]') then vim.cmd('normal! \27') end
+
+    vim.cmd(string.format('normal! %dGV%dG', top, bottom))
+  end)
+end
+
 function Window:normal(keys)
   return self:call(function()
     vim.cmd('normal! ' .. keys)

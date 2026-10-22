@@ -13,6 +13,15 @@ function buffers.list()
   return result
 end
 
+function buffers.load(path)
+  local bufnr = vim.fn.bufadd(path)
+
+  vim.fn.bufload(bufnr)
+  vim.bo[bufnr].buflisted = true
+
+  return Buffer(bufnr)
+end
+
 function buffers.lines_of(path)
   local bufnr = vim.fn.bufnr(path)
 

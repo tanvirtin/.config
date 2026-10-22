@@ -66,3 +66,19 @@ describe('keymap:', function()
     end)
   end)
 end)
+
+describe('keymap.count:', function()
+  it('reads the count typed before a mapping, one when none was', function()
+    local counts = {}
+
+    vim.keymap.set('n', '<F9>', function()
+      counts[#counts + 1] = keymap.count()
+    end)
+
+    vim.api.nvim_feedkeys('3' .. vim.keycode('<F9>'), 'x', false)
+    vim.api.nvim_feedkeys(vim.keycode('<F9>'), 'x', false)
+    vim.keymap.del('n', '<F9>')
+
+    assert.are.same({ 3, 1 }, counts)
+  end)
+end)

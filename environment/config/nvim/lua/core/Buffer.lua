@@ -24,6 +24,12 @@ function Buffer:constructor(bufnr)
   }
 end
 
+function Buffer:break_undo()
+  self:set_option('undolevels', self:get_option('undolevels'))
+
+  return self
+end
+
 function Buffer:call(callback)
   vim.api.nvim_buf_call(self.bufnr, callback)
   return self

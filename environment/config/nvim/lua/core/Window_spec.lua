@@ -401,4 +401,18 @@ describe('Window:', function()
       eq('no', window:get_option('signcolumn'))
     end)
   end)
+
+  describe('select_lines', function()
+    it('selects whole lines for an operator, so a text object can be built on it', function()
+      vim.cmd('enew!')
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'one', 'two', 'three', 'four' })
+      vim.keymap.set('o', '<F9>', function()
+        Window.get_current():select_lines(2, 3)
+      end, { buffer = 0 })
+
+      vim.api.nvim_feedkeys('d' .. vim.keycode('<F9>'), 'x', false)
+
+      eq({ 'one', 'four' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    end)
+  end)
 end)

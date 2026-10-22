@@ -73,6 +73,10 @@ function keymap.define(keymaps)
   return keymap
 end
 
+function keymap.count()
+  return vim.v.count1
+end
+
 function keymap.feed(keys, mode)
   vim.api.nvim_feedkeys(vim.keycode(keys), mode or 'n', false)
 end

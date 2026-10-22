@@ -25,4 +25,19 @@ describe('core.buffers:', function()
       eq({}, buffers.lines_of(vim.fn.tempname()))
     end)
   end)
+
+  describe('load', function()
+    it('loads a file into a listed buffer, ready to edit', function()
+      local path = vim.fn.tempname()
+
+      vim.fn.writefile({ 'on disk' }, path)
+
+      local buffer = buffers.load(path)
+
+      eq({ 'on disk' }, buffer:get_lines())
+      eq(true, vim.bo[buffer.bufnr].buflisted)
+      vim.api.nvim_buf_delete(buffer.bufnr, { force = true })
+      os.remove(path)
+    end)
+  end)
 end)
