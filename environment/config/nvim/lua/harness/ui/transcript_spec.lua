@@ -484,6 +484,44 @@ describe('harness.ui.transcript:', function()
       eq(1, cycled)
     end)
 
+    it('picks the model with gm, or says the agent offers none', function()
+      local buf = transcript.open(session)
+      local set = {}
+      local original = vim.ui.select
+
+      session:configure({
+        configOptions = {
+          {
+            id = 'model',
+            category = 'model',
+            currentValue = 'opus',
+            options = {
+              { value = 'opus', name = 'Opus' },
+              { value = 'sonnet', name = 'Sonnet' },
+            },
+          },
+        },
+      })
+      session.set_option = function(_, id, value)
+        set[#set + 1] = { id, value }
+      end
+
+      vim.ui.select = function(items, _, on_choice)
+        on_choice(items[2])
+      end
+
+      vim.api.nvim_set_current_buf(buf)
+      vim.api.nvim_feedkeys(vim.keycode('gm'), 'x', false)
+
+      vim.wait(500, function()
+        return #set == 1
+      end)
+
+      eq({ { 'model', 'sonnet' } }, set)
+
+      vim.ui.select = original
+    end)
+
     describe('asking for permission in the transcript', function()
       local permissions = require('harness.permissions')
       local Document = require('harness.ui.document')

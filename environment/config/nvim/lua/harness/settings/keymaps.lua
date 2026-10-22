@@ -10,7 +10,7 @@ return Config({
     next_turn = ']]',
     previous_turn = '[[',
     cycle_mode = '<S-Tab>',
-    options = 'go',
+    model = 'gm',
     plan = 'gp',
     diff = 'gd',
     git_diff = 'gD',

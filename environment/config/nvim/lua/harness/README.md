@@ -110,7 +110,7 @@ In the transcript the child's tools and report sit under its Agent/Task call beh
 Agents describe their settings as ACP config options (`configOptions`: mode, model, effort, …), or only as session `modes`. Both are kept on the session, not in the history, and follow `config_option_update` and `current_mode_update`.
 
 - The winbar shows the current mode (`[Plan]`) and model.
-- `<S-Tab>` cycles the mode; `go` picks any option and value. They are set with `session/set_config_option`, or `session/set_mode` for agents that only have modes. A mode is real: in Accept edits Claude edits without asking.
+- `<S-Tab>` cycles the mode; `gm` picks the model. They are set with `session/set_config_option`, or `session/set_mode` for agents that only have modes. A mode is real: in Accept edits Claude edits without asking.
 - The agent's slash commands (`available_commands_update`) complete in the composer when `/` starts the message (or `<C-x><C-o>`), with their argument hint and description. They are sent as ordinary prompt text.
 
 ## Queue, steer and interrupt
@@ -298,7 +298,7 @@ Keys in a transcript:
 | `<C-c>` | interrupt the running turn |
 | `1` `2` `3` | while the agent asks permission: allow once, allow always (this session), reject. Otherwise they are counts |
 | `<S-Tab>` | next session mode (also in the composer) |
-| `go` | pick a session option (mode, model, effort, …) and its value |
+| `gm` | pick the session model |
 | `i`, `a`, `o`, `I`, `A`, `O` | write to the session |
 
 **Links.** Replies are told to reference code as `[label](nvim://file/<path>#L<line>)`, relative to the session's directory. `nvim://buf/<n>` names a buffer. Links show an icon and open on `<CR>`. A link to a file that no longer exists is greyed out. Inline code that names an existing file is a link too.

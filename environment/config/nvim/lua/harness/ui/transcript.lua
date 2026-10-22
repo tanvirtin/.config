@@ -349,49 +349,20 @@ local function describe(choice, current)
   return mark .. (choice.name or choice.value) .. (choice.description and ('  ' .. choice.description) or '')
 end
 
-function transcript.pick_option(session)
-  local options = vim.tbl_filter(function(option)
-    return option.type == nil or option.type == 'select'
-  end, session.options)
+function transcript.pick_model(session)
+  local option = session:option('model')
 
-  local function pick_value(option)
-    console.select(session.choices(option), {
-      prompt = option.name or option.id,
-      format_item = function(choice)
-        return describe(choice, option.currentValue)
-      end,
-    }, function(choice)
-      if choice then session:set_option(option.id, choice.value) end
-    end)
+  if not option or (option.type and option.type ~= 'select') then
+    return console.notify_now('Harness: this agent offers no model option', 'info')
   end
 
-  if #options == 0 then
-    local modes = session:mode_choices()
-
-    if #modes == 0 then return console.notify_now('Harness: this agent offers no options', 'info') end
-
-    return console.select(modes, {
-      prompt = 'Mode',
-      format_item = function(mode)
-        return (mode.name or mode.id) .. (mode.description and ('  ' .. mode.description) or '')
-      end,
-    }, function(mode)
-      if mode then session:set_mode(mode.id) end
-    end)
-  end
-
-  console.select(options, {
-    prompt = 'Session option',
-    format_item = function(option)
-      local current = session:choice(option.id)
-      return (option.name or option.id)
-        .. ': '
-        .. (current and (current.name or current.value) or tostring(option.currentValue))
+  console.select(session.choices(option), {
+    prompt = option.name or 'Model',
+    format_item = function(choice)
+      return describe(choice, option.currentValue)
     end,
-  }, function(option)
-    if option then Timer.schedule(function()
-      pick_value(option)
-    end) end
+  }, function(choice)
+    if choice then session:set_option(option.id, choice.value) end
   end)
 end
 
@@ -498,11 +469,11 @@ function transcript.bindings(view)
       'Fork the session from the reply under the cursor (or the one before this prompt)',
     },
     {
-      keys.options,
+      keys.model,
       function()
-        transcript.pick_option(session)
+        transcript.pick_model(session)
       end,
-      'Session options: mode, model, …',
+      'Session model',
     },
   }
 end
