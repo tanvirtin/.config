@@ -4,9 +4,8 @@ package.path = root .. '/lua/?.lua;' .. root .. '/lua/?/init.lua;' .. package.pa
 
 local Connection = require('harness.acp.connection')
 local Session = require('harness.session')
-local TranscriptView = require('harness.ui.TranscriptView')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
-local Window = require('core.Window')
+local display = require('harness.ui.display')
 local events = require('harness.events')
 local fake_agent = require('harness.fake_agent')
 
@@ -142,13 +141,21 @@ for _ = 1, TURNS do
   turn()
 end
 
-log('harness bench: %d turns, %d events, %d stream chunks', TURNS, #session.history, CHUNKS)
+log(
+  'harness bench: %d turns, %d events, %d reply chunks after %d thought chunks',
+  TURNS,
+  #session.history,
+  CHUNKS,
+  math.floor(CHUNKS / 2)
+)
 
 local started = now()
-local view = TranscriptView(session):mount()
+
+display.open(session)
+
+local view = display.view_of(session)
 local mounted = now()
 
-view:show_in(Window.get_current())
 vim.cmd('redraw')
 
 local shown = now()
@@ -178,29 +185,35 @@ spent = {}
 session:_emit(events.prompt('stream test'))
 session.state = 'running'
 
-local total, worst, samples = 0, 0, {}
+local function stream(label, kind, chunks)
+  local total, worst, samples = 0, 0, {}
 
-for chunk = 1, CHUNKS do
-  local piece = chunk % 60 == 0 and ('\n' .. CODE .. '\n')
-    or ('word' .. chunk .. ' ' .. (chunk % 12 == 0 and '\n\n' or ''))
+  for chunk = 1, chunks do
+    local piece = chunk % 60 == 0 and ('\n' .. CODE .. '\n')
+      or ('word' .. chunk .. ' ' .. (chunk % 12 == 0 and '\n\n' or ''))
 
-  update({ sessionUpdate = 'agent_message_chunk', content = text(piece) })
+    update({ sessionUpdate = kind, content = text(piece) })
 
-  local start = now()
+    local start = now()
 
-  view:render()
-  vim.cmd('redraw')
+    view:render()
+    vim.cmd('redraw')
 
-  local took = now() - start
+    local took = now() - start
 
-  total, worst = total + took, math.max(worst, took)
+    total, worst = total + took, math.max(worst, took)
 
-  if chunk % 300 == 0 then samples[#samples + 1] = string.format('%d:%.1f', chunk, took) end
+    if chunk % 300 == 0 then samples[#samples + 1] = string.format('%d:%.1f', chunk, took) end
+  end
+
+  log(label)
+  log('  per chunk avg %.2f ms, worst %.2f ms, at chunk(ms) %s', total / chunks, worst, table.concat(samples, ' '))
+  report()
 end
 
-log('stream')
-log('  per chunk avg %.2f ms, worst %.2f ms, at chunk(ms) %s', total / CHUNKS, worst, table.concat(samples, ' '))
-report()
+stream('stream thought', 'agent_thought_chunk', math.floor(CHUNKS / 2))
+log('  thought folded away: %s', tostring(view.document:folded(view.document.blocks[#view.document.blocks])))
+stream('stream reply', 'agent_message_chunk', CHUNKS)
 
 session.state = 'idle'
 view:dispose()
