@@ -16,6 +16,12 @@ return Config({
     git_diff = 'gD',
     changes = 'gC',
     fork = 'gF',
+    block_next = ']b',
+    block_previous = '[b',
+    block_inner = 'ib',
+    block_around = 'ab',
+    insert = 'gi',
+    apply = 'ga',
   },
   composer = {
     send = '<CR>',

@@ -331,7 +331,7 @@ function TranscriptView:bind(actions)
   end
 
   for _, binding in ipairs(actions) do
-    self:map(binding[1], binding[2], binding[3])
+    self:map(binding[1], binding[2], binding[3], binding[4])
   end
 
   for _, key in ipairs(permission_prompt.KEYS) do

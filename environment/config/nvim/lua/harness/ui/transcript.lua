@@ -9,6 +9,7 @@ local INLINE = require('ui.markdown.Renderer').INLINE
 local Timer = require('core.Timer')
 local TranscriptView = require('harness.ui.TranscriptView')
 local Window = require('core.Window')
+local code_blocks = require('harness.ui.code_blocks')
 local buffers = require('core.buffers')
 local console = require('core.console')
 local display = require('harness.ui.display')
@@ -460,6 +461,52 @@ function transcript.bindings(view)
         transcript.report(transcript.show_changes(view))
       end,
       'Open every file this session changed in vgit',
+    },
+    {
+      keys.block_next,
+      function()
+        transcript.report(code_blocks.jump(view, 1))
+      end,
+      'Next code block',
+      { mode = { 'n', 'x' } },
+    },
+    {
+      keys.block_previous,
+      function()
+        transcript.report(code_blocks.jump(view, -1))
+      end,
+      'Previous code block',
+      { mode = { 'n', 'x' } },
+    },
+    {
+      keys.block_inner,
+      function()
+        code_blocks.select(view, false)
+      end,
+      'Inside the code block',
+      { mode = { 'o', 'x' } },
+    },
+    {
+      keys.block_around,
+      function()
+        code_blocks.select(view, true)
+      end,
+      'The code block with its fences',
+      { mode = { 'o', 'x' } },
+    },
+    {
+      keys.insert,
+      function()
+        transcript.report(code_blocks.insert(view))
+      end,
+      'Insert the code block below the cursor in your code',
+    },
+    {
+      keys.apply,
+      function()
+        transcript.report(code_blocks.apply(view))
+      end,
+      'Ask the agent to apply the code block to your code',
     },
     {
       keys.fork,

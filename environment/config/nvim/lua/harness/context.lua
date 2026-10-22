@@ -13,17 +13,19 @@ local function display_path(buffer)
   return name ~= '' and fs.display(name) or '[No Name]'
 end
 
-local function selection(buffer, range)
-  if not range then return nil end
+local function uri_of(path, from, to)
+  return 'file://' .. path .. string.format('#L%d-%d', from, to)
+end
 
+local function selection(buffer, range)
   local name = buffer:get_name()
+  local where = name ~= '' and fs.display(name) or '[No Name]'
 
   return {
-    path = name ~= '' and name or nil,
-    from = range[1],
-    to = range[2],
+    uri = name ~= '' and uri_of(name, range[1], range[2]) or nil,
+    heading = string.format('Selected lines %d-%d of %s:', range[1], range[2], where),
     lines = buffer:get_lines(range[1] - 1, range[2]),
-    filetype = buffer:get_option('filetype'),
+    language = buffer:get_option('filetype'),
   }
 end
 
@@ -38,7 +40,7 @@ local function describe(buffer, line, col, range)
 
   return {
     text = string.format('<%s>%s</%s>', context.TAG, table.concat(parts, ' '), context.TAG),
-    selection = selection(buffer, range),
+    attachments = range and { selection(buffer, range) } or {},
   }
 end
 
@@ -66,32 +68,33 @@ function context.text_of(captured)
   return captured
 end
 
-local function uri_of(path, from, to)
-  return 'file://' .. path .. string.format('#L%d-%d', from, to)
+function context.attach(captured, attachment)
+  captured.attachments = captured.attachments or {}
+  captured.attachments[#captured.attachments + 1] = attachment
+
+  return captured
+end
+
+local function block_of(attachment, capabilities)
+  if attachment.uri and capabilities and capabilities.embeddedContext then
+    return {
+      type = 'resource',
+      resource = { uri = attachment.uri, text = table.concat(attachment.lines, '\n'), mimeType = 'text/plain' },
+    }
+  end
+
+  return {
+    type = 'text',
+    text = attachment.heading .. '\n' .. table.concat(fences.wrap(attachment.lines, attachment.language), '\n'),
+  }
 end
 
 function context.blocks(captured, capabilities)
   local text = context.text_of(captured)
   local blocks = text and { { type = 'text', text = text } } or {}
-  local selected = type(captured) == 'table' and captured.selection
 
-  if not selected then return blocks end
-
-  local body = table.concat(selected.lines, '\n')
-
-  if selected.path and capabilities and capabilities.embeddedContext then
-    blocks[#blocks + 1] = {
-      type = 'resource',
-      resource = { uri = uri_of(selected.path, selected.from, selected.to), text = body, mimeType = 'text/plain' },
-    }
-  else
-    local where = selected.path and fs.display(selected.path) or '[No Name]'
-    local heading = string.format('Selected lines %d-%d of %s:', selected.from, selected.to, where)
-
-    blocks[#blocks + 1] = {
-      type = 'text',
-      text = heading .. '\n' .. table.concat(fences.wrap(selected.lines, selected.filetype), '\n'),
-    }
+  for _, attachment in ipairs(type(captured) == 'table' and captured.attachments or {}) do
+    blocks[#blocks + 1] = block_of(attachment, capabilities)
   end
 
   return blocks

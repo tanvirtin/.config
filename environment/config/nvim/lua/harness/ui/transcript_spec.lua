@@ -708,6 +708,90 @@ describe('harness.ui.transcript:', function()
     end)
   end)
 
+  describe('code blocks', function()
+    local session, agent, src, buf
+
+    local function row_of(text)
+      for i, line in ipairs(lines(buf)) do
+        if line == text then return i end
+      end
+    end
+
+    before_each(function()
+      vim.cmd('silent! tabonly!')
+      vim.cmd('silent! only!')
+      vim.cmd('enew!')
+      src = vim.api.nvim_get_current_buf()
+      vim.api.nvim_buf_set_name(src, vim.fn.tempname() .. '.lua')
+      vim.api.nvim_buf_set_lines(src, 0, -1, false, { 'a', 'b', 'c' })
+      vim.api.nvim_win_set_cursor(0, { 2, 0 })
+
+      agent = fake_agent.new()
+      session = Session({ key = 'h' .. math.random(1e6), id = 's1', connection = Connection(agent) })
+      session:_emit(events.prompt('show me'))
+      session:_emit({
+        kind = 'message',
+        text = 'First:\n```lua\nlocal one = 1\n```\nSecond:\n```lua\nlocal two = 2\nreturn two\n```',
+      })
+      session:_emit(events.stop('end_turn'))
+      buf = transcript.open(session, { source_win = vim.api.nvim_get_current_win(), source_buf = src })
+    end)
+
+    it('yanks a block\'s body with ib and the whole block with ab', function()
+      vim.api.nvim_win_set_cursor(0, { row_of('local two = 2'), 0 })
+      vim.api.nvim_feedkeys('yib', 'x', false)
+      eq({ 'local two = 2', 'return two' }, vim.fn.getreg('"', 1, true))
+
+      vim.api.nvim_feedkeys('yab', 'x', false)
+      eq({ '```lua', 'local two = 2', 'return two', '```' }, vim.fn.getreg('"', 1, true))
+    end)
+
+    it('jumps between blocks, with a count', function()
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      vim.api.nvim_feedkeys('2]b', 'x', false)
+      eq(row_of('local two = 2'), vim.api.nvim_win_get_cursor(0)[1])
+
+      vim.api.nvim_feedkeys('[b', 'x', false)
+      eq(row_of('local one = 1'), vim.api.nvim_win_get_cursor(0)[1])
+    end)
+
+    it('inserts a block below the cursor in your code as one undo step', function()
+      vim.api.nvim_win_set_cursor(0, { row_of('local two = 2'), 0 })
+      vim.api.nvim_feedkeys('gi', 'x', false)
+
+      eq({ 'a', 'b', 'local two = 2', 'return two', 'c' }, vim.api.nvim_buf_get_lines(src, 0, -1, false))
+
+      vim.api.nvim_buf_call(src, function()
+        vim.cmd('silent undo')
+      end)
+
+      eq({ 'a', 'b', 'c' }, vim.api.nvim_buf_get_lines(src, 0, -1, false))
+    end)
+
+    it('asks the agent to apply a block to your code, sending the block along', function()
+      vim.api.nvim_win_set_cursor(0, { row_of('local one = 1'), 0 })
+      vim.api.nvim_feedkeys('ga', 'x', false)
+      vim.wait(1000, function()
+        return agent:find(function(message)
+          return message.method == 'session/prompt'
+        end) ~= nil
+      end)
+
+      local sent = agent:find(function(message)
+        return message.method == 'session/prompt'
+      end).params.prompt
+      local text = table.concat(
+        vim.tbl_map(function(block)
+          return block.text or ''
+        end, sent),
+        '\n'
+      )
+
+      assert.is_truthy(text:find('Apply the attached code block to', 1, true))
+      assert.is_truthy(text:find('```lua\nlocal one = 1\n```', 1, true))
+    end)
+  end)
+
   describe('fork', function()
     it('forks from the reply under the cursor, or from the reply before a prompt', function()
       vim.cmd('enew!')
