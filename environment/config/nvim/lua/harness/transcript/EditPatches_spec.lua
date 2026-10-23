@@ -39,6 +39,58 @@ describe('harness.transcript.EditPatches:', function()
     eq(first, edits:get(diff, 't:1', true))
   end)
 
+  describe('a session opened after its edits', function()
+    local function tool(id, old, new)
+      return {
+        kind = 'tool_update',
+        id = id,
+        status = 'completed',
+        diffs = { { path = '/a.lua', old = old, new = new } },
+      }
+    end
+
+    local history = {
+      tool('t1', 'local M = {}\nreturn M\n', 'local M = {}\nM.a = 1\nreturn M\n'),
+      tool('t2', 'M.a = 1', 'M.b = 1'),
+    }
+
+    it('finds each edit in the file as it was then, newest first, not as it is now', function()
+      local reads = 0
+      local edits = EditPatches(function()
+        reads = reads + 1
+        return { 'local M = {}', 'M.b = 1', 'return M' }
+      end)
+
+      edits:prime(history)
+
+      local first, second = edits:get(history[1].diffs[1], 't1:1', true), edits:get(history[2].diffs[1], 't2:1', true)
+
+      eq('applied', first.resolved.kind)
+      eq({ 'local M = {}', 'return M' }, first.resolved.old_lines)
+      eq({ 'local M = {}', 'M.a = 1', 'return M' }, first.resolved.new_lines)
+      eq({ 'local M = {}', 'M.a = 1', 'return M' }, second.resolved.old_lines)
+      eq(1, reads)
+
+      edits:prime(history)
+
+      eq(1, reads)
+    end)
+
+    it('leaves edits it already finished as they were, and reads the file before them from them', function()
+      local file = { 'local M = {}', 'M.b = 1', 'return M' }
+      local edits = EditPatches(function()
+        return file
+      end)
+      local second = edits:get(history[2].diffs[1], 't2:1', true)
+
+      file = { 'something else' }
+      edits:prime(history)
+
+      eq(second, edits:get(history[2].diffs[1], 't2:1', true))
+      eq('applied', edits:get(history[1].diffs[1], 't1:1', true).resolved.kind)
+    end)
+  end)
+
   it('highlights syntax on demand exactly as vgit would, mapped onto the patch rows', function()
     local file = { 'local a = 0', 'local x = 2', 'return x' }
     local edit = EditPatches(function()

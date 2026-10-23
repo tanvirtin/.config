@@ -1,4 +1,5 @@
 local Block = require('harness.transcript.Block')
+local EditLog = require('harness.transcript.EditLog')
 local EditResolver = require('harness.transcript.EditResolver')
 local Object = require('core.Object')
 local SyntaxAnnotator = require('ui.annotators.SyntaxAnnotator')
@@ -127,6 +128,43 @@ function EditPatches:get(diff, key, final, failed)
   }
 
   return edit
+end
+
+function EditPatches:reset()
+  self.entries = {}
+  self.primed = nil
+end
+
+function EditPatches:prime(history)
+  if self.primed == #history then return end
+
+  self.primed = #history
+
+  local files = {}
+  local log = EditLog.edits(history)
+
+  for t = #log, 1, -1 do
+    local tool = log[t]
+
+    for index = #tool.diffs, 1, -1 do
+      local diff = tool.diffs[index]
+      local path = diff.path
+
+      if path then
+        local key = tool.id .. ':' .. index
+        local entry = self.entries[key]
+
+        if not (entry and entry.final) then
+          local file = files[path] or self.file_lines(path) or {}
+
+          entry = { edit = Edit(diff, EditResolver.resolve(diff, file)), final = true, failed = false }
+          self.entries[key] = entry
+        end
+
+        files[path] = entry.edit.whole and entry.edit.resolved.old_lines or nil
+      end
+    end
+  end
 end
 
 local owned = setmetatable({}, { __mode = 'k' })

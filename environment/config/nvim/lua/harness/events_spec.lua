@@ -110,6 +110,35 @@ describe('harness.events:', function()
       )
     end)
 
+    it('takes an edit from its input when the agent sends no diff, as some agents do when replaying', function()
+      local function edit(input, content)
+        return events.from_update({
+          sessionUpdate = 'tool_call',
+          toolCallId = 't1',
+          kind = 'edit',
+          rawInput = input,
+          content = content,
+        }).diffs
+      end
+
+      eq(
+        { { path = '/a.lua', old = 'x = 1', new = 'x = 2' } },
+        edit({ filePath = '/a.lua', oldString = 'x = 1', newString = 'x = 2' })
+      )
+      eq(
+        { { path = '/a.lua', old = 'x = 1', new = 'x = 2' } },
+        edit({ file_path = '/a.lua', old_string = 'x = 1', new_string = 'x = 2' })
+      )
+      eq(
+        { { path = '/b.lua', old = 'a', new = 'b' } },
+        edit(
+          { path = '/a.lua', oldString = 'x = 1', newString = 'x = 2' },
+          { { type = 'diff', path = '/b.lua', oldText = 'a', newText = 'b' } }
+        )
+      )
+      eq({}, edit({ path = '/a.lua', content = 'x' }))
+    end)
+
     it('reads the cost from usage', function()
       eq(
         { kind = 'usage', used = 5, size = 10, cost = 0.25 },

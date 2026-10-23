@@ -42,6 +42,8 @@ end
 function EditLocations.items(history, edits, patches)
   local items = {}
 
+  patches:prime(history)
+
   for _, edit in ipairs(edits) do
     local prompt = prompt_before(history, edit.index)
 

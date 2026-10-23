@@ -15,6 +15,8 @@ end
 function SessionChanges.files(history, edits, file_lines)
   local before, paths = {}, {}
 
+  edits:prime(history)
+
   for _, tool in ipairs(EditLog.edits(history)) do
     for index, diff in ipairs(tool.diffs) do
       local path = diff.path

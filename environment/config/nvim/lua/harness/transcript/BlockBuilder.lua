@@ -600,6 +600,7 @@ function blocks.build(history, title, opts)
   local cache = opts.cache
 
   if cache then invalidate(history, cache, starts) end
+  if opts.edits then opts.edits:prime(history) end
 
   local updates = {}
 

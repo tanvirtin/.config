@@ -141,6 +141,24 @@ local function diffs(content)
   return out
 end
 
+local function input_diffs(input)
+  if type(input) ~= 'table' then return {} end
+
+  local path = str(input.file_path) or str(input.filePath) or str(input.path)
+  local old = str(input.old_string) or str(input.oldString)
+  local new = str(input.new_string) or str(input.newString)
+
+  if not (path and old and new) then return {} end
+
+  return { { path = path, old = old, new = new } }
+end
+
+local function tool_diffs(update)
+  local out = diffs(update.content)
+
+  return #out > 0 and out or input_diffs(update.rawInput)
+end
+
 local FINISHED = { completed = true, failed = true }
 
 local function unfence(text)
@@ -304,7 +322,7 @@ local FROM_UPDATE = {
       input = input(update),
       locations = locations(update),
       output = output(update),
-      diffs = diffs(update.content),
+      diffs = tool_diffs(update),
     })
   end,
 
@@ -320,7 +338,7 @@ local FROM_UPDATE = {
       input = input(update),
       locations = locations(update),
       output = output(update),
-      diffs = diffs(update.content),
+      diffs = tool_diffs(update),
     })
   end,
 
