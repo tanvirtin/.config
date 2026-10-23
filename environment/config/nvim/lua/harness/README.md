@@ -79,6 +79,8 @@ The harness follows vgit's shape: a domain that knows nothing of buffers, stores
 - A thought folded away in every window draws only its callout line. The rest waits until the fold opens.
 - A diff is laid out without syntax. Its syntax colours are computed with a string parser the first time the diff is drawn (`Edit:syntax()`), because vgit's own syntax pass sets up a scratch buffer per patch.
 - The transport splits agent output into lines without copying what is left of the buffer.
+- A large rewrite, such as a new turn pushing the oldest live turn out of `live_turns`, is applied as line hunks (`Document.edits`, past `Document.SPLICE_LINES`), so unchanged lines keep their marks and folds instead of being replaced.
+- A stored session opens before its history arrives: the transcript shows at once and fills in as the agent replays. Prompts sent meanwhile wait in the queue, and edits are resolved again once the replay is complete.
 
 **Settings.** `setup(opts)` merges per-feature tables into `settings/*` and passes the rest to the hub's policy:
 
@@ -86,13 +88,13 @@ The harness follows vgit's shape: a domain that knows nothing of buffers, stores
 require('harness').setup({
   max_running = 4,                                      -- hub policy: agent, auto_allow, max_depth, ask
   transcript = {
-    live_turns = 50, tick_ms = 100, frame_ms = 16, margin_screens = 2, preview_lines = 5, output_max = 200, argument_max = 120,
+    live_turns = 50, tick_ms = 100, frame_ms = 16, anchor_prompt = true, margin_screens = 2, preview_lines = 5, output_max = 200, argument_max = 120,
     queue_preview = 120, request_preview = 80, diff_context = 3, diff_preview_lines = 12,
   },
   sessions = { confirm_ms = 3000 },
   composer = { height = 6 },
   follow = { debounce_ms = 300, grace_ms = 1500, poll_ms = 3000 },
-  keymaps = { transcript = { yank = 'gy', plan = 'gp', diff = 'gd' }, composer = { steer = '<C-s>' } },
+  keymaps = { transcript = { yank = 'gy', plan = 'gp', diff = 'gd' }, composer = { steer = '<C-s>', detach = '<C-x>' } },
   theme = { prompt_icon = '>', spinner = { '◐', '◓', '◑', '◒' }, highlights = { UiToolOutput = { bg = '#1e2228' } } },
 })
 ```
@@ -105,7 +107,7 @@ A session is a buffer: `harness://h3 <title>`, listed like any other buffer. Ses
 - **Closing doesn't end a session.** Leaving the buffer or `:bd`-ing it leaves the session running. Bring it back from the selector, and it re-renders from its history.
 - **The selector** (`<leader>.`, or `:HarnessSessions`) is a dropdown like vgit's log, listing the directory's sessions. It starts with `+ New session`, then live sessions (`◆` running, `○` idle, stored ones with how long ago they were used), then the ones Claude Code has stored for the directory.
   - A footer along its bottom border names its keys, as on every picker.
-  - `<CR>` opens the selected session, loading and replaying a stored one, or starts a new one.
+  - `<CR>` opens the selected session, loading and replaying a stored one (its transcript opens at once and fills in), or starts a new one.
   - `<C-x>` deletes the selected session. Press it twice: deleting removes the stored transcript for good, including from `claude --resume`.
   - Agents can drive the selector with `ui_command`, but deleting is left to people.
 - **New sessions.** `<leader>an` or `:HarnessNew` starts a new session, which is simply a new buffer.
@@ -141,6 +143,8 @@ You write to a session in the composer, much like a commit message window.
   - `q` in normal mode, `:q`, or closing its window any other way closes it. Leaving it doesn't; it stays open like any window. The draft is kept per session for next time.
 - **Only one.** Opening it again focuses the open one, and opening it from another session's buffer moves it there.
 - **Context.** Each message says where you were, from the buffer the session was opened from.
+- **Reading the reply.** Sending puts your prompt at the top of the transcript's windows, and the reply fills the screen below it without moving it, as in Claude's apps. Past the bottom the view stays put; `G` follows the end again until the next prompt. A session opened from the picker lands at the end. `anchor_prompt = false` keeps the old behaviour of following the last line.
+- **Selections.** While the composer is open, select lines in any file and press `<leader>aa` (visual mode) to attach them. Each shows in the winbar as `+ path:from-to`, and they go with the next message, as embedded resources when the agent takes them and fenced code otherwise. The sent prompt lists them under its text (`+ math.lua:3-5`). `<C-x>` in normal mode drops the last one; sending, or closing with the draft discarded, clears them. With no composer open the key does nothing and the selection stays.
 
 It belongs to the session, not to the session's buffer:
 
@@ -278,7 +282,7 @@ In a transcript:
 | `✓ bash    seq 1 20` with a spinner while it runs, then `✓` or `✗` | the tool call: a lowercase verb and its main argument (command, path, pattern, url) |
 | `1 line`, `12 results` at the right edge | the result of reads and searches |
 | Output under a `│` rail, the first 5 lines shown and the rest folded | commands, searches and fetches; failures show their error. Output is shown verbatim: its fence is longer than any backtick run in it |
-| `✓ edit    a.lua   +2 −2`, then the change under a `│` rail as vgit lays it out: three lines of context, file line numbers, add and delete backgrounds, changed words marked on top of the file's own syntax colours | edits. ACP sends a snippet; `EditResolver` finds it in the file to rebuild the whole file before and after (from the old text while the edit waits for permission), and `vgit.api.patch` lays that out. An edit it can't find, or one that failed, shows just its snippet with no numbers. A finished edit is frozen, so later changes to the file don't move it. Past 12 rows the rest of a diff is folded. Agents reading the session get the same change as a classic `+`/`-` diff. A diff shown away from its edit keeps a path line |
+| `✓ edit    a.lua   +2 −2`, then the change under a `│` rail as vgit lays it out: three lines of context, file line numbers, add and delete backgrounds, changed words marked on top of the file's own syntax colours | edits. ACP sends a snippet; `EditResolver` finds it in the file to rebuild the whole file before and after (from the old text while the edit waits for permission), and `vgit.api.patch` lays that out. An edit it can't find, or one that failed, shows just its snippet with no numbers. A finished edit is frozen, so later changes to the file don't move it. A session opened later finds its edits newest first, each in the file as the edits after it left it, and an edit the agent replays without a diff is rebuilt from its input (`oldString`/`newString` or `old_string`/`new_string`). Past 12 rows the rest of a diff is folded. Agents reading the session get the same change as a classic `+`/`-` diff. A diff shown away from its edit keeps a path line |
 | `[!thought]` callout with how long it took, folded | thoughts |
 | `⠋ agent   List files   2 tools` while it runs, then `✓ agent   List files   6s · 2 tools`, with the sub-agent's tools (`├`) and report (`│`) on a tree closed by `└`, folded as one | sub-agents (Agent/Task calls), from the block's own status and times. Folded, the tree shows what it holds on its rail (`│ ⋯ 2 tools · 1 reply`). Their prose is indented two spaces so wrapped lines keep the rail |
 | `✓ read 3 files, searched 1 pattern` over `└ ⋯ 3 tools` | a run of two or more finished reads and searches in a turn; live and failed tools never group, and agents reading the session still see each tool |
