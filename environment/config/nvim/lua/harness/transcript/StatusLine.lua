@@ -65,8 +65,22 @@ local function working_line(state, now)
   }
 end
 
+local function loading_line(state)
+  return {
+    { theme.spinner(state.frame) .. ' ', 'UiToolPending' },
+    { 'loading', 'UiAccent' },
+    { ' · the agent is replaying this session', 'UiMuted' },
+  }
+end
+
 function StatusLine.lines(state, now)
   local queued = queue_lines(state)
+
+  if state.loading and not state.running then
+    local lines = { { { '' } }, loading_line(state) }
+
+    return vim.list_extend(lines, queued)
+  end
 
   if not state.running then
     if #queued == 0 then return nil end

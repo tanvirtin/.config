@@ -23,7 +23,7 @@ events.KIND = dataclass.enum({
   'delegation',
 })
 
-events.NOTICE = dataclass.enum({ 'queue', 'waiting', 'reset', 'appended', 'external', 'config', 'returned' })
+events.NOTICE = dataclass.enum({ 'queue', 'waiting', 'reset', 'appended', 'external', 'config', 'returned', 'loaded' })
 
 local K = events.KIND
 

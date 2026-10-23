@@ -143,13 +143,27 @@ function hub.load(opts)
     if live and live.state ~= 'closed' then return live end
 
     local a = resolve_agent(opts.agent)
-    local session = workspace:load_session(a, opts.id, {
+    local shown
+    local ok, session = pcall(workspace.load_session, workspace, a, opts.id, {
       key = new_key(),
       approve = approve_for(a),
       title = opts.title,
+      on_session = opts.on_session and function(session)
+        shown = register(session)
+        opts.on_session(session)
+      end,
     })
 
-    return register(session)
+    if not ok then
+      if shown then
+        session_store.remove(shown.key)
+        shown:close()
+      end
+
+      error(session, 0)
+    end
+
+    return shown or register(session)
   end)
 end
 

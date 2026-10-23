@@ -166,6 +166,7 @@ function TranscriptView:state()
 
   return {
     running = session:running(),
+    loading = session.reloading,
     frame = self.frame,
     started = TranscriptView.turn_started(session),
     queue = session:queued(),
@@ -213,7 +214,7 @@ function TranscriptView:render()
 
   self:update_plan()
 
-  if (state.running or next(state.active)) and not self.timer:is_active() then
+  if (state.running or state.loading or next(state.active)) and not self.timer:is_active() then
     self.timer:every(settings.transcript:get('tick_ms'), function()
       self:tick()
     end)
@@ -225,13 +226,13 @@ function TranscriptView:_step()
 
   local active = TranscriptView.active_subagents(self.session)
 
-  if not self.session:running() and not next(active) then
+  if not self.session:running() and not self.session.reloading and not next(active) then
     self.timer:stop()
     return self:render()
   end
 
   self.frame = self.frame + 1
-  self.document:tick({ frame = self.frame, active = active })
+  self.document:tick({ frame = self.frame, active = active, loading = self.session.reloading })
 end
 
 function TranscriptView:tick()
@@ -262,6 +263,13 @@ function TranscriptView:on_event(update)
 
   if kind == EVENT.title then pcall(self.buffer.set_name, self.buffer, TranscriptView.buffer_name(self.session)) end
   if kind == NOTICE.reset then self.cache = {} end
+
+  if kind == NOTICE.loaded or kind == NOTICE.reset then self.anchored = nil end
+
+  if kind == NOTICE.loaded then
+    self.cache = {}
+    self.edits:reset()
+  end
   if kind == NOTICE.waiting then self:announce_waiting() end
 
   self.dirty = true

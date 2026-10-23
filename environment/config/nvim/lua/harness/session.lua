@@ -234,6 +234,19 @@ function Session:waiting()
   return self.permissions:waiting()
 end
 
+function Session:begin_load()
+  self.reloading = true
+end
+
+function Session:end_load()
+  if not self.reloading then return end
+
+  self.reloading = false
+  self:_notify({ kind = events.NOTICE.loaded })
+
+  if self.prompts:size() > 0 then self.prompts:drain() end
+end
+
 function Session:begin_replay()
   self.log:begin_replay()
   self.reloading = true

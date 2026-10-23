@@ -116,12 +116,30 @@ function sessions.open(opts)
 
           if live then return opts.on_open and opts.on_open(live) end
 
-          hub.load({ dir = dir, id = row.id, title = row.title }):on_complete(function(load_err, session)
-            Timer.schedule(function()
-              if load_err then return warn(tostring(load_err)) end
-              if opts.on_open then opts.on_open(session) end
+          local shown
+
+          hub
+            .load({
+              dir = dir,
+              id = row.id,
+              title = row.title,
+              on_session = function(session)
+                shown = session
+                Timer.schedule(function()
+                  if opts.on_open then opts.on_open(session) end
+                end)
+              end,
+            })
+            :on_complete(function(load_err, session)
+              Timer.schedule(function()
+                if load_err then
+                  if shown then require('harness.ui.transcript').forget(shown) end
+                  return warn(tostring(load_err))
+                end
+
+                if not shown and opts.on_open then opts.on_open(session) end
+              end)
             end)
-          end)
           require('harness.async').drain()
         end,
         actions = { { key = '<C-x>', desc = 'Delete the session (press twice)', run = delete } },

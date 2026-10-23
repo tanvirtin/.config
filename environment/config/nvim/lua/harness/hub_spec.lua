@@ -163,6 +163,37 @@ describe('harness.hub:', function()
     eq(loaded, hub.load({ dir = '/w', id = 'old' }):wait())
   end)
 
+  it('hands over a stored session before its history arrives, holding prompts until it has', function()
+    hub.start({ dir = '/w' }):wait()
+
+    local fake = spawned[1].fake
+    local seen
+
+    fake.histories.old = { { sessionUpdate = 'agent_message_chunk', content = { type = 'text', text = 'hi' } } }
+
+    local loaded = hub
+      .load({
+        dir = '/w',
+        id = 'old',
+        on_session = function(session)
+          seen =
+            { reloading = session.reloading, events = #session.history, live = hub.session(session.key) == session }
+          eq('queued', hub.send(session, 'next'))
+        end,
+      })
+      :wait()
+
+    eq({ reloading = true, events = 0, live = true }, seen)
+    eq(false, loaded.reloading)
+    eq('hi', loaded.history[1].text)
+
+    vim.wait(100, function()
+      return fake:sent_method('session/prompt') ~= nil
+    end)
+
+    eq('old', fake:sent_method('session/prompt').params.sessionId)
+  end)
+
   it('lists, loads and deletes through the configured default agent', function()
     hub.config.agent = 'opencode'
 

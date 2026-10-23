@@ -27,6 +27,14 @@ describe('harness.transcript.StatusLine:', function()
     eq(theme.SPINNER[2] .. ' Thinking · 5s · <C-c> interrupt', text(lines[2]))
   end)
 
+  it('says a session is loading while the agent replays it, above prompts waiting for it', function()
+    local lines = StatusLine.lines({ running = false, loading = true, frame = 1, queue = { 'next' } })
+
+    eq(3, #lines)
+    eq(theme.SPINNER[1] .. ' loading · the agent is replaying this session', text(lines[2]))
+    eq('  ' .. theme.QUEUE_ICON .. 'queued next', text(lines[3]))
+  end)
+
   it('asks about the first permission with its choices, counting the rest', function()
     local lines = StatusLine.lines({
       running = true,

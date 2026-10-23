@@ -104,15 +104,26 @@ function Workspace:load_session(agent, id, opts)
     connection = connection,
   })):attach()
 
-  local loaded = connection:load_session(id, {
+  self.sessions[opts.key] = session
+
+  if opts.on_session then
+    session:begin_load()
+    opts.on_session(session)
+  end
+
+  local ok, loaded = pcall(connection.load_session, connection, id, {
     cwd = self.dir,
     mcp_servers = servers(self, agent, opts.key),
     system_prompt = agent.system,
   })
 
-  configure(session, loaded, use_model(connection, agent, id))
+  if not ok then
+    self.sessions[opts.key] = nil
+    error(loaded, 0)
+  end
 
-  self.sessions[opts.key] = session
+  configure(session, loaded, use_model(connection, agent, id))
+  session:end_load()
 
   return session
 end
