@@ -44,7 +44,7 @@ describe('harness.session.PromptQueue:', function()
     local session = fake.session()
     local queue = PromptQueue(session)
 
-    session.reloading = true
+    session.state = 'loading'
     queue:enqueue('wait')
 
     eq({}, session.prompted)

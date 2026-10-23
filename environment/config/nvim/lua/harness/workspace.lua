@@ -115,7 +115,7 @@ function Workspace:fork(session, message_id, opts)
 end
 
 function Workspace:reload(session)
-  if session.state ~= 'idle' or session.reloading then return false end
+  if not session:idle() then return false end
 
   session:begin_replay()
 
@@ -166,7 +166,7 @@ function Workspace:delete(agent, id)
 
   if live then
     live:cancel()
-    live.state = 'closed'
+    live:_to('closed')
     self.sessions[live.key] = nil
   end
 
@@ -179,7 +179,7 @@ end
 
 function Workspace:close()
   for _, session in pairs(self.sessions) do
-    session.state = 'closed'
+    session:_to('closed')
   end
 
   for _, future in pairs(self._connections) do

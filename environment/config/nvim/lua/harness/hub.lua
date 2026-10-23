@@ -222,7 +222,7 @@ function hub.reload(session)
 end
 
 function hub.send(session, text, context, opts)
-  if session.reloading then
+  if session:loading() then
     session:enqueue(text, context)
     return 'queued'
   end

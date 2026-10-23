@@ -20,7 +20,15 @@ local K = events.KIND
 
 local Session = Object:extend()
 
-Session.STATE = dataclass.enum({ 'idle', 'running', 'closed' })
+Session.STATE = dataclass.enum({ 'idle', 'running', 'loading', 'reloading', 'closed' })
+
+Session.TRANSITIONS = {
+  idle = { running = true, loading = true, reloading = true, closed = true },
+  running = { idle = true, closed = true },
+  loading = { idle = true, closed = true },
+  reloading = { idle = true, closed = true },
+  closed = {},
+}
 
 local STATE_EVENTS = { [K.config] = true, [K.mode] = true, [K.commands] = true, [K.subagent] = true }
 
@@ -40,7 +48,6 @@ function Session:constructor(opts)
     depth = opts.depth or 0,
     title = opts.title,
     state = Session.STATE.idle,
-    reloading = false,
     options = {},
     commands = {},
     _listeners = {},
@@ -139,17 +146,17 @@ end
 function Session:_on_close(reason)
   local running = self:running()
 
-  self.state = Session.STATE.closed
+  self:_to(Session.STATE.closed)
 
   if not running then self:_emit(events.error(reason)) end
 end
 
 function Session:prompt(text, context, opts)
   if self:running() then error('a turn is already running in this session', 2) end
-  if self.reloading then error('this session is reloading', 2) end
+  if self:loading() then error('this session is loading', 2) end
   if self.state == Session.STATE.closed then error('this session is closed', 2) end
 
-  self.state = Session.STATE.running
+  self:_to(Session.STATE.running)
   self._turn = { text = {}, permissions = {} }
   if not (opts and opts.shown) then self:_emit(events.prompt(text, { selections = content.labels(context) })) end
 
@@ -164,7 +171,7 @@ function Session:prompt(text, context, opts)
 
     self._turn = nil
 
-    if self:running() then self.state = Session.STATE.idle end
+    if self:running() then self:_to(Session.STATE.idle) end
 
     if not ok then
       self.turn_ended = Timer.now()
@@ -200,6 +207,22 @@ function Session:can(name)
   return type(connection) == 'table' and connection.capabilities ~= nil and connection:capabilities()[name] == true
 end
 
+function Session:_to(state)
+  if state == self.state then return self end
+
+  if not Session.TRANSITIONS[self.state][state] then
+    error(string.format('session %s cannot go from %s to %s', tostring(self.key), self.state, state), 2)
+  end
+
+  self.state = state
+
+  return self
+end
+
+function Session:loading()
+  return self.state == Session.STATE.loading or self.state == Session.STATE.reloading
+end
+
 function Session:idle()
   return self.state == Session.STATE.idle
 end
@@ -229,13 +252,13 @@ function Session:waiting()
 end
 
 function Session:begin_load()
-  self.reloading = true
+  self:_to(Session.STATE.loading)
 end
 
 function Session:end_load()
-  if not self.reloading then return end
+  if self.state ~= Session.STATE.loading then return end
 
-  self.reloading = false
+  self:_to(Session.STATE.idle)
   self:_notify({ kind = events.NOTICE.loaded })
 
   if self.prompts:size() > 0 then self.prompts:drain() end
@@ -243,13 +266,13 @@ end
 
 function Session:begin_replay()
   self.log:begin_replay()
-  self.reloading = true
+  self:_to(Session.STATE.reloading)
 end
 
 function Session:end_replay(ok)
   local notice = self.log:end_replay(ok)
 
-  self.reloading = false
+  if self.state == Session.STATE.reloading then self:_to(Session.STATE.idle) end
 
   if notice then self:_notify({ kind = notice }) end
   if self.prompts:size() > 0 then self.prompts:drain() end
@@ -307,7 +330,7 @@ function Session:close()
 
   self.subagents:detach_all()
   self:cancel()
-  self.state = Session.STATE.closed
+  self:_to(Session.STATE.closed)
 
   local connection, id = self.connection, self.id
 

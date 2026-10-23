@@ -179,7 +179,7 @@ function TranscriptView:state()
 
   return {
     running = session:running(),
-    loading = session.reloading,
+    loading = session:loading(),
     frame = self.frame,
     started = TranscriptView.turn_started(session),
     queue = session:queued(),
@@ -225,10 +225,10 @@ function TranscriptView:render()
   local anchor = prompt
     and self.anchored ~= nil
     and prompt.event ~= self.anchored
-    and not session.reloading
+    and not session:loading()
     and settings.transcript:get('anchor_prompt')
 
-  if not session.reloading then self.anchored = prompt and prompt.event or self.anchored or 0 end
+  if not session:loading() then self.anchored = prompt and prompt.event or self.anchored or 0 end
 
   if anchor then
     for _, window in ipairs(windows) do
@@ -254,13 +254,13 @@ function TranscriptView:_step()
 
   local active = TranscriptView.active_subagents(self.session)
 
-  if not self.session:running() and not self.session.reloading and not next(active) then
+  if not self.session:running() and not self.session:loading() and not next(active) then
     self.timer:stop()
     return self:render()
   end
 
   self.frame = self.frame + 1
-  self.document:tick({ frame = self.frame, active = active, loading = self.session.reloading })
+  self.document:tick({ frame = self.frame, active = active, loading = self.session:loading() })
 end
 
 function TranscriptView:tick()

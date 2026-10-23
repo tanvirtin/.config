@@ -43,7 +43,7 @@ end
 function PromptQueue:drain()
   local session = self.session
 
-  if not session:idle() or session.reloading or #self.items == 0 then return end
+  if not session:idle() or #self.items == 0 then return end
 
   local next = table.remove(self.items, 1)
 

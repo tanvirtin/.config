@@ -176,15 +176,14 @@ describe('harness.hub:', function()
         dir = '/w',
         id = 'old',
         on_session = function(session)
-          seen =
-            { reloading = session.reloading, events = #session.history, live = hub.session(session.key) == session }
+          seen = { state = session.state, events = #session.history, live = hub.session(session.key) == session }
           eq('queued', hub.send(session, 'next'))
         end,
       })
       :wait()
 
-    eq({ reloading = true, events = 0, live = true }, seen)
-    eq(false, loaded.reloading)
+    eq({ state = 'loading', events = 0, live = true }, seen)
+    eq('idle', loaded.state)
     eq('hi', loaded.history[1].text)
 
     vim.wait(100, function()

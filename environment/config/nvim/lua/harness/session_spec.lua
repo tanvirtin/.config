@@ -38,6 +38,27 @@ local function asking(tool)
 end
 
 describe('harness.session:', function()
+  it('moves through its lifecycle only along allowed transitions', function()
+    local session = session_with()
+
+    eq('idle', session.state)
+    session:begin_load()
+    eq({ 'loading', true }, { session.state, session:loading() })
+    session:end_load()
+    session:begin_replay()
+    eq('reloading', session.state)
+    session:end_replay(true)
+    eq({ 'idle', false }, { session.state, session:loading() })
+
+    local ok, err = pcall(session.begin_replay, session:_to('running'))
+
+    eq(false, ok)
+    assert.is_truthy(tostring(err):find('cannot go from running to reloading', 1, true))
+
+    session:_to('closed')
+    eq(false, pcall(session._to, session, 'idle'))
+  end)
+
   it('gives an agent with no system prompt its instructions with the first prompt that lands, once', function()
     local session, agent = session_with({
       ['session/prompt'] = fake_agent.replying('ok'),

@@ -8,7 +8,6 @@ function fake.session(opts)
   local session = {
     id = 's1',
     state = 'idle',
-    reloading = false,
     options = {},
     commands = {},
     history = {},
@@ -39,6 +38,10 @@ function fake.session(opts)
 
     return type(connection.capabilities) == 'function' and connection:capabilities()[name] == true
       or (opts.can or {})[name] == true
+  end
+
+  function session:loading()
+    return self.state == 'loading' or self.state == 'reloading'
   end
 
   function session:running()

@@ -15,7 +15,7 @@ function follow.reload_session(session)
 end
 
 local function own_writes(session)
-  if session:running() or session.reloading then return true end
+  if session:running() or session:loading() then return true end
 
   return session.turn_ended ~= nil and Timer.now() - session.turn_ended < settings:get('grace_ms')
 end
