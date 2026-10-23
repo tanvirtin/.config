@@ -4,7 +4,7 @@ local fake_agent = {}
 
 local CAPABILITIES = {
   loadSession = true,
-  sessionCapabilities = { list = {}, close = {}, resume = {}, delete = {} },
+  sessionCapabilities = { list = {}, close = {}, resume = {}, delete = {}, systemPrompt = {} },
 }
 
 function fake_agent.update(session_id, update)

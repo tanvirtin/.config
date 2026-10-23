@@ -37,6 +37,32 @@ local function asking(tool)
 end
 
 describe('harness.session:', function()
+  it('gives an agent with no system prompt its instructions with the first prompt that lands, once', function()
+    local session, agent = session_with({
+      ['session/prompt'] = fake_agent.replying('ok'),
+    })
+
+    session.agent = { system = 'be brief' }
+    session:prompt('one'):wait()
+    session:prompt('two'):wait()
+
+    local prompts = vim.tbl_filter(function(message)
+      return message.method == 'session/prompt'
+    end, agent.sent)
+
+    eq('<harness-instructions>be brief</harness-instructions>', prompts[1].params.prompt[1].text)
+    eq('two', prompts[2].params.prompt[#prompts[2].params.prompt].text)
+    eq(1, #prompts[2].params.prompt)
+
+    local taking, sent = session_with({ ['session/prompt'] = fake_agent.replying('ok') })
+
+    taking.agent = { system = 'be brief' }
+    taking.connection.capabilities = { sessionCapabilities = { systemPrompt = {} } }
+    taking:prompt('one'):wait()
+
+    eq(1, #sent:sent_method('session/prompt').params.prompt)
+  end)
+
   it('runs a turn, joining the reply and recording the history', function()
     local session = session_with({
       ['session/prompt'] = function(message)

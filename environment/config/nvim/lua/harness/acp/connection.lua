@@ -240,10 +240,10 @@ function Connection:initialize()
   return result
 end
 
-local function session_params(opts)
+function Connection:session_params(opts)
   local params = { cwd = opts.cwd, mcpServers = opts.mcp_servers or {} }
 
-  if opts.system_prompt then
+  if opts.system_prompt and self:supports('systemPrompt') then
     params.systemPrompt = { mode = 'append', content = { { type = 'text', text = opts.system_prompt } } }
   end
 
@@ -251,7 +251,7 @@ local function session_params(opts)
 end
 
 function Connection:new_session(opts)
-  return async.await(self:request('session/new', session_params(opts)))
+  return async.await(self:request('session/new', self:session_params(opts)))
 end
 
 function Connection:can_load()
@@ -261,7 +261,7 @@ end
 function Connection:load_session(session_id, opts)
   if not self:can_load() then error('this agent cannot load stored sessions', 0) end
 
-  local params = session_params(opts)
+  local params = self:session_params(opts)
   params.sessionId = session_id
 
   return async.await(self:request('session/load', params))
@@ -295,7 +295,7 @@ end
 function Connection:fork_session(session_id, opts)
   if not self:can_fork() then error('this agent cannot fork sessions', 0) end
 
-  local params = session_params(opts)
+  local params = self:session_params(opts)
 
   params.sessionId = session_id
 

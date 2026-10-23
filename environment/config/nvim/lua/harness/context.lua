@@ -6,6 +6,7 @@ local fs = require('core.fs')
 local context = {}
 
 context.TAG = 'editor-context'
+context.INSTRUCTIONS = 'harness-instructions'
 
 local function display_path(buffer)
   local name = buffer:get_name()
@@ -111,11 +112,29 @@ function context.blocks(captured, capabilities)
   return blocks
 end
 
-function context.strip(text)
-  local tag = vim.pesc(context.TAG)
-  local pattern = '<' .. tag .. '>.-</' .. tag .. '>%s*'
+function context.instructions(text)
+  return string.format('<%s>%s</%s>', context.INSTRUCTIONS, text, context.INSTRUCTIONS)
+end
 
-  return (text:gsub(pattern, ''))
+function context.strip(text)
+  for _, name in ipairs({ context.INSTRUCTIONS, context.TAG }) do
+    local tag = vim.pesc(name)
+
+    text = text:gsub('<' .. tag .. '>.-</' .. tag .. '>%s*', '')
+  end
+
+  return text
+end
+
+function context.selections_in(text)
+  local labels = {}
+
+  local rest = text:gsub('Selected lines (%d+)%-(%d+) of (.-):\n(`+)[^\n]*\n.-\n%4%s*', function(from, to, where)
+    labels[#labels + 1] = string.format('%s:%s', where, from == to and from or (from .. '-' .. to))
+    return ''
+  end)
+
+  return rest, labels
 end
 
 return context

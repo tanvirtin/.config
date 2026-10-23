@@ -175,9 +175,14 @@ function Session:prompt(text, context, opts)
   if not (opts and opts.shown) then self:_emit(events.prompt(text, { selections = editor_context.labels(context) })) end
 
   local blocks = Session.blocks_of(text, context, self.connection:prompt_capabilities())
+  local instruct = self:_needs_instructions()
+
+  if instruct then table.insert(blocks, 1, { type = 'text', text = editor_context.instructions(self.agent.system) }) end
 
   return async.run(function()
     local ok, result = pcall(self.connection.prompt, self.connection, self.id, blocks)
+
+    if ok and instruct then self._instructed = true end
     local turn = self._turn
 
     self._turn = nil
@@ -204,6 +209,15 @@ function Session:prompt(text, context, opts)
 
     return { stop_reason = reason, text = table.concat(turn.text, ''), permissions = turn.permissions }
   end)
+end
+
+function Session:_needs_instructions()
+  local system = type(self.agent) == 'table' and self.agent.system
+
+  return not self._instructed
+    and type(system) == 'string'
+    and system ~= ''
+    and not self.connection:supports('systemPrompt')
 end
 
 function Session:idle()

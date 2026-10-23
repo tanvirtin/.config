@@ -282,7 +282,21 @@ describe('harness.acp.connection:', function()
     eq('Claude needs you to sign in: Authentication required', err)
   end)
 
-  it('forks a session, at a message when given one, only when the agent can', function()
+  it('sends a system prompt only to an agent that takes one', function()
+    local conn, agent = connected({
+      initialize = function(message)
+        return { jsonrpc.result(message.id, { protocolVersion = 1, agentCapabilities = {} }) }
+      end,
+    })
+
+    run(function()
+      conn:new_session({ cwd = '/w', system_prompt = 'be brief' })
+    end)
+
+    eq(nil, agent:sent_method('session/new').params.systemPrompt)
+  end)
+
+  it('forks a session, at a message when given one and the agent forks at messages, only when it can', function()
     local caps = { protocolVersion = 1, agentCapabilities = { sessionCapabilities = { fork = {} } } }
     local conn, agent = connected({
       initialize = function(message)
