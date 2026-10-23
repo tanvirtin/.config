@@ -172,7 +172,15 @@ function composer.on_session_event(session, event)
   if event.kind == NOTICE.returned then composer.on_returned(session, event.texts) end
 end
 
-session_store.on('event', composer.on_session_event)
+local dispose
+
+function composer.register_events()
+  if dispose then dispose() end
+
+  dispose = session_store.on(session_store.EVENT.event, composer.on_session_event)
+
+  return composer
+end
 
 function composer.forget(session)
   store:clear(session.key)

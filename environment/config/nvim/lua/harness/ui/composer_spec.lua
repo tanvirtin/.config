@@ -34,6 +34,7 @@ describe('harness.ui.composer:', function()
   local fake, session, code
 
   before_each(function()
+    composer.register_events()
     composer.close(true)
     async.drain()
     hub.shutdown()
