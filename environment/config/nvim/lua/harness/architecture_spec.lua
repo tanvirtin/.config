@@ -36,6 +36,7 @@ local LAYERS = {
   { 'harness.context', 2 },
   { 'harness.agent', 2 },
   { 'harness.servers', 2 },
+  { 'harness.connection', 2 },
   { 'harness.permissions', 2 },
   { 'harness.session', 3 },
   { 'harness.workspace', 4 },
@@ -48,6 +49,21 @@ local LAYERS = {
   { 'harness.ui', 7 },
   { 'harness.cli', 8 },
   { 'harness', 8 },
+}
+
+local WIRE = {
+  'sessionUpdate',
+  'toolCallId',
+  'rawInput',
+  'optionId',
+  '_meta',
+  '\'session/',
+  'jsonrpc',
+  'stopReason',
+  'configOptions',
+  'sessionId',
+  'agentCapabilities',
+  'promptCapabilities',
 }
 
 local NEOVIM_ALLOWED = {}
@@ -173,6 +189,34 @@ describe('harness architecture:', function()
 
     table.sort(stale)
     eq({}, stale)
+  end)
+
+  it('reaches a server only through harness.servers', function()
+    local found = {}
+
+    for _, module in ipairs(modules()) do
+      if module.name:sub(1, #'harness.servers') ~= 'harness.servers' then
+        for target in module.source:gmatch('require%(\'(harness%.servers%.[%w_.]+)\'%)') do
+          found[#found + 1] = module.name .. ' -> ' .. target
+        end
+      end
+    end
+
+    eq({}, found)
+  end)
+
+  it('speaks no wire protocol outside its server', function()
+    local found = {}
+
+    for _, module in ipairs(modules()) do
+      if not module.name:find('^harness%.servers%.') then
+        for _, word in ipairs(WIRE) do
+          if module.source:find(word, 1, true) then found[#found + 1] = module.name .. ': ' .. word end
+        end
+      end
+    end
+
+    eq({}, found)
   end)
 
   it('talks to vgit only through harness.vgit', function()
