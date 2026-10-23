@@ -2,6 +2,7 @@ local Object = require('core.Object')
 local console = require('core.console')
 local capabilities = require('harness.types.capabilities')
 local dataclass = require('core.dataclass')
+local translate = require('harness.acp.translate')
 local async = require('harness.async')
 local jsonrpc = require('harness.acp.jsonrpc')
 
@@ -324,7 +325,9 @@ function Connection:fork_session(session_id, opts)
   return async.await(self:request('session/fork', params))
 end
 
-function Connection:prompt(session_id, blocks)
+function Connection:prompt(session_id, prompt)
+  local blocks = translate.prompt(prompt, self:prompt_capabilities())
+
   return async.await(self:request('session/prompt', { sessionId = session_id, prompt = blocks }))
 end
 
@@ -356,10 +359,10 @@ function Connection:steering()
   return type(steering) == 'table' and steering.supported == true
 end
 
-function Connection:steer(session_id, blocks)
+function Connection:steer(session_id, prompt)
   return async.await(self:request(Connection.STEER_METHOD, {
     sessionId = session_id,
-    prompt = blocks,
+    prompt = translate.prompt(prompt, self:prompt_capabilities()),
     _meta = { steering = { idleBehavior = 'promptRequired' } },
   }))
 end

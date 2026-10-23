@@ -52,10 +52,6 @@ function fake.session(opts)
     return done
   end
 
-  session.blocks_of = function(text)
-    return { { type = 'text', text = text } }
-  end
-
   return session
 end
 

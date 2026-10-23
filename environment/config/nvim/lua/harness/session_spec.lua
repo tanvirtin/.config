@@ -86,7 +86,9 @@ describe('harness.session:', function()
   it('sends the context block ahead of the prompt', function()
     local session, agent = session_with()
 
-    session:prompt('hi', '<editor-context>here</editor-context>'):wait()
+    session
+      :prompt('hi', require('harness.types.content').context({ where = '<editor-context>here</editor-context>' }))
+      :wait()
 
     eq({
       { type = 'text', text = '<editor-context>here</editor-context>' },

@@ -102,8 +102,7 @@ function code_blocks.apply(view)
   local captured = context.capture_buffer(buffer.bufnr)
 
   context.attach(captured, {
-    uri = 'harness://code-block/' .. span.start .. (span.language ~= '' and ('.' .. span.language) or ''),
-    heading = 'The code block:',
+    title = 'The code block',
     lines = span.lines,
     language = span.language,
   })

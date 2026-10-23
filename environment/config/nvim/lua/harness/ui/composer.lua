@@ -101,7 +101,6 @@ function composer.attach(buf, range)
   local key = current.session.key
   local selection = context.selection(buffer, range)
 
-  selection.range = { range[1], range[2] }
   attached[key] = attached[key] or {}
   attached[key][#attached[key] + 1] = selection
   Window.redraw_bars()
@@ -175,7 +174,7 @@ local function deliver(outgoing, opts)
   local where = Buffer.exists(source.buf) and context.capture_buffer(source.buf) or nil
 
   for _, selection in ipairs(attached[session.key] or {}) do
-    where = context.attach(where or {}, selection)
+    where = context.attach(where, selection)
   end
 
   local ok, how, task = pcall(hub.send, session, text, where, opts)

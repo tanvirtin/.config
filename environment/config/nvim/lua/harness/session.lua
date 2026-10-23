@@ -9,6 +9,7 @@ local SessionConfig = require('harness.session.SessionConfig')
 local Subagents = require('harness.session.Subagents')
 local Timer = require('core.Timer')
 local async = require('harness.async')
+local content = require('harness.types.content')
 local editor_context = require('harness.context')
 local dataclass = require('core.dataclass')
 local events = require('harness.events')
@@ -26,14 +27,6 @@ local STATE_EVENTS = { [K.config] = true, [K.mode] = true, [K.commands] = true, 
 
 function Session.is_state_event(event)
   return STATE_EVENTS[event.kind] == true
-end
-
-function Session.blocks_of(text, captured, capabilities)
-  local blocks = editor_context.blocks(captured, capabilities)
-
-  blocks[#blocks + 1] = { type = 'text', text = text }
-
-  return blocks
 end
 
 Session.choices = SessionConfig.choices
@@ -172,15 +165,13 @@ function Session:prompt(text, context, opts)
 
   self.state = Session.STATE.running
   self._turn = { text = {}, permissions = {} }
-  if not (opts and opts.shown) then self:_emit(events.prompt(text, { selections = editor_context.labels(context) })) end
+  if not (opts and opts.shown) then self:_emit(events.prompt(text, { selections = content.labels(context) })) end
 
-  local blocks = Session.blocks_of(text, context, self.connection:prompt_capabilities())
   local instruct = self:_needs_instructions()
-
-  if instruct then table.insert(blocks, 1, { type = 'text', text = editor_context.instructions(self.agent.system) }) end
+  local prompt = content.prompt(text, context, instruct and editor_context.instructions(self.agent.system) or nil)
 
   return async.run(function()
-    local ok, result = pcall(self.connection.prompt, self.connection, self.id, blocks)
+    local ok, result = pcall(self.connection.prompt, self.connection, self.id, prompt)
 
     if ok and instruct then self._instructed = true end
     local turn = self._turn

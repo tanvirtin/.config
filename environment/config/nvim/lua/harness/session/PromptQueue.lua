@@ -3,7 +3,7 @@ local lazy = require('core.lazy')
 local Object = lazy('core.Object')
 local async = lazy('harness.async')
 local console = lazy('core.console')
-local editor_context = lazy('harness.context')
+local content = lazy('harness.types.content')
 local events = lazy('harness.types.events')
 
 local PromptQueue = Object:extend()
@@ -70,13 +70,12 @@ function PromptQueue:steer(text, context)
 
   if not session:running() or not session:can('steer') then return self:enqueue(text, context) end
 
-  session:_emit(events.prompt(text, { steered = true, selections = editor_context.labels(context) }))
+  session:_emit(events.prompt(text, { steered = true, selections = content.labels(context) }))
 
   local steered = session.history[#session.history]
 
   return async.run(function()
-    local result =
-      session.connection:steer(session.id, session.blocks_of(text, context, session.connection:prompt_capabilities()))
+    local result = session.connection:steer(session.id, content.prompt(text, context))
 
     if type(result) == 'table' and result.outcome == PromptQueue.STEER_FALLBACK then
       steered.steered = nil

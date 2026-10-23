@@ -10,7 +10,7 @@ describe('harness.context:', function()
   end)
 
   it('says where the user is, in an editor-context tag', function()
-    local text = context.capture(vim.api.nvim_get_current_win()).text
+    local text = context.capture(vim.api.nvim_get_current_win()).where
 
     assert.is_truthy(text:find('^<editor%-context>'))
     assert.is_truthy(text:find('%[No Name%] %(bufnr ' .. vim.api.nvim_get_current_buf() .. '%), line 2, col 2'))
@@ -18,29 +18,29 @@ describe('harness.context:', function()
   end)
 
   it('mentions a selected range', function()
-    assert.is_truthy(context.capture(vim.api.nvim_get_current_win(), { 2, 3 }).text:find('selected lines 2-3', 1, true))
+    assert.is_truthy(
+      context.capture(vim.api.nvim_get_current_win(), { 2, 3 }).where:find('selected lines 2-3', 1, true)
+    )
   end)
 
-  it('sends the selected lines as an embedded resource when the agent takes them, else inline', function()
-    vim.api.nvim_buf_set_name(0, vim.fn.tempname() .. '.lua')
+  it('attaches the selected lines with where they came from', function()
+    local path = vim.fn.tempname() .. '.lua'
+
+    vim.api.nvim_buf_set_name(0, path)
     vim.bo.filetype = 'lua'
 
-    local captured = context.capture(vim.api.nvim_get_current_win(), { 2, 3 })
-    local embedded = context.blocks(captured, { embeddedContext = true })
-    local inline = context.blocks(captured, {})
+    local attachment = context.capture(vim.api.nvim_get_current_win(), { 2, 3 }).attachments[1]
 
-    eq('resource', embedded[2].type)
-    eq('two\nthree', embedded[2].resource.text)
-    assert.is_truthy(embedded[2].resource.uri:find('^file://.*%.lua#L2%-3$'))
-    eq('text', inline[2].type)
-    assert.is_truthy(inline[2].text:find('Selected lines 2-3 of', 1, true))
-    assert.is_truthy(inline[2].text:find('```lua\ntwo\nthree\n```', 1, true))
-    eq(1, #context.blocks(context.capture(vim.api.nvim_get_current_win()), { embeddedContext = true }))
-    eq({ { type = 'text', text = 'plain' } }, context.blocks('plain'))
+    eq({ 'two', 'three' }, attachment.lines)
+    eq({ 2, 3 }, attachment.range)
+    eq('lua', attachment.language)
+    eq(vim.fn.resolve(path), vim.fn.resolve(attachment.path))
+    assert.is_truthy(attachment.label:find(':2%-3$'))
+    eq({}, context.capture(vim.api.nvim_get_current_win()).attachments)
   end)
 
   it('strips the tag from a replayed prompt', function()
-    local text = context.capture(vim.api.nvim_get_current_win()).text .. '\n\nrename x'
+    local text = context.capture(vim.api.nvim_get_current_win()).where .. '\n\nrename x'
 
     eq('rename x', context.strip(text))
     eq('plain', context.strip('plain'))
