@@ -172,7 +172,7 @@ function Session:prompt(text, context, opts)
 
   self.state = Session.STATE.running
   self._turn = { text = {}, permissions = {} }
-  if not (opts and opts.shown) then self:_emit(events.prompt(text)) end
+  if not (opts and opts.shown) then self:_emit(events.prompt(text, { selections = editor_context.labels(context) })) end
 
   local blocks = Session.blocks_of(text, context, self.connection:prompt_capabilities())
 

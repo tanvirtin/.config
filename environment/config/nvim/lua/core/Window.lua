@@ -27,6 +27,10 @@ function Window.tab_edit(path)
   return Window(vim.api.nvim_get_current_win())
 end
 
+function Window.redraw_bars()
+  vim.cmd('redrawstatus!')
+end
+
 function Window.list()
   return vim.tbl_map(Window, vim.api.nvim_list_wins())
 end
@@ -69,6 +73,18 @@ function Window:normal(keys)
   return self:call(function()
     vim.cmd('normal! ' .. keys)
   end)
+end
+
+function Window:visual_lines()
+  if not vim.api.nvim_get_mode().mode:match('^[vV\22]') then return nil end
+
+  local from, to
+
+  self:call(function()
+    from, to = vim.fn.line('v'), vim.fn.line('.')
+  end)
+
+  return { math.min(from, to), math.max(from, to) }
 end
 
 function Window:fold_closed(lnum)

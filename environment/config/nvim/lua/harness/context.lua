@@ -17,11 +17,12 @@ local function uri_of(path, from, to)
   return 'file://' .. path .. string.format('#L%d-%d', from, to)
 end
 
-local function selection(buffer, range)
+function context.selection(buffer, range)
   local name = buffer:get_name()
   local where = name ~= '' and fs.display(name) or '[No Name]'
 
   return {
+    label = string.format('%s:%s', where, range[1] == range[2] and range[1] or (range[1] .. '-' .. range[2])),
     uri = name ~= '' and uri_of(name, range[1], range[2]) or nil,
     heading = string.format('Selected lines %d-%d of %s:', range[1], range[2], where),
     lines = buffer:get_lines(range[1] - 1, range[2]),
@@ -40,7 +41,7 @@ local function describe(buffer, line, col, range)
 
   return {
     text = string.format('<%s>%s</%s>', context.TAG, table.concat(parts, ' '), context.TAG),
-    attachments = range and { selection(buffer, range) } or {},
+    attachments = range and { context.selection(buffer, range) } or {},
   }
 end
 
@@ -87,6 +88,16 @@ local function block_of(attachment, capabilities)
     type = 'text',
     text = attachment.heading .. '\n' .. table.concat(fences.wrap(attachment.lines, attachment.language), '\n'),
   }
+end
+
+function context.labels(captured)
+  local out = {}
+
+  for _, attachment in ipairs(type(captured) == 'table' and captured.attachments or {}) do
+    if attachment.label then out[#out + 1] = attachment.label end
+  end
+
+  return #out > 0 and out or nil
 end
 
 function context.blocks(captured, capabilities)

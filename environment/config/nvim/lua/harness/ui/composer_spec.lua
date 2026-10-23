@@ -93,6 +93,88 @@ describe('harness.ui.composer:', function()
     eq({ '' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   end)
 
+  describe('a selection', function()
+    local file
+
+    before_each(function()
+      file = vim.api.nvim_create_buf(true, false)
+      vim.api.nvim_buf_set_name(file, '/w/a.lua')
+      vim.api.nvim_buf_set_lines(file, 0, -1, false, { 'local a = 1', 'local b = 2', 'local c = 3' })
+      vim.bo[file].filetype = 'lua'
+    end)
+
+    after_each(function()
+      vim.api.nvim_buf_delete(file, { force = true })
+    end)
+
+    it('is not taken when no composer is open', function()
+      eq(false, composer.attach(file, { 1, 2 }))
+      eq({}, composer.attached(session))
+    end)
+
+    it('rides along with the next message, named in the winbar until sent', function()
+      composer.open(session)
+      eq(true, composer.attach(file, { 2, 3 }))
+      eq(true, composer.attach(file, { 1, 1 }))
+      assert.is_truthy(composer.winbar():find('+ /w/a.lua:2-3', 1, true))
+      assert.is_truthy(composer.winbar():find('+ /w/a.lua:1 ', 1, true))
+
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'explain' })
+      press('<CR>')
+      vim.wait(1000, function()
+        return #prompts(fake) == 1
+      end)
+
+      local sent = vim.tbl_filter(function(message)
+        return message.method == 'session/prompt'
+      end, fake.sent)[1].params.prompt
+      local texts = vim.tbl_map(function(block)
+        return block.text or block.resource.text
+      end, sent)
+
+      assert.is_truthy(vim.tbl_contains(texts, 'local b = 2\nlocal c = 3') or texts[2]:find('local b = 2', 1, true))
+      eq('explain', texts[#texts])
+      eq(4, #sent)
+      eq({}, composer.attached(session))
+    end)
+
+    it('is dropped last first, and with a discarded draft', function()
+      composer.open(session)
+      composer.attach(file, { 1, 1 })
+      composer.attach(file, { 2, 2 })
+      press('<C-x>')
+
+      eq(
+        { { 1, 1 } },
+        vim.tbl_map(function(selection)
+          return selection.range
+        end, composer.attached(session))
+      )
+
+      composer.close(true)
+      eq({}, composer.attached(session))
+    end)
+
+    it('is taken from a visual selection in another window', function()
+      composer.open(session)
+      vim.cmd('wincmd k')
+      vim.api.nvim_win_set_buf(0, file)
+      press('Vj')
+
+      eq(true, composer.attach_visual())
+      eq({ 1, 2 }, composer.attached(session)[1].range)
+    end)
+
+    it('leaves a visual selection alone when no composer is open', function()
+      vim.api.nvim_win_set_buf(0, file)
+      press('Vj')
+
+      eq(false, composer.attach_visual())
+      eq('V', vim.api.nvim_get_mode().mode)
+      press('<Esc>')
+    end)
+  end)
+
   it('treats <CR> in insert mode as a newline', function()
     composer.open(session)
     press('ione<CR>two<Esc>')

@@ -76,7 +76,7 @@ events.TYPES = {
   [K.message] = text_schema('Message'),
   [K.thought] = text_schema('Thought'),
   [K.user] = text_schema('User'),
-  [K.prompt] = text_schema('Prompt', { steered = { type = 'boolean' } }),
+  [K.prompt] = text_schema('Prompt', { steered = { type = 'boolean' }, selections = TABLE }),
   [K.tool_call] = dataclass.define('ToolCall', tool_schema({ output = STRING })),
   [K.tool_update] = dataclass.define('ToolUpdate', tool_schema({ output = STRING })),
   [K.plan] = dataclass.define('Plan', schema({ entries = { type = 'table', required = true } })),
@@ -393,7 +393,9 @@ function events.from_update(update)
 end
 
 function events.prompt(text, opts)
-  return events.new({ kind = K.prompt, text = text, steered = opts and opts.steered or nil })
+  opts = opts or {}
+
+  return events.new({ kind = K.prompt, text = text, steered = opts.steered, selections = opts.selections })
 end
 
 function events.permission(tool, allowed, opts)

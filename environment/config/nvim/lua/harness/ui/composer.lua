@@ -19,6 +19,7 @@ local composer = {}
 
 local current
 local drafts = {}
+local attached = {}
 
 local function warn(message)
   console.notify('Harness: ' .. message, 'warn')
@@ -46,6 +47,10 @@ function composer.winbar(session)
   if #session.queue > 0 then
     parts[#parts + 1] = string.format('%%#UiMuted#%s%d queued ', theme.QUEUE_ICON, #session.queue)
   end
+  for _, selection in ipairs(attached[session.key] or {}) do
+    parts[#parts + 1] = '%#UiPath#+ ' .. selection.label:gsub('%%', '%%%%') .. ' '
+  end
+
   if session.external then parts[#parts + 1] = '%#UiWarn#⇄ also driven elsewhere: sending forks it ' end
   if #permission_prompt.asks_of(session) > 0 then
     parts[#parts + 1] = '%#UiWarn#' .. theme.WAITING_ICON[1] .. 'answer in the transcript '
@@ -65,6 +70,7 @@ function composer.winbar(session)
 
   if #session.commands > 0 then parts[#parts + 1] = key(keys.slash, 'commands') end
   if session:mode() then parts[#parts + 1] = key(keys.cycle_mode, 'mode') end
+  if attached[session.key] then parts[#parts + 1] = key(keys.detach, 'drop selection') end
   parts[#parts + 1] = key(keys.close, 'close')
 
   return table.concat(parts)
@@ -82,6 +88,48 @@ local function focus(win)
   local window = type(win) == 'number' and Window(win)
 
   if window and window:is_valid() then window:focus() end
+end
+
+function composer.attached(session)
+  return attached[session.key] or {}
+end
+
+function composer.attach(buf, range)
+  if not composer.is_open() or buf == current.element:get_buffer().bufnr or not Buffer.exists(buf) then return false end
+
+  local buffer = Buffer(buf)
+  local key = current.session.key
+  local selection = context.selection(buffer, range)
+
+  selection.range = { range[1], range[2] }
+  attached[key] = attached[key] or {}
+  attached[key][#attached[key] + 1] = selection
+  Window.redraw_bars()
+
+  return true
+end
+
+function composer.attach_visual()
+  if not composer.is_open() then return false end
+
+  local window = Window.get_current()
+  local range = window:visual_lines()
+
+  if not range or not composer.attach(window:get_buffer().bufnr, range) then return false end
+
+  keymap.feed('<Esc>')
+
+  return true
+end
+
+function composer.detach(session)
+  local list = session and attached[session.key]
+
+  if not list then return end
+
+  list[#list] = nil
+  if #list == 0 then attached[session.key] = nil end
+  Window.redraw_bars()
 end
 
 function composer.target()
@@ -105,7 +153,11 @@ function composer.close(discard)
     closing.element:unmount()
   end
 
-  if discard then drafts[closing.session.key] = nil end
+  if discard then
+    drafts[closing.session.key] = nil
+    attached[closing.session.key] = nil
+  end
+
   focus(closing.origin)
 end
 
@@ -121,11 +173,17 @@ local function deliver(outgoing, opts)
   if session.state == 'closed' then return false, 'this session has ended; your text is kept' end
 
   local where = Buffer.exists(source.buf) and context.capture_buffer(source.buf) or nil
+
+  for _, selection in ipairs(attached[session.key] or {}) do
+    where = context.attach(where or {}, selection)
+  end
+
   local ok, how, task = pcall(hub.send, session, text, where, opts)
 
   if not ok then return false, tostring(how) end
 
   drafts[session.key] = nil
+  attached[session.key] = nil
 
   if source.buf then tools.set_focus(source.win, source.buf) end
 
@@ -258,6 +316,9 @@ function composer.open(session, opts)
   element:set_keymap('n', keys.close, function()
     composer.close()
   end, 'Close (keeps the draft)')
+  element:set_keymap('n', keys.detach, function()
+    composer.detach(session)
+  end, 'Drop the last attached selection')
 
   local function keep()
     if current and current.element == element and element:is_valid() then
@@ -381,6 +442,7 @@ require('harness.session_store').on('event', on_session_event)
 
 function composer.forget(session)
   drafts[session.key] = nil
+  attached[session.key] = nil
   if current and current.session == session then composer.close(true) end
 end
 

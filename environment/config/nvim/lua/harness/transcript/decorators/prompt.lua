@@ -13,7 +13,11 @@ return function(block)
       virt_text_pos = 'overlay',
     })
 
-    if #line > 2 then MarkSpec.add(out, row, 2, { end_col = #line, hl_group = 'UiPromptText' }) end
+    local selection = block.selections and row >= block.start + #block.lines - block.selections
+
+    if #line > 2 then
+      MarkSpec.add(out, row, 2, { end_col = #line, hl_group = selection and 'UiPath' or 'UiPromptText' })
+    end
   end
 
   if block.steered then

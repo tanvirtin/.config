@@ -16,6 +16,7 @@ Block = dataclass.define('Block', {
   last_event = NUMBER,
   live = BOOLEAN,
   steered = BOOLEAN,
+  selections = NUMBER,
   attached = BOOLEAN,
   first_child = BOOLEAN,
   last_child = BOOLEAN,

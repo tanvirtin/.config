@@ -429,6 +429,13 @@ describe('harness.transcript.BlockBuilder:', function()
     end)
   end)
 
+  it('lists the selections sent with a prompt under its text', function()
+    local list = blocks.build({ events.prompt('explain', { selections = { 'a.lua:3-5', 'b.lua:9' } }) })
+
+    eq({ '> explain', '> + a.lua:3-5', '> + b.lua:9' }, list[2].lines)
+    eq(2, list[2].selections)
+  end)
+
   describe('steering and late tool updates', function()
     it('keeps a steered prompt in the turn it steered, timing the turn from its first prompt', function()
       local history = {

@@ -34,5 +34,6 @@ return Config({
     cycle_mode = '<S-Tab>',
     slash = '/',
     close = 'q',
+    detach = '<C-x>',
   },
 })
