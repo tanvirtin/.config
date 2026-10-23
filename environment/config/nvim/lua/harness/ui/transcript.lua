@@ -263,9 +263,14 @@ function transcript.fork(buf)
 
   if not session.connection:can_fork() then return false, 'this agent cannot fork sessions' end
 
-  local message_id = transcript.fork_point(view, Window.get_current():get_cursor()[1] - 1)
+  local message_id = session.connection.fork_at_message
+    and transcript.fork_point(view, Window.get_current():get_cursor()[1] - 1)
 
-  if not message_id then console.notify_now('Harness: no reply before this point; forking from the latest message') end
+  if not session.connection.fork_at_message then
+    console.notify_now('Harness: this agent forks a whole session; forking from the latest message')
+  elseif not message_id then
+    console.notify_now('Harness: no reply before this point; forking from the latest message')
+  end
 
   hub.fork(session, message_id):on_complete(function(err, forked)
     Timer.schedule(function()

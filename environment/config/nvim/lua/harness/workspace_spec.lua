@@ -10,7 +10,10 @@ local function run(fn)
   return async.run(fn):wait()
 end
 
-local claude = agent.Agent('claude', { command = 'claude-agent-acp', system = 'be brief', model = 'claude-sonnet-5-5' })
+local claude = agent.Agent(
+  'claude',
+  { command = 'claude-agent-acp', system = 'be brief', model = 'claude-sonnet-5-5', fork_at_message = true }
+)
 
 local function workspace(script)
   local spawned = {}

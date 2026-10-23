@@ -299,7 +299,7 @@ function Connection:fork_session(session_id, opts)
 
   params.sessionId = session_id
 
-  if opts.message_id then params._meta = Connection.fork_point(opts.message_id) end
+  if opts.message_id and self.fork_at_message then params._meta = Connection.fork_point(opts.message_id) end
 
   return async.await(self:request('session/fork', params))
 end

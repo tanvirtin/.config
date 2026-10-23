@@ -306,6 +306,8 @@ describe('harness.acp.connection:', function()
 
     run(function()
       conn:fork_session('s1', { cwd = '/w', message_id = 'm7' })
+      conn.fork_at_message = true
+      conn:fork_session('s1', { cwd = '/w', message_id = 'm7' })
       conn:fork_session('s1', { cwd = '/w' })
     end)
 
@@ -313,8 +315,9 @@ describe('harness.acp.connection:', function()
       return message.method == 'session/fork'
     end, agent.sent)
 
-    eq({ version = 1, messageId = 'm7' }, forks[1].params._meta.jetbrains.air.fork)
-    eq(nil, forks[2].params._meta)
+    eq(nil, forks[1].params._meta)
+    eq({ version = 1, messageId = 'm7' }, forks[2].params._meta.jetbrains.air.fork)
+    eq(nil, forks[3].params._meta)
 
     local plain = connected()
     local ok, err = pcall(run, function()

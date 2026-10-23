@@ -26,6 +26,7 @@ function Workspace:connection(agent)
     local conn = Connection(spawn(agent, self.dir))
 
     conn.login = agent.login
+    conn.fork_at_message = agent.fork_at_message == true
 
     conn:initialize()
 
