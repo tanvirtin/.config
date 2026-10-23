@@ -193,7 +193,7 @@ describe('harness.workspace:', function()
     end)
 
     eq('Manual', session:mode().name)
-    eq('high', session:option('effort').currentValue)
+    eq('high', session:option('effort').current)
   end)
 
   it('loads a stored session, replaying its history', function()

@@ -28,8 +28,6 @@ function Session.is_state_event(event)
   return STATE_EVENTS[event.kind] == true
 end
 
-Session.choices = SessionConfig.choices
-
 function Session:constructor(opts)
   local session = {
     key = opts.key,
@@ -44,7 +42,6 @@ function Session:constructor(opts)
     state = Session.STATE.idle,
     reloading = false,
     options = {},
-    modes = nil,
     commands = {},
     _listeners = {},
     _tools = {},
@@ -176,7 +173,7 @@ function Session:prompt(text, context, opts)
       error(result, 0)
     end
 
-    local reason = result and result.stopReason
+    local reason = result
 
     self.turn_ended = Timer.now()
     self:_emit(events.stop(reason))
@@ -260,8 +257,8 @@ function Session:end_replay(ok)
   return notice ~= nil
 end
 
-function Session:configure(result)
-  self.config:configure(result)
+function Session:configure(options)
+  self.config:configure(options)
 end
 
 function Session:option(key)

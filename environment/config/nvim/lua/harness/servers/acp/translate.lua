@@ -1,3 +1,4 @@
+local dataclass = require('core.dataclass')
 local fences = require('core.fences')
 local fs = require('core.fs')
 local permission = require('harness.types.permission')
@@ -55,7 +56,7 @@ function translate.permission_request(params)
   local choices = {}
 
   for _, option in ipairs(type(params) == 'table' and type(params.options) == 'table' and params.options or {}) do
-    if type(option) == 'table' and permission.DECISION[option.kind] then
+    if type(option) == 'table' and dataclass.is_member(permission.DECISION, option.kind) then
       local label = type(option.name) == 'string' and option.name ~= '' and option.name or option.kind
 
       choices[#choices + 1] = { kind = option.kind, label = label }

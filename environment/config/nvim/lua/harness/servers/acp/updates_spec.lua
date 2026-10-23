@@ -155,7 +155,7 @@ describe('harness.servers.acp.updates:', function()
 
     it('reads config options, the current mode and the agent\'s slash commands', function()
       eq(
-        { kind = 'config', options = { { id = 'mode', currentValue = 'plan' } } },
+        { kind = 'config', options = { { id = 'mode', current = 'plan', choices = {} } } },
         events.from_update({
           sessionUpdate = 'config_option_update',
           configOptions = { { id = 'mode', currentValue = 'plan' } },

@@ -1,5 +1,6 @@
 local fences = require('core.fences')
 local fs = require('core.fs')
+local acp_config = require('harness.servers.acp.config')
 local types = require('harness.types.events')
 
 local events = setmetatable({}, { __index = types })
@@ -256,7 +257,8 @@ local FROM_UPDATE = {
   end,
 
   config_option_update = function(update)
-    return type(update.configOptions) == 'table' and events.new({ kind = K.config, options = update.configOptions })
+    return type(update.configOptions) == 'table'
+        and events.new({ kind = K.config, options = acp_config.options(update.configOptions) })
       or nil
   end,
 

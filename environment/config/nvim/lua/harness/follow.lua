@@ -101,10 +101,10 @@ local function poll(session, follower)
 
     async.run(function()
       for _, entry in ipairs(session.connection:list_sessions(session.dir)) do
-        if entry.sessionId == session.id then
-          local changed = follower.updated and entry.updatedAt ~= follower.updated
+        if entry.id == session.id then
+          local changed = follower.updated and entry.updated_at ~= follower.updated
 
-          follower.updated = entry.updatedAt
+          follower.updated = entry.updated_at
           if changed and not own_writes(session) then follow.reload(session) end
         end
       end

@@ -326,14 +326,14 @@ end
 function transcript.pick_model(session)
   local option = session:option('model')
 
-  if not option or (option.type and option.type ~= 'select') then
+  if not option or (option.kind and option.kind ~= 'select') then
     return console.notify_now('Harness: this agent offers no model option', 'info')
   end
 
-  console.select(session.choices(option), {
+  console.select(option.choices, {
     prompt = option.name or 'Model',
     format_item = function(choice)
-      return describe(choice, option.currentValue)
+      return describe(choice, option.current)
     end,
   }, function(choice)
     if choice then session:set_option(option.id, choice.value) end

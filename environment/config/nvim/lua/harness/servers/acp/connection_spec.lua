@@ -66,13 +66,13 @@ describe('harness.servers.acp.connection:', function()
     local conn, agent = connected()
 
     local result = run(function()
-      local id = conn:new_session({ cwd = '/w', mcp_servers = {}, system_prompt = 'be brief' }).sessionId
+      local id = conn:new_session({ cwd = '/w', mcp_servers = {}, system_prompt = 'be brief' }).id
       return conn:prompt(id, require('harness.types.content').prompt('hi'))
     end)
 
     local new = agent:sent_method('session/new')
 
-    eq('end_turn', result.stopReason)
+    eq('end_turn', result)
     eq('/w', new.params.cwd)
     eq({ mode = 'append', content = { { type = 'text', text = 'be brief' } } }, new.params.systemPrompt)
   end)
@@ -107,7 +107,7 @@ describe('harness.servers.acp.connection:', function()
       return conn:list_sessions('/w')
     end)
 
-    eq({ { sessionId = 'a' }, { sessionId = 'b' } }, sessions)
+    eq({ { id = 'a' }, { id = 'b' } }, sessions)
     eq(2, pages)
   end)
 
@@ -349,7 +349,7 @@ describe('harness.servers.acp.connection:', function()
     end)
 
     eq(2, calls)
-    eq({ { sessionId = 's1' }, { sessionId = 's2' } }, listed)
+    eq({ { id = 's1' }, { id = 's2' } }, listed)
   end)
 
   it('refuses to load a session the agent cannot load', function()

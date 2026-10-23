@@ -1,52 +1,62 @@
 local SessionConfig = require('harness.session.SessionConfig')
+local config = require('harness.types.config')
 local events = require('harness.types.events')
 local fake = require('harness.session.fake_session')
 
 local eq = assert.are.same
 
 describe('harness.session.SessionConfig:', function()
-  local OPTIONS = {
-    { id = 'mode', category = 'mode', currentValue = 'plan', options = { { value = 'plan', name = 'Plan' } } },
-    {
-      id = 'model',
-      category = 'model',
-      currentValue = 'opus',
-      options = { { name = 'Claude', options = { { value = 'opus', name = 'Opus' } } } },
-    },
-  }
+  local function options()
+    return {
+      config.Option({
+        id = 'mode',
+        category = 'mode',
+        current = 'plan',
+        choices = { config.Choice({ value = 'plan', name = 'Plan' }), config.Choice({ value = 'code', name = 'Code' }) },
+      }),
+      config.Option({
+        id = 'model',
+        category = 'model',
+        current = 'opus',
+        choices = { config.Choice({ value = 'opus', name = 'Opus' }) },
+      }),
+    }
+  end
 
-  it('flattens grouped choices and finds options by id or category', function()
+  it('finds options by id or category, and the mode and model chosen in them', function()
     local session = fake.session()
-    local config = SessionConfig(session)
+    local settings = SessionConfig(session)
 
-    config:configure({ configOptions = vim.deepcopy(OPTIONS) })
+    settings:configure(options())
 
-    eq({ { value = 'opus', name = 'Opus' } }, SessionConfig.choices(OPTIONS[2]))
-    eq('Opus', config:choice('model').name)
-    eq('model', config:option('model').id)
-    eq({ id = 'plan', name = 'Plan' }, config:mode())
+    eq('Opus', settings:choice('model').name)
+    eq('model', settings:option('model').id)
+    eq({ id = 'plan', name = 'Plan' }, settings:mode())
+    eq({ { id = 'plan', name = 'Plan' }, { id = 'code', name = 'Code' } }, settings:mode_choices())
     eq({ events.NOTICE.config }, session.notified)
   end)
 
   it('applies option, mode and command updates to the session', function()
     local session = fake.session()
-    local config = SessionConfig(session)
+    local settings = SessionConfig(session)
 
-    config:apply(events.new({ kind = events.KIND.config, options = vim.deepcopy(OPTIONS) }))
-    config:apply(events.new({ kind = events.KIND.mode, id = 'code' }))
-    config:apply(events.new({ kind = events.KIND.commands, commands = { { name = 'review' } } }))
+    settings:apply(events.new({ kind = events.KIND.config, options = options() }))
+    settings:apply(events.new({ kind = events.KIND.mode, id = 'code' }))
+    settings:apply(events.new({ kind = events.KIND.commands, commands = { { name = 'review' } } }))
 
-    eq('code', session.options[1].currentValue)
+    eq('code', session.options[1].current)
     eq('review', session.commands[1].name)
   end)
 
-  it('falls back to the agent\'s modes when it has no options', function()
+  it('ignores an empty set of options, and has no mode without a mode option', function()
     local session = fake.session()
-    local config = SessionConfig(session)
+    local settings = SessionConfig(session)
 
-    config:configure({ modes = { currentModeId = 'ask', availableModes = { { id = 'ask', name = 'Ask' } } } })
+    settings:configure({})
 
-    eq({ id = 'ask', name = 'Ask' }, config:mode())
-    eq({ { id = 'ask', name = 'Ask' } }, config:mode_choices())
+    eq({}, session.options)
+    eq(nil, settings:mode())
+    eq({}, settings:mode_choices())
+    eq(nil, settings:set_mode('code'))
   end)
 end)

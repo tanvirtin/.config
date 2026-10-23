@@ -1,5 +1,4 @@
 local Object = require('core.Object')
-local console = require('core.console')
 local servers = require('harness.servers')
 local Session = require('harness.session')
 local async = require('harness.async')
@@ -34,30 +33,12 @@ function Workspace:connection(agent)
 end
 
 local function use_model(connection, agent, id)
-  if not agent.model then return nil end
-
-  local ok, result = pcall(connection.set_config, connection, id, 'model', agent.model)
-
-  if ok then return result end
-
-  local fallback, why = pcall(connection.set_model, connection, id, agent.model)
-
-  if not fallback then
-    console.warn(string.format('Harness: could not use model %s: %s', agent.model, tostring(why or result)))
-  end
-
-  return nil
+  return agent.model and connection:use_model(id, agent.model) or nil
 end
 
-local function configure(session, ...)
-  for _, result in ipairs({ ... }) do
-    if
-      type(result) == 'table'
-      and (type(result.modes) == 'table' or (type(result.configOptions) == 'table' and #result.configOptions > 0))
-    then
-      session:configure(result)
-    end
-  end
+local function configure(session, opened, options)
+  session:configure(opened and opened.options)
+  session:configure(options)
 end
 
 local function tool_servers(self, agent, key)
@@ -72,10 +53,10 @@ function Workspace:new_session(agent, opts)
     system_prompt = agent.system,
   })
 
-  local model = use_model(connection, agent, result.sessionId)
+  local model = use_model(connection, agent, result.id)
 
   local session = Session(vim.tbl_extend('force', opts, {
-    id = result.sessionId,
+    id = result.id,
     agent = agent,
     dir = self.dir,
     connection = connection,
@@ -130,7 +111,7 @@ function Workspace:fork(session, message_id, opts)
     message_id = message_id,
   })
 
-  return self:load_session(agent, forked.sessionId, opts)
+  return self:load_session(agent, forked.id, opts)
 end
 
 function Workspace:reload(session)
@@ -171,8 +152,8 @@ function Workspace:list(agent)
 
   if connection:capabilities().list then
     for _, stored in ipairs(connection:list_sessions(self.dir)) do
-      if not seen[stored.sessionId] then
-        out[#out + 1] = { id = stored.sessionId, title = stored.title, updated_at = stored.updatedAt }
+      if not seen[stored.id] then
+        out[#out + 1] = { id = stored.id, title = stored.title, updated_at = stored.updated_at }
       end
     end
   end

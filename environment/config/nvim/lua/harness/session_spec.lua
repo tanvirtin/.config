@@ -1,5 +1,6 @@
 local Connection = require('harness.servers.acp.connection')
 local Session = require('harness.session')
+local acp_config = require('harness.servers.acp.config')
 local async = require('harness.async')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
@@ -508,7 +509,7 @@ describe('harness.session:', function()
     local function configured(script)
       local session, agent = session_with(script)
 
-      session:configure({ configOptions = vim.deepcopy(OPTIONS) })
+      session:configure(acp_config.options(vim.deepcopy(OPTIONS)))
 
       return session, agent
     end
@@ -562,12 +563,10 @@ describe('harness.session:', function()
     it('uses session/set_mode for agents that only have modes', function()
       local session, agent = session_with()
 
-      session:configure({
-        modes = {
-          currentModeId = 'ask',
-          availableModes = { { id = 'ask', name = 'Ask' }, { id = 'code', name = 'Code' } },
-        },
-      })
+      session:configure(acp_config.options(nil, {
+        currentModeId = 'ask',
+        availableModes = { { id = 'ask', name = 'Ask' }, { id = 'code', name = 'Code' } },
+      }))
       session:cycle_mode():wait()
 
       eq('code', agent:sent_method('session/set_mode').params.modeId)
@@ -581,7 +580,7 @@ describe('harness.session:', function()
       session.set_mode = function(_, id)
         seen[#seen + 1] = id
         for _, option in ipairs(session.options) do
-          if option.id == 'mode' then option.currentValue = id end
+          if option.id == 'mode' then option.current = id end
         end
       end
 

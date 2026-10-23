@@ -1,3 +1,4 @@
+local acp_config = require('harness.servers.acp.config')
 local Connection = require('harness.servers.acp.connection')
 local Session = require('harness.session')
 local events = require('harness.types.events')
@@ -463,12 +464,10 @@ describe('harness.ui.transcript:', function()
       local buf = transcript.open(session)
       local cycled = 0
 
-      session:configure({
-        configOptions = {
-          { id = 'mode', category = 'mode', currentValue = 'plan', options = { { value = 'plan', name = 'Plan' } } },
-          { id = 'model', category = 'model', currentValue = 'opus', options = { { value = 'opus', name = 'Opus' } } },
-        },
-      })
+      session:configure(acp_config.options({
+        { id = 'mode', category = 'mode', currentValue = 'plan', options = { { value = 'plan', name = 'Plan' } } },
+        { id = 'model', category = 'model', currentValue = 'opus', options = { { value = 'opus', name = 'Opus' } } },
+      }))
       session.cycle_mode = function()
         cycled = cycled + 1
       end
@@ -489,19 +488,17 @@ describe('harness.ui.transcript:', function()
       local set = {}
       local original = vim.ui.select
 
-      session:configure({
-        configOptions = {
-          {
-            id = 'model',
-            category = 'model',
-            currentValue = 'opus',
-            options = {
-              { value = 'opus', name = 'Opus' },
-              { value = 'sonnet', name = 'Sonnet' },
-            },
+      session:configure(acp_config.options({
+        {
+          id = 'model',
+          category = 'model',
+          currentValue = 'opus',
+          options = {
+            { value = 'opus', name = 'Opus' },
+            { value = 'sonnet', name = 'Sonnet' },
           },
         },
-      })
+      }))
       session.set_option = function(_, id, value)
         set[#set + 1] = { id, value }
       end

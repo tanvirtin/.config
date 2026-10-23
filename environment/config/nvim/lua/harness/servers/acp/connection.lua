@@ -1,6 +1,7 @@
 local Object = require('core.Object')
 local console = require('core.console')
 local capabilities = require('harness.types.capabilities')
+local acp_config = require('harness.servers.acp.config')
 local translate = require('harness.servers.acp.translate')
 local updates = require('harness.servers.acp.updates')
 local async = require('harness.async')
@@ -277,7 +278,7 @@ function Connection:session_params(opts)
 end
 
 function Connection:new_session(opts)
-  return async.await(self:request('session/new', self:session_params(opts)))
+  return acp_config.opened(async.await(self:request('session/new', self:session_params(opts))))
 end
 
 function Connection:can_load()
@@ -290,7 +291,7 @@ function Connection:load_session(session_id, opts)
   local params = self:session_params(opts)
   params.sessionId = session_id
 
-  return async.await(self:request('session/load', params))
+  return acp_config.opened(async.await(self:request('session/load', params)))
 end
 
 function Connection:list_sessions(cwd)
@@ -300,7 +301,12 @@ function Connection:list_sessions(cwd)
     local result = async.await(self:request('session/list', { cwd = cwd, cursor = cursor })) or {}
     local page = result.sessions or {}
 
-    vim.list_extend(sessions, page)
+    for _, entry in ipairs(page) do
+      if type(entry) == 'table' and type(entry.sessionId) == 'string' then
+        sessions[#sessions + 1] = acp_config.stored(entry)
+      end
+    end
+
     seen[cursor or ''] = true
     cursor = result.nextCursor
 
@@ -327,13 +333,15 @@ function Connection:fork_session(session_id, opts)
 
   if opts.message_id and self.fork_at_message then params._meta = Connection.fork_point(opts.message_id) end
 
-  return async.await(self:request('session/fork', params))
+  return acp_config.opened(async.await(self:request('session/fork', params)))
 end
 
 function Connection:prompt(session_id, prompt)
   local blocks = translate.prompt(prompt, self:prompt_capabilities())
 
-  return async.await(self:request('session/prompt', { sessionId = session_id, prompt = blocks }))
+  local result = async.await(self:request('session/prompt', { sessionId = session_id, prompt = blocks }))
+
+  return type(result) == 'table' and result.stopReason or nil
 end
 
 function Connection:set_config(session_id, config_id, value)
@@ -350,6 +358,32 @@ end
 
 function Connection:set_mode(session_id, mode_id)
   return async.await(self:request('session/set_mode', { sessionId = session_id, modeId = mode_id }))
+end
+
+function Connection:set_option(session_id, option_id, value)
+  if option_id == acp_config.MODES then
+    self:set_mode(session_id, value)
+    return nil
+  end
+
+  local result = self:set_config(session_id, option_id, value)
+  local options = type(result) == 'table' and acp_config.options(result.configOptions) or {}
+
+  return #options > 0 and options or nil
+end
+
+function Connection:use_model(session_id, model)
+  local ok, options = pcall(self.set_option, self, session_id, 'model', model)
+
+  if ok then return options end
+
+  local fallback, why = pcall(self.set_model, self, session_id, model)
+
+  if not fallback then
+    console.warn(string.format('Harness: could not use model %s: %s', model, tostring(why or options)))
+  end
+
+  return nil
 end
 
 function Connection:cancel(session_id)
