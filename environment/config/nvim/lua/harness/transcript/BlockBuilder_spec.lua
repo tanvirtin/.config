@@ -429,6 +429,24 @@ describe('harness.transcript.BlockBuilder:', function()
     end)
   end)
 
+  it('lists a replayed prompt\'s selections the same way, hiding the harness\'s own blocks', function()
+    local history = {}
+
+    for _, update in ipairs({
+      { type = 'text', text = '<harness-instructions>be brief</harness-instructions>' },
+      { type = 'text', text = '<editor-context>in a.lua</editor-context>' },
+      { type = 'resource', resource = { uri = 'file:///w/a.lua#L3-5', text = 'x' } },
+      { type = 'text', text = 'Selected lines 9-9 of b.lua:\n```lua\nlocal y\n```' },
+      { type = 'text', text = 'explain' },
+    }) do
+      events.append(history, events.from_update({ sessionUpdate = 'user_message_chunk', content = update }))
+    end
+
+    local list = blocks.build(history)
+
+    eq({ '> explain', '> + /w/a.lua:3-5', '> + b.lua:9' }, list[2].lines)
+  end)
+
   it('lists the selections sent with a prompt under its text', function()
     local list = blocks.build({ events.prompt('explain', { selections = { 'a.lua:3-5', 'b.lua:9' } }) })
 

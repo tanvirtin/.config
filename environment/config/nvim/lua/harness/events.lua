@@ -1,5 +1,6 @@
-local fences = require('core.fences')
 local dataclass = require('core.dataclass')
+local fences = require('core.fences')
+local fs = require('core.fs')
 
 local events = {}
 
@@ -75,7 +76,7 @@ end
 events.TYPES = {
   [K.message] = text_schema('Message'),
   [K.thought] = text_schema('Thought'),
-  [K.user] = text_schema('User'),
+  [K.user] = text_schema('User', { selections = TABLE }),
   [K.prompt] = text_schema('Prompt', { steered = { type = 'boolean' }, selections = TABLE }),
   [K.tool_call] = dataclass.define('ToolCall', tool_schema({ output = STRING })),
   [K.tool_update] = dataclass.define('ToolUpdate', tool_schema({ output = STRING })),
@@ -269,6 +270,16 @@ local function text_of(update)
   return events.block_text(update.content)
 end
 
+function events.selection_of(block)
+  local resource = type(block) == 'table' and block.type == 'resource' and block.resource
+  local uri = type(resource) == 'table' and str(resource.uri)
+  local path, from, to = (uri or ''):match('^file://(.-)#L(%d+)%-?(%d*)$')
+
+  if not path then return nil end
+
+  return string.format('%s:%s', fs.display(path), (to == '' or to == from) and from or (from .. '-' .. to))
+end
+
 local FROM_UPDATE = {
   agent_message_chunk = function(update)
     local text = text_of(update)
@@ -306,6 +317,10 @@ local FROM_UPDATE = {
   end,
 
   user_message_chunk = function(update)
+    local selection = events.selection_of(update.content)
+
+    if selection then return events.new({ kind = K.user, text = '', selections = { selection } }) end
+
     local text = text_of(update)
     return text and events.new({ kind = K.user, text = text })
   end,
@@ -420,6 +435,10 @@ function events.append(history, event)
   if events.TEXT[event.kind] and last and last.kind == event.kind and last.parent == event.parent then
     last.text = last.text .. event.text
     last.message_id = event.message_id or last.message_id
+
+    if event.selections then
+      last.selections = vim.list_extend(vim.deepcopy(last.selections or {}), event.selections)
+    end
   else
     history[#history + 1] = vim.deepcopy(event)
   end

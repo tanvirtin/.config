@@ -283,15 +283,17 @@ local function build_turn(history, from, to, opts, last_turn, updates)
   local BUILD = {
     prompt = function(event, i)
       if not event.steered then turn = { tools = 0, started = times[i] } end
-      local lines = quoted(vim.trim(context.strip(event.text)))
+      local text, found = context.selections_in(context.strip(event.text))
+      local selections = vim.list_extend(vim.deepcopy(event.selections or {}), found)
+      local lines = quoted(vim.trim(text))
 
-      for _, label in ipairs(event.selections or {}) do
+      for _, label in ipairs(selections) do
         lines[#lines + 1] = '> + ' .. label
       end
 
       add(Block.KIND.prompt, lines, {
         steered = event.steered,
-        selections = event.selections and #event.selections or nil,
+        selections = #selections > 0 and #selections or nil,
         event = i,
       })
     end,
