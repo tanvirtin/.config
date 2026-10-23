@@ -3,7 +3,7 @@ local EditPatches = require('harness.transcript.EditPatches')
 local buffers = require('core.buffers')
 local theme = require('harness.transcript.theme')
 local blocks = require('harness.transcript.BlockBuilder')
-local events = require('harness.events')
+local events = require('harness.types.events')
 
 local Block = blocks.Block
 

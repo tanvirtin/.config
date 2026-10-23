@@ -1,6 +1,6 @@
 local PermissionGate = require('harness.session.PermissionGate')
 local async = require('harness.async')
-local events = require('harness.events')
+local events = require('harness.types.events')
 local fake = require('harness.session.fake_session')
 
 local eq = assert.are.same

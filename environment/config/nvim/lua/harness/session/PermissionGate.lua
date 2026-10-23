@@ -4,6 +4,7 @@ local Connection = lazy('harness.acp.connection')
 local Object = lazy('core.Object')
 local async = lazy('harness.async')
 local events = lazy('harness.events')
+local permission = lazy('harness.types.permission')
 
 local PermissionGate = Object:extend()
 
@@ -34,7 +35,7 @@ function PermissionGate:request(params)
     session:_notify({ kind = events.NOTICE.waiting })
 
     local kind = kind_of(decision)
-    local allowed = kind:sub(1, 5) == 'allow'
+    local allowed = permission.allows(kind)
 
     session:_record_permission(tool, allowed)
     session:_emit(events.permission(tool, allowed, { id = pending.id }))

@@ -165,7 +165,7 @@ function Connection:_on_request(message)
   reply(ok, result)
 end
 
-Connection.DECISION = dataclass.enum({ 'allow_once', 'allow_always', 'reject_once', 'reject_always', 'cancelled' })
+Connection.DECISION = require('harness.types.permission').DECISION
 
 Connection.STOP_REASON = dataclass.enum({ 'end_turn', 'max_tokens', 'max_turn_requests', 'refusal', 'cancelled' })
 

@@ -1,4 +1,4 @@
-local EVENT = require('harness.events').KIND
+local EVENT = require('harness.types.events').KIND
 local compact = require('compact')
 local context = require('harness.context')
 

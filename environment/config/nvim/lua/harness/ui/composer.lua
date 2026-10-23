@@ -430,7 +430,7 @@ function composer.on_returned(session, texts)
   )
 end
 
-local NOTICE = require('harness.events').NOTICE
+local NOTICE = require('harness.types.events').NOTICE
 
 local function on_session_event(session, event)
   if event.kind == NOTICE.returned then composer.on_returned(session, event.texts) end

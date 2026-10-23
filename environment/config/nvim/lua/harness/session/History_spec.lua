@@ -1,5 +1,5 @@
 local History = require('harness.session.History')
-local events = require('harness.events')
+local events = require('harness.types.events')
 
 local eq = assert.are.same
 

@@ -1,5 +1,5 @@
 local Subagents = require('harness.session.Subagents')
-local events = require('harness.events')
+local events = require('harness.types.events')
 local fake = require('harness.session.fake_session')
 
 local eq = assert.are.same

@@ -1,5 +1,5 @@
 local EditCheckTime = require('harness.features.EditCheckTime')
-local events = require('harness.events')
+local events = require('harness.types.events')
 
 local eq = assert.are.same
 

@@ -1,5 +1,5 @@
 local Block = require('harness.transcript.Block')
-local EVENT = require('harness.events').KIND
+local EVENT = require('harness.types.events').KIND
 local compact = require('compact')
 local text = require('core.text')
 local theme = require('harness.transcript.theme')

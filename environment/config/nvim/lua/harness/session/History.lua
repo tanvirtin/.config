@@ -3,7 +3,7 @@ local lazy = require('core.lazy')
 local Object = lazy('core.Object')
 local Timer = lazy('core.Timer')
 local context = lazy('harness.context')
-local events = lazy('harness.events')
+local events = lazy('harness.types.events')
 
 local History = Object:extend()
 

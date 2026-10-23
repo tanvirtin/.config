@@ -1,5 +1,5 @@
 local Block = require('harness.transcript.Block')
-local EVENT = require('harness.events').KIND
+local EVENT = require('harness.types.events').KIND
 
 local EditLog = {}
 

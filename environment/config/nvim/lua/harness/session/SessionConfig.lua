@@ -2,7 +2,7 @@ local lazy = require('core.lazy')
 
 local Object = lazy('core.Object')
 local async = lazy('harness.async')
-local events = lazy('harness.events')
+local events = lazy('harness.types.events')
 
 local SessionConfig = Object:extend()
 

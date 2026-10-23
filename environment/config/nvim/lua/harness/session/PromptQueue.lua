@@ -4,7 +4,7 @@ local Object = lazy('core.Object')
 local async = lazy('harness.async')
 local console = lazy('core.console')
 local editor_context = lazy('harness.context')
-local events = lazy('harness.events')
+local events = lazy('harness.types.events')
 
 local PromptQueue = Object:extend()
 

@@ -1,5 +1,5 @@
 local TextRenderer = require('harness.transcript.TextRenderer')
-local events = require('harness.events')
+local events = require('harness.types.events')
 
 local eq = assert.are.same
 

@@ -5,7 +5,7 @@ local text = require('core.text')
 local api = require('nvim_mcp.api')
 local async = require('harness.async')
 local tools = require('nvim_mcp.tools')
-local DECISION = require('harness.acp.connection').DECISION
+local DECISION = require('harness.types.permission').DECISION
 
 local permissions = {}
 

@@ -1,7 +1,7 @@
 local lazy = require('core.lazy')
 
-local DECISION = require('harness.acp.connection').DECISION
-local NOTICE = require('harness.events').NOTICE
+local DECISION = require('harness.types.permission').DECISION
+local NOTICE = require('harness.types.events').NOTICE
 local Timer = require('core.Timer')
 
 local async = lazy('harness.async')
