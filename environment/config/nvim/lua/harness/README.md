@@ -24,13 +24,14 @@ Bottom up. A layer only requires layers below it, and no harness module calls Ne
 
 | Rank | Layer | Module | What it is |
 | --- | --- | --- | --- |
-| 1 | protocol | `servers/acp/jsonrpc.lua`, `servers/acp/transport.lua`, `servers/acp/connection.lua` | A **Connection** is one agent process serving many sessions. It routes updates and requests by `sessionId`. It covers new, load, list, prompt, cancel and close, and nothing else: no UI and no policy. |
+| 1 | types | `types/*.lua` | The harness's own vocabulary, with no protocol in it, all dataclasses: `events` (`message`, `tool_call`, `plan`, `permission`, `stop`, ... with a `KIND` enum, stop reasons), `content` (`Prompt`, `Context`, `Attachment`), `permission` (decisions, `Request`), `capabilities` (what a connection can do), `config` (`Option`, `Choice`), `session` (`Opened`, `Stored`). Everything above the servers speaks only these. |
 | 1 | settings | `settings/*.lua` | Every tunable as a `core.Config`, read at use time (see Settings). |
 | 1 | vgit | `vgit.lua` | The only module that talks to vgit, the diff engine: `patch` and `patch_text` (from `vgit.api`), `show` (vgit's diff views for in-memory content) and `git_diff`. The architecture spec rejects a `vgit` require anywhere else. |
-| 2 | events | `events.lua` | Typed events (`message`, `tool_call`, `plan`, `permission`, `stop`, ...) normalized from `session/update`, as dataclasses with a `KIND` enum. Views never parse ACP. |
-| 2 | agent | `agent.lua` | **Agent** definitions, loaded from tin's `~/.local/share/tin/nvim/agents.json`, with built-in `claude` and `opencode` as fallbacks. It spawns the process and reads `$NAME` env values at spawn time. |
-| 3 | session | `session.lua`, `session/*.lua` | **Session**: one conversation, a coordinator over its parts: `History` (events, times, replay and adoption), `PermissionGate` (open requests, cancel), `PromptQueue` (queue, drain, steer), `SessionConfig` (options, modes, commands) and `Subagents` (child sessions). Its `history` is the source of truth. It provides `subscribe`, `prompt`, `enqueue`, `steer`, `cancel` and `close`. |
-| 4 | workspace | `workspace.lua` | **Workspace**: the sessions of one directory. It runs one process per agent, shared by that agent's sessions. `list()` merges live sessions with the agent's stored ones (`session/list`), and `load_session` replays a stored one. |
+| 2 | connection | `connection.lua` | The **AgentConnection** interface every server's connection implements (see Servers), and `connection_spec.lua`, the contract each one must pass. |
+| 2 | servers | `servers/init.lua`, `servers/acp/*`, `servers/fake/*` | **AgentServer**s: how to reach an agent and get a connection to it. `servers/acp` speaks ACP over a JSON-RPC process (`jsonrpc`, `transport`, `connection`, and `updates`, `translate`, `config`, which turn ACP into the types and back). `servers/fake` is an in-memory server with no protocol. Nothing outside `servers/` may require a server's own modules or use an ACP name. |
+| 2 | agent | `agent.lua` | **Agent** definitions, loaded from tin's `~/.local/share/tin/nvim/agents.json`, with built-in `claude` and `opencode` as fallbacks. An agent names its server (`server`, ACP by default) and carries what that server needs (command, args, env, read at start), its model, sign-in hint and system prompt. |
+| 3 | session | `session.lua`, `session/*.lua` | **Session**: one conversation, a coordinator over its parts: `History` (events, times, replay and adoption), `PermissionGate` (open requests, cancel), `PromptQueue` (queue, drain, steer), `SessionConfig` (options, modes, commands) and `Subagents` (child sessions). Its `history` is the source of truth. It provides `subscribe`, `prompt`, `enqueue`, `steer`, `cancel` and `close`, asks `can(name)` of its connection's capabilities, and moves through one lifecycle state (`idle`, `running`, `loading`, `reloading`, `closed`) along checked transitions. |
+| 4 | workspace | `workspace.lua` | **Workspace**: the sessions of one directory. It holds one connection per agent, from that agent's server, shared by its sessions. `list()` merges live sessions with the agent's stored ones, and `load_session` replays a stored one. |
 | 4 | store | `session_store.lua` | Every session in the editor, with lifecycle dispatch that features subscribe to (see Store events). It fires `User HarnessEvent`. |
 | 5 | hub | `hub.lua` | Policy: what a session gets (agent, permissions, the editor as the `nvim` MCP server), `max_running` and `max_depth`. |
 | 6 | transcript | `transcript/*.lua` | The render pipeline, pure data with no buffers: `BlockBuilder` (history to typed `Block`s), `calculators/` (`Layout`, `FoldCalculator`), `EditResolver` and `EditPatches` (an edit's whole file before and after, laid out by vgit), `EditLog` (the session's completed edits), `SessionChanges`, `Revert` (undoing edits in the files as they are now), `EditLocations` (edits as quickfix entries), `CodeBlocks` (the code blocks of replies), `decorators/` (prompt, tool, diff, thought, plan, note, stop, collapsed and nesting, each returning `MarkSpec`s; titles and replies are drawn by the markdown renderer), `StatusLine`, `PlanSummary`, `theme`, and `TextRenderer` (compact text for agents). |
@@ -38,6 +39,17 @@ Bottom up. A layer only requires layers below it, and no harness module calls Ne
 | 6 | tools | `tools.lua` | The `session` toolset, which lets an agent run sessions (see below). |
 | 7 | ui | `ui/*.lua` | `TranscriptView` (one transcript buffer: render loop, timer, keymaps, folds, winbar), `display` (which view shows where, reveal), `document` (applies the pipeline's marks to the buffer), `composer`, `permission_prompt`, `winbar`, `PlanPanel`, `links`, `sessions`, `code_blocks` (motions, text objects, insert, apply), `edits` (vgit views, revert and quickfix of edits), and `transcript`, the facade the rest of the editor calls. |
 | 8 | cli | `cli/router.lua`, `cli/commands/*.lua` | One module per `:Harness*` command, with a name, options and `execute(args)`; the router registers them. |
+
+## Servers
+
+The harness never speaks to an agent directly. It follows Zed's layering (an `AgentServer` connects to an `AgentConnection`; Zed's own agent and external ACP agents sit behind the same interface), but in the harness's own types rather than ACP's, the lesson of Codex, whose frontends speak only its own ops and events. So ACP is one server among possible others, and our own agent loop can be added later without touching sessions, the transcript or the UI.
+
+- **Server** (`servers/<name>/init.lua`): `connect(agent, dir, opts) -> connection`. `servers.get(agent.server)` finds it.
+- **Connection** (`connection.lua` lists the methods): `capabilities()`, `new_session(opts)`, `load_session(id, opts)` and `fork_session(id, opts)` (each an `Opened`), `list_sessions(dir)` (`Stored`s), `close_session(id)`, `delete_session(id)`, `prompt(id, Prompt)` (a stop reason), `steer(id, Prompt)` (whether the running turn took it), `cancel(id)`, `set_option(id, option, value)` and `use_model(id, model)` (the new options, or nothing), `attach(id, delegate)`, `detach(id)`, `close()`, and a `closed` flag.
+- **Delegate**: a session attaches with `event(types.events)`, `permission(types.permission.Request)` (a decision, or a future of one) and `close(reason)`. Sub-agents attach the same way.
+- **Capabilities** gate the optional calls, as Zed's `supports_*` do: `load`, `resume`, `fork`, `fork_at_message`, `list`, `close`, `delete`, `steer`, `system_prompt`, `embedded_context`, `images`, `audio`. The UI asks `session:can(name)`.
+
+To add a server, implement the interface, register it in `servers/init.lua`, and add it to `SERVERS` in `connection_spec.lua`, so it passes the same contract as ACP.
 
 `context.lua` captures where the user is (file, cursor, selection). It is sent ahead of each prompt inside an `<editor-context>` tag, so the agent always sees fresh context. With a range (`:'<,'>Harness …`) the selected lines go along as content: an ACP embedded resource (`file://…#L10-20`) when the agent advertises `embeddedContext`, else a fenced block. Transcripts strip the tag when a session replays.
 
@@ -57,7 +69,9 @@ The harness follows vgit's shape: a domain that knows nothing of buffers, stores
 
 | You are adding | Put it in | Notes |
 | --- | --- | --- |
-| A protocol method or field | `servers/acp/connection.lua`, `events.lua` | Standard ACP first; vendor `_meta` only as an optional extra. |
+| An ACP method or field | `servers/acp/` (`connection`, `updates`, `translate`, `config`) | Standard ACP first; vendor `_meta` only as an optional extra. Turn it into the types before it leaves the server. |
+| Another way to reach agents (our own loop, another protocol) | `servers/<name>/`, listed in `servers/init.lua` and in `connection_spec.lua` | Implement the interface in `connection.lua`; agents pick it with `server = '<name>'`. |
+| Something sessions or the UI need to know about | `types/` | Never a protocol shape; the server translates into it. |
 | Per-session state or behaviour | a part under `session/`, composed by `session.lua` | Parts take the session and stay free of UI. |
 | Something that reacts to sessions starting, changing or closing | `features/<Name>.lua`, subscribed with `session_store.on` | `register_events()` and `cleanup()`, like `EditCheckTime`. |
 | A new look for a kind of block | `transcript/decorators/<kind>.lua` | `(block, ctx) -> MarkSpec[]`; register it in `decorators/init.lua`; test it without a buffer. |
@@ -365,4 +379,4 @@ make test          # all specs
 make test-file FILE=lua/harness/session_spec.lua
 ```
 
-`harness/servers/acp/fake_agent.lua` is a scripted ACP agent for specs. It handles sessions, list and load, and permission requests. Specs sit next to their module (`Layout.lua`, `Layout_spec.lua`) and go bottom up: calculators and decorators are tested as data, views against real buffers, and `architecture_spec.lua` guards the layers.
+`harness/servers/acp/fake_agent.lua` is a scripted ACP agent for specs. It handles sessions, list and load, and permission requests. `servers/fake` is an in-memory server with no protocol, and `connection_spec.lua` runs the same contract against it and against ACP over the fake agent. Specs sit next to their module (`Layout.lua`, `Layout_spec.lua`) and go bottom up: calculators and decorators are tested as data, views against real buffers, and `architecture_spec.lua` guards the layers.
