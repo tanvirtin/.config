@@ -22,8 +22,8 @@ end
 
 local function listener(log)
   return {
-    update = function(update)
-      log[#log + 1] = update.sessionUpdate
+    event = function(event)
+      log[#log + 1] = event.kind
     end,
   }
 end
@@ -48,8 +48,8 @@ describe('harness.servers.acp.connection:', function()
     conn:attach('s2', listener(two))
     agent:push(fake_agent.chunk('s1', 'a'), fake_agent.chunk('s2', 'b'), fake_agent.chunk('s1', 'c'))
 
-    eq({ 'agent_message_chunk', 'agent_message_chunk' }, one)
-    eq({ 'agent_message_chunk' }, two)
+    eq({ 'message', 'message' }, one)
+    eq({ 'message' }, two)
   end)
 
   it('keeps updates that arrive before a session is attached', function()
@@ -59,7 +59,7 @@ describe('harness.servers.acp.connection:', function()
     agent:push(fake_agent.update('s9', { sessionUpdate = 'available_commands_update' }))
     conn:attach('s9', listener(seen))
 
-    eq({ 'available_commands_update' }, seen)
+    eq({ 'commands' }, seen)
   end)
 
   it('creates and prompts a session', function()
@@ -67,7 +67,7 @@ describe('harness.servers.acp.connection:', function()
 
     local result = run(function()
       local id = conn:new_session({ cwd = '/w', mcp_servers = {}, system_prompt = 'be brief' }).sessionId
-      return conn:prompt(id, { { type = 'text', text = 'hi' } })
+      return conn:prompt(id, require('harness.types.content').prompt('hi'))
     end)
 
     local new = agent:sent_method('session/new')
@@ -87,7 +87,7 @@ describe('harness.servers.acp.connection:', function()
       conn:load_session('old', { cwd = '/w' })
     end)
 
-    eq({ 'user_message_chunk' }, seen)
+    eq({ 'user' }, seen)
     eq('old', agent:sent_method('session/load').params.sessionId)
   end)
 
@@ -157,18 +157,26 @@ describe('harness.servers.acp.connection:', function()
     local conn, agent = connected()
     local answer = async.Future.new()
 
+    local asked
+
     conn:attach('s1', {
-      update = function() end,
-      request = function(method)
-        eq('session/request_permission', method)
+      permission = function(request)
+        asked = request
         return answer
       end,
     })
     agent:push(fake_agent.permission('s1', 'Bash'))
 
     eq(nil, agent:selected())
+    eq('Bash', asked.tool)
+    eq(
+      { 'allow_once', 'allow_always', 'reject_once' },
+      vim.tbl_map(function(choice)
+        return choice.kind
+      end, asked.choices)
+    )
 
-    answer:set_result({ outcome = { outcome = 'selected', optionId = 'allow' } })
+    answer:set_result('allow_once')
     async.drain()
 
     eq('allow', agent:selected())
@@ -178,11 +186,8 @@ describe('harness.servers.acp.connection:', function()
     local conn, agent = connected()
 
     conn:attach('s1', {
-      update = function() end,
-      request = function()
-        local known = async.Future.new()
-        known:set_result({ outcome = { outcome = 'selected', optionId = 'allow' } })
-        return known
+      permission = function()
+        return 'allow_once'
       end,
     })
     agent:push(fake_agent.permission('s1', 'Bash'))

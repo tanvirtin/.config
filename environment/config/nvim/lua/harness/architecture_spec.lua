@@ -33,7 +33,6 @@ local LAYERS = {
   { 'harness.async', 1 },
   { 'harness.settings', 1 },
   { 'harness.vgit', 1 },
-  { 'harness.events', 2 },
   { 'harness.context', 2 },
   { 'harness.agent', 2 },
   { 'harness.servers', 2 },

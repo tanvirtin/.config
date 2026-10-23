@@ -48,7 +48,7 @@ function hub.workspace(dir)
   if not workspaces[dir] then
     workspaces[dir] = Workspace(dir, {
       spawn = function(a, d)
-        return hub.config.spawn and hub.config.spawn(a, d) or a:spawn(d)
+        return hub.config.spawn and hub.config.spawn(a, d) or nil
       end,
       servers = function(a, key)
         return vim.list_extend({ hub.editor_server(key) }, a:mcp_servers())

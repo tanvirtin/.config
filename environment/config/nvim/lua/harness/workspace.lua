@@ -1,6 +1,6 @@
 local Object = require('core.Object')
 local console = require('core.console')
-local Connection = require('harness.servers.acp.connection')
+local servers = require('harness.servers')
 local Session = require('harness.session')
 local async = require('harness.async')
 
@@ -20,17 +20,7 @@ function Workspace:connection(agent)
   self._connections[agent.name] = future
 
   local ok, connection = pcall(function()
-    local spawn = self._opts.spawn or function(a, dir)
-      return a:spawn(dir)
-    end
-    local conn = Connection(spawn(agent, self.dir))
-
-    conn.login = agent.login
-    conn.fork_at_message = agent.fork_at_message == true
-
-    conn:initialize()
-
-    return conn
+    return servers.get(agent.server).connect(agent, self.dir, { spawn = self._opts.spawn })
   end)
 
   if ok then
@@ -70,7 +60,7 @@ local function configure(session, ...)
   end
 end
 
-local function servers(self, agent, key)
+local function tool_servers(self, agent, key)
   return self._opts.servers and self._opts.servers(agent, key) or agent:mcp_servers()
 end
 
@@ -78,7 +68,7 @@ function Workspace:new_session(agent, opts)
   local connection = self:connection(agent)
   local result = connection:new_session({
     cwd = self.dir,
-    mcp_servers = servers(self, agent, opts.key),
+    mcp_servers = tool_servers(self, agent, opts.key),
     system_prompt = agent.system,
   })
 
@@ -116,7 +106,7 @@ function Workspace:load_session(agent, id, opts)
 
   local ok, loaded = pcall(connection.load_session, connection, id, {
     cwd = self.dir,
-    mcp_servers = servers(self, agent, opts.key),
+    mcp_servers = tool_servers(self, agent, opts.key),
     system_prompt = agent.system,
   })
 
@@ -135,7 +125,7 @@ function Workspace:fork(session, message_id, opts)
   local agent = session.agent
   local forked = session.connection:fork_session(session.id, {
     cwd = self.dir,
-    mcp_servers = servers(self, agent, opts.key),
+    mcp_servers = tool_servers(self, agent, opts.key),
     system_prompt = agent and agent.system,
     message_id = message_id,
   })
@@ -150,7 +140,7 @@ function Workspace:reload(session)
 
   local ok, err = pcall(session.connection.load_session, session.connection, session.id, {
     cwd = self.dir,
-    mcp_servers = servers(self, session.agent, session.key),
+    mcp_servers = tool_servers(self, session.agent, session.key),
     system_prompt = session.agent and session.agent.system,
   })
 

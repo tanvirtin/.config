@@ -1,7 +1,6 @@
 local console = require('core.console')
 local fs = require('core.fs')
 local Object = require('core.Object')
-local transport = require('harness.servers.acp.transport')
 
 local agent = {}
 
@@ -53,6 +52,7 @@ function Agent:constructor(name, spec)
     command = spec.command,
     args = spec.args or {},
     env = spec.env or {},
+    server = spec.server,
     model = spec.model,
     login = spec.login,
     fork_at_message = spec.fork_at_message,
@@ -117,10 +117,6 @@ function Agent:mcp_servers()
   end
 
   return servers
-end
-
-function Agent:spawn(cwd)
-  return transport.process(vim.list_extend({ self:executable() }, self.args), { cwd = cwd, env = self:environment() })
 end
 
 agent.Agent = Agent

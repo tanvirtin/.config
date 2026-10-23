@@ -1,8 +1,8 @@
 local Object = require('core.Object')
 local console = require('core.console')
 local capabilities = require('harness.types.capabilities')
-local dataclass = require('core.dataclass')
 local translate = require('harness.servers.acp.translate')
+local updates = require('harness.servers.acp.updates')
 local async = require('harness.async')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
 
@@ -99,14 +99,22 @@ function Connection:notify(method, params)
   if not self.closed then self._transport:send(jsonrpc.notification(method, params)) end
 end
 
-function Connection:attach(session_id, listener)
-  self._listeners[session_id] = listener
+Connection.PERMISSION_METHOD = 'session/request_permission'
+
+local function deliver(delegate, update)
+  local event = updates.from_update(update)
+
+  if event and delegate.event then delegate.event(event) end
+end
+
+function Connection:attach(session_id, delegate)
+  self._listeners[session_id] = delegate
 
   local early = self._early[session_id] or {}
   self._early[session_id] = nil
 
   for _, update in ipairs(early) do
-    listener.update(update)
+    deliver(delegate, update)
   end
 end
 
@@ -136,7 +144,7 @@ function Connection:_dispatch(message)
     local listener = self._listeners[params.sessionId]
 
     if listener then
-      listener.update(params.update or {})
+      deliver(listener, params.update or {})
     elseif params.sessionId then
       local early = self._early[params.sessionId] or {}
       early[#early + 1] = params.update or {}
@@ -159,36 +167,33 @@ function Connection:_on_request(message)
     end
   end
 
-  if not (listener and listener.request) then
+  if message.method ~= Connection.PERMISSION_METHOD or not (listener and listener.permission) then
     self._transport:send(
       jsonrpc.error(message.id, jsonrpc.METHOD_NOT_FOUND, 'not supported by the Neovim client: ' .. message.method)
     )
     return
   end
 
-  local ok, result = pcall(listener.request, message.method, params)
-
-  if ok and result == nil then
-    self._transport:send(
-      jsonrpc.error(message.id, jsonrpc.METHOD_NOT_FOUND, 'not supported by the Neovim client: ' .. message.method)
-    )
-    return
+  local function answer(kind)
+    return { outcome = Connection.permission_outcome(params.options, kind) }
   end
+
+  local ok, result = pcall(listener.permission, translate.permission_request(params))
 
   if ok and type(result) == 'table' and result.on_complete then
     result:on_complete(function(err, value)
-      reply(not err, err or value)
+      reply(not err, err or answer(value))
     end)
     async.drain()
     return
   end
 
-  reply(ok, result)
+  reply(ok, ok and answer(result) or result)
 end
 
 Connection.DECISION = require('harness.types.permission').DECISION
 
-Connection.STOP_REASON = dataclass.enum({ 'end_turn', 'max_tokens', 'max_turn_requests', 'refusal', 'cancelled' })
+Connection.STOP_REASON = require('harness.types.events').STOP_REASON
 
 function Connection.permission_outcome(options, kind)
   if kind == true then kind = Connection.DECISION.allow_once end

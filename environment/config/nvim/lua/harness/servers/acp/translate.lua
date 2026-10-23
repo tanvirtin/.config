@@ -1,5 +1,7 @@
 local fences = require('core.fences')
 local fs = require('core.fs')
+local permission = require('harness.types.permission')
+local updates = require('harness.servers.acp.updates')
 
 local translate = {}
 
@@ -46,6 +48,27 @@ function translate.prompt(prompt, prompt_capabilities)
   blocks[#blocks + 1] = { type = 'text', text = prompt.text }
 
   return blocks
+end
+
+function translate.permission_request(params)
+  local call = type(params) == 'table' and type(params.toolCall) == 'table' and params.toolCall or {}
+  local choices = {}
+
+  for _, option in ipairs(type(params) == 'table' and type(params.options) == 'table' and params.options or {}) do
+    if type(option) == 'table' and permission.DECISION[option.kind] then
+      local label = type(option.name) == 'string' and option.name ~= '' and option.name or option.kind
+
+      choices[#choices + 1] = { kind = option.kind, label = label }
+    end
+  end
+
+  return permission.Request({
+    tool = updates.tool_name(call) or (type(call.title) == 'string' and call.title) or '',
+    id = type(call.toolCallId) == 'string' and call.toolCallId or nil,
+    title = type(call.title) == 'string' and call.title or nil,
+    input = type(call.rawInput) == 'table' and next(call.rawInput) ~= nil and call.rawInput or nil,
+    choices = choices,
+  })
 end
 
 return translate

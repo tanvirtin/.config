@@ -1,6 +1,6 @@
 local EditPatches = require('harness.transcript.EditPatches')
 local blocks = require('harness.transcript.BlockBuilder')
-local events = require('harness.events')
+local events = require('harness.servers.acp.updates')
 
 local Block = blocks.Block
 

@@ -24,6 +24,8 @@ events.KIND = dataclass.enum({
 
 events.NOTICE = dataclass.enum({ 'queue', 'waiting', 'reset', 'appended', 'external', 'config', 'returned', 'loaded' })
 
+events.STOP_REASON = dataclass.enum({ 'end_turn', 'max_tokens', 'max_turn_requests', 'refusal', 'cancelled' })
+
 local K = events.KIND
 
 events.TEXT = { [K.user] = true, [K.message] = true, [K.thought] = true }

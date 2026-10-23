@@ -2,13 +2,16 @@ local PermissionGate = require('harness.session.PermissionGate')
 local async = require('harness.async')
 local events = require('harness.types.events')
 local fake = require('harness.session.fake_session')
+local permission = require('harness.types.permission')
 
 local eq = assert.are.same
 
-local PARAMS = {
-  toolCall = { toolCallId = 't1', title = 'Edit a.lua', _meta = { claudeCode = { toolName = 'Edit' } } },
-  options = { { optionId = 'yes', kind = 'allow_once' }, { optionId = 'no', kind = 'reject_once' } },
-}
+local PARAMS = permission.Request({
+  tool = 'Edit',
+  id = 't1',
+  title = 'Edit a.lua',
+  choices = { { kind = 'allow_once', label = 'Yes' }, { kind = 'reject_once', label = 'No' } },
+})
 
 describe('harness.session.PermissionGate:', function()
   it('asks approve and answers with the chosen option, recording the decision', function()
@@ -20,7 +23,7 @@ describe('harness.session.PermissionGate:', function()
     local gate = PermissionGate(session)
     local answer = gate:request(PARAMS)
 
-    eq({ outcome = { outcome = 'selected', optionId = 'yes' } }, answer.result)
+    eq('allow_once', answer.result)
     eq({ kind = events.KIND.permission, tool = 'Edit', allowed = true, id = 't1' }, session.emitted[1])
     eq({}, gate:waiting())
   end)
@@ -40,7 +43,7 @@ describe('harness.session.PermissionGate:', function()
     later:set_result('reject_once')
     async.drain()
 
-    eq('no', answer.result.outcome.optionId)
+    eq('reject_once', answer.result)
     eq({}, gate:waiting())
     eq({ events.NOTICE.waiting, events.NOTICE.waiting }, session.notified)
   end)
@@ -61,8 +64,8 @@ describe('harness.session.PermissionGate:', function()
 
     gate:cancel_all()
 
-    eq({ outcome = { outcome = 'cancelled' } }, first.result)
-    eq({ outcome = { outcome = 'cancelled' } }, second.result)
+    eq('cancelled', first.result)
+    eq('cancelled', second.result)
     eq(2, dismissed)
     eq({}, gate:waiting())
   end)
@@ -74,6 +77,6 @@ describe('harness.session.PermissionGate:', function()
       end,
     })
 
-    eq('no', PermissionGate(session):request(PARAMS).result.outcome.optionId)
+    eq('reject_once', PermissionGate(session):request(PARAMS).result)
   end)
 end)

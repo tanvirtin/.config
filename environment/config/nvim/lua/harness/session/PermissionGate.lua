@@ -1,32 +1,30 @@
 local lazy = require('core.lazy')
 
-local Connection = lazy('harness.servers.acp.connection')
 local Object = lazy('core.Object')
 local async = lazy('harness.async')
-local events = lazy('harness.events')
-local permission = lazy('harness.types.permission')
+local events = lazy('harness.types.events')
+local permission = require('harness.types.permission')
+
+local DECISION = permission.DECISION
 
 local PermissionGate = Object:extend()
-
-PermissionGate.METHOD = 'session/request_permission'
 
 function PermissionGate:constructor(session)
   return { session = session, pending = {} }
 end
 
 local function kind_of(decision)
-  if decision == true then return Connection.DECISION.allow_once end
-  if type(decision) ~= 'string' then return Connection.DECISION.reject_once end
+  if decision == true then return DECISION.allow_once end
+  if type(decision) ~= 'string' then return DECISION.reject_once end
 
   return decision
 end
 
-function PermissionGate:request(params)
+function PermissionGate:request(request)
   local session = self.session
-  local call = params.toolCall or {}
-  local tool = events.tool_name(call) or call.title or ''
+  local tool = request.tool
   local answer = async.Future.new()
-  local pending = { tool = tool, answer = answer, id = call.toolCallId, title = call.title }
+  local pending = { tool = tool, answer = answer, id = request.id, title = request.title }
 
   local function decide(decision)
     if answer.done then return end
@@ -39,20 +37,27 @@ function PermissionGate:request(params)
 
     session:_record_permission(tool, allowed)
     session:_emit(events.permission(tool, allowed, { id = pending.id }))
-    answer:set_result({ outcome = Connection.permission_outcome(params.options, kind) })
+    answer:set_result(kind)
   end
 
   self.pending[pending] = true
   session:_notify({ kind = events.NOTICE.waiting })
 
-  local ok, decision = pcall(session.approve, { tool = tool, params = params, session = session })
+  local ok, decision = pcall(session.approve, {
+    tool = tool,
+    id = request.id,
+    title = request.title,
+    input = request.input,
+    choices = request.choices,
+    session = session,
+  })
 
   if not ok then
-    decide(Connection.DECISION.reject_once)
+    decide(DECISION.reject_once)
   elseif type(decision) == 'table' and decision.on_complete then
     pending.dismiss = decision.dismiss
     decision:on_complete(function(err, kind)
-      decide(not err and kind or Connection.DECISION.reject_once)
+      decide(not err and kind or DECISION.reject_once)
     end)
   else
     decide(decision)
@@ -76,7 +81,7 @@ function PermissionGate:cancel_all()
     self.pending[pending] = nil
     if pending.dismiss then pcall(pending.dismiss) end
     self.session:_emit(events.permission(pending.tool, false, { id = pending.id, cancelled = true }))
-    pending.answer:set_result({ outcome = Connection.permission_outcome(nil, Connection.DECISION.cancelled) })
+    pending.answer:set_result(DECISION.cancelled)
   end
 
   async.drain()

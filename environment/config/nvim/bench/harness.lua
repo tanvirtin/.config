@@ -6,7 +6,7 @@ local Connection = require('harness.servers.acp.connection')
 local Session = require('harness.session')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 local display = require('harness.ui.display')
-local events = require('harness.events')
+local events = require('harness.servers.acp.updates')
 local fake_agent = require('harness.servers.acp.fake_agent')
 
 local TURNS = tonumber(os.getenv('TURNS') or 30)
@@ -73,7 +73,7 @@ local files = vim.fn.glob(root .. '/lua/harness/**/*.lua', false, true)
 local session = Session({ key = 'bench', id = 'bench', dir = root, connection = Connection(fake_agent.new()) })
 
 local function update(fields)
-  session:_on_update(fields)
+  session:_on_event(events.from_update(fields))
 end
 
 local function text(value)

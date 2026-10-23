@@ -38,8 +38,8 @@ describe('harness.session.Subagents:', function()
 
   it('files the child\'s work under the tool call that delegated to it', function()
     subagents:apply(events.new({ kind = events.KIND.subagent, child = 'c1' }))
-    attached.c1.update({ sessionUpdate = 'session_message', messageId = 'task1', content = {} })
-    attached.c1.update({ sessionUpdate = 'agent_message_chunk', content = { type = 'text', text = 'done' } })
+    attached.c1.event(events.new({ kind = events.KIND.delegation, message = 'task1' }))
+    attached.c1.event(events.new({ kind = events.KIND.message, text = 'done' }))
 
     eq('task1', handled[1].parent)
     eq({ events.KIND.subagent }, session.notified)

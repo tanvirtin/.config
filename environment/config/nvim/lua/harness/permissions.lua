@@ -37,16 +37,11 @@ local KINDS = {
 }
 
 function permissions.choices(request)
-  local options = ((request and request.params) or {}).options
   local choices = {}
 
-  for _, option in ipairs(type(options) == 'table' and options or {}) do
-    if type(option) == 'table' and KINDS[option.kind] and #choices < permissions.MAX_CHOICES then
-      choices[#choices + 1] = {
-        key = tostring(#choices + 1),
-        kind = option.kind,
-        label = type(option.name) == 'string' and option.name ~= '' and option.name or option.kind,
-      }
+  for _, choice in ipairs(request and request.choices or {}) do
+    if KINDS[choice.kind] and #choices < permissions.MAX_CHOICES then
+      choices[#choices + 1] = { key = tostring(#choices + 1), kind = choice.kind, label = choice.label or choice.kind }
     end
   end
 
@@ -54,8 +49,8 @@ function permissions.choices(request)
 end
 
 function permissions.offers(request, kind)
-  for _, option in ipairs(((request and request.params) or {}).options or {}) do
-    if type(option) == 'table' and option.kind == kind then return true end
+  for _, choice in ipairs(request and request.choices or {}) do
+    if choice.kind == kind then return true end
   end
 
   return false
@@ -70,8 +65,7 @@ local function count_lines(text)
 end
 
 function permissions.describe(request)
-  local call = (request.params or {}).toolCall or {}
-  local input = call.rawInput
+  local input = request.input
   local detail
 
   if type(input) == 'table' then

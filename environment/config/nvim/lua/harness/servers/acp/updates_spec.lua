@@ -1,8 +1,8 @@
-local events = require('harness.events')
+local events = require('harness.servers.acp.updates')
 
 local eq = assert.are.same
 
-describe('harness.events:', function()
+describe('harness.servers.acp.updates:', function()
   describe('from_update', function()
     it('turns text chunks into message, thought and user events', function()
       local content = { type = 'text', text = 'hi' }

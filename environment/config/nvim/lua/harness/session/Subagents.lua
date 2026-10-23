@@ -1,7 +1,7 @@
 local lazy = require('core.lazy')
 
 local Object = lazy('core.Object')
-local events = lazy('harness.events')
+local events = lazy('harness.types.events')
 
 local Subagents = Object:extend()
 
@@ -31,20 +31,19 @@ function Subagents:_follow(child)
   if not (session.connection and session.connection.attach) then return end
 
   session.connection:attach(child.id, {
-    update = function(update)
-      self:_on_update(child, update)
+    event = function(event)
+      self:_on_event(child, event)
     end,
-    request = function(method, params)
-      return session:_on_request(method, params)
+    permission = function(request)
+      return session.permissions:request(request)
     end,
   })
 end
 
-function Subagents:_on_update(child, update)
+function Subagents:_on_event(child, event)
   local session = self.session
-  local event = events.from_update(update)
 
-  if not event or session.is_state_event(event) then return end
+  if session.is_state_event(event) then return end
 
   if event.kind == events.KIND.delegation then
     child.tool = event.message or child.tool

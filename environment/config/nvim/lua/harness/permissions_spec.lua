@@ -4,7 +4,7 @@ local permissions = require('harness.permissions')
 local eq = assert.are.same
 
 local function request(tool, input)
-  return { tool = tool, params = { toolCall = { toolCallId = 't1', rawInput = input } } }
+  return { tool = tool, id = 't1', input = input }
 end
 
 describe('harness.permissions:', function()
@@ -33,11 +33,11 @@ describe('harness.permissions:', function()
     it('numbers the agent\'s own options with their names, reject always included', function()
       local asked = request('Bash')
 
-      asked.params.options = {
-        { optionId = 'y', kind = 'allow_once', name = 'Yes' },
-        { optionId = 'a', kind = 'allow_always', name = 'Yes, and don\'t ask again' },
-        { optionId = 'n', kind = 'reject_once', name = 'No' },
-        { optionId = 'N', kind = 'reject_always', name = 'No, never' },
+      asked.choices = {
+        { kind = 'allow_once', label = 'Yes' },
+        { kind = 'allow_always', label = 'Yes, and don\'t ask again' },
+        { kind = 'reject_once', label = 'No' },
+        { kind = 'reject_always', label = 'No, never' },
       }
 
       eq({
@@ -62,7 +62,7 @@ describe('harness.permissions:', function()
       })
       local offered = request('Bash')
 
-      offered.params.options = { { optionId = 'a', kind = 'allow_always', name = 'Always' } }
+      offered.choices = { { kind = 'allow_always', label = 'Always' } }
 
       eq('allow_always', approve(offered))
       eq('allow_once', approve(request('Grep')))

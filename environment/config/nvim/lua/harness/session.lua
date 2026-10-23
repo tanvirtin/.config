@@ -1,6 +1,5 @@
 local lazy = require('core.lazy')
 
-local Connection = require('harness.servers.acp.connection')
 local History = require('harness.session.History')
 local Object = require('core.Object')
 local PermissionGate = require('harness.session.PermissionGate')
@@ -12,7 +11,7 @@ local async = require('harness.async')
 local content = require('harness.types.content')
 local editor_context = require('harness.context')
 local dataclass = require('core.dataclass')
-local events = require('harness.events')
+local events = require('harness.types.events')
 local permissions = require('harness.permissions')
 
 local console = lazy('core.console')
@@ -68,11 +67,11 @@ end
 
 function Session:attach()
   self.connection:attach(self.id, {
-    update = function(update)
-      self:_on_update(update)
+    event = function(event)
+      self:_on_event(event)
     end,
-    request = function(method, params)
-      return self:_on_request(method, params)
+    permission = function(request)
+      return self.permissions:request(request)
     end,
     close = function(reason)
       self:_on_close(reason)
@@ -106,11 +105,7 @@ function Session:_emit(event)
   if self.log:append(event) then self:_notify(self.log:last()) end
 end
 
-function Session:_on_update(update)
-  local event = events.from_update(update)
-
-  if not event then return end
-
+function Session:_on_event(event)
   if Session.is_state_event(event) then
     if event.kind == K.subagent then
       self.subagents:apply(event)
@@ -142,12 +137,6 @@ end
 
 function Session:_record_permission(tool, allowed)
   if self._turn then self._turn.permissions[#self._turn.permissions + 1] = { tool = tool, allowed = allowed } end
-end
-
-function Session:_on_request(method, params)
-  if method ~= PermissionGate.METHOD then return nil end
-
-  return self.permissions:request(params)
 end
 
 function Session:_on_close(reason)
@@ -192,7 +181,7 @@ function Session:prompt(text, context, opts)
     self.turn_ended = Timer.now()
     self:_emit(events.stop(reason))
 
-    if reason ~= Connection.STOP_REASON.cancelled and self.prompts:size() > 0 then
+    if reason ~= events.STOP_REASON.cancelled and self.prompts:size() > 0 then
       Timer.defer(0, function()
         self.prompts:drain()
       end)
