@@ -1,5 +1,5 @@
-local Connection = require('harness.servers.acp.connection')
-local Session = require('harness.session')
+local Connection = require('harness.servers.acp.Connection')
+local Session = require('harness.Session')
 local acp_config = require('harness.servers.acp.config')
 local async = require('harness.async')
 local fake_agent = require('harness.servers.acp.fake_agent')
@@ -37,7 +37,7 @@ local function asking(tool)
   }
 end
 
-describe('harness.session:', function()
+describe('harness.Session:', function()
   it('moves through its lifecycle only along allowed transitions', function()
     local session = session_with()
 

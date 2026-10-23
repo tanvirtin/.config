@@ -1,4 +1,4 @@
-local Document = require('harness.ui.document')
+local Document = require('harness.ui.Document')
 local EditLog = require('harness.edits.EditLog')
 local buffers = require('core.buffers')
 local theme = require('harness.transcript.theme')
@@ -17,7 +17,7 @@ local function marks(buf, ns)
   return vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })
 end
 
-describe('harness.ui.document:', function()
+describe('harness.ui.Document:', function()
   local buf, document, history
 
   before_each(function()

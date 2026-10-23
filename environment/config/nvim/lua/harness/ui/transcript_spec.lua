@@ -1,6 +1,6 @@
 local acp_config = require('harness.servers.acp.config')
-local Connection = require('harness.servers.acp.connection')
-local Session = require('harness.session')
+local Connection = require('harness.servers.acp.Connection')
+local Session = require('harness.Session')
 local events = require('harness.types.events')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
@@ -369,7 +369,7 @@ describe('harness.ui.transcript:', function()
       end
 
       local buf = transcript.open(session)
-      local Document = require('harness.ui.document')
+      local Document = require('harness.ui.Document')
       local function status()
         return #vim.api.nvim_buf_get_extmarks(buf, Document.STATUS_NAMESPACE, 0, -1, {})
       end
@@ -521,7 +521,7 @@ describe('harness.ui.transcript:', function()
 
     describe('asking for permission in the transcript', function()
       local permissions = require('harness.permissions')
-      local Document = require('harness.ui.document')
+      local Document = require('harness.ui.Document')
       local async = require('harness.async')
       local prompt_id, agent
 

@@ -1,5 +1,5 @@
 local transport = require('harness.servers.acp.transport')
-local Connection = require('harness.servers.acp.connection')
+local Connection = require('harness.servers.acp.Connection')
 
 local AcpServer = {}
 

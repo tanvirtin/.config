@@ -419,7 +419,7 @@ describe('harness.ui.composer:', function()
       eq({ 'next question' }, session:queued())
 
       local buf = transcript.buffer_of(session)
-      local Document = require('harness.ui.document')
+      local Document = require('harness.ui.Document')
 
       local function shown()
         local text = {}

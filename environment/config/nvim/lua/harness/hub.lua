@@ -4,7 +4,7 @@ local fs = lazy('core.fs')
 local env = lazy('core.env')
 local agent = lazy('harness.agent')
 local async = lazy('harness.async')
-local Workspace = lazy('harness.workspace')
+local Workspace = lazy('harness.Workspace')
 local permissions = lazy('harness.permissions')
 local session_store = lazy('harness.session_store')
 

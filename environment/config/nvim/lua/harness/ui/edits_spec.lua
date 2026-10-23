@@ -1,5 +1,5 @@
-local Connection = require('harness.servers.acp.connection')
-local Session = require('harness.session')
+local Connection = require('harness.servers.acp.Connection')
+local Session = require('harness.Session')
 local edits = require('harness.ui.edits')
 local events = require('harness.types.events')
 local fake_agent = require('harness.servers.acp.fake_agent')

@@ -1,4 +1,4 @@
-local Connection = require('harness.servers.acp.connection')
+local Connection = require('harness.servers.acp.Connection')
 local async = require('harness.async')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
@@ -28,7 +28,7 @@ local function listener(log)
   }
 end
 
-describe('harness.servers.acp.connection:', function()
+describe('harness.servers.acp.Connection:', function()
   it('initializes and keeps the agent\'s capabilities', function()
     local conn = connected()
 

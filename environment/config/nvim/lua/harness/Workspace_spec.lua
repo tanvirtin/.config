@@ -1,4 +1,4 @@
-local Workspace = require('harness.workspace')
+local Workspace = require('harness.Workspace')
 local agent = require('harness.agent')
 local async = require('harness.async')
 local fake_agent = require('harness.servers.acp.fake_agent')
@@ -31,7 +31,7 @@ local function workspace(script)
   return ws, spawned
 end
 
-describe('harness.workspace:', function()
+describe('harness.Workspace:', function()
   it('runs every session of an agent on one process', function()
     local ws, spawned = workspace()
 

@@ -38,9 +38,10 @@ local LAYERS = {
   { 'harness.servers', 2 },
   { 'harness.connection', 2 },
   { 'harness.permissions', 2 },
+  { 'harness.Session', 3 },
   { 'harness.session', 3 },
   { 'harness.edits', 3 },
-  { 'harness.workspace', 4 },
+  { 'harness.Workspace', 4 },
   { 'harness.session_store', 4 },
   { 'harness.hub', 5 },
   { 'harness.tools', 6 },
@@ -77,7 +78,7 @@ local function modules()
   for _, path in ipairs(vim.fn.globpath(ROOT, '**/*.lua', false, true)) do
     if not path:match('_spec%.lua$') then
       local name = path:gsub('^lua/', ''):gsub('%.lua$', ''):gsub('/init$', ''):gsub('/', '.')
-      out[#out + 1] = { name = name, source = table.concat(vim.fn.readfile(path), '\n') }
+      out[#out + 1] = { name = name, path = path, source = table.concat(vim.fn.readfile(path), '\n') }
     end
   end
 
@@ -86,6 +87,39 @@ local function modules()
   end)
 
   return out
+end
+
+local function file_name(module)
+  return vim.fs.basename(module.path):gsub('%.lua$', '')
+end
+
+local function pascal(module)
+  return file_name(module):match('^%u') ~= nil
+end
+
+local function defines_class(source)
+  return source:find('\nlocal [%w_]+ = [%w_.]+:extend%(%)') ~= nil or source:find('dataclass%.define%(') ~= nil
+end
+
+local function returns_class(source)
+  local returned = source:match('\nreturn ([%w_]+)%s*$')
+
+  return returned ~= nil and source:find('\nlocal ' .. returned .. ' = [%w_.]+:extend%(%)') ~= nil
+end
+
+local function require_blocks(source)
+  local blocks, block = {}, {}
+
+  for line in (source .. '\n'):gmatch('(.-)\n') do
+    if line:match('^local [%w_, ]+ = require%(') or line:match('^local [%w_, ]+ = lazy%(') then
+      block[#block + 1] = line
+    elseif #block > 0 then
+      blocks[#blocks + 1] = block
+      block = {}
+    end
+  end
+
+  return blocks
 end
 
 local function neovim_calls(source)
@@ -240,5 +274,59 @@ describe('harness architecture:', function()
     end
 
     eq({}, unranked)
+  end)
+
+  it('defines a class in every PascalCase file, as vgit names them', function()
+    local found = {}
+
+    for _, module in ipairs(modules()) do
+      if pascal(module) and not module.name:find('%.calculators%.') and not defines_class(module.source) then
+        found[#found + 1] = module.name
+      end
+    end
+
+    eq({}, found)
+  end)
+
+  it('names every file that returns a class in PascalCase', function()
+    local found = {}
+
+    for _, module in ipairs(modules()) do
+      if not pascal(module) and returns_class(module.source) then found[#found + 1] = module.name end
+    end
+
+    eq({}, found)
+  end)
+
+  it('orders its requires by length, shortest first', function()
+    local found = {}
+
+    for _, module in ipairs(modules()) do
+      for _, block in ipairs(require_blocks(module.source)) do
+        for i = 2, #block do
+          if #block[i] < #block[i - 1] then found[#found + 1] = module.name .. ': ' .. block[i] end
+        end
+      end
+    end
+
+    eq({}, found)
+  end)
+
+  it('requires every harness module by its exact name', function()
+    local names, found = {}, {}
+
+    for _, module in ipairs(modules()) do
+      names[module.name] = true
+    end
+
+    for _, module in ipairs(modules()) do
+      for _, call in ipairs({ 'require', 'lazy' }) do
+        for target in module.source:gmatch('%f[%w]' .. call .. '%(\'(harness[%w_.]*)\'%)') do
+          if not names[target] then found[#found + 1] = module.name .. ' -> ' .. target end
+        end
+      end
+    end
+
+    eq({}, found)
   end)
 end)

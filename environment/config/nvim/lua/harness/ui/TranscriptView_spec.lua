@@ -1,5 +1,5 @@
-local Connection = require('harness.servers.acp.connection')
-local Session = require('harness.session')
+local Connection = require('harness.servers.acp.Connection')
+local Session = require('harness.Session')
 local TranscriptView = require('harness.ui.TranscriptView')
 local events = require('harness.types.events')
 local fake_agent = require('harness.servers.acp.fake_agent')
@@ -55,7 +55,7 @@ describe('harness.ui.TranscriptView:', function()
     view:show_in(require('core.Window').get_current())
 
     local win = vim.api.nvim_get_current_win()
-    local document = require('harness.ui.document')
+    local document = require('harness.ui.Document')
 
     eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
     eq({}, vim.api.nvim_buf_get_extmarks(view.bufnr, document.NAMESPACE, 0, { 3, 0 }, {}))

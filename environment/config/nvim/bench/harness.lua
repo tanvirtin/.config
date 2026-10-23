@@ -2,8 +2,8 @@ local root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h')
 
 package.path = root .. '/lua/?.lua;' .. root .. '/lua/?/init.lua;' .. package.path
 
-local Connection = require('harness.servers.acp.connection')
-local Session = require('harness.session')
+local Connection = require('harness.servers.acp.Connection')
+local Session = require('harness.Session')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 local display = require('harness.ui.display')
 local events = require('harness.servers.acp.updates')
@@ -60,8 +60,8 @@ local function report()
 end
 
 wrap('harness.transcript.BlockBuilder', 'build', 'BlockBuilder.build')
-wrap('harness.ui.document', 'write', 'Document.write')
-wrap('harness.ui.document', 'decorate_visible', 'Document.decorate_visible')
+wrap('harness.ui.Document', 'write', 'Document.write')
+wrap('harness.ui.Document', 'decorate_visible', 'Document.decorate_visible')
 wrap('ui.markdown.Renderer', 'annotate', 'Renderer.annotate')
 wrap('harness.vgit', 'patch', 'vgit.patch')
 wrap('harness.vgit', 'stat', 'vgit.stat')
