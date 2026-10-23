@@ -67,7 +67,7 @@ end
 function Connection:load_session(id)
   local stored = self.stored[id]
 
-  if not stored then error('no stored session ' .. tostring(id), 0) end
+  if not stored then return nil, 'no stored session ' .. tostring(id) end
 
   local delegate = self.delegates[id]
 

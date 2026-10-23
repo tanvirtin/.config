@@ -10,8 +10,6 @@ describe('harness.servers:', function()
   end)
 
   it('refuses a server it does not know', function()
-    local ok, err = pcall(servers.get, 'carrier-pigeon')
-
-    eq({ false, 'unknown agent server: carrier-pigeon' }, { ok, err })
+    eq({ nil, 'unknown agent server: carrier-pigeon' }, { servers.get('carrier-pigeon') })
   end)
 end)

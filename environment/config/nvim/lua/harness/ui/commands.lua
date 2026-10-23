@@ -48,14 +48,22 @@ function commands.run(prompt, opts, range)
   local where = context.capture_buffer(from.buf, range)
 
   local task = async.run(function()
-    local session = view and view.session or async.await(hub.start({ agent = opts.agent }))
+    local session, err = view and view.session, nil
+
+    if not session then
+      session, err = async.await(hub.start({ agent = opts.agent }))
+    end
+    if err then return nil, err end
 
     tools.set_focus(from.win, from.buf)
     commands.open(session, { source_win = from.win, source_buf = from.buf })
 
-    local _, turn = hub.send(session, prompt, where)
+    local sent, send_err = hub.send(session, prompt, where)
 
-    return turn and async.await(turn) or nil
+    if send_err then return nil, send_err end
+    if not sent.task then return nil end
+
+    return async.await(sent.task)
   end)
 
   task:on_complete(function(err)
@@ -68,7 +76,9 @@ end
 function commands.new(agent_name)
   local from = source()
   local task = async.run(function()
-    local session = async.await(hub.start({ agent = agent_name }))
+    local session, err = async.await(hub.start({ agent = agent_name }))
+
+    if err then return nil, err end
 
     commands.open(session, { source_win = from.win, source_buf = from.buf })
 

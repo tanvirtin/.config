@@ -218,11 +218,11 @@ describe('harness.servers.acp.connection:', function()
       end,
     })
 
-    local ok, err = pcall(run, function()
-      conn:new_session({ cwd = '/w' })
+    local ok, err = run(function()
+      return conn:new_session({ cwd = '/w' })
     end)
 
-    eq(false, ok)
+    eq(nil, ok)
     assert.is_truthy(tostring(err):find('not logged in', 1, true))
   end)
 
@@ -247,11 +247,11 @@ describe('harness.servers.acp.connection:', function()
 
     eq(Connection.CLIENT_INFO, agent.sent[1].params.clientInfo)
 
-    local ok, err = pcall(run, function()
-      conn:new_session({ cwd = '/w' })
+    local ok, err = run(function()
+      return conn:new_session({ cwd = '/w' })
     end)
 
-    eq(false, ok)
+    eq(nil, ok)
     eq(
       'Claude needs you to sign in: Run `claude /login` in the terminal, then send again (Authentication required)',
       err
@@ -272,8 +272,8 @@ describe('harness.servers.acp.connection:', function()
 
     conn.login = 'run `claude auth login` in a terminal'
 
-    local _, err = pcall(run, function()
-      conn:prompt('s1', {})
+    local _, err = run(function()
+      return conn:prompt('s1', {})
     end)
 
     eq(
@@ -283,8 +283,8 @@ describe('harness.servers.acp.connection:', function()
 
     conn.login = nil
 
-    _, err = pcall(run, function()
-      conn:prompt('s1', {})
+    _, err = run(function()
+      return conn:prompt('s1', {})
     end)
 
     eq('Claude needs you to sign in: Authentication required', err)
@@ -328,11 +328,11 @@ describe('harness.servers.acp.connection:', function()
     eq(nil, forks[3].params._meta)
 
     local plain = connected()
-    local ok, err = pcall(run, function()
-      plain:fork_session('s1', { cwd = '/w' })
+    local ok, err = run(function()
+      return plain:fork_session('s1', { cwd = '/w' })
     end)
 
-    eq({ false, 'this agent cannot fork sessions' }, { ok, err })
+    eq({ nil, 'this agent cannot fork sessions' }, { ok, err })
   end)
 
   it('stops listing when the agent hands back a cursor it already gave', function()
@@ -359,11 +359,11 @@ describe('harness.servers.acp.connection:', function()
       end,
     })
 
-    local ok, err = pcall(run, function()
-      conn:load_session('s1', { cwd = '/w' })
+    local ok, err = run(function()
+      return conn:load_session('s1', { cwd = '/w' })
     end)
 
-    eq(false, ok)
+    eq(nil, ok)
     eq('this agent cannot load stored sessions', err)
   end)
 
@@ -391,9 +391,9 @@ describe('harness.servers.acp.connection:', function()
     end)
     agent:exit(1)
 
-    local ok, err = pcall(task.wait, task)
+    local ok, err = task:wait()
 
-    eq(false, ok)
+    eq(nil, ok)
     eq('agent exited with code 1', err)
     eq('agent exited with code 1', reason)
     eq(true, conn.closed)

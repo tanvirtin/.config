@@ -35,6 +35,9 @@ local SERVERS = {
         ['_session/steering'] = function(message)
           return { jsonrpc.result(message.id, { outcome = 'injected' }) }
         end,
+        ['session/load'] = function(message)
+          return { jsonrpc.error(message.id, jsonrpc.INTERNAL_ERROR, 'no stored session missing') }
+        end,
       })
 
       fake.stored = { { sessionId = 'old', cwd = '/w', title = 'yesterday' } }
@@ -105,6 +108,15 @@ for _, server in ipairs(SERVERS) do
       for _, stored in ipairs(listed) do
         eq('string', type(stored.id))
       end
+    end)
+
+    it('reports a failure as a value, never by raising', function()
+      local loaded, err = run(function()
+        return conn:load_session('missing', { cwd = '/w' })
+      end)
+
+      eq(nil, loaded)
+      assert.is_truthy(tostring(err):find('missing', 1, true))
     end)
 
     it('says whether a running turn took a steer, when it can steer', function()

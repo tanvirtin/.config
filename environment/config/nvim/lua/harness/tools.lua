@@ -54,7 +54,11 @@ local function target(key, ctx)
 end
 
 local function prompt(session, text)
-  hub.prompt(session, text):on_complete(function() end)
+  local task, err = hub.prompt(session, text)
+
+  if err then fail(err) end
+
+  task:on_complete(function() end)
 end
 
 local function session_list(_, ctx)

@@ -241,11 +241,13 @@ function Connection:_failure(err)
 end
 
 function Connection:initialize()
-  local result = async.await(self:request('initialize', {
+  local result, err = async.await(self:request('initialize', {
     protocolVersion = Connection.PROTOCOL_VERSION,
     clientInfo = Connection.CLIENT_INFO,
     clientCapabilities = { subagents = vim.empty_dict() },
   }))
+
+  if err then return nil, err end
 
   self.agent_capabilities = (result and result.agentCapabilities) or {}
   self.info = result and result.agentInfo
@@ -278,7 +280,11 @@ function Connection:session_params(opts)
 end
 
 function Connection:new_session(opts)
-  return acp_config.opened(async.await(self:request('session/new', self:session_params(opts))))
+  local result, err = async.await(self:request('session/new', self:session_params(opts)))
+
+  if err then return nil, err end
+
+  return acp_config.opened(result)
 end
 
 function Connection:can_load()
@@ -286,19 +292,27 @@ function Connection:can_load()
 end
 
 function Connection:load_session(session_id, opts)
-  if not self:can_load() then error('this agent cannot load stored sessions', 0) end
+  if not self:can_load() then return nil, 'this agent cannot load stored sessions' end
 
   local params = self:session_params(opts)
   params.sessionId = session_id
 
-  return acp_config.opened(async.await(self:request('session/load', params)))
+  local result, err = async.await(self:request('session/load', params))
+
+  if err then return nil, err end
+
+  return acp_config.opened(result)
 end
 
 function Connection:list_sessions(cwd)
   local sessions, cursor, seen = {}, nil, {}
 
   repeat
-    local result = async.await(self:request('session/list', { cwd = cwd, cursor = cursor })) or {}
+    local result, err = async.await(self:request('session/list', { cwd = cwd, cursor = cursor }))
+
+    if err then return nil, err end
+
+    result = result or {}
     local page = result.sessions or {}
 
     for _, entry in ipairs(page) do
@@ -325,7 +339,7 @@ function Connection:can_fork()
 end
 
 function Connection:fork_session(session_id, opts)
-  if not self:can_fork() then error('this agent cannot fork sessions', 0) end
+  if not self:can_fork() then return nil, 'this agent cannot fork sessions' end
 
   local params = self:session_params(opts)
 
@@ -333,13 +347,19 @@ function Connection:fork_session(session_id, opts)
 
   if opts.message_id and self.fork_at_message then params._meta = Connection.fork_point(opts.message_id) end
 
-  return acp_config.opened(async.await(self:request('session/fork', params)))
+  local result, err = async.await(self:request('session/fork', params))
+
+  if err then return nil, err end
+
+  return acp_config.opened(result)
 end
 
 function Connection:prompt(session_id, prompt)
   local blocks = translate.prompt(prompt, self:prompt_capabilities())
 
-  local result = async.await(self:request('session/prompt', { sessionId = session_id, prompt = blocks }))
+  local result, err = async.await(self:request('session/prompt', { sessionId = session_id, prompt = blocks }))
+
+  if err then return nil, err end
 
   return type(result) == 'table' and result.stopReason or nil
 end
@@ -362,26 +382,28 @@ end
 
 function Connection:set_option(session_id, option_id, value)
   if option_id == acp_config.MODES then
-    self:set_mode(session_id, value)
-    return nil
+    local _, err = self:set_mode(session_id, value)
+
+    return nil, err
   end
 
-  local result = self:set_config(session_id, option_id, value)
+  local result, err = self:set_config(session_id, option_id, value)
+
+  if err then return nil, err end
+
   local options = type(result) == 'table' and acp_config.options(result.configOptions) or {}
 
   return #options > 0 and options or nil
 end
 
 function Connection:use_model(session_id, model)
-  local ok, options = pcall(self.set_option, self, session_id, 'model', model)
+  local options, err = self:set_option(session_id, 'model', model)
 
-  if ok then return options end
+  if not err then return options end
 
-  local fallback, why = pcall(self.set_model, self, session_id, model)
+  local _, why = self:set_model(session_id, model)
 
-  if not fallback then
-    console.warn(string.format('Harness: could not use model %s: %s', model, tostring(why or options)))
-  end
+  if why then console.warn(string.format('Harness: could not use model %s: %s', model, tostring(why))) end
 
   return nil
 end
@@ -401,11 +423,13 @@ end
 Connection.STEER_FALLBACK = 'promptRequired'
 
 function Connection:steer(session_id, prompt)
-  local result = async.await(self:request(Connection.STEER_METHOD, {
+  local result, err = async.await(self:request(Connection.STEER_METHOD, {
     sessionId = session_id,
     prompt = translate.prompt(prompt, self:prompt_capabilities()),
     _meta = { steering = { idleBehavior = Connection.STEER_FALLBACK } },
   }))
+
+  if err then return nil, err end
 
   return not (type(result) == 'table' and result.outcome == Connection.STEER_FALLBACK)
 end
@@ -417,13 +441,13 @@ end
 function Connection:close_session(session_id)
   self:detach(session_id)
 
-  if self:supports('close') then pcall(async.await, self:request('session/close', { sessionId = session_id })) end
+  if self:supports('close') then async.await(self:request('session/close', { sessionId = session_id })) end
 end
 
 function Connection:delete_session(session_id)
   self:detach(session_id)
 
-  if not self:supports('delete') then error('this agent cannot delete sessions', 0) end
+  if not self:supports('delete') then return nil, 'this agent cannot delete sessions' end
 
   return async.await(self:request('session/delete', { sessionId = session_id }))
 end

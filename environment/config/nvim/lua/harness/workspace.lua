@@ -17,62 +17,73 @@ function Workspace:connection(agent)
 
   if usable then return async.await(existing) end
 
-  local future = async.Future.new()
+  local future = async.Future()
+
   self._connections[agent.name] = future
 
-  local ok, connection = pcall(function()
-    return servers.get(agent.server).connect(agent, self.dir, { spawn = self._opts.spawn })
-  end)
+  local server, err = servers.get(agent.server)
+  local connection
 
-  if ok then
-    future:set_result(connection)
-  else
-    future:set_exception(connection)
-    error(connection, 0)
+  if not err then
+    connection, err = server.connect(agent, self.dir, { spawn = self._opts.spawn })
   end
+  if err then
+    future:set_exception(err)
+    return nil, err
+  end
+
+  future:set_result(connection)
 
   return connection
 end
 
-local function use_model(connection, agent, id)
+function Workspace:_use_model(connection, agent, id)
   return agent.model and connection:use_model(id, agent.model) or nil
 end
 
-local function configure(session, opened, options)
+function Workspace:_configure(session, opened, options)
   session:configure(opened and opened.options)
   session:configure(options)
+
+  return self
 end
 
-local function tool_servers(self, agent, key)
+function Workspace:_tool_servers(agent, key)
   return self._opts.servers and self._opts.servers(agent, key) or agent:mcp_servers()
 end
 
+function Workspace:_session_opts(agent, key)
+  return { cwd = self.dir, mcp_servers = self:_tool_servers(agent, key), system_prompt = agent and agent.system }
+end
+
 function Workspace:new_session(agent, opts)
-  local connection = self:connection(agent)
-  local result = connection:new_session({
-    cwd = self.dir,
-    mcp_servers = tool_servers(self, agent, opts.key),
-    system_prompt = agent.system,
-  })
+  local connection, err = self:connection(agent)
 
-  local model = use_model(connection, agent, result.id)
+  if err then return nil, err end
 
+  local opened, open_err = connection:new_session(self:_session_opts(agent, opts.key))
+
+  if open_err then return nil, open_err end
+
+  local model = self:_use_model(connection, agent, opened.id)
   local session = Session(vim.tbl_extend('force', opts, {
-    id = result.id,
+    id = opened.id,
     agent = agent,
     dir = self.dir,
     connection = connection,
   })):attach()
 
-  configure(session, result, model)
-
+  self:_configure(session, opened, model)
   self.sessions[opts.key] = session
 
   return session
 end
 
 function Workspace:load_session(agent, id, opts)
-  local connection = self:connection(agent)
+  local connection, err = self:connection(agent)
+
+  if err then return nil, err end
+
   local session = Session(vim.tbl_extend('force', opts, {
     id = id,
     agent = agent,
@@ -87,18 +98,14 @@ function Workspace:load_session(agent, id, opts)
     opts.on_session(session)
   end
 
-  local ok, loaded = pcall(connection.load_session, connection, id, {
-    cwd = self.dir,
-    mcp_servers = tool_servers(self, agent, opts.key),
-    system_prompt = agent.system,
-  })
+  local loaded, load_err = connection:load_session(id, self:_session_opts(agent, opts.key))
 
-  if not ok then
+  if load_err then
     self.sessions[opts.key] = nil
-    error(loaded, 0)
+    return nil, load_err
   end
 
-  configure(session, loaded, use_model(connection, agent, id))
+  self:_configure(session, loaded, self:_use_model(connection, agent, id))
   session:end_load()
 
   return session
@@ -106,12 +113,10 @@ end
 
 function Workspace:fork(session, message_id, opts)
   local agent = session.agent
-  local forked = session.connection:fork_session(session.id, {
-    cwd = self.dir,
-    mcp_servers = tool_servers(self, agent, opts.key),
-    system_prompt = agent and agent.system,
-    message_id = message_id,
-  })
+  local params = vim.tbl_extend('force', self:_session_opts(agent, opts.key), { message_id = message_id })
+  local forked, err = session.connection:fork_session(session.id, params)
+
+  if err then return nil, err end
 
   return self:load_session(agent, forked.id, opts)
 end
@@ -121,15 +126,10 @@ function Workspace:reload(session)
 
   session:begin_replay()
 
-  local ok, err = pcall(session.connection.load_session, session.connection, session.id, {
-    cwd = self.dir,
-    mcp_servers = tool_servers(self, session.agent, session.key),
-    system_prompt = session.agent and session.agent.system,
-  })
+  local _, err = session.connection:load_session(session.id, self:_session_opts(session.agent, session.key))
+  local changed = session:end_replay(err == nil)
 
-  local changed = session:end_replay(ok)
-
-  if not ok then error(err, 0) end
+  if err then return nil, err end
 
   return changed
 end
@@ -150,10 +150,16 @@ function Workspace:list(agent)
     end
   end
 
-  local connection = self:connection(agent)
+  local connection, err = self:connection(agent)
+
+  if err then return nil, err end
 
   if connection:capabilities().list then
-    for _, stored in ipairs(connection:list_sessions(self.dir)) do
+    local stored_sessions, list_err = connection:list_sessions(self.dir)
+
+    if list_err then return nil, list_err end
+
+    for _, stored in ipairs(stored_sessions) do
       if not seen[stored.id] then
         out[#out + 1] = { id = stored.id, title = stored.title, updated_at = stored.updated_at }
       end
@@ -172,7 +178,11 @@ function Workspace:delete(agent, id)
     self.sessions[live.key] = nil
   end
 
-  self:connection(agent):delete_session(id)
+  local connection, err = self:connection(agent)
+
+  if err then return nil, err end
+
+  return connection:delete_session(id)
 end
 
 function Workspace:forget(key)

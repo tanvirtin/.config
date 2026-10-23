@@ -47,9 +47,9 @@ function PromptQueue:drain()
 
   self:_changed()
 
-  local ok, err = pcall(session.prompt, session, next.text, next.context, { shown = next.shown })
+  local _, err = session:prompt(next.text, next.context, { shown = next.shown })
 
-  if not ok then
+  if err then
     table.insert(self.items, 1, next)
     self:_changed()
     console.warn('Harness: could not send the queued message: ' .. tostring(err))
@@ -61,19 +61,26 @@ function PromptQueue:enqueue(text, context, shown)
   self:_changed()
 
   if self.session:idle() then self:drain() end
+
+  return self
 end
 
 function PromptQueue:steer(text, context)
   local session = self.session
 
-  if not session:running() or not session:can('steer') then return self:enqueue(text, context) end
+  if not session:running() or not session:can('steer') then
+    self:enqueue(text, context)
+    return nil
+  end
 
   session:_emit(events.prompt(text, { steered = true, selections = content.labels(context) }))
 
   local steered = session.history[#session.history]
 
   return async.run(function()
-    local taken = session.connection:steer(session.id, content.prompt(text, context))
+    local taken, err = session.connection:steer(session.id, content.prompt(text, context))
+
+    if err then return nil, err end
 
     if taken == false then
       steered.steered = nil

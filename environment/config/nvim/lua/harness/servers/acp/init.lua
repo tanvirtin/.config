@@ -18,7 +18,10 @@ function AcpServer.connect(agent, dir, opts)
 
   connection.login = agent.login
   connection.fork_at_message = agent.fork_at_message == true
-  connection:initialize()
+
+  local _, err = connection:initialize()
+
+  if err then return nil, err end
 
   return connection
 end

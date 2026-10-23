@@ -142,9 +142,9 @@ describe('harness.session:', function()
 
     session:prompt('one')
 
-    local ok, err = pcall(session.prompt, session, 'two')
+    local task, err = session:prompt('two')
 
-    eq(false, ok)
+    eq(nil, task)
     assert.is_truthy(tostring(err):find('already running', 1, true))
   end)
 
@@ -243,11 +243,9 @@ describe('harness.session:', function()
       end,
     })
 
-    local ok, err = pcall(function()
-      return session:prompt('hi'):wait()
-    end)
+    local turn, err = session:prompt('hi'):wait()
 
-    eq(false, ok)
+    eq(nil, turn)
     assert.is_truthy(tostring(err):find('not logged in', 1, true))
     eq({ kind = 'error', message = 'not logged in' }, session.history[2])
     eq('idle', session.state)
@@ -261,8 +259,7 @@ describe('harness.session:', function()
     eq('closed', session.state)
     eq({ kind = 'error', message = 'agent exited with code 1' }, session.history[1])
 
-    local ok = pcall(session.prompt, session, 'hi')
-    eq(false, ok)
+    eq({ nil, 'this session is closed' }, { session:prompt('hi') })
   end)
 
   it('keeps the title the agent gives it', function()

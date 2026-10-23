@@ -176,22 +176,22 @@ local function deliver(outgoing, opts)
     where = context.attach(where, selection)
   end
 
-  local ok, how, task = pcall(hub.send, session, text, where, opts)
+  local sent, err = hub.send(session, text, where, opts)
 
-  if not ok then return false, tostring(how) end
+  if err then return false, tostring(err) end
 
   drafts[session.key] = nil
   attached[session.key] = nil
 
   if source.buf then tools.set_focus(source.win, source.buf) end
 
-  if task then
-    task:on_complete(function(err)
-      if err and not display.showing(session) then warn(tostring(err)) end
+  if sent.task then
+    sent.task:on_complete(function(turn_err)
+      if turn_err and not display.showing(session) then warn(tostring(turn_err)) end
     end)
   end
 
-  return true, how
+  return true, sent.how
 end
 
 local function outgoing()

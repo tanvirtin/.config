@@ -107,9 +107,9 @@ function code_blocks.apply(view)
   })
 
   local prompt = code_blocks.APPLY:format(name ~= '' and fs.display(name) or 'the current buffer')
-  local ok, err = pcall(hub.send, view.session, prompt, captured)
+  local _, err = hub.send(view.session, prompt, captured)
 
-  if not ok then return false, tostring(err) end
+  if err then return false, tostring(err) end
 
   return true
 end

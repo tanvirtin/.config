@@ -151,9 +151,9 @@ function Session:_on_close(reason)
 end
 
 function Session:prompt(text, context, opts)
-  if self:running() then error('a turn is already running in this session', 2) end
-  if self:loading() then error('this session is loading', 2) end
-  if self.state == Session.STATE.closed then error('this session is closed', 2) end
+  if self:running() then return nil, 'a turn is already running in this session' end
+  if self:loading() then return nil, 'this session is loading' end
+  if self.state == Session.STATE.closed then return nil, 'this session is closed' end
 
   self:_to(Session.STATE.running)
   self._turn = { text = {}, permissions = {} }
@@ -163,23 +163,23 @@ function Session:prompt(text, context, opts)
   local prompt = content.prompt(text, context, instruct and editor_context.instructions(self.agent.system) or nil)
 
   return async.run(function()
-    local ok, result = pcall(self.connection.prompt, self.connection, self.id, prompt)
+    local reason, err = self.connection:prompt(self.id, prompt)
 
-    if ok and instruct then self._instructed = true end
+    if not err and instruct then self._instructed = true end
+
     local turn = self._turn
 
     self._turn = nil
 
     if self:running() then self:_to(Session.STATE.idle) end
 
-    if not ok then
+    if err then
       self.turn_ended = Timer.now()
-      self:_emit(events.error(tostring(result)))
+      self:_emit(events.error(tostring(err)))
       self:_emit(events.stop('error'))
-      error(result, 0)
-    end
 
-    local reason = result
+      return nil, err
+    end
 
     self.turn_ended = Timer.now()
     self:_emit(events.stop(reason))
@@ -231,13 +231,15 @@ function Session:running()
 end
 
 function Session:enqueue(text, context)
-  if self.state == Session.STATE.closed then error('this session is closed', 2) end
+  if self.state == Session.STATE.closed then return nil, 'this session is closed' end
 
   self.prompts:enqueue(text, context)
+
+  return self
 end
 
 function Session:steer(text, context)
-  if self.state == Session.STATE.closed then error('this session is closed', 2) end
+  if self.state == Session.STATE.closed then return nil, 'this session is closed' end
 
   return self.prompts:steer(text, context)
 end

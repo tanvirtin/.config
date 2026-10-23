@@ -68,11 +68,9 @@ describe('harness.hub:', function()
     eq(root.key, child.parent)
     eq('/w', child.dir)
 
-    local ok, err = pcall(function()
-      return hub.start({ parent = child.key }):wait()
-    end)
+    local nested, err = hub.start({ parent = child.key }):wait()
 
-    eq(false, ok)
+    eq(nil, nested)
     assert.is_truthy(tostring(err):find('nest 1 deep', 1, true))
   end)
 
@@ -89,9 +87,9 @@ describe('harness.hub:', function()
 
     hub.prompt(one, 'long')
 
-    local ok, err = pcall(hub.prompt, two, 'hi')
+    local task, err = hub.prompt(two, 'hi')
 
-    eq(false, ok)
+    eq(nil, task)
     assert.is_truthy(tostring(err):find('max_running', 1, true))
     eq(1, hub.running())
   end)
@@ -137,12 +135,7 @@ describe('harness.hub:', function()
   end)
 
   it('reports an unknown agent', function()
-    local ok, err = pcall(function()
-      return hub.start({ agent = 'nope' }):wait()
-    end)
-
-    eq(false, ok)
-    eq('unknown agent: nope', err)
+    eq({ nil, 'unknown agent: nope' }, { hub.start({ agent = 'nope' }):wait() })
   end)
 
   it('lists and loads a directory\'s stored sessions', function()
@@ -177,7 +170,7 @@ describe('harness.hub:', function()
         id = 'old',
         on_session = function(session)
           seen = { state = session.state, events = #session.history, live = hub.session(session.key) == session }
-          eq('queued', hub.send(session, 'next'))
+          eq('queued', hub.send(session, 'next').how)
         end,
       })
       :wait()

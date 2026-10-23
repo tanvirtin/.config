@@ -30,32 +30,33 @@ describe('harness.async:', function()
     eq(outer:wait(), 'done')
   end)
 
-  it('propagates errors raised while awaiting', function()
+  it('hands an awaited failure back as a value, for the caller to forward', function()
     local boom = async.run(function()
-      error('boom', 0)
+      return nil, 'boom'
     end)
 
     local outer = async.run(function()
-      async.await(boom)
+      local _, err = async.await(boom)
+
+      return nil, 'outer: ' .. err
     end)
 
-    local ok = pcall(function()
-      outer:wait()
-    end)
-
-    eq(ok, false)
+    eq({ nil, 'outer: boom' }, { outer:wait() })
   end)
 
-  it('reports task errors through wait', function()
-    local task = async.run(function()
-      error('nope', 0)
+  it('reports a task that fails, or raises, through wait', function()
+    local failed = async.run(function()
+      return nil, 'nope'
+    end)
+    local raised = async.run(function()
+      error('broken', 0)
     end)
 
-    local ok, err = pcall(function()
-      task:wait()
-    end)
+    eq({ nil, 'nope' }, { failed:wait() })
+    eq({ nil, 'broken' }, { raised:wait() })
+  end)
 
-    eq(ok, false)
-    eq(err, 'nope')
+  it('times out with an error value, not an error', function()
+    eq({ nil, 'timed out waiting for a result' }, { async.Future():wait(10) })
   end)
 end)

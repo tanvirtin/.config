@@ -1,4 +1,5 @@
 local Timer = require('core.Timer')
+local Object = require('core.Object')
 
 local async = {}
 
@@ -32,11 +33,16 @@ local function drain()
   if not ok then error(err, 0) end
 end
 
-local Future = {}
-Future.__index = Future
+local Future = Object:extend()
+
+Future.TIMEOUT_MS = 60000
+
+function Future:constructor()
+  return { done = false, err = nil, result = nil, _callbacks = {} }
+end
 
 function Future.new()
-  return setmetatable({ done = false, err = nil, result = nil, _callbacks = {} }, Future)
+  return Future()
 end
 
 function Future:on_complete(callback)
@@ -48,28 +54,15 @@ function Future:on_complete(callback)
   else
     self._callbacks[#self._callbacks + 1] = callback
   end
+
+  return self
 end
 
-function Future:set_result(value)
-  if self.done then return end
+function Future:_settle(value, err)
+  if self.done then return self end
 
   self.done = true
   self.result = value
-
-  local callbacks = self._callbacks
-  self._callbacks = {}
-
-  for _, callback in ipairs(callbacks) do
-    enqueue(function()
-      callback(nil, value)
-    end)
-  end
-end
-
-function Future:set_exception(err)
-  if self.done then return end
-
-  self.done = true
   self.err = err
 
   local callbacks = self._callbacks
@@ -77,57 +70,74 @@ function Future:set_exception(err)
 
   for _, callback in ipairs(callbacks) do
     enqueue(function()
-      callback(err, nil)
+      callback(err, value)
     end)
   end
+
+  return self
+end
+
+function Future:set_result(value)
+  return self:_settle(value, nil)
+end
+
+function Future:set_exception(err)
+  return self:_settle(nil, err)
 end
 
 function Future:wait(timeout_ms)
   drain()
 
-  local finished = Timer.wait(timeout_ms or 60000, function()
+  local finished = Timer.wait(timeout_ms or Future.TIMEOUT_MS, function()
     drain()
     return self.done
   end, 5)
 
-  if not finished then error('timed out waiting for a result', 0) end
-  if self.err then error(self.err, 0) end
+  if not finished then return nil, 'timed out waiting for a result' end
 
-  return self.result
+  return self.result, self.err
 end
 
-local Task = setmetatable({}, { __index = Future })
-Task.__index = Task
+local Task = Future:extend()
 
 local current_task
 
-local function resume_task(task, err, res)
-  if task.done then return end
+function Task:constructor(fn)
+  local task = Future.constructor(self)
 
-  current_task = task
+  task.co = coroutine.create(fn)
 
-  local ok, yielded = coroutine.resume(task.co, err, res)
+  return task
+end
+
+function Task:_resume(err, res)
+  if self.done then return self end
+
+  current_task = self
+
+  local ok, value, failure = coroutine.resume(self.co, err, res)
 
   current_task = nil
 
-  if not ok then
-    task:set_exception(yielded)
-  elseif coroutine.status(task.co) == 'dead' then
-    task:set_result(yielded)
-  end
+  if not ok then return self:set_exception(value) end
+  if coroutine.status(self.co) ~= 'dead' then return self end
+  if failure ~= nil then return self:set_exception(failure) end
+
+  return self:set_result(value)
 end
 
-function Task.new(fn)
-  local task = setmetatable(Future.new(), Task)
-  task.co = coroutine.create(fn)
-
+function Task:start()
   enqueue(function()
-    resume_task(task)
+    self:_resume()
   end)
 
   Timer.schedule(drain)
 
-  return task
+  return self
+end
+
+function Task.new(fn)
+  return Task(fn):start()
 end
 
 function async.run(fn)
@@ -136,11 +146,7 @@ end
 
 function async.await(awaitable)
   if type(awaitable) ~= 'table' or awaitable.done == nil then return awaitable end
-
-  if awaitable.done then
-    if awaitable.err then error(awaitable.err, 0) end
-    return awaitable.result
-  end
+  if awaitable.done then return awaitable.result, awaitable.err end
 
   local task = current_task
 
@@ -148,15 +154,13 @@ function async.await(awaitable)
 
   awaitable:on_complete(function(err, res)
     enqueue(function()
-      resume_task(task, err, res)
+      task:_resume(err, res)
     end)
   end)
 
   local err, res = coroutine.yield()
 
-  if err then error(err, 0) end
-
-  return res
+  return res, err
 end
 
 async.Future = Future

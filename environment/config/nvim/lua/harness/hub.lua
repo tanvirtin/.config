@@ -79,7 +79,7 @@ local function resolve_agent(name)
   if not found then
     local wanted = name or hub.config.agent or agent.default_name or agent.DEFAULT
 
-    error('unknown agent: ' .. tostring(wanted), 0)
+    return nil, 'unknown agent: ' .. tostring(wanted)
   end
 
   return found
@@ -98,34 +98,37 @@ function hub.start(opts)
 
   starting[key] = true
 
-  local task = async.run(function()
-    local ok, session = pcall(function()
-      local a = resolve_agent(opts.agent)
-      local parent = opts.parent and session_store.get(opts.parent)
-      local depth = parent and parent.depth + 1 or 0
+  local function start()
+    local a, err = resolve_agent(opts.agent)
 
-      if depth > hub.config.max_depth then
-        error(string.format('sessions may only nest %d deep', hub.config.max_depth), 0)
-      end
+    if err then return nil, err end
 
-      local dir = opts.dir or (parent and parent.dir) or hub.dir()
+    local parent = opts.parent and session_store.get(opts.parent)
+    local depth = parent and parent.depth + 1 or 0
 
-      return register(hub.workspace(dir):new_session(a, {
-        key = key,
-        approve = approve_for(a),
-        parent = parent and parent.key,
-        depth = depth,
-      }))
-    end)
-
-    if not ok then
-      starting[key] = tostring(session)
-      error(session, 0)
+    if depth > hub.config.max_depth then
+      return nil, string.format('sessions may only nest %d deep', hub.config.max_depth)
     end
 
-    starting[key] = nil
+    local dir = opts.dir or (parent and parent.dir) or hub.dir()
+    local session, start_err = hub.workspace(dir):new_session(a, {
+      key = key,
+      approve = approve_for(a),
+      parent = parent and parent.key,
+      depth = depth,
+    })
 
-    return session
+    if start_err then return nil, start_err end
+
+    return register(session)
+  end
+
+  local task = async.run(function()
+    local session, err = start()
+
+    starting[key] = err and tostring(err) or nil
+
+    return session, err
   end)
 
   task.key = key
@@ -144,9 +147,12 @@ function hub.load(opts)
 
     if live and live.state ~= 'closed' then return live end
 
-    local a = resolve_agent(opts.agent)
+    local a, err = resolve_agent(opts.agent)
+
+    if err then return nil, err end
+
     local shown
-    local ok, session = pcall(workspace.load_session, workspace, a, opts.id, {
+    local session, load_err = workspace:load_session(a, opts.id, {
       key = new_key(),
       approve = approve_for(a),
       title = opts.title,
@@ -156,13 +162,13 @@ function hub.load(opts)
       end,
     })
 
-    if not ok then
+    if load_err then
       if shown then
         session_store.remove(shown.key)
         shown:close()
       end
 
-      error(session, 0)
+      return nil, load_err
     end
 
     return shown or register(session)
@@ -172,11 +178,13 @@ end
 function hub.fork(session, message_id)
   return async.run(function()
     local workspace = hub.workspace(session.dir)
-    local forked = workspace:fork(session, message_id, {
+    local forked, err = workspace:fork(session, message_id, {
       key = new_key(),
       approve = approve_for(session.agent),
       title = (session.title or 'untitled') .. ' (fork)',
     })
+
+    if err then return nil, err end
 
     return register(forked)
   end)
@@ -184,7 +192,11 @@ end
 
 function hub.list(dir, agent_name)
   return async.run(function()
-    return hub.workspace(dir):list(resolve_agent(agent_name))
+    local a, err = resolve_agent(agent_name)
+
+    if err then return nil, err end
+
+    return hub.workspace(dir):list(a)
   end)
 end
 
@@ -193,9 +205,17 @@ function hub.delete(opts)
     local workspace = hub.workspace(opts.dir)
     local live = workspace:find(opts.id)
 
-    workspace:delete(resolve_agent(opts.agent), opts.id)
+    local a, err = resolve_agent(opts.agent)
+
+    if err then return nil, err end
+
+    local _, delete_err = workspace:delete(a, opts.id)
 
     if live then session_store.remove(live.key) end
+
+    if delete_err then return nil, delete_err end
+
+    return true
   end)
 end
 
@@ -211,7 +231,7 @@ end
 
 function hub.prompt(session, text, context)
   if not session:running() and hub.running() >= hub.config.max_running then
-    error(string.format('%d turns are already running (max_running)', hub.config.max_running), 0)
+    return nil, string.format('%d turns are already running (max_running)', hub.config.max_running)
   end
 
   return session:prompt(text, context)
@@ -223,23 +243,30 @@ function hub.reload(session)
   end)
 end
 
+hub.SENT = { started = 'started', queued = 'queued', steered = 'steered' }
+
 function hub.send(session, text, context, opts)
-  if session:loading() then
-    session:enqueue(text, context)
-    return 'queued'
+  if session:loading() or (session:running() and not (opts and opts.steer)) then
+    local _, err = session:enqueue(text, context)
+
+    if err then return nil, err end
+
+    return { how = hub.SENT.queued }
   end
 
   if session:running() then
-    if opts and opts.steer then
-      local task = session:steer(text, context)
-      return task and 'steered' or 'queued', task
-    end
+    local task, err = session:steer(text, context)
 
-    session:enqueue(text, context)
-    return 'queued'
+    if err then return nil, err end
+
+    return { how = task and hub.SENT.steered or hub.SENT.queued, task = task }
   end
 
-  return 'started', hub.prompt(session, text, context)
+  local task, err = hub.prompt(session, text, context)
+
+  if err then return nil, err end
+
+  return { how = hub.SENT.started, task = task }
 end
 
 function hub.session(key)

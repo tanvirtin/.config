@@ -138,12 +138,12 @@ describe('harness.workspace:', function()
       end,
     })
 
-    eq(
-      false,
-      pcall(run, function()
-        ws:new_session(claude, { key = 'h1' })
-      end)
-    )
+    local session, err = run(function()
+      return ws:new_session(claude, { key = 'h1' })
+    end)
+
+    eq(nil, session)
+    assert.is_truthy(tostring(err):find('no auth', 1, true))
 
     fail = false
     run(function()
