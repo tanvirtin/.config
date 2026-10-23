@@ -106,7 +106,11 @@ function commands.cancel()
 end
 
 function commands.fork()
-  return transcript.report(transcript.fork())
+  local view = transcript.view()
+
+  if not view then return transcript.report(false, 'no session here') end
+
+  return transcript.report(view:fork())
 end
 
 function commands.changes()

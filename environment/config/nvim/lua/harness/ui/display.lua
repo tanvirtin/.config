@@ -2,7 +2,6 @@ local lazy = require('core.lazy')
 
 local Buffer = lazy('core.Buffer')
 local Window = lazy('core.Window')
-local transcript = lazy('harness.ui.transcript')
 local TranscriptView = lazy('harness.ui.TranscriptView')
 
 local display = {}
@@ -54,7 +53,7 @@ local function create(session, opts)
   local view = TranscriptView(session, opts)
 
   views[view.bufnr] = view
-  view:bind(transcript.bindings(view))
+  view:bind(view:bindings())
   view:mount({
     on_enter = function()
       last_buf = view.bufnr

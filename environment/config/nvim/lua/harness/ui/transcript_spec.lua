@@ -414,10 +414,10 @@ describe('harness.ui.transcript:', function()
       eq('V', vim.fn.getregtype('"'))
 
       vim.api.nvim_win_set_cursor(0, { rows['Done.'], 0 })
-      eq({ 'Here:', '', '```lua', 'local x = 1', 'return x', '```', '', 'Done.' }, (transcript.yank(buf, 'a')))
+      eq({ 'Here:', '', '```lua', 'local x = 1', 'return x', '```', '', 'Done.' }, (transcript.view(buf):yank('a')))
 
       vim.api.nvim_win_set_cursor(0, { rows['> show me'], 0 })
-      eq({ 'show me' }, (transcript.yank(buf, 'a')))
+      eq({ 'show me' }, (transcript.view(buf):yank('a')))
     end)
 
     it('shows when the session is also being driven by another program', function()
@@ -804,10 +804,10 @@ describe('harness.ui.transcript:', function()
       local view = transcript.view()
       local blocks = view.document.blocks
 
-      eq('m2', transcript.fork_point(view, blocks[5].start))
-      eq('m1', transcript.fork_point(view, blocks[4].start))
-      assert.is_nil(transcript.fork_point(view, blocks[2].start))
-      eq({ false, 'this agent cannot fork sessions' }, { transcript.fork() })
+      eq('m2', view:fork_point(blocks[5].start))
+      eq('m1', view:fork_point(blocks[4].start))
+      assert.is_nil(view:fork_point(blocks[2].start))
+      eq({ false, 'this agent cannot fork sessions' }, { transcript.view():fork() })
     end)
   end)
 
@@ -876,19 +876,19 @@ describe('harness.ui.transcript:', function()
         ran = args.fargs
       end, { nargs = '*' })
 
-      assert.is_true(transcript.git_diff())
+      assert.is_true(transcript.view():git_diff())
       eq({ 'diff', '--', path }, ran)
     end)
 
     it('says why when there is no file or no vgit', function()
-      eq({ false, 'vgit is not available' }, { transcript.git_diff() })
+      eq({ false, 'vgit is not available' }, { transcript.view():git_diff() })
 
       vim.api.nvim_win_set_cursor(0, { 1, 0 })
-      eq({ false, 'no file here' }, { transcript.git_diff() })
+      eq({ false, 'no file here' }, { transcript.view():git_diff() })
     end)
 
     it('yanks an edit as a patch', function()
-      local text = transcript.yank()
+      local text = transcript.view():yank()
 
       eq({ '--- ' .. path, '+++ ' .. path, '@@ -1 +1 @@', '-local y = 2', '+local z = 2' }, text)
     end)

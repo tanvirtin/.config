@@ -1,19 +1,31 @@
 local lazy = require('core.lazy')
 
+local hub = lazy('harness.hub')
+local vgit = lazy('harness.vgit')
+local fences = lazy('core.fences')
 local Timer = require('core.Timer')
+local async = lazy('harness.async')
+local core_text = lazy('core.text')
 local event = require('core.event')
 local Buffer = require('core.Buffer')
 local Object = require('core.Object')
 local Window = require('core.Window')
 local follow = lazy('harness.follow')
 local keymap = require('core.keymap')
+local edits = lazy('harness.ui.edits')
+local register = lazy('core.register')
 local console = require('core.console')
 local links = require('harness.ui.links')
+local display = lazy('harness.ui.display')
 local winbar = require('harness.ui.winbar')
 local composer = lazy('harness.ui.composer')
 local settings = require('harness.settings')
+local Renderer = lazy('ui.markdown.Renderer')
+local Block = lazy('harness.transcript.Block')
+local theme = lazy('harness.transcript.theme')
 local Document = require('harness.ui.document')
 local PlanPanel = require('harness.ui.PlanPanel')
+local code_blocks = lazy('harness.ui.code_blocks')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 local Layout = require('harness.transcript.calculators.Layout')
 local permission_prompt = require('harness.ui.permission_prompt')
@@ -395,6 +407,440 @@ function TranscriptView:resolve(kind, text)
   local target = links.resolve(kind, text, self.session.dir)
 
   return target and { icon = links.icon(target) } or nil
+end
+
+TranscriptView.SUMMED = { tool = 'tool', message = 'reply' }
+
+TranscriptView.MANY = { tool = 'tools', reply = 'replies' }
+
+function TranscriptView:_children_in(first, last)
+  local counts = {}
+
+  for _, block in ipairs(self.document.blocks) do
+    if block.start >= first and block.start < last then
+      if not block.depth then return nil end
+
+      local noun = TranscriptView.SUMMED[block.kind]
+
+      if noun then counts[noun] = (counts[noun] or 0) + 1 end
+    end
+  end
+
+  local parts = {}
+
+  for _, noun in ipairs({ 'tool', 'reply' }) do
+    local n = counts[noun]
+
+    if n then parts[#parts + 1] = core_text.plural(n, noun, TranscriptView.MANY[noun]) end
+  end
+
+  return #parts > 0 and table.concat(parts, ' · ') or nil
+end
+
+function TranscriptView:_rails(row, last)
+  local document = self.document
+  local block = document:block_at(row)
+  local depth = block and (block.depth or 0) + (row > block.start and 1 or 0) or 0
+
+  if depth == 0 then return '  ' end
+
+  local tail = document:block_at(last)
+  local closes = tail and tail.last_child and last >= tail.start + #tail.lines and row == block.start
+
+  return string.rep(theme.GUTTER, depth - 1) .. (closes and theme.BRANCH_END or theme.GUTTER)
+end
+
+function TranscriptView:fold_text(first, last)
+  local children = self:_children_in(first - 1, last)
+  local text = '⋯ ' .. (children or core_text.plural(last - first + 1, 'more line'))
+
+  return { { self:_rails(first - 1, last - 1), 'UiMuted' }, { text, 'UiMuted' } }
+end
+
+function TranscriptView:_target_at(window)
+  local cursor = window:get_cursor()
+  local row, col = cursor[1] - 1, cursor[2]
+  local document, dir = self.document, self.session.dir
+  local kind, text = document.renderer:inline_at(row, col)
+
+  if kind then
+    local target = links.resolve(kind, text, dir)
+
+    if target then return target end
+  end
+
+  local block = document:block_at(row)
+
+  if not block then return nil end
+
+  if block.kind == Block.KIND.diff then
+    local line = Block.file_line(block, row)
+
+    return links.resolve(Renderer.INLINE.link, block.path, dir) and { path = block.path, line = line } or nil
+  end
+
+  if block.kind == Block.KIND.tool and block.locations and block.locations[1] then
+    local location = block.locations[1]
+
+    return { path = location.path, line = location.line }
+  end
+end
+
+function TranscriptView:jump(direction)
+  local window = Window.get_current()
+  local row = window:get_cursor()[1] - 1
+  local rows = {}
+
+  for _, block in ipairs(self.document.blocks) do
+    if block.kind == Block.KIND.prompt then rows[#rows + 1] = block.start end
+  end
+
+  if direction < 0 then
+    for i = #rows, 1, -1 do
+      if rows[i] < row then return window:set_cursor({ rows[i] + 1, 0 }) end
+    end
+  else
+    for _, candidate in ipairs(rows) do
+      if candidate > row then return window:set_cursor({ candidate + 1, 0 }) end
+    end
+  end
+end
+
+function TranscriptView:_toggle_at(window, fold_row, row)
+  window:set_cursor({ fold_row, 0 })
+  window:normal(window:fold_closed(fold_row) and 'zo' or 'zc')
+  window:set_cursor({ row, 0 })
+
+  return self
+end
+
+function TranscriptView:activate()
+  local window = Window.get_current()
+  local row = window:get_cursor()[1]
+
+  if window:fold_closed(row) then
+    window:normal('zo')
+    return true
+  end
+
+  if links.open(self:_target_at(window)) then return true end
+
+  if window:fold_level(row) > 0 then
+    window:normal('zc')
+    return true
+  end
+
+  local block = self.document:block_at(row - 1)
+
+  if block and block.grouped then
+    self:_toggle_at(window, block.finish + 1, row)
+    return true
+  end
+
+  if block and block.kind == Block.KIND.collapsed then
+    self:expand()
+    window:set_cursor({ 1, 0 })
+    return true
+  end
+
+  if block and block.folds and block.folds[1] then
+    self:_toggle_at(window, block.start + block.folds[1][1] + 1, row)
+    return true
+  end
+
+  return false
+end
+
+function TranscriptView:open_target()
+  return links.open(self:_target_at(Window.get_current())) or false
+end
+
+function TranscriptView:path_at()
+  local target = self:_target_at(Window.get_current())
+
+  return target and target.path or nil
+end
+
+function TranscriptView:git_diff()
+  local path = self:path_at()
+
+  if not path then return false, 'no file here' end
+
+  return vgit.git_diff(path)
+end
+
+function TranscriptView:fork_point(row)
+  local blocks = self.document.blocks
+  local block = self.document:block_at(row)
+
+  if not block then return nil end
+
+  local from = block.kind == Block.KIND.prompt and block.index - 1 or block.index
+
+  for i = from, 1, -1 do
+    local candidate = blocks[i]
+
+    if candidate and candidate.kind == Block.KIND.message and not candidate.depth and candidate.message_id ~= nil then
+      return candidate.message_id
+    end
+  end
+end
+
+function TranscriptView:fork()
+  local session = self.session
+
+  if not session:can('fork') then return false, 'this agent cannot fork sessions' end
+
+  local at_message = session:can('fork_at_message')
+  local message_id = at_message and self:fork_point(Window.get_current():get_cursor()[1] - 1)
+
+  if not at_message then
+    console.notify_now('Harness: this agent forks a whole session; forking from the latest message')
+  elseif not message_id then
+    console.notify_now('Harness: no reply before this point; forking from the latest message')
+  end
+
+  hub.fork(session, message_id):on_complete(function(err, forked)
+    Timer.schedule(function()
+      if err then return console.notify_now('Harness: could not fork: ' .. tostring(err), 'warn') end
+
+      display.open(forked)
+    end)
+  end)
+  async.drain()
+
+  return true
+end
+
+function TranscriptView:yank(name)
+  local row = Window.get_current():get_cursor()[1] - 1
+  local block = self.document:block_at(row)
+
+  if not block then return nil end
+
+  if block.kind == Block.KIND.diff and block.edit then
+    local patch = vgit.patch_text(block.edit)
+
+    register.set(patch, name)
+
+    return patch, true
+  end
+
+  local lines = block.lines
+  local first, last = fences.fenced_at(lines, row - block.start + 1)
+  local text = vim.list_slice(lines, first or 1, last or #lines)
+
+  if not first and lines[1] and lines[1]:match('^>') then
+    text = vim.tbl_map(function(line)
+      return (line:gsub('^> ?', ''))
+    end, text)
+  end
+
+  register.set(text, name)
+
+  return text, first ~= nil
+end
+
+function TranscriptView:_describe_choice(choice, current)
+  local mark = choice.value == current and theme.CURRENT_ICON or '  '
+
+  return mark .. (choice.name or choice.value) .. (choice.description and ('  ' .. choice.description) or '')
+end
+
+function TranscriptView:pick_model()
+  local session = self.session
+  local option = session:option('model')
+
+  if not option or (option.kind and option.kind ~= 'select') then
+    return console.notify_now('Harness: this agent offers no model option', 'info')
+  end
+
+  console.select(option.choices, {
+    prompt = option.name or 'Model',
+    format_item = function(choice)
+      return self:_describe_choice(choice, option.current)
+    end,
+  }, function(choice)
+    if choice then session:set_option(option.id, choice.value) end
+  end)
+end
+
+function TranscriptView.report(ok, why)
+  if not ok and why then console.notify_now('Harness: ' .. why, 'info') end
+
+  return ok
+end
+
+function TranscriptView:bindings()
+  local session, report = self.session, TranscriptView.report
+  local keys = settings.keymaps:get('transcript')
+
+  return {
+    {
+      keys.interrupt,
+      function()
+        composer.interrupt(session)
+      end,
+      'Interrupt this session',
+    },
+    {
+      keys.activate,
+      function()
+        if not self:activate() then Window.get_current():normal('j') end
+      end,
+      'Open or fold what is under the cursor',
+    },
+    {
+      keys.open,
+      function()
+        if not self:open_target() then console.notify_now('Harness: nothing to open here', 'info') end
+      end,
+      'Open the file under the cursor in a new tab',
+    },
+    {
+      keys.yank,
+      function()
+        local text, code = self:yank()
+
+        if text then
+          local what = code and 'code block' or 'block'
+
+          console.notify_now(string.format('Harness: yanked the %s (%d line%s)', what, #text, #text == 1 and '' or 's'))
+        end
+      end,
+      'Yank the code block under the cursor, or the whole block',
+    },
+    {
+      keys.next_turn,
+      function()
+        self:jump(1)
+      end,
+      'Next turn',
+    },
+    {
+      keys.previous_turn,
+      function()
+        self:jump(-1)
+      end,
+      'Previous turn',
+    },
+    {
+      keys.cycle_mode,
+      function()
+        session:cycle_mode()
+      end,
+      'Next session mode',
+    },
+    {
+      keys.plan,
+      function()
+        self:toggle_plan()
+      end,
+      'Show or hide the plan',
+    },
+    {
+      keys.diff,
+      function()
+        report(edits.show_edit(self))
+      end,
+      'Open the edit under the cursor in vgit',
+    },
+    {
+      keys.git_diff,
+      function()
+        report(self:git_diff())
+      end,
+      'Open the git diff of the file under the cursor in vgit',
+    },
+    {
+      keys.changes,
+      function()
+        report(edits.show_changes(self))
+      end,
+      'Open every file this session changed in vgit',
+    },
+    {
+      keys.block_next,
+      function()
+        report(code_blocks.jump(self, 1))
+      end,
+      'Next code block',
+      { mode = { 'n', 'x' } },
+    },
+    {
+      keys.block_previous,
+      function()
+        report(code_blocks.jump(self, -1))
+      end,
+      'Previous code block',
+      { mode = { 'n', 'x' } },
+    },
+    {
+      keys.block_inner,
+      function()
+        code_blocks.select(self, false)
+      end,
+      'Inside the code block',
+      { mode = { 'o', 'x' } },
+    },
+    {
+      keys.block_around,
+      function()
+        code_blocks.select(self, true)
+      end,
+      'The code block with its fences',
+      { mode = { 'o', 'x' } },
+    },
+    {
+      keys.insert,
+      function()
+        report(code_blocks.insert(self))
+      end,
+      'Insert the code block below the cursor in your code',
+    },
+    {
+      keys.apply,
+      function()
+        report(code_blocks.apply(self))
+      end,
+      'Ask the agent to apply the code block to your code',
+    },
+    {
+      keys.revert,
+      function()
+        report(edits.revert(self))
+      end,
+      'Revert the edit under the cursor, or this turn\'s edits, after a preview in vgit',
+    },
+    {
+      keys.quickfix,
+      function()
+        report(edits.quickfix(self, edits.SCOPE.turn))
+      end,
+      'Send this turn\'s edits to the quickfix list',
+    },
+    {
+      keys.quickfix_session,
+      function()
+        report(edits.quickfix(self, edits.SCOPE.session))
+      end,
+      'Send every edit of this session to the quickfix list',
+    },
+    {
+      keys.fork,
+      function()
+        report(self:fork())
+      end,
+      'Fork the session from the reply under the cursor (or the one before this prompt)',
+    },
+    {
+      keys.model,
+      function()
+        self:pick_model()
+      end,
+      'Session model',
+    },
+  }
 end
 
 function TranscriptView:mount(callbacks)
