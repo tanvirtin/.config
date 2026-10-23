@@ -185,8 +185,16 @@ spent = {}
 session:_emit(events.prompt('stream test'))
 session.state = 'running'
 
+local prompted = now()
+
+view:render()
+vim.cmd('redraw')
+log('new prompt')
+log('  render %.2f ms', now() - prompted)
+report()
+
 local function stream(label, kind, chunks)
-  local total, worst, samples = 0, 0, {}
+  local total, worst, at, samples = 0, 0, 0, {}
 
   for chunk = 1, chunks do
     local piece = chunk % 60 == 0 and ('\n' .. CODE .. '\n')
@@ -201,19 +209,34 @@ local function stream(label, kind, chunks)
 
     local took = now() - start
 
-    total, worst = total + took, math.max(worst, took)
+    if took > worst then
+      worst, at = took, chunk
+    end
+
+    total = total + took
 
     if chunk % 300 == 0 then samples[#samples + 1] = string.format('%d:%.1f', chunk, took) end
   end
 
   log(label)
-  log('  per chunk avg %.2f ms, worst %.2f ms, at chunk(ms) %s', total / chunks, worst, table.concat(samples, ' '))
+  log(
+    '  per chunk avg %.2f ms, worst %.2f ms at chunk %d, at chunk(ms) %s',
+    total / chunks,
+    worst,
+    at,
+    table.concat(samples, ' ')
+  )
   report()
 end
 
 stream('stream thought', 'agent_thought_chunk', math.floor(CHUNKS / 2))
 log('  thought folded away: %s', tostring(view.document:folded(view.document.blocks[#view.document.blocks])))
 stream('stream reply', 'agent_message_chunk', CHUNKS)
+
+log(
+  'buffer matches the document: %s',
+  tostring(vim.deep_equal(vim.api.nvim_buf_get_lines(view.bufnr, 0, -1, false), view.document.lines))
+)
 
 session.state = 'idle'
 view:dispose()

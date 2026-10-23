@@ -79,6 +79,53 @@ describe('harness.ui.document:', function()
     eq({ { 5, 6, 6 } }, written)
   end)
 
+  it('rewrites only the lines that changed when a long tail changes at both ends', function()
+    local limit = Document.SPLICE_LINES
+
+    Document.SPLICE_LINES = 0
+
+    for i = 1, 5 do
+      emit(events.prompt('ask ' .. i))
+      emit({ kind = 'message', text = 'reply ' .. i })
+      emit(events.stop('end_turn'))
+    end
+
+    local written = {}
+
+    vim.api.nvim_buf_attach(buf, false, {
+      on_lines = function(_, _, _, first, last_old, last_new)
+        written[#written + 1] = { first, last_old, last_new }
+      end,
+    })
+
+    history[2].text = 'reply one'
+    emit(events.prompt('ask 6'))
+    Document.SPLICE_LINES = limit
+
+    local expected = blocks.lines(blocks.build(history))
+
+    eq(lines(buf)[#lines(buf)], '')
+    eq(vim.list_slice(lines(buf), 1, #lines(buf) - 1), vim.list_slice(expected, 1, #lines(buf) - 1))
+    eq(2, #written)
+    eq({ 4, 5, 5 }, written[2])
+  end)
+
+  it('lays out edits as one replacement when short, and as hunks from the bottom up when long', function()
+    local old, new = { 'a', 'b', 'c', 'd' }, { 'a', 'B', 'c', 'd', 'e' }
+
+    eq({ { lines = new, from = 3, to = 7 } }, Document.edits(old, new, 3))
+
+    local limit = Document.SPLICE_LINES
+
+    Document.SPLICE_LINES = 0
+
+    local edits = Document.edits(old, new, 3)
+
+    Document.SPLICE_LINES = limit
+
+    eq({ { lines = { 'e' }, from = 7, to = 7 }, { lines = { 'B' }, from = 4, to = 5 } }, edits)
+  end)
+
   it('does not touch the buffer when nothing changed', function()
     emit(events.prompt('hi'))
 

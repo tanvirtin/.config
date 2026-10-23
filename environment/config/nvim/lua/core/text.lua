@@ -2,11 +2,18 @@ local text = {}
 
 local diff = (vim.text and vim.text.diff) or vim.diff
 
+local function joined(lines)
+  return #lines == 0 and '' or table.concat(lines, '\n') .. '\n'
+end
+
+function text.hunks(old, new)
+  return diff(joined(old), joined(new), { result_type = 'indices' }) or {}
+end
+
 function text.changed_rows(old, new)
-  local hunks = diff(table.concat(old, '\n') .. '\n', table.concat(new, '\n') .. '\n', { result_type = 'indices' })
   local rows = {}
 
-  for _, hunk in ipairs(hunks or {}) do
+  for _, hunk in ipairs(text.hunks(old, new)) do
     local start, length = hunk[3], hunk[4]
     local first = math.max(start - 1, 0)
     local last = length > 0 and start + length - 2 or first

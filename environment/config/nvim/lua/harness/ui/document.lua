@@ -10,6 +10,7 @@ local Timer = require('core.Timer')
 local context = require('harness.transcript.decorators.context')
 local decorators = require('harness.transcript.decorators')
 local settings = require('harness.settings.transcript')
+local text = require('core.text')
 
 local Document = Object:extend()
 
@@ -17,6 +18,7 @@ Document.NAMESPACE = Buffer.namespace('harness.document')
 
 Document.RAW = { [Block.KIND.prompt] = true, [Block.KIND.note] = true, [Block.KIND.plan] = true }
 Document.QUOTED = { [Block.KIND.thought] = true }
+Document.SPLICE_LINES = 400
 Document.STATUS_NAMESPACE = Buffer.namespace('harness.document.status')
 
 local documents = setmetatable({}, { __mode = 'v' })
@@ -135,14 +137,44 @@ function Document:block_at(row)
   return Layout.block_at(self.blocks, row)
 end
 
-function Document:_set_lines(lines, from)
+function Document:_set_lines(lines, from, to)
   local buffer = self.buffer
   local modifiable = buffer:get_option('modifiable')
 
   buffer:set_option('modifiable', true)
-  buffer:set_lines(lines, from, -1)
+
+  if to then
+    buffer:set_lines(lines, from, to)
+  else
+    for _, edit in ipairs(Document.edits(self.buffer:get_lines(from, -1), lines, from)) do
+      buffer:set_lines(edit.lines, edit.from, edit.to)
+    end
+
+    if buffer:get_line_count() ~= from + #lines then buffer:set_lines(lines, from, -1) end
+  end
+
   buffer:set_option('modifiable', modifiable)
   buffer:set_option('modified', false)
+end
+
+function Document.edits(old, new, offset)
+  if #old + #new < Document.SPLICE_LINES then return { { lines = new, from = offset, to = offset + #old } } end
+
+  local out = {}
+  local hunks = text.hunks(old, new)
+
+  for h = #hunks, 1, -1 do
+    local old_start, old_count, new_start, new_count = unpack(hunks[h])
+    local from = offset + (old_count == 0 and old_start or old_start - 1)
+
+    out[#out + 1] = {
+      lines = new_count == 0 and {} or vim.list_slice(new, new_start, new_start + new_count - 1),
+      from = from,
+      to = from + old_count,
+    }
+  end
+
+  return out
 end
 
 function Document:write(list, state)
