@@ -37,6 +37,8 @@ describe('harness.agent:', function()
     eq('my-claude', agent.get('claude').command)
     eq('from tin', agent.get('claude').system)
     eq({ '--experimental-acp' }, agent.get('gemini').args)
+    eq('claude-sonnet-5-5', agent.get('claude').model)
+    eq('run `claude auth login` in a terminal', agent.get('claude').login)
     eq({ 'claude', 'gemini', 'opencode' }, agent.names())
   end)
 

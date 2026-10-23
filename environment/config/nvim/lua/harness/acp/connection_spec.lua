@@ -226,7 +226,9 @@ describe('harness.acp.connection:', function()
             protocolVersion = 1,
             agentCapabilities = {},
             agentInfo = { name = 'claude', title = 'Claude' },
-            authMethods = { { id = 'login', name = 'Log in with Claude' } },
+            authMethods = {
+              { id = 'login', name = 'Log in with Claude', description = 'Run `claude /login` in the terminal' },
+            },
           }),
         }
       end,
@@ -242,7 +244,42 @@ describe('harness.acp.connection:', function()
     end)
 
     eq(false, ok)
-    eq('Claude needs you to sign in (Log in with Claude): Authentication required', err)
+    eq(
+      'Claude needs you to sign in: Run `claude /login` in the terminal, then send again (Authentication required)',
+      err
+    )
+  end)
+
+  it('falls back to the agent\'s own sign-in hint when it lists no way to sign in', function()
+    local conn = connected({
+      initialize = function(message)
+        return {
+          jsonrpc.result(message.id, { protocolVersion = 1, agentCapabilities = {}, agentInfo = { title = 'Claude' } }),
+        }
+      end,
+      ['session/prompt'] = function(message)
+        return { jsonrpc.error(message.id, Connection.AUTH_REQUIRED, 'Authentication required') }
+      end,
+    })
+
+    conn.login = 'run `claude auth login` in a terminal'
+
+    local _, err = pcall(run, function()
+      conn:prompt('s1', {})
+    end)
+
+    eq(
+      'Claude needs you to sign in: run `claude auth login` in a terminal, then send again (Authentication required)',
+      err
+    )
+
+    conn.login = nil
+
+    _, err = pcall(run, function()
+      conn:prompt('s1', {})
+    end)
+
+    eq('Claude needs you to sign in: Authentication required', err)
   end)
 
   it('forks a session, at a message when given one, only when the agent can', function()

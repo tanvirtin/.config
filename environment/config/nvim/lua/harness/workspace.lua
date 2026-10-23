@@ -25,6 +25,8 @@ function Workspace:connection(agent)
     end
     local conn = Connection(spawn(agent, self.dir))
 
+    conn.login = agent.login
+
     conn:initialize()
 
     return conn

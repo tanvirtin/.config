@@ -195,17 +195,22 @@ end
 function Connection:_failure(err)
   local text = type(err.message) == 'string' and err.message or vim.inspect(err)
   local auth = err.code == Connection.AUTH_REQUIRED or text:lower():find('authentication required', 1, true)
-  local methods = {}
+
+  if not auth then return text end
+
+  local steps = {}
 
   for _, method in ipairs(self.auth_methods or {}) do
-    if type(method) == 'table' then methods[#methods + 1] = method.name or method.id end
+    if type(method) == 'table' then steps[#steps + 1] = method.description or method.name or method.id end
   end
 
-  if not auth or #methods == 0 then return text end
+  if #steps == 0 and self.login then steps[1] = self.login end
 
   local agent = type(self.info) == 'table' and (self.info.title or self.info.name) or 'the agent'
 
-  return string.format('%s needs you to sign in (%s): %s', agent, table.concat(methods, ', '), text)
+  if #steps == 0 then return string.format('%s needs you to sign in: %s', agent, text) end
+
+  return string.format('%s needs you to sign in: %s, then send again (%s)', agent, table.concat(steps, '; or '), text)
 end
 
 function Connection:initialize()

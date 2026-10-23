@@ -29,6 +29,7 @@ agent.BUILTIN = {
     description = 'Claude Code over ACP, on the Claude subscription',
     command = 'claude-agent-acp',
     model = 'claude-sonnet-5-5',
+    login = 'run `claude auth login` in a terminal',
     system = SYSTEM,
     policy = { auto_allow = true },
   },
@@ -36,6 +37,7 @@ agent.BUILTIN = {
     description = 'opencode over ACP, with the models opencode is set up for',
     command = 'opencode',
     args = { 'acp' },
+    login = 'run `opencode auth login` in a terminal',
     system = SYSTEM,
     policy = { auto_allow = true },
   },
@@ -51,6 +53,7 @@ function Agent:constructor(name, spec)
     args = spec.args or {},
     env = spec.env or {},
     model = spec.model,
+    login = spec.login,
     system = spec.system,
     mcp = spec.mcp or {},
     policy = spec.policy or {},
@@ -146,7 +149,7 @@ function agent.load(path)
   loaded = {}
 
   for name, spec in pairs(vim.tbl_extend('force', agent.BUILTIN, specs)) do
-    loaded[name] = Agent(name, spec)
+    loaded[name] = Agent(name, vim.tbl_extend('force', agent.BUILTIN[name] or {}, spec))
   end
 
   agent.default_name = type(default) == 'string' and default or nil
