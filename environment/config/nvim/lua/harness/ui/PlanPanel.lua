@@ -2,7 +2,7 @@ local lazy = require('core.lazy')
 
 local Object = lazy('core.Object')
 local Element = lazy('ui.elements.Element')
-local PlanSummary = lazy('harness.transcript.PlanSummary')
+local plan_summary = lazy('harness.transcript.plan_summary')
 
 local PlanPanel = Object:extend()
 
@@ -19,7 +19,7 @@ end
 function PlanPanel:wanted(entries)
   if not entries or #entries == 0 or self.dismissed then return false end
 
-  return self.pinned or PlanSummary.unfinished(entries)
+  return self.pinned or plan_summary.unfinished(entries)
 end
 
 function PlanPanel:_plot(window, summary)
@@ -69,11 +69,11 @@ function PlanPanel:_paint(summary)
 end
 
 function PlanPanel:update(history, window)
-  local entries = PlanSummary.latest(history)
+  local entries = plan_summary.latest(history)
 
   if not window or not window:is_valid() or not self:wanted(entries) then return self:hide() end
 
-  local summary = PlanSummary.render(entries)
+  local summary = plan_summary.render(entries)
 
   if self:is_shown() and self.anchor ~= window.win_id then self:hide() end
 

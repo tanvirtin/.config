@@ -6,8 +6,8 @@ local MarkSpec = require('ui.MarkSpec')
 local Renderer = require('ui.markdown.Renderer')
 local Block = require('harness.transcript.Block')
 local settings = require('harness.settings.transcript')
-local StatusLine = require('harness.transcript.StatusLine')
 local decorators = require('harness.transcript.decorators')
+local status_line = require('harness.transcript.status_line')
 local Layout = require('harness.transcript.calculators.Layout')
 local context = require('harness.transcript.decorators.context')
 local FoldCalculator = require('harness.transcript.calculators.FoldCalculator')
@@ -396,7 +396,7 @@ function Document:_status()
 
   buffer:clear_namespace(Document.STATUS_NAMESPACE)
 
-  local lines = StatusLine.lines(self.state, Timer.now())
+  local lines = status_line.lines(self.state, Timer.now())
 
   if not lines then return end
 

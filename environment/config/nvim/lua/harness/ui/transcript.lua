@@ -42,7 +42,7 @@ transcript.ask = permission_prompt.ask
 transcript.answer = permission_prompt.answer
 
 function transcript.render(history, title)
-  return require('harness.transcript.TextRenderer').render(history, title)
+  return require('harness.transcript.text_renderer').render(history, title)
 end
 
 function transcript.announce_waiting(session)

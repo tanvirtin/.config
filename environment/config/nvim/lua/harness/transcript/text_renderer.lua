@@ -2,9 +2,9 @@ local buffers = require('core.buffers')
 local EditLog = require('harness.edits.EditLog')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 
-local TextRenderer = {}
+local text_renderer = {}
 
-function TextRenderer.render(history, title, opts)
+function text_renderer.render(history, title, opts)
   opts = opts or {}
 
   return BlockBuilder.lines(BlockBuilder.build(history, title, {
@@ -13,4 +13,4 @@ function TextRenderer.render(history, title, opts)
   }))
 end
 
-return TextRenderer
+return text_renderer

@@ -1,7 +1,7 @@
 local fences = require('core.fences')
 local Block = require('harness.transcript.Block')
 
-local CodeBlocks = {}
+local code_spans = {}
 
 local function language_of(line)
   return line:match('^%s*[`~]+%s*([%w_.+-]*)') or ''
@@ -37,7 +37,7 @@ local function span_of(block, from, to, open)
   }
 end
 
-function CodeBlocks.list(blocks)
+function code_spans.list(blocks)
   local list = {}
 
   for _, block in ipairs(blocks) do
@@ -59,13 +59,13 @@ function CodeBlocks.list(blocks)
   return list
 end
 
-function CodeBlocks.at(list, row)
+function code_spans.at(list, row)
   for _, span in ipairs(list) do
     if row >= span.start and row <= span.finish then return span end
   end
 end
 
-function CodeBlocks.next(list, row, count)
+function code_spans.next(list, row, count)
   local seen = 0
 
   for _, span in ipairs(list) do
@@ -76,7 +76,7 @@ function CodeBlocks.next(list, row, count)
   end
 end
 
-function CodeBlocks.previous(list, row, count)
+function code_spans.previous(list, row, count)
   local seen = 0
 
   for i = #list, 1, -1 do
@@ -89,4 +89,4 @@ function CodeBlocks.previous(list, row, count)
   end
 end
 
-return CodeBlocks
+return code_spans

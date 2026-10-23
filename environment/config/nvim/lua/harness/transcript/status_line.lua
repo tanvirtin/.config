@@ -3,7 +3,7 @@ local theme = require('harness.transcript.theme')
 local keymaps = require('harness.settings.keymaps')
 local settings = require('harness.settings.transcript')
 
-local StatusLine = {}
+local status_line = {}
 
 local function queue_lines(state)
   local lines = {}
@@ -73,7 +73,7 @@ local function loading_line(state)
   }
 end
 
-function StatusLine.lines(state, now)
+function status_line.lines(state, now)
   local queued = queue_lines(state)
 
   if state.loading and not state.running then
@@ -99,4 +99,4 @@ function StatusLine.lines(state, now)
   return vim.list_extend(lines, queued)
 end
 
-return StatusLine
+return status_line

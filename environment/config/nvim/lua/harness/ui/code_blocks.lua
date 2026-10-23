@@ -6,14 +6,14 @@ local Buffer = lazy('core.Buffer')
 local Window = lazy('core.Window')
 local keymap = lazy('core.keymap')
 local context = lazy('harness.context')
-local CodeBlocks = lazy('harness.transcript.CodeBlocks')
+local code_spans = lazy('harness.transcript.code_spans')
 
 local code_blocks = {}
 
 code_blocks.APPLY = 'Apply the attached code block to %s, merging it with the code already there.'
 
 local function spans(view)
-  return CodeBlocks.list(view.document.blocks)
+  return code_spans.list(view.document.blocks)
 end
 
 local function cursor_row()
@@ -21,12 +21,12 @@ local function cursor_row()
 end
 
 function code_blocks.at(view)
-  return CodeBlocks.at(spans(view), cursor_row())
+  return code_spans.at(spans(view), cursor_row())
 end
 
 function code_blocks.jump(view, direction)
   local list, row, count = spans(view), cursor_row(), keymap.count()
-  local span = direction > 0 and CodeBlocks.next(list, row, count) or CodeBlocks.previous(list, row, count)
+  local span = direction > 0 and code_spans.next(list, row, count) or code_spans.previous(list, row, count)
 
   if not span then return false, direction > 0 and 'no code block below' or 'no code block above' end
 

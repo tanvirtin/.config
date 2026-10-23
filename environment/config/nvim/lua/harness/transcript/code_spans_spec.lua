@@ -1,5 +1,5 @@
 local Block = require('harness.transcript.Block')
-local CodeBlocks = require('harness.transcript.CodeBlocks')
+local code_spans = require('harness.transcript.code_spans')
 
 local eq = assert.are.same
 
@@ -11,7 +11,7 @@ local function block(kind, lines, start)
   return made
 end
 
-describe('harness.transcript.CodeBlocks:', function()
+describe('harness.transcript.code_spans:', function()
   local blocks = {
     block(Block.KIND.prompt, { '> show me' }, 0),
     block(Block.KIND.message, { 'Here:', '```lua', 'local x = 1', '```', 'and', '```', 'plain', '```' }, 2),
@@ -20,7 +20,7 @@ describe('harness.transcript.CodeBlocks:', function()
   }
 
   it('finds the code blocks of replies, in buffer rows, with their language and body', function()
-    local list = CodeBlocks.list(blocks)
+    local list = code_spans.list(blocks)
 
     eq(3, #list)
     eq({ start = 3, finish = 5, body_start = 4, body_finish = 4, language = 'lua', lines = { 'local x = 1' } }, list[1])
@@ -29,13 +29,13 @@ describe('harness.transcript.CodeBlocks:', function()
   end)
 
   it('leaves tool output and diffs out', function()
-    for _, span in ipairs(CodeBlocks.list(blocks)) do
+    for _, span in ipairs(code_spans.list(blocks)) do
       assert.is_true(span.start < 11 or span.start >= 16)
     end
   end)
 
   it('treats a fence still streaming as a block to the end of the reply', function()
-    local list = CodeBlocks.list({ block(Block.KIND.message, { 'x', '```lua', 'a', 'b' }, 0) })
+    local list = code_spans.list({ block(Block.KIND.message, { 'x', '```lua', 'a', 'b' }, 0) })
 
     eq(
       { 1, 3, 2, 3, { 'a', 'b' } },
@@ -44,16 +44,16 @@ describe('harness.transcript.CodeBlocks:', function()
   end)
 
   it('finds the block at a row, and counts blocks forward and back', function()
-    local list = CodeBlocks.list(blocks)
+    local list = code_spans.list(blocks)
 
-    eq(3, CodeBlocks.at(list, 4).start)
-    assert.is_nil(CodeBlocks.at(list, 6))
-    eq(3, CodeBlocks.next(list, 0).start)
-    eq(16, CodeBlocks.next(list, 0, 3).start)
-    eq(7, CodeBlocks.next(list, 4).start)
-    eq(7, CodeBlocks.previous(list, 17).start)
-    eq(3, CodeBlocks.previous(list, 17, 2).start)
-    assert.is_nil(CodeBlocks.previous(list, 4))
-    assert.is_nil(CodeBlocks.next(list, 16))
+    eq(3, code_spans.at(list, 4).start)
+    assert.is_nil(code_spans.at(list, 6))
+    eq(3, code_spans.next(list, 0).start)
+    eq(16, code_spans.next(list, 0, 3).start)
+    eq(7, code_spans.next(list, 4).start)
+    eq(7, code_spans.previous(list, 17).start)
+    eq(3, code_spans.previous(list, 17, 2).start)
+    assert.is_nil(code_spans.previous(list, 4))
+    assert.is_nil(code_spans.next(list, 16))
   end)
 end)

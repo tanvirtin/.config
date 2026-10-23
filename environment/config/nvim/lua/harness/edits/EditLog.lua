@@ -1,9 +1,9 @@
 local compact = require('compact')
 local Object = require('core.Object')
-local context = require('harness.context')
 local Edit = require('harness.edits.Edit')
-local edit_text = require('harness.edits.edit_text')
+local context = require('harness.context')
 local EVENT = require('harness.types.events').KIND
+local edit_text = require('harness.edits.edit_text')
 
 local EditLog = Object:extend()
 

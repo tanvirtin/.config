@@ -4,17 +4,17 @@ local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
 local EVENT = require('harness.types.events').KIND
 
-local PlanSummary = {}
+local plan_summary = {}
 
-PlanSummary.MAX_WIDTH = 50
+plan_summary.MAX_WIDTH = 50
 
-function PlanSummary.mark(status)
+function plan_summary.mark(status)
   local icons = theme.PLAN_ICONS
 
   return icons[status] or icons.pending
 end
 
-function PlanSummary.latest(history)
+function plan_summary.latest(history)
   for i = #history, 1, -1 do
     local event = history[i]
 
@@ -22,7 +22,7 @@ function PlanSummary.latest(history)
   end
 end
 
-function PlanSummary.done(entries)
+function plan_summary.done(entries)
   local count = 0
 
   for _, entry in ipairs(entries) do
@@ -32,20 +32,20 @@ function PlanSummary.done(entries)
   return count
 end
 
-function PlanSummary.unfinished(entries)
-  return entries ~= nil and #entries > 0 and PlanSummary.done(entries) < #entries
+function plan_summary.unfinished(entries)
+  return entries ~= nil and #entries > 0 and plan_summary.done(entries) < #entries
 end
 
-function PlanSummary.render(entries)
-  local title = string.format(' Plan  %d/%d', PlanSummary.done(entries), #entries)
+function plan_summary.render(entries)
+  local title = string.format(' Plan  %d/%d', plan_summary.done(entries), #entries)
   local lines = { title }
   local highlights = { { row = 0, from = 0, to = #title, hl = 'UiTitle' } }
   local width = text.width(title)
 
   for i, entry in ipairs(entries) do
-    local mark = PlanSummary.mark(entry.status)
+    local mark = plan_summary.mark(entry.status)
     local prefix = ' ' .. mark[1]
-    local content = compact.line(entry.content or '', PlanSummary.MAX_WIDTH - text.width(prefix) - 1)
+    local content = compact.line(entry.content or '', plan_summary.MAX_WIDTH - text.width(prefix) - 1)
     local line = prefix .. content
 
     lines[#lines + 1] = line
@@ -61,4 +61,4 @@ function PlanSummary.render(entries)
   return { lines = lines, highlights = highlights, width = width + 1 }
 end
 
-return PlanSummary
+return plan_summary

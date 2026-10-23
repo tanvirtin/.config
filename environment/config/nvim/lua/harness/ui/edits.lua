@@ -7,8 +7,8 @@ local buffers = lazy('core.buffers')
 local console = lazy('core.console')
 local quickfix = lazy('core.quickfix')
 local settings = lazy('harness.settings')
-local Block = lazy('harness.transcript.Block')
 local EditLog = lazy('harness.edits.EditLog')
+local Block = lazy('harness.transcript.Block')
 
 local edits = {}
 

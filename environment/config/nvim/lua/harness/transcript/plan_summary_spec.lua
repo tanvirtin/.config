@@ -1,4 +1,4 @@
-local PlanSummary = require('harness.transcript.PlanSummary')
+local plan_summary = require('harness.transcript.plan_summary')
 
 local eq = assert.are.same
 
@@ -8,7 +8,7 @@ local ENTRIES = {
   { content = 'test', status = 'pending' },
 }
 
-describe('harness.transcript.PlanSummary:', function()
+describe('harness.transcript.plan_summary:', function()
   it('finds the latest plan in the history', function()
     local history = {
       { kind = 'plan', entries = { { content = 'old' } } },
@@ -16,19 +16,19 @@ describe('harness.transcript.PlanSummary:', function()
       { kind = 'plan', entries = ENTRIES },
     }
 
-    eq(ENTRIES, PlanSummary.latest(history))
-    assert.is_nil(PlanSummary.latest({ { kind = 'message', text = 'x' } }))
+    eq(ENTRIES, plan_summary.latest(history))
+    assert.is_nil(plan_summary.latest({ { kind = 'message', text = 'x' } }))
   end)
 
   it('counts finished entries and knows when a plan is still open', function()
-    eq(1, PlanSummary.done(ENTRIES))
-    assert.is_true(PlanSummary.unfinished(ENTRIES))
-    assert.is_false(PlanSummary.unfinished({ { content = 'a', status = 'completed' } }))
-    assert.is_false(PlanSummary.unfinished({}))
+    eq(1, plan_summary.done(ENTRIES))
+    assert.is_true(plan_summary.unfinished(ENTRIES))
+    assert.is_false(plan_summary.unfinished({ { content = 'a', status = 'completed' } }))
+    assert.is_false(plan_summary.unfinished({}))
   end)
 
   it('renders a titled checklist marked by status, muting what is done', function()
-    local summary = PlanSummary.render(ENTRIES)
+    local summary = plan_summary.render(ENTRIES)
 
     eq(' Plan  1/3', summary.lines[1])
     eq(' ✓ read', summary.lines[2])
@@ -42,8 +42,8 @@ describe('harness.transcript.PlanSummary:', function()
   end)
 
   it('clips long entries to the panel width', function()
-    local summary = PlanSummary.render({ { content = string.rep('x', 200) } })
+    local summary = plan_summary.render({ { content = string.rep('x', 200) } })
 
-    assert.is_true(vim.fn.strdisplaywidth(summary.lines[2]) <= PlanSummary.MAX_WIDTH)
+    assert.is_true(vim.fn.strdisplaywidth(summary.lines[2]) <= plan_summary.MAX_WIDTH)
   end)
 end)
