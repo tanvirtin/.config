@@ -71,6 +71,42 @@ describe('harness.ui.TranscriptView:', function()
     view:dispose()
   end)
 
+  it('puts a prompt sent from here at the top of the window, then holds still while the reply grows', function()
+    for i = 1, 30 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    local view = TranscriptView(session):mount()
+    local win = vim.api.nvim_get_current_win()
+
+    view:show_in(require('core.Window').get_current())
+    view:render()
+
+    local last = vim.api.nvim_buf_line_count(view.bufnr)
+
+    eq(last, vim.api.nvim_win_get_cursor(win)[1])
+
+    session:_emit(events.prompt('next'))
+    view:render()
+
+    local row = TranscriptView.last_prompt(view.document.blocks).start + 1
+
+    eq(row, vim.fn.line('w0', win))
+    eq(row, vim.api.nvim_win_get_cursor(win)[1])
+
+    session:_emit(events.new({ kind = 'message', text = 'one\n\ntwo\n\nthree' }))
+    view:render()
+
+    eq(row, vim.fn.line('w0', win))
+
+    vim.cmd('normal! G')
+    session:_emit(events.new({ kind = 'message', text = '\n\nfour' }))
+    view:render()
+
+    eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
+    view:dispose()
+  end)
+
   it('lets go of the session, its timer and its autocmds when disposed', function()
     local view = TranscriptView(session):mount()
     local group = view.group.id

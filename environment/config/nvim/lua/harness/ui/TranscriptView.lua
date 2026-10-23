@@ -149,6 +149,19 @@ function TranscriptView.to_bottom(window)
   if window:is_valid() then window:set_cursor({ window:get_buffer():get_line_count(), 0 }) end
 end
 
+function TranscriptView.last_prompt(blocks)
+  for i = #blocks, 1, -1 do
+    if blocks[i].kind == 'prompt' then return blocks[i] end
+  end
+end
+
+function TranscriptView.to_prompt(window, prompt)
+  if not window:is_valid() then return end
+
+  window:set_cursor({ prompt.start + 1, 0 })
+  window:scroll_to('top')
+end
+
 TranscriptView.ACTIVE = { running = true, active = true, working = true, in_progress = true }
 
 function TranscriptView.active_subagents(session)
@@ -208,8 +221,23 @@ function TranscriptView:render()
     self:set_winbar(window)
   end
 
-  for _, window in ipairs(following) do
-    TranscriptView.to_bottom(window)
+  local prompt = TranscriptView.last_prompt(self.document.blocks)
+  local anchor = prompt
+    and self.anchored ~= nil
+    and prompt.event ~= self.anchored
+    and not session.reloading
+    and settings.transcript:get('anchor_prompt')
+
+  if not session.reloading then self.anchored = prompt and prompt.event or self.anchored or 0 end
+
+  if anchor then
+    for _, window in ipairs(windows) do
+      TranscriptView.to_prompt(window, prompt)
+    end
+  else
+    for _, window in ipairs(following) do
+      TranscriptView.to_bottom(window)
+    end
   end
 
   self:update_plan()

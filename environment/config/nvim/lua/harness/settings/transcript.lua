@@ -3,6 +3,7 @@ local Config = require('core.Config')
 return Config({
   tick_ms = 100,
   frame_ms = 16,
+  anchor_prompt = true,
   margin_screens = 2,
   preview_lines = 5,
   output_max = 200,
