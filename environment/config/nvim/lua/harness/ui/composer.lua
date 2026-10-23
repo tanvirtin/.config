@@ -3,10 +3,10 @@ local lazy = require('core.lazy')
 local Window = lazy('core.Window')
 local keymap = lazy('core.keymap')
 local console = lazy('core.console')
-local NOTICE = require('harness.types.events').NOTICE
-local ComposerView = lazy('harness.ui.ComposerView')
 local session_store = lazy('harness.session_store')
-local ComposerStore = require('harness.ui.ComposerStore')
+local ComposerView = lazy('harness.ui.ComposerView')
+local NOTICE = require('harness.types.events').NOTICE
+local ComposerStore = lazy('harness.ui.ComposerStore')
 
 local composer = {}
 
