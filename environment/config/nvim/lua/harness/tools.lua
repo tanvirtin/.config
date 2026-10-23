@@ -1,10 +1,8 @@
 local lazy = require('core.lazy')
 
 local hub = lazy('harness.hub')
-local buffers = lazy('core.buffers')
 local tools = lazy('nvim_mcp.tools')
 local schema = lazy('nvim_mcp.schema')
-local EditPatches = lazy('harness.transcript.EditPatches')
 local TextRenderer = lazy('harness.transcript.TextRenderer')
 
 local session_tools = {}
@@ -103,7 +101,7 @@ local function session_read(args, ctx)
   local session = target(args.session, ctx)
   local since = args.since or 0
   local events = vim.list_slice(session.history, since + 1)
-  local lines = TextRenderer.render(events, session.title, { edits = EditPatches.of(session, buffers.lines_of) })
+  local lines = TextRenderer.render(events, session.title, { edits = session.edits })
 
   return {
     session = session.key,

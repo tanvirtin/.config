@@ -60,6 +60,12 @@ Block.KIND = KIND
 
 Block.DIFF_HEADER = 2
 
+function Block.file_line(block, row)
+  local entry = block.patch and block.whole and block.patch.rows[row - block.start - Block.DIFF_HEADER + 1]
+
+  return entry and (entry.new_lnum or entry.old_lnum) or nil
+end
+
 Block.STATUS = dataclass.enum({ 'pending', 'in_progress', 'completed', 'failed' })
 
 Block.CATEGORY = dataclass.enum({ 'read', 'edit', 'delete', 'move', 'search', 'execute', 'think', 'fetch', 'other' })

@@ -8,10 +8,7 @@ local console = lazy('core.console')
 local quickfix = lazy('core.quickfix')
 local settings = lazy('harness.settings')
 local Block = lazy('harness.transcript.Block')
-local Revert = lazy('harness.transcript.Revert')
-local EditLog = lazy('harness.transcript.EditLog')
-local EditLocations = lazy('harness.transcript.EditLocations')
-local SessionChanges = lazy('harness.transcript.SessionChanges')
+local EditLog = lazy('harness.edits.EditLog')
 
 local edits = {}
 
@@ -48,7 +45,7 @@ end
 function edits.show_changes(view)
   if not view then return false, 'no session here' end
 
-  local files = SessionChanges.files(view.session.history, view.edits, buffers.lines_of)
+  local files = view.edits:changes(view.session.history)
 
   if #files == 0 then return false, 'this session has not changed any file' end
 
@@ -85,19 +82,19 @@ end
 function edits.scoped(view, scope)
   local history = view.session.history
 
-  if scope == edits.SCOPE.session then return EditLog.edits(history) end
+  if scope == edits.SCOPE.session then return EditLog.tools(history) end
 
   if scope == edits.SCOPE.edit then
     local _, id = edits.at(view)
 
     return vim.tbl_filter(function(edit)
       return edit.id == id
-    end, id and EditLog.edits(history) or {})
+    end, id and EditLog.tools(history) or {})
   end
 
   local from, to = edits.turn_range(view)
 
-  return from and EditLog.edits(history, from, to) or {}
+  return from and EditLog.tools(history, from, to) or {}
 end
 
 function edits.scope_at(view)
@@ -141,7 +138,7 @@ function edits.revert(view, scope)
 
   buffers.checktime()
 
-  local plan = Revert.plan(chosen, buffers.lines_of)
+  local plan = view.edits:revert_plan(chosen)
 
   if #plan.files == 0 then
     return false, #plan.skipped > 0 and ('nothing to revert: ' .. plan.skipped[1].reason) or 'nothing to revert'
@@ -178,7 +175,7 @@ function edits.quickfix(view, scope)
 
   scope = scope or edits.SCOPE.turn
 
-  local items = EditLocations.items(view.session.history, edits.scoped(view, scope), view.edits)
+  local items = view.edits:locations(view.session.history, edits.scoped(view, scope))
 
   if #items == 0 then return false, 'no ' .. scope .. ' edits to list here' end
 

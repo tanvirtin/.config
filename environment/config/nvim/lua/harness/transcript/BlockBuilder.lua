@@ -7,7 +7,7 @@ local EVENT = require('harness.types.events').KIND
 local keymaps = require('harness.settings.keymaps')
 local settings = require('harness.settings.transcript')
 local tool_label = require('harness.transcript.tool_label')
-local EditPatches = require('harness.transcript.EditPatches')
+local EditLog = require('harness.edits.EditLog')
 
 local blocks = { Block = Block, fence_for = fences.fence_for, fences = fences.fences, fenced_at = fences.fenced_at }
 
@@ -201,7 +201,7 @@ local function build_turn(history, from, to, opts, last_turn, updates)
   local plans = last_plans(history, from, to)
   local diffs_shown = {}
   local turn = { tools = 0 }
-  local edits = opts.edits or EditPatches()
+  local edits = opts.edits or EditLog()
   local text = opts.outputs == false
 
   local function add(kind, lines, fields)

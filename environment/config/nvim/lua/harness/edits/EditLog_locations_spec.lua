@@ -1,9 +1,8 @@
-local EditLocations = require('harness.transcript.EditLocations')
-local EditPatches = require('harness.transcript.EditPatches')
+local EditLog = require('harness.edits.EditLog')
 
 local eq = assert.are.same
 
-describe('harness.transcript.EditLocations:', function()
+describe('harness.edits.EditLog locations:', function()
   local function lines(n, changed)
     local out = {}
 
@@ -16,7 +15,7 @@ describe('harness.transcript.EditLocations:', function()
 
   it('gives one location per changed hunk, at its line, with its counts and the turn\'s prompt', function()
     local file = lines(30, { [5] = 'five', [25] = 'twenty five' })
-    local patches = EditPatches(function()
+    local patches = EditLog(function()
       return file
     end)
     local history = {
@@ -37,18 +36,14 @@ describe('harness.transcript.EditLocations:', function()
     eq({
       { path = '/a.txt', line = 5, text = '+1 −1  · rename the lines' },
       { path = '/a.txt', line = 25, text = '+1 −1  · rename the lines' },
-    }, EditLocations.items(history, edits, patches))
+    }, patches:locations(history, edits))
   end)
 
   it('points at the top of a file when the edit could not be placed in it', function()
-    local patches = EditPatches(function()
+    local patches = EditLog(function()
       return { 'unrelated' }
     end)
-    local items = EditLocations.items(
-      {},
-      { { id = 'e1', index = 1, diffs = { { path = '/b', old = 'x', new = 'y' } } } },
-      patches
-    )
+    local items = patches:locations({}, { { id = 'e1', index = 1, diffs = { { path = '/b', old = 'x', new = 'y' } } } })
 
     eq({ { path = '/b', line = 1, text = '+1 −1' } }, items)
   end)

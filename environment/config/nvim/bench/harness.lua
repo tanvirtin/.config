@@ -65,7 +65,7 @@ wrap('harness.ui.document', 'decorate_visible', 'Document.decorate_visible')
 wrap('ui.markdown.Renderer', 'annotate', 'Renderer.annotate')
 wrap('harness.vgit', 'patch', 'vgit.patch')
 wrap('harness.vgit', 'stat', 'vgit.stat')
-wrap('harness.transcript.EditPatches', 'syntax', 'EditPatches.syntax')
+wrap('harness.edits.Edit', 'syntax', 'Edit.syntax')
 wrap('harness.transcript.decorators', 'decorate', 'decorators.decorate')
 wrap('core.buffers', 'lines_of', 'buffers.lines_of')
 

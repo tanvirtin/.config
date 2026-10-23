@@ -1,9 +1,8 @@
-local EditPatches = require('harness.transcript.EditPatches')
-local SessionChanges = require('harness.transcript.SessionChanges')
+local EditLog = require('harness.edits.EditLog')
 
 local eq = assert.are.same
 
-describe('harness.transcript.SessionChanges:', function()
+describe('harness.edits.EditLog changes:', function()
   local files
 
   local function file_lines(path)
@@ -31,7 +30,7 @@ describe('harness.transcript.SessionChanges:', function()
 
     files.a = { 'a2' }
 
-    local edits = EditPatches(file_lines)
+    local edits = EditLog(file_lines)
 
     edits:get(history[1].diffs[1], '1:1', true)
     files.a = { 'a3' }
@@ -39,7 +38,7 @@ describe('harness.transcript.SessionChanges:', function()
     eq({
       { filename = 'a', old_lines = { 'a1' }, new_lines = { 'a3' } },
       { filename = 'b', old_lines = { 'b1' }, new_lines = { 'b2' } },
-    }, SessionChanges.files(history, edits, file_lines))
+    }, edits:changes(history))
   end)
 
   it('leaves out failed edits, files back where they started, and edits it could not place', function()
@@ -53,11 +52,11 @@ describe('harness.transcript.SessionChanges:', function()
 
     files.a = { 'a2' }
 
-    local edits = EditPatches(file_lines)
+    local edits = EditLog(file_lines)
 
     edits:get(history[1].diffs[1], '1:1', true)
     files.a = { 'a1' }
 
-    eq({}, SessionChanges.files(history, edits, file_lines))
+    eq({}, edits:changes(history))
   end)
 end)

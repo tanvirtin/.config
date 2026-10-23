@@ -22,7 +22,6 @@ local theme = lazy('harness.transcript.theme')
 local code_blocks = lazy('harness.ui.code_blocks')
 local INLINE = require('ui.markdown.Renderer').INLINE
 local TranscriptView = lazy('harness.ui.TranscriptView')
-local EditPatches = lazy('harness.transcript.EditPatches')
 local permission_prompt = lazy('harness.ui.permission_prompt')
 
 local transcript = {}
@@ -124,7 +123,7 @@ local function target_at(view, window)
   if not block then return nil end
 
   if block.kind == Block.KIND.diff then
-    local line = EditPatches.line_at(block, row)
+    local line = Block.file_line(block, row)
     return links.resolve(INLINE.link, block.path, dir) and { path = block.path, line = line } or nil
   end
 

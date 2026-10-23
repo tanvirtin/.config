@@ -1,6 +1,8 @@
 local lazy = require('core.lazy')
 
 local Timer = require('core.Timer')
+local buffers = require('core.buffers')
+local EditLog = require('harness.edits.EditLog')
 local console = lazy('core.console')
 local Object = require('core.Object')
 local async = require('harness.async')
@@ -52,6 +54,7 @@ function Session:constructor(opts)
     _listeners = {},
     _tools = {},
     _turn = nil,
+    edits = EditLog(opts.file_lines or buffers.lines_of),
   }
 
   session.log = History()

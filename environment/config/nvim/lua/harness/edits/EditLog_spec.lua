@@ -1,13 +1,15 @@
-local EditPatches = require('harness.transcript.EditPatches')
+local Block = require('harness.transcript.Block')
+local EditLog = require('harness.edits.EditLog')
+local Session = require('harness.session')
 
 local eq = assert.are.same
 
-describe('harness.transcript.EditPatches:', function()
+describe('harness.edits.EditLog:', function()
   local diff = { path = '/a.lua', old = 'x = 1', new = 'x = 2' }
 
   it('resolves an edit against the file and lays it out with vgit, once per file state', function()
     local file, reads = { 'x = 1' }, 0
-    local edits = EditPatches(function()
+    local edits = EditLog(function()
       reads = reads + 1
       return file
     end)
@@ -29,7 +31,7 @@ describe('harness.transcript.EditPatches:', function()
 
   it('keeps a finished edit as it was, whatever happens to the file later', function()
     local file = { 'x = 2' }
-    local edits = EditPatches(function()
+    local edits = EditLog(function()
       return file
     end)
     local first = edits:get(diff, 't:1', true)
@@ -56,7 +58,7 @@ describe('harness.transcript.EditPatches:', function()
 
     it('finds each edit in the file as it was then, newest first, not as it is now', function()
       local reads = 0
-      local edits = EditPatches(function()
+      local edits = EditLog(function()
         reads = reads + 1
         return { 'local M = {}', 'M.b = 1', 'return M' }
       end)
@@ -78,7 +80,7 @@ describe('harness.transcript.EditPatches:', function()
 
     it('leaves edits it already finished as they were, and reads the file before them from them', function()
       local file = { 'local M = {}', 'M.b = 1', 'return M' }
-      local edits = EditPatches(function()
+      local edits = EditLog(function()
         return file
       end)
       local second = edits:get(history[2].diffs[1], 't2:1', true)
@@ -93,7 +95,7 @@ describe('harness.transcript.EditPatches:', function()
 
   it('highlights syntax on demand exactly as vgit would, mapped onto the patch rows', function()
     local file = { 'local a = 0', 'local x = 2', 'return x' }
-    local edit = EditPatches(function()
+    local edit = EditLog(function()
       return file
     end):get({ path = '/a.lua', old = 'local x = 1', new = 'local x = 2' }, 't:1', true)
     local expected = {}
@@ -111,11 +113,11 @@ describe('harness.transcript.EditPatches:', function()
     eq(edit:syntax(), edit:syntax())
   end)
 
-  it('keeps one set per owner, so every reader of a session sees the same frozen edits', function()
-    local session = {}
+  it('belongs to its session, so every reader of a session sees the same frozen edits', function()
+    local one, two = Session({ key = 'h1', id = 's1' }), Session({ key = 'h2', id = 's2' })
 
-    eq(EditPatches.of(session), EditPatches.of(session))
-    assert.are_not.equal(EditPatches.of(session), EditPatches.of({}))
+    assert.is_true(one.edits:is(EditLog))
+    assert.are_not.equal(one.edits, two.edits)
   end)
 
   it('finds the file line under a patch row, only when the edit was found in the file', function()
@@ -125,10 +127,10 @@ describe('harness.transcript.EditPatches:', function()
       patch = { rows = { { kind = 'remove', old_lnum = 4 }, { kind = 'add', new_lnum = 4 }, { kind = 'hunk' } } },
     }
 
-    eq({ 4, 4 }, { EditPatches.line_at(block, 12), EditPatches.line_at(block, 13) })
-    assert.is_nil(EditPatches.line_at(block, 14))
+    eq({ 4, 4 }, { Block.file_line(block, 12), Block.file_line(block, 13) })
+    assert.is_nil(Block.file_line(block, 14))
 
     block.whole = false
-    assert.is_nil(EditPatches.line_at(block, 13))
+    assert.is_nil(Block.file_line(block, 13))
   end)
 end)

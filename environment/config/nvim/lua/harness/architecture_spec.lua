@@ -39,6 +39,7 @@ local LAYERS = {
   { 'harness.connection', 2 },
   { 'harness.permissions', 2 },
   { 'harness.session', 3 },
+  { 'harness.edits', 3 },
   { 'harness.workspace', 4 },
   { 'harness.session_store', 4 },
   { 'harness.hub', 5 },

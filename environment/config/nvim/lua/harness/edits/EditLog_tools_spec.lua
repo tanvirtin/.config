@@ -1,8 +1,8 @@
-local EditLog = require('harness.transcript.EditLog')
+local EditLog = require('harness.edits.EditLog')
 
 local eq = assert.are.same
 
-describe('harness.transcript.EditLog:', function()
+describe('harness.edits.EditLog tools:', function()
   local diff = { path = 'a', old = 'x', new = 'y' }
   local history = {
     { kind = 'prompt', text = 'go' },
@@ -15,7 +15,7 @@ describe('harness.transcript.EditLog:', function()
   }
 
   it('lists the edits that completed, in order, with where they started', function()
-    eq({ { id = '1', index = 2, diffs = { diff } }, { id = '4', index = 7, diffs = { diff } } }, EditLog.edits(history))
+    eq({ { id = '1', index = 2, diffs = { diff } }, { id = '4', index = 7, diffs = { diff } } }, EditLog.tools(history))
   end)
 
   it('keeps only the edits that started within a range of the history', function()
@@ -23,7 +23,7 @@ describe('harness.transcript.EditLog:', function()
       { '4' },
       vim.tbl_map(function(edit)
         return edit.id
-      end, EditLog.edits(history, 6, 7))
+      end, EditLog.tools(history, 6, 7))
     )
   end)
 end)

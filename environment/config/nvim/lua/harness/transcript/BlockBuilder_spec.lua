@@ -1,4 +1,4 @@
-local EditPatches = require('harness.transcript.EditPatches')
+local EditLog = require('harness.edits.EditLog')
 local blocks = require('harness.transcript.BlockBuilder')
 local events = require('harness.servers.acp.updates')
 
@@ -293,7 +293,7 @@ describe('harness.transcript.BlockBuilder:', function()
     end)
 
     it('leaves syntax highlighting of a diff until the diff is drawn', function()
-      local edits = EditPatches(function()
+      local edits = EditLog(function()
         return { 'local x = 3' }
       end)
       local shown = diff_blocks(blocks.build({
@@ -313,7 +313,7 @@ describe('harness.transcript.BlockBuilder:', function()
     end)
 
     it('lays an edit out against the whole file when it can find it, with vgit\'s rows', function()
-      local edits = EditPatches(function()
+      local edits = EditLog(function()
         return { 'local a = 0', 'local x = 3', 'return x' }
       end)
       local shown = diff_blocks(blocks.build({

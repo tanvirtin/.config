@@ -1,5 +1,5 @@
 local Document = require('harness.ui.document')
-local EditPatches = require('harness.transcript.EditPatches')
+local EditLog = require('harness.edits.EditLog')
 local buffers = require('core.buffers')
 local theme = require('harness.transcript.theme')
 local blocks = require('harness.transcript.BlockBuilder')
@@ -401,7 +401,7 @@ describe('harness.ui.document:', function()
   end
 
   local function diff_rows(path, status)
-    local edits = EditPatches(buffers.lines_of)
+    local edits = EditLog(buffers.lines_of)
 
     history = history or {}
 
@@ -439,7 +439,7 @@ describe('harness.ui.document:', function()
     assert.is_truthy(texts(rows['local b = 2']):find('  6 ', 1, true))
     assert.is_truthy(texts(rows['local c = 2']):find('  6 ', 1, true))
     assert.is_truthy(texts(rows['local a = 1']):find('  5 ', 1, true))
-    eq(6, EditPatches.line_at(block, rows['local c = 2']))
+    eq(6, Block.file_line(block, rows['local c = 2']))
 
     local syntax = vim.tbl_filter(
       function(mark)
@@ -481,7 +481,7 @@ describe('harness.ui.document:', function()
     local _, block, rows = diff_rows('/nowhere/a.lua')
 
     assert.is_falsy(texts(rows['local c = 2']):find('%d'))
-    assert.is_nil(EditPatches.line_at(block, rows['local c = 2']))
+    assert.is_nil(Block.file_line(block, rows['local c = 2']))
   end)
 
   it('folds long output and thoughts', function()
