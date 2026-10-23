@@ -84,6 +84,8 @@ local function capture_option(metadata, id, key)
 end
 
 local function highlight(out, parser, src, first, last)
+  local seen = {}
+
   parser:for_each_tree(function(tree, ltree)
     local lang = ltree:lang()
     local query = Renderer.highlights(lang)
@@ -95,18 +97,22 @@ local function highlight(out, parser, src, first, last)
 
       if name:sub(1, 1) ~= '_' and name ~= 'spell' and name ~= 'nospell' then
         local range = vim.treesitter.get_range(node, src.text, metadata[id])
-        local priority = tonumber(capture_option(metadata, id, 'priority')) or 0
         local opts = {
           end_row = range[4] + src.offset,
           end_col = range[5],
-          priority = Renderer.HIGHLIGHT_PRIORITY + priority,
+          priority = tonumber(capture_option(metadata, id, 'priority')) or Renderer.HIGHLIGHT_PRIORITY,
           conceal = capture_option(metadata, id, 'conceal'),
         }
 
         if name ~= 'conceal' then opts.hl_group = '@' .. name .. '.' .. lang end
         if capture_option(metadata, id, 'conceal_lines') then opts.conceal_lines = '' end
 
-        nodes.mark(out, range[1] + src.offset, range[2], opts)
+        local key = table.concat({ range[1], range[2], range[4], range[5], name, opts.priority }, ':')
+
+        if not seen[key] then
+          seen[key] = true
+          nodes.mark(out, range[1] + src.offset, range[2], opts)
+        end
       end
     end
   end)

@@ -132,6 +132,20 @@ describe('ui.markdown.Renderer:', function()
     eq(false, vim.treesitter.highlighter.active[buf] ~= nil)
   end)
 
+  it('colours code above the code block it sits in, taking query priorities as they are', function()
+    render({ '```lua', 'local x = 1', '```' })
+
+    local block, keyword
+
+    for _, mark in ipairs(marks()) do
+      if mark.hl_group == '@markup.raw.block.markdown' and mark.end_row == 3 then block = mark end
+      if mark.hl_group == '@keyword.lua' then keyword = mark end
+    end
+
+    eq(90, block.priority)
+    eq(Renderer.HIGHLIGHT_PRIORITY, keyword.priority)
+  end)
+
   it('asks resolve about links and code spans, and marks the ones it knows', function()
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'see [a](nvim://file/a.lua#L3) and `b.lua` and `nope`' })
 
