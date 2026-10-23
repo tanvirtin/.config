@@ -1,6 +1,6 @@
 local lazy = require('core.lazy')
 
-local Connection = require('harness.acp.connection')
+local Connection = require('harness.servers.acp.connection')
 local History = require('harness.session.History')
 local Object = require('core.Object')
 local PermissionGate = require('harness.session.PermissionGate')

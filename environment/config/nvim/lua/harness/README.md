@@ -24,7 +24,7 @@ Bottom up. A layer only requires layers below it, and no harness module calls Ne
 
 | Rank | Layer | Module | What it is |
 | --- | --- | --- | --- |
-| 1 | protocol | `acp/jsonrpc.lua`, `acp/transport.lua`, `acp/connection.lua` | A **Connection** is one agent process serving many sessions. It routes updates and requests by `sessionId`. It covers new, load, list, prompt, cancel and close, and nothing else: no UI and no policy. |
+| 1 | protocol | `servers/acp/jsonrpc.lua`, `servers/acp/transport.lua`, `servers/acp/connection.lua` | A **Connection** is one agent process serving many sessions. It routes updates and requests by `sessionId`. It covers new, load, list, prompt, cancel and close, and nothing else: no UI and no policy. |
 | 1 | settings | `settings/*.lua` | Every tunable as a `core.Config`, read at use time (see Settings). |
 | 1 | vgit | `vgit.lua` | The only module that talks to vgit, the diff engine: `patch` and `patch_text` (from `vgit.api`), `show` (vgit's diff views for in-memory content) and `git_diff`. The architecture spec rejects a `vgit` require anywhere else. |
 | 2 | events | `events.lua` | Typed events (`message`, `tool_call`, `plan`, `permission`, `stop`, ...) normalized from `session/update`, as dataclasses with a `KIND` enum. Views never parse ACP. |
@@ -57,7 +57,7 @@ The harness follows vgit's shape: a domain that knows nothing of buffers, stores
 
 | You are adding | Put it in | Notes |
 | --- | --- | --- |
-| A protocol method or field | `acp/connection.lua`, `events.lua` | Standard ACP first; vendor `_meta` only as an optional extra. |
+| A protocol method or field | `servers/acp/connection.lua`, `events.lua` | Standard ACP first; vendor `_meta` only as an optional extra. |
 | Per-session state or behaviour | a part under `session/`, composed by `session.lua` | Parts take the session and stay free of UI. |
 | Something that reacts to sessions starting, changing or closing | `features/<Name>.lua`, subscribed with `session_store.on` | `register_events()` and `cleanup()`, like `EditCheckTime`. |
 | A new look for a kind of block | `transcript/decorators/<kind>.lua` | `(block, ctx) -> MarkSpec[]`; register it in `decorators/init.lua`; test it without a buffer. |
@@ -365,4 +365,4 @@ make test          # all specs
 make test-file FILE=lua/harness/session_spec.lua
 ```
 
-`harness/fake_agent.lua` is a scripted ACP agent for specs. It handles sessions, list and load, and permission requests. Specs sit next to their module (`Layout.lua`, `Layout_spec.lua`) and go bottom up: calculators and decorators are tested as data, views against real buffers, and `architecture_spec.lua` guards the layers.
+`harness/servers/acp/fake_agent.lua` is a scripted ACP agent for specs. It handles sessions, list and load, and permission requests. Specs sit next to their module (`Layout.lua`, `Layout_spec.lua`) and go bottom up: calculators and decorators are tested as data, views against real buffers, and `architecture_spec.lua` guards the layers.

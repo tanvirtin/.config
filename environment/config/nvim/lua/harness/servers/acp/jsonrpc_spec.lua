@@ -1,8 +1,8 @@
-local jsonrpc = require('harness.acp.jsonrpc')
+local jsonrpc = require('harness.servers.acp.jsonrpc')
 
 local eq = assert.are.same
 
-describe('harness.acp.jsonrpc:', function()
+describe('harness.servers.acp.jsonrpc:', function()
   it('builds a request', function()
     local message = jsonrpc.request(1, 'initialize', { protocolVersion = 1 })
 

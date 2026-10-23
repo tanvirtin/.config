@@ -2,12 +2,12 @@ local root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h')
 
 package.path = root .. '/lua/?.lua;' .. root .. '/lua/?/init.lua;' .. package.path
 
-local Connection = require('harness.acp.connection')
+local Connection = require('harness.servers.acp.connection')
 local Session = require('harness.session')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 local display = require('harness.ui.display')
 local events = require('harness.events')
-local fake_agent = require('harness.fake_agent')
+local fake_agent = require('harness.servers.acp.fake_agent')
 
 local TURNS = tonumber(os.getenv('TURNS') or 30)
 local CHUNKS = tonumber(os.getenv('CHUNKS') or 1500)

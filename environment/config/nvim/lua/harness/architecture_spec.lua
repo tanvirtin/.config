@@ -30,15 +30,14 @@ local NEOVIM = {
 
 local LAYERS = {
   { 'harness.types', 1 },
-  { 'harness.acp', 1 },
   { 'harness.async', 1 },
   { 'harness.settings', 1 },
   { 'harness.vgit', 1 },
   { 'harness.events', 2 },
   { 'harness.context', 2 },
   { 'harness.agent', 2 },
+  { 'harness.servers', 2 },
   { 'harness.permissions', 2 },
-  { 'harness.fake_agent', 2 },
   { 'harness.session', 3 },
   { 'harness.workspace', 4 },
   { 'harness.session_store', 4 },

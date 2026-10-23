@@ -1,9 +1,9 @@
 local content = require('harness.types.content')
-local translate = require('harness.acp.translate')
+local translate = require('harness.servers.acp.translate')
 
 local eq = assert.are.same
 
-describe('harness.acp.translate:', function()
+describe('harness.servers.acp.translate:', function()
   local selection = content.Attachment({
     label = 'a.lua:2-3',
     source = 'a.lua',

@@ -1,5 +1,5 @@
 local async = require('harness.async')
-local fake_agent = require('harness.fake_agent')
+local fake_agent = require('harness.servers.acp.fake_agent')
 local hub = require('harness.hub')
 local sessions = require('harness.ui.sessions')
 local surfaces = require('surfaces')

@@ -1,8 +1,8 @@
-local Connection = require('harness.acp.connection')
+local Connection = require('harness.servers.acp.connection')
 local Session = require('harness.session')
 local async = require('harness.async')
-local fake_agent = require('harness.fake_agent')
-local jsonrpc = require('harness.acp.jsonrpc')
+local fake_agent = require('harness.servers.acp.fake_agent')
+local jsonrpc = require('harness.servers.acp.jsonrpc')
 
 local eq = assert.are.same
 

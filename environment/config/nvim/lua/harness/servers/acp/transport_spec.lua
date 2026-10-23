@@ -1,9 +1,9 @@
 local process = require('core.process')
-local transport = require('harness.acp.transport')
+local transport = require('harness.servers.acp.transport')
 
 local eq = assert.are.same
 
-describe('harness.acp.transport:', function()
+describe('harness.servers.acp.transport:', function()
   local system, stdout
 
   before_each(function()

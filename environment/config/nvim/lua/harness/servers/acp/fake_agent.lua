@@ -1,4 +1,4 @@
-local jsonrpc = require('harness.acp.jsonrpc')
+local jsonrpc = require('harness.servers.acp.jsonrpc')
 
 local fake_agent = {}
 

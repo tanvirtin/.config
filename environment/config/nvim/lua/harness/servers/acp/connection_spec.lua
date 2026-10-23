@@ -1,7 +1,7 @@
-local Connection = require('harness.acp.connection')
+local Connection = require('harness.servers.acp.connection')
 local async = require('harness.async')
-local fake_agent = require('harness.fake_agent')
-local jsonrpc = require('harness.acp.jsonrpc')
+local fake_agent = require('harness.servers.acp.fake_agent')
+local jsonrpc = require('harness.servers.acp.jsonrpc')
 
 local eq = assert.are.same
 
@@ -28,7 +28,7 @@ local function listener(log)
   }
 end
 
-describe('harness.acp.connection:', function()
+describe('harness.servers.acp.connection:', function()
   it('initializes and keeps the agent\'s capabilities', function()
     local conn = connected()
 
@@ -432,7 +432,7 @@ describe('harness.acp.connection:', function()
   end)
 
   it('tells the agent it can follow sub-agent sessions', function()
-    local fake = require('harness.fake_agent').new()
+    local fake = require('harness.servers.acp.fake_agent').new()
     local connection = Connection(fake)
 
     require('harness.async')

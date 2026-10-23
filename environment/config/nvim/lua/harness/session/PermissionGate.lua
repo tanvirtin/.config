@@ -1,6 +1,6 @@
 local lazy = require('core.lazy')
 
-local Connection = lazy('harness.acp.connection')
+local Connection = lazy('harness.servers.acp.connection')
 local Object = lazy('core.Object')
 local async = lazy('harness.async')
 local events = lazy('harness.events')

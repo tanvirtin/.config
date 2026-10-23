@@ -1,6 +1,6 @@
-local Connection = require('harness.acp.connection')
+local Connection = require('harness.servers.acp.connection')
 local Session = require('harness.session')
-local fake_agent = require('harness.fake_agent')
+local fake_agent = require('harness.servers.acp.fake_agent')
 local permission_prompt = require('harness.ui.permission_prompt')
 
 local eq = assert.are.same

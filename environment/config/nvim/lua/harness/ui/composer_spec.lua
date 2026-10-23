@@ -1,8 +1,8 @@
 local async = require('harness.async')
 local composer = require('harness.ui.composer')
-local fake_agent = require('harness.fake_agent')
+local fake_agent = require('harness.servers.acp.fake_agent')
 local hub = require('harness.hub')
-local jsonrpc = require('harness.acp.jsonrpc')
+local jsonrpc = require('harness.servers.acp.jsonrpc')
 local transcript = require('harness.ui.transcript')
 
 local eq = assert.are.same

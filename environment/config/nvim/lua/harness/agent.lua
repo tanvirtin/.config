@@ -1,7 +1,7 @@
 local console = require('core.console')
 local fs = require('core.fs')
 local Object = require('core.Object')
-local transport = require('harness.acp.transport')
+local transport = require('harness.servers.acp.transport')
 
 local agent = {}
 

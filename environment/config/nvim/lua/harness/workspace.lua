@@ -1,6 +1,6 @@
 local Object = require('core.Object')
 local console = require('core.console')
-local Connection = require('harness.acp.connection')
+local Connection = require('harness.servers.acp.connection')
 local Session = require('harness.session')
 local async = require('harness.async')
 
