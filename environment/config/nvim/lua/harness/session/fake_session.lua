@@ -34,6 +34,13 @@ function fake.session(opts)
     return self.state == 'idle'
   end
 
+  function session:can(name)
+    local connection = self.connection
+
+    return type(connection.capabilities) == 'function' and connection:capabilities()[name] == true
+      or (opts.can or {})[name] == true
+  end
+
   function session:running()
     return self.state == 'running'
   end

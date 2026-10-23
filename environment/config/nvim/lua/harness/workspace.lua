@@ -179,7 +179,7 @@ function Workspace:list(agent)
 
   local connection = self:connection(agent)
 
-  if connection:supports('list') then
+  if connection:capabilities().list then
     for _, stored in ipairs(connection:list_sessions(self.dir)) do
       if not seen[stored.sessionId] then
         out[#out + 1] = { id = stored.sessionId, title = stored.title, updated_at = stored.updatedAt }

@@ -97,7 +97,7 @@ local function poll(session, follower)
       return watch_file(session, follower, path)
     end
 
-    if not visible(follower) or not session.connection:supports('list') then return end
+    if not visible(follower) or not session:can('list') then return end
 
     async.run(function()
       for _, entry in ipairs(session.connection:list_sessions(session.dir)) do

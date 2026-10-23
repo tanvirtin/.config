@@ -135,7 +135,7 @@ describe('harness.follow:', function()
   it('polls the session list when it cannot find a transcript, and picks the file up once it appears', function()
     vim.fn.delete(path)
     fake.stored = { { sessionId = 's1', cwd = dir, updatedAt = 't1' } }
-    session.connection.capabilities = { sessionCapabilities = { list = {} } }
+    session.connection.agent_capabilities = { sessionCapabilities = { list = {} } }
 
     local transcript = require('harness.ui.transcript')
     local visible = transcript.buffer_of

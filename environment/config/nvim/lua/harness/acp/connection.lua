@@ -1,5 +1,6 @@
 local Object = require('core.Object')
 local console = require('core.console')
+local capabilities = require('harness.types.capabilities')
 local dataclass = require('core.dataclass')
 local async = require('harness.async')
 local jsonrpc = require('harness.acp.jsonrpc')
@@ -20,7 +21,7 @@ function Connection:constructor(transport)
     _listeners = {},
     _early = {},
     closed = false,
-    capabilities = {},
+    agent_capabilities = {},
   }
 
   transport:on_message(function(message)
@@ -34,8 +35,27 @@ function Connection:constructor(transport)
   return conn
 end
 
+function Connection:capabilities()
+  local prompt = self:prompt_capabilities()
+
+  return capabilities.new({
+    load = self:can_load(),
+    resume = self:supports('resume'),
+    fork = self:supports('fork'),
+    fork_at_message = self:supports('fork') and self.fork_at_message == true,
+    list = self:supports('list'),
+    close = self:supports('close'),
+    delete = self:supports('delete'),
+    steer = self:steering(),
+    system_prompt = self:supports('systemPrompt'),
+    embedded_context = prompt.embeddedContext == true,
+    images = prompt.image == true,
+    audio = prompt.audio == true,
+  })
+end
+
 function Connection:prompt_capabilities()
-  return self.capabilities.promptCapabilities or {}
+  return self.agent_capabilities.promptCapabilities or {}
 end
 
 function Connection:_closed(out)
@@ -220,7 +240,7 @@ function Connection:initialize()
     clientCapabilities = { subagents = vim.empty_dict() },
   }))
 
-  self.capabilities = (result and result.agentCapabilities) or {}
+  self.agent_capabilities = (result and result.agentCapabilities) or {}
   self.info = result and result.agentInfo
   self.auth_methods = type(result) == 'table' and result.authMethods or {}
   self.extensions = type(result) == 'table' and type(result._meta) == 'table' and result._meta or {}
@@ -255,7 +275,7 @@ function Connection:new_session(opts)
 end
 
 function Connection:can_load()
-  return self.capabilities.loadSession == true
+  return self.agent_capabilities.loadSession == true
 end
 
 function Connection:load_session(session_id, opts)
@@ -345,7 +365,7 @@ function Connection:steer(session_id, blocks)
 end
 
 function Connection:supports(capability)
-  return type((self.capabilities.sessionCapabilities or {})[capability]) == 'table'
+  return type((self.agent_capabilities.sessionCapabilities or {})[capability]) == 'table'
 end
 
 function Connection:close_session(session_id)

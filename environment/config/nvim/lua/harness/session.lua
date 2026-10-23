@@ -214,10 +214,13 @@ end
 function Session:_needs_instructions()
   local system = type(self.agent) == 'table' and self.agent.system
 
-  return not self._instructed
-    and type(system) == 'string'
-    and system ~= ''
-    and not self.connection:supports('systemPrompt')
+  return not self._instructed and type(system) == 'string' and system ~= '' and not self:can('system_prompt')
+end
+
+function Session:can(name)
+  local connection = self.connection
+
+  return type(connection) == 'table' and connection.capabilities ~= nil and connection:capabilities()[name] == true
 end
 
 function Session:idle()

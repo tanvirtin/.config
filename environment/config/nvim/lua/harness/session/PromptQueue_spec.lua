@@ -52,13 +52,7 @@ describe('harness.session.PromptQueue:', function()
   end)
 
   it('queues a steer the agent cannot take', function()
-    local session = fake.session({
-      connection = {
-        steering = function()
-          return false
-        end,
-      },
-    })
+    local session = fake.session({ can = { steer = false } })
     local queue = PromptQueue(session)
 
     session.state = 'running'

@@ -32,7 +32,10 @@ describe('harness.acp.connection:', function()
   it('initializes and keeps the agent\'s capabilities', function()
     local conn = connected()
 
-    eq(true, conn.capabilities.loadSession)
+    eq(true, conn.agent_capabilities.loadSession)
+    eq(true, conn:capabilities().load)
+    eq(true, conn:capabilities().list)
+    eq(false, conn:capabilities().fork)
     eq(true, conn:supports('list'))
     eq(false, conn:supports('fork'))
   end)
@@ -400,7 +403,7 @@ describe('harness.acp.connection:', function()
 
     eq('s1', agent:sent_method('session/close').params.sessionId)
 
-    conn.capabilities = {}
+    conn.agent_capabilities = {}
     run(function()
       conn:close_session('s2')
     end)

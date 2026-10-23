@@ -62,7 +62,7 @@ function composer.winbar(session)
 
   if session:running() then
     parts[#parts + 1] = key(keys.send, 'queue')
-    if session.connection:steering() then parts[#parts + 1] = key(keys.steer, 'steer') end
+    if session:can('steer') then parts[#parts + 1] = key(keys.steer, 'steer') end
     parts[#parts + 1] = key(keys.interrupt, 'interrupt')
   else
     parts[#parts + 1] = key(keys.send, 'send')

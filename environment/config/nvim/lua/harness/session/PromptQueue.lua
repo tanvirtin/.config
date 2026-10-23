@@ -68,7 +68,7 @@ end
 function PromptQueue:steer(text, context)
   local session = self.session
 
-  if not session:running() or not session.connection:steering() then return self:enqueue(text, context) end
+  if not session:running() or not session:can('steer') then return self:enqueue(text, context) end
 
   session:_emit(events.prompt(text, { steered = true, selections = editor_context.labels(context) }))
 

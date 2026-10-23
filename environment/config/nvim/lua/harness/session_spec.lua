@@ -57,7 +57,7 @@ describe('harness.session:', function()
     local taking, sent = session_with({ ['session/prompt'] = fake_agent.replying('ok') })
 
     taking.agent = { system = 'be brief' }
-    taking.connection.capabilities = { sessionCapabilities = { systemPrompt = {} } }
+    taking.connection.agent_capabilities = { sessionCapabilities = { systemPrompt = {} } }
     taking:prompt('one'):wait()
 
     eq(1, #sent:sent_method('session/prompt').params.prompt)
