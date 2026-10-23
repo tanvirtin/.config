@@ -398,12 +398,16 @@ function Connection:steering()
   return type(steering) == 'table' and steering.supported == true
 end
 
+Connection.STEER_FALLBACK = 'promptRequired'
+
 function Connection:steer(session_id, prompt)
-  return async.await(self:request(Connection.STEER_METHOD, {
+  local result = async.await(self:request(Connection.STEER_METHOD, {
     sessionId = session_id,
     prompt = translate.prompt(prompt, self:prompt_capabilities()),
-    _meta = { steering = { idleBehavior = 'promptRequired' } },
+    _meta = { steering = { idleBehavior = Connection.STEER_FALLBACK } },
   }))
+
+  return not (type(result) == 'table' and result.outcome == Connection.STEER_FALLBACK)
 end
 
 function Connection:supports(capability)

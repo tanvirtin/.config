@@ -458,7 +458,7 @@ describe('harness.session:', function()
       local result = session:steer('look at b instead'):wait()
       local steer = agent:sent_method(Connection.STEER_METHOD)
 
-      eq('injected', result.outcome)
+      eq(true, result)
       eq('look at b instead', steer.params.prompt[1].text)
       eq('promptRequired', steer.params._meta.steering.idleBehavior)
       eq({ kind = 'prompt', text = 'look at b instead', steered = true }, session.history[#session.history])

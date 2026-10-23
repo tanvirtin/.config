@@ -8,8 +8,6 @@ local events = lazy('harness.types.events')
 
 local PromptQueue = Object:extend()
 
-PromptQueue.STEER_FALLBACK = 'promptRequired'
-
 function PromptQueue:constructor(session)
   return { session = session, items = {} }
 end
@@ -75,9 +73,9 @@ function PromptQueue:steer(text, context)
   local steered = session.history[#session.history]
 
   return async.run(function()
-    local result = session.connection:steer(session.id, content.prompt(text, context))
+    local taken = session.connection:steer(session.id, content.prompt(text, context))
 
-    if type(result) == 'table' and result.outcome == PromptQueue.STEER_FALLBACK then
+    if taken == false then
       steered.steered = nil
       session:_notify({ kind = events.NOTICE.reset })
 
@@ -89,7 +87,7 @@ function PromptQueue:steer(text, context)
       end
     end
 
-    return result
+    return taken
   end)
 end
 
