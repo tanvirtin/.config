@@ -1,20 +1,19 @@
 local lazy = require('core.lazy')
 
-local History = require('harness.session.History')
-local Object = require('core.Object')
-local PermissionGate = require('harness.session.PermissionGate')
-local PromptQueue = require('harness.session.PromptQueue')
-local SessionConfig = require('harness.session.SessionConfig')
-local Subagents = require('harness.session.Subagents')
 local Timer = require('core.Timer')
+local console = lazy('core.console')
+local Object = require('core.Object')
 local async = require('harness.async')
-local content = require('harness.types.content')
-local editor_context = require('harness.context')
 local dataclass = require('core.dataclass')
 local events = require('harness.types.events')
+local content = require('harness.types.content')
+local editor_context = require('harness.context')
+local History = require('harness.session.History')
 local permissions = require('harness.permissions')
-
-local console = lazy('core.console')
+local Subagents = require('harness.session.Subagents')
+local PromptQueue = require('harness.session.PromptQueue')
+local SessionConfig = require('harness.session.SessionConfig')
+local PermissionGate = require('harness.session.PermissionGate')
 
 local K = events.KIND
 

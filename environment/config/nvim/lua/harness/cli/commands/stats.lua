@@ -1,7 +1,7 @@
 local lazy = require('core.lazy')
 
-local commands = lazy('harness.ui.commands')
 local surfaces = lazy('surfaces')
+local commands = lazy('harness.ui.commands')
 
 return {
   name = 'HarnessStats',

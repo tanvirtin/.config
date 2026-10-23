@@ -1,13 +1,13 @@
-local Block = require('harness.transcript.Block')
-local EditPatches = require('harness.transcript.EditPatches')
-local fences = require('core.fences')
-local tool_label = require('harness.transcript.tool_label')
 local compact = require('compact')
+local fences = require('core.fences')
 local context = require('harness.context')
+local Block = require('harness.transcript.Block')
+local theme = require('harness.transcript.theme')
 local EVENT = require('harness.types.events').KIND
 local keymaps = require('harness.settings.keymaps')
-local theme = require('harness.transcript.theme')
 local settings = require('harness.settings.transcript')
+local tool_label = require('harness.transcript.tool_label')
+local EditPatches = require('harness.transcript.EditPatches')
 
 local blocks = { Block = Block, fence_for = fences.fence_for, fences = fences.fences, fenced_at = fences.fenced_at }
 

@@ -1,7 +1,9 @@
-local Buffer = require('core.Buffer')
-local Window = require('core.Window')
-local console = require('core.console')
-local fs = require('core.fs')
+local lazy = require('core.lazy')
+
+local fs = lazy('core.fs')
+local Buffer = lazy('core.Buffer')
+local Window = lazy('core.Window')
+local console = lazy('core.console')
 local INLINE = require('ui.markdown.Renderer').INLINE
 
 local links = {}

@@ -1,9 +1,11 @@
-local hub = require('harness.hub')
-local schema = require('nvim_mcp.schema')
-local tools = require('nvim_mcp.tools')
-local EditPatches = require('harness.transcript.EditPatches')
-local TextRenderer = require('harness.transcript.TextRenderer')
-local buffers = require('core.buffers')
+local lazy = require('core.lazy')
+
+local hub = lazy('harness.hub')
+local buffers = lazy('core.buffers')
+local tools = lazy('nvim_mcp.tools')
+local schema = lazy('nvim_mcp.schema')
+local EditPatches = lazy('harness.transcript.EditPatches')
+local TextRenderer = lazy('harness.transcript.TextRenderer')
 
 local session_tools = {}
 

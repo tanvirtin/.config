@@ -1,4 +1,6 @@
-local hub = require('harness.hub')
+local lazy = require('core.lazy')
+
+local hub = lazy('harness.hub')
 
 local harness = {}
 

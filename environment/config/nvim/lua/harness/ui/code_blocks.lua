@@ -1,13 +1,12 @@
 local lazy = require('core.lazy')
 
-local Buffer = require('core.Buffer')
-local CodeBlocks = require('harness.transcript.CodeBlocks')
-local Window = require('core.Window')
-local context = require('harness.context')
-local fs = require('core.fs')
-local keymap = require('core.keymap')
-
+local fs = lazy('core.fs')
 local hub = lazy('harness.hub')
+local Buffer = lazy('core.Buffer')
+local Window = lazy('core.Window')
+local keymap = lazy('core.keymap')
+local context = lazy('harness.context')
+local CodeBlocks = lazy('harness.transcript.CodeBlocks')
 
 local code_blocks = {}
 

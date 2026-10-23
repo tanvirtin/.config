@@ -1,8 +1,8 @@
-local event = require('core.event')
-local fs = require('core.fs')
 local lazy = require('core.lazy')
 
 local api = lazy('vgit.api')
+local fs = require('core.fs')
+local event = require('core.event')
 
 local vgit = {}
 

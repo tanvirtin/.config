@@ -1,7 +1,7 @@
 local async = require('harness.async')
-local capabilities = require('harness.types.capabilities')
 local events = require('harness.types.events')
 local session = require('harness.types.session')
+local capabilities = require('harness.types.capabilities')
 
 local FakeServer = {}
 

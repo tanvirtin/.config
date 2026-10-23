@@ -1,6 +1,8 @@
-local Element = require('ui.elements.Element')
-local Object = require('core.Object')
-local PlanSummary = require('harness.transcript.PlanSummary')
+local lazy = require('core.lazy')
+
+local Object = lazy('core.Object')
+local Element = lazy('ui.elements.Element')
+local PlanSummary = lazy('harness.transcript.PlanSummary')
 
 local PlanPanel = Object:extend()
 

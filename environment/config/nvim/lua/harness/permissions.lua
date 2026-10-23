@@ -1,10 +1,12 @@
-local Timer = require('core.Timer')
-local console = require('core.console')
-local fs = require('core.fs')
-local text = require('core.text')
-local api = require('nvim_mcp.api')
-local async = require('harness.async')
-local tools = require('nvim_mcp.tools')
+local lazy = require('core.lazy')
+
+local fs = lazy('core.fs')
+local text = lazy('core.text')
+local Timer = lazy('core.Timer')
+local api = lazy('nvim_mcp.api')
+local async = lazy('harness.async')
+local console = lazy('core.console')
+local tools = lazy('nvim_mcp.tools')
 local DECISION = require('harness.types.permission').DECISION
 
 local permissions = {}

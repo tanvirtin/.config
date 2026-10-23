@@ -1,19 +1,18 @@
 local lazy = require('core.lazy')
 
-local Buffer = require('core.Buffer')
-local Element = require('ui.elements.Element')
-local Timer = require('core.Timer')
-local Window = require('core.Window')
-local console = require('core.console')
-local context = require('harness.context')
-local hub = require('harness.hub')
-local keymap = require('core.keymap')
-local permission_prompt = require('harness.ui.permission_prompt')
-local settings = require('harness.settings')
-local tools = require('nvim_mcp.tools')
-local theme = require('harness.transcript.theme')
-
+local hub = lazy('harness.hub')
+local Timer = lazy('core.Timer')
+local Buffer = lazy('core.Buffer')
+local Window = lazy('core.Window')
+local keymap = lazy('core.keymap')
+local console = lazy('core.console')
+local tools = lazy('nvim_mcp.tools')
+local context = lazy('harness.context')
+local settings = lazy('harness.settings')
 local display = lazy('harness.ui.display')
+local Element = lazy('ui.elements.Element')
+local theme = lazy('harness.transcript.theme')
+local permission_prompt = lazy('harness.ui.permission_prompt')
 
 local composer = {}
 

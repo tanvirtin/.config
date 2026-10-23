@@ -1,13 +1,15 @@
-local Buffer = require('core.Buffer')
-local Window = require('core.Window')
-local console = require('core.console')
-local async = require('harness.async')
-local context = require('harness.context')
-local display = require('harness.ui.display')
-local edits = require('harness.ui.edits')
-local hub = require('harness.hub')
-local transcript = require('harness.ui.transcript')
-local tools = require('nvim_mcp.tools')
+local lazy = require('core.lazy')
+
+local hub = lazy('harness.hub')
+local Buffer = lazy('core.Buffer')
+local Window = lazy('core.Window')
+local async = lazy('harness.async')
+local console = lazy('core.console')
+local tools = lazy('nvim_mcp.tools')
+local edits = lazy('harness.ui.edits')
+local context = lazy('harness.context')
+local display = lazy('harness.ui.display')
+local transcript = lazy('harness.ui.transcript')
 
 local commands = {}
 

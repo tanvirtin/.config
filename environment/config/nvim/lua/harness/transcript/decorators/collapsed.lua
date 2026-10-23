@@ -1,6 +1,5 @@
 local MarkSpec = require('ui.MarkSpec')
 local theme = require('harness.transcript.theme')
-
 local keymaps = require('harness.settings.keymaps')
 
 return function(block)

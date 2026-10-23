@@ -1,5 +1,5 @@
-local Block = require('harness.transcript.Block')
 local MarkSpec = require('ui.MarkSpec')
+local Block = require('harness.transcript.Block')
 
 local decorators = {}
 

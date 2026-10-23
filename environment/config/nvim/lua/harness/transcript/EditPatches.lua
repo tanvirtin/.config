@@ -1,11 +1,11 @@
+local fs = require('core.fs')
+local vgit = require('harness.vgit')
+local Object = require('core.Object')
 local Block = require('harness.transcript.Block')
 local EditLog = require('harness.transcript.EditLog')
-local EditResolver = require('harness.transcript.EditResolver')
-local Object = require('core.Object')
-local SyntaxAnnotator = require('ui.annotators.SyntaxAnnotator')
-local fs = require('core.fs')
 local settings = require('harness.settings.transcript')
-local vgit = require('harness.vgit')
+local EditResolver = require('harness.transcript.EditResolver')
+local SyntaxAnnotator = require('ui.annotators.SyntaxAnnotator')
 
 local EditPatches = Object:extend()
 

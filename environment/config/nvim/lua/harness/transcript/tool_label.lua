@@ -1,6 +1,6 @@
+local text = require('core.text')
 local compact = require('compact')
 local settings = require('harness.settings.transcript')
-local text = require('core.text')
 
 local tool_label = {}
 

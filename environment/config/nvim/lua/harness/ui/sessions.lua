@@ -1,10 +1,12 @@
-local settings = require('harness.settings.sessions')
-local Timer = require('core.Timer')
-local console = require('core.console')
-local hub = require('harness.hub')
-local date = require('core.utils.date')
-local surfaces = require('surfaces')
-local theme = require('harness.transcript.theme')
+local lazy = require('core.lazy')
+
+local hub = lazy('harness.hub')
+local Timer = lazy('core.Timer')
+local surfaces = lazy('surfaces')
+local console = lazy('core.console')
+local date = lazy('core.utils.date')
+local theme = lazy('harness.transcript.theme')
+local settings = lazy('harness.settings.sessions')
 
 local sessions = {}
 

@@ -1,5 +1,5 @@
-local Block = require('harness.transcript.Block')
 local MarkSpec = require('ui.MarkSpec')
+local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
 
 local function rail(out, row, glyph, indented)

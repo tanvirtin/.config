@@ -1,6 +1,6 @@
-local EVENT = require('harness.types.events').KIND
 local compact = require('compact')
 local context = require('harness.context')
+local EVENT = require('harness.types.events').KIND
 
 local EditLocations = {}
 

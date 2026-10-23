@@ -1,7 +1,7 @@
 local lazy = require('core.lazy')
 
-local Object = lazy('core.Object')
 local Timer = lazy('core.Timer')
+local Object = lazy('core.Object')
 local buffers = lazy('core.buffers')
 local events = lazy('harness.types.events')
 local permissions = lazy('harness.permissions')

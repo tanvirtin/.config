@@ -1,6 +1,6 @@
-local BlockBuilder = require('harness.transcript.BlockBuilder')
-local EditPatches = require('harness.transcript.EditPatches')
 local buffers = require('core.buffers')
+local EditPatches = require('harness.transcript.EditPatches')
+local BlockBuilder = require('harness.transcript.BlockBuilder')
 
 local TextRenderer = {}
 

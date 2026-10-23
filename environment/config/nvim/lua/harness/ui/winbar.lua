@@ -1,9 +1,11 @@
+local lazy = require('core.lazy')
+
+local compact = lazy('compact')
+local core_text = lazy('core.text')
+local follow = lazy('harness.follow')
+local theme = lazy('harness.transcript.theme')
+local keymaps = lazy('harness.settings.keymaps')
 local EVENT = require('harness.types.events').KIND
-local compact = require('compact')
-local core_text = require('core.text')
-local follow = require('harness.follow')
-local keymaps = require('harness.settings.keymaps')
-local theme = require('harness.transcript.theme')
 
 local winbar = {}
 

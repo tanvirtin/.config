@@ -1,7 +1,7 @@
-local fences = require('core.fences')
 local fs = require('core.fs')
-local acp_config = require('harness.servers.acp.config')
+local fences = require('core.fences')
 local types = require('harness.types.events')
+local acp_config = require('harness.servers.acp.config')
 
 local events = setmetatable({}, { __index = types })
 

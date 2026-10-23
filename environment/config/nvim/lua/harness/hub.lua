@@ -1,10 +1,12 @@
-local env = require('core.env')
-local fs = require('core.fs')
-local agent = require('harness.agent')
-local async = require('harness.async')
-local permissions = require('harness.permissions')
-local Workspace = require('harness.workspace')
-local session_store = require('harness.session_store')
+local lazy = require('core.lazy')
+
+local fs = lazy('core.fs')
+local env = lazy('core.env')
+local agent = lazy('harness.agent')
+local async = lazy('harness.async')
+local Workspace = lazy('harness.workspace')
+local permissions = lazy('harness.permissions')
+local session_store = lazy('harness.session_store')
 
 local hub = {}
 

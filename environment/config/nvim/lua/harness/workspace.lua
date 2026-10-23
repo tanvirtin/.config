@@ -1,7 +1,9 @@
-local Object = require('core.Object')
-local servers = require('harness.servers')
-local Session = require('harness.session')
-local async = require('harness.async')
+local lazy = require('core.lazy')
+
+local Object = lazy('core.Object')
+local async = lazy('harness.async')
+local Session = lazy('harness.session')
+local servers = lazy('harness.servers')
 
 local Workspace = Object:extend()
 

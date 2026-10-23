@@ -1,6 +1,6 @@
-local dataclass = require('core.dataclass')
-local fences = require('core.fences')
 local fs = require('core.fs')
+local fences = require('core.fences')
+local dataclass = require('core.dataclass')
 local permission = require('harness.types.permission')
 local updates = require('harness.servers.acp.updates')
 

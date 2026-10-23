@@ -1,8 +1,8 @@
 local lazy = require('core.lazy')
 
+local event = lazy('core.event')
 local console = lazy('core.console')
 local dataclass = lazy('core.dataclass')
-local event = lazy('core.event')
 
 local session_store = {}
 

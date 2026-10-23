@@ -1,8 +1,8 @@
-local Block = require('harness.transcript.Block')
-local EVENT = require('harness.types.events').KIND
-local compact = require('compact')
 local text = require('core.text')
+local compact = require('compact')
+local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
+local EVENT = require('harness.types.events').KIND
 
 local PlanSummary = {}
 

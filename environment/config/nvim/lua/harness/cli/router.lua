@@ -1,4 +1,6 @@
-local event = require('core.event')
+local lazy = require('core.lazy')
+
+local event = lazy('core.event')
 
 local router = {}
 

@@ -1,7 +1,7 @@
 local compact = require('compact')
+local theme = require('harness.transcript.theme')
 local keymaps = require('harness.settings.keymaps')
 local settings = require('harness.settings.transcript')
-local theme = require('harness.transcript.theme')
 
 local StatusLine = {}
 

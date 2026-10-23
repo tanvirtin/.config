@@ -3,8 +3,8 @@ local lazy = require('core.lazy')
 local Object = lazy('core.Object')
 local async = lazy('harness.async')
 local console = lazy('core.console')
-local content = lazy('harness.types.content')
 local events = lazy('harness.types.events')
+local content = lazy('harness.types.content')
 
 local PromptQueue = Object:extend()
 

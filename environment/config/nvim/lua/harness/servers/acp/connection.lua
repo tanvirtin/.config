@@ -1,11 +1,11 @@
 local Object = require('core.Object')
-local console = require('core.console')
-local capabilities = require('harness.types.capabilities')
-local acp_config = require('harness.servers.acp.config')
-local translate = require('harness.servers.acp.translate')
-local updates = require('harness.servers.acp.updates')
 local async = require('harness.async')
+local console = require('core.console')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
+local updates = require('harness.servers.acp.updates')
+local acp_config = require('harness.servers.acp.config')
+local capabilities = require('harness.types.capabilities')
+local translate = require('harness.servers.acp.translate')
 
 local Connection = Object:extend()
 

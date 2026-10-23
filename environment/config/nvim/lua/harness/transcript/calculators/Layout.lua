@@ -1,5 +1,5 @@
-local Block = require('harness.transcript.Block')
 local fences = require('core.fences')
+local Block = require('harness.transcript.Block')
 
 local Layout = {}
 

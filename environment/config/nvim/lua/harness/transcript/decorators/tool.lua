@@ -1,8 +1,8 @@
-local Block = require('harness.transcript.Block')
-local MarkSpec = require('ui.MarkSpec')
-local context = require('harness.transcript.decorators.context')
 local text = require('core.text')
+local MarkSpec = require('ui.MarkSpec')
+local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
+local context = require('harness.transcript.decorators.context')
 
 local function count_lines(output)
   local trimmed = (output or ''):gsub('%s+$', '')

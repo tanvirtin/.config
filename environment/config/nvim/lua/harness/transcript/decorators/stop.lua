@@ -1,6 +1,6 @@
-local BlockBuilder = require('harness.transcript.BlockBuilder')
 local MarkSpec = require('ui.MarkSpec')
 local theme = require('harness.transcript.theme')
+local BlockBuilder = require('harness.transcript.BlockBuilder')
 
 local REASON_HL = { end_turn = 'UiMuted', error = 'UiError' }
 

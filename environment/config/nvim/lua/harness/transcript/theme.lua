@@ -1,5 +1,5 @@
-local settings = require('harness.settings.theme')
 local text = require('core.text')
+local settings = require('harness.settings.theme')
 
 local theme = {}
 
