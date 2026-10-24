@@ -1,5 +1,6 @@
 local lazy = require('core.lazy')
 
+local Timer = lazy('core.Timer')
 local Object = lazy('core.Object')
 local events = lazy('harness.types.events')
 
@@ -7,12 +8,16 @@ local Subagents = Object:extend()
 
 Subagents.FIELDS = { 'title', 'description', 'state', 'stop' }
 
+Subagents.ACTIVE = { running = true, active = true, working = true, in_progress = true }
+
 function Subagents:constructor(session)
-  return { session = session, children = {} }
+  return { session = session, children = {}, seen = {} }
 end
 
 function Subagents:apply(event)
   local child = self.children[event.child]
+
+  self.seen[event.child] = Timer.now()
 
   if not child then
     child = { id = event.child }
@@ -45,6 +50,8 @@ function Subagents:_on_event(child, event)
 
   if session.is_state_event(event) then return end
 
+  self.seen[child.id] = Timer.now()
+
   if event.kind == events.KIND.delegation then
     child.tool = event.message or child.tool
     return session:_notify({ kind = events.KIND.subagent })
@@ -54,6 +61,19 @@ function Subagents:_on_event(child, event)
   child.tool = child.tool or event.parent
 
   session:_handle(event)
+end
+
+function Subagents:summary(now)
+  local active, quiet = 0, 0
+
+  for id, child in pairs(self.children) do
+    if child.tool and Subagents.ACTIVE[child.state] then
+      active = active + 1
+      quiet = math.max(quiet, (now or Timer.now()) - (self.seen[id] or now or Timer.now()))
+    end
+  end
+
+  return { active = active, quiet = quiet }
 end
 
 function Subagents:detach_all()

@@ -18,6 +18,7 @@ function winbar.hints()
   )
 end
 winbar.STICKY_WIDTH = 80
+winbar.QUIET_MS = 30000
 
 local function last_usage(session)
   for i = #session.history, 1, -1 do
@@ -53,6 +54,21 @@ local function status(session)
   else
     parts[#parts + 1] = '%#UiMuted#' .. theme.IDLE_ICON .. 'idle'
   end
+
+  local agents = session.subagents and session.subagents:summary() or { active = 0 }
+
+  if agents.active > 0 then
+    local quiet = agents.quiet >= winbar.QUIET_MS and theme.duration(agents.quiet)
+
+    parts[#parts + 1] = string.format(
+      '%%#UiAccent#  %d agent%s%s',
+      agents.active,
+      agents.active == 1 and '' or 's',
+      quiet and (' · quiet ' .. quiet) or ''
+    )
+  end
+
+  if #session:waiting() > 0 then parts[#parts + 1] = '%#UiWarn#  waiting for you' end
 
   local mode = session:mode()
   local model = session:choice('model')
