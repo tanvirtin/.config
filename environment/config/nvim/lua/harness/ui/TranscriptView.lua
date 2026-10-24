@@ -196,7 +196,7 @@ function TranscriptView.to_prompt(window, prompt)
   window:scroll_to('top')
 end
 
-TranscriptView.ACTIVE = { running = true, active = true, working = true, in_progress = true }
+TranscriptView.ACTIVE = require('harness.session.Subagents').ACTIVE
 
 function TranscriptView.active_subagents(session)
   local active = {}
@@ -302,6 +302,11 @@ function TranscriptView:_step()
   end
 
   self.frame = self.frame + 1
+
+  for _, window in ipairs(self:windows()) do
+    self:set_winbar(window)
+  end
+
   self.document:tick({ frame = self.frame, active = active, loading = self.session:loading() })
 end
 

@@ -15,16 +15,50 @@ local function session(fields)
     choice = function()
       return fields.model
     end,
+    waiting = function()
+      return fields.waiting or {}
+    end,
   }
 
   for key, value in pairs(fields) do
-    if key ~= 'mode' and key ~= 'model' then out[key] = value end
+    if key ~= 'mode' and key ~= 'model' and key ~= 'waiting' then out[key] = value end
   end
 
   return out
 end
 
 describe('harness.ui.winbar:', function()
+  it('counts running agents, and says how long the quietest has been silent', function()
+    local summary = { active = 2, quiet = 125000 }
+    local text = winbar.transcript(session({
+      state = 'running',
+      subagents = {
+        summary = function()
+          return summary
+        end,
+      },
+    }))
+
+    assert.truthy(text:find('2 agents · quiet 2m', 1, true))
+
+    summary = { active = 1, quiet = 1000 }
+    text = winbar.transcript(session({
+      subagents = {
+        summary = function()
+          return summary
+        end,
+      },
+    }))
+
+    assert.truthy(text:find('1 agent', 1, true))
+    assert.is_nil(text:find('quiet', 1, true))
+  end)
+
+  it('flags a permission ask waiting for you', function()
+    assert.truthy(winbar.transcript(session({ waiting = { { tool = 'Bash' } } })):find('waiting for you', 1, true))
+    assert.is_nil(winbar.transcript(session({})):find('waiting for you', 1, true))
+  end)
+
   it('shows the hints, the state, the mode and the model', function()
     local text = winbar.transcript(session({ mode = { id = 'plan', name = 'Plan' }, model = { name = 'Sonnet' } }))
 

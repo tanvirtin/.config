@@ -52,4 +52,35 @@ describe('harness.session.Subagents:', function()
 
     eq({}, attached)
   end)
+
+  it('counts the running children and how long the quietest has been silent', function()
+    local Timer = require('core.Timer')
+    local now = Timer.now
+
+    Timer.now = function()
+      return 1000
+    end
+
+    subagents:apply(events.new({ kind = events.KIND.subagent, child = 'c1', state = 'running' }))
+    subagents:apply(events.new({ kind = events.KIND.subagent, child = 'c2', state = 'running' }))
+    subagents:apply(events.new({ kind = events.KIND.subagent, child = 'c3', state = 'idle' }))
+    subagents.children.c1.tool = 't1'
+    subagents.children.c2.tool = 't2'
+    subagents.children.c3.tool = 't3'
+
+    Timer.now = function()
+      return 61000
+    end
+
+    attached.c2.event(events.new({ kind = events.KIND.message, text = 'still here' }))
+
+    Timer.now = function()
+      return 91000
+    end
+
+    local summary = subagents:summary()
+    Timer.now = now
+
+    eq({ active = 2, quiet = 90000 }, summary)
+  end)
 end)

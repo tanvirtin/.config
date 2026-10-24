@@ -155,6 +155,7 @@ Agents describe their settings as ACP config options (`configOptions`: mode, mod
 
 - **Queue.** Sending while the agent works queues the message; queued messages show under the transcript (`· queued …`) and are sent one by one as turns end. Works with any agent.
 - **Steer.** `<C-s>` in the composer injects the message into the running turn when the agent advertises steering (`initialize` `_meta.steering.supported`, `_session/steering`); otherwise it queues. It shows in the turn it steered with a muted `steered` after it, and the turn keeps its clock. Claude takes it within a second, moving a running command to the background. If the turn ended first, the message goes as a normal prompt.
+- **Running agents.** While child sessions run, the transcript winbar shows `N agents`, with `· quiet 2m` once the quietest has sent nothing for 30 seconds (`winbar.QUIET_MS`), and `waiting for you` while a permission ask is open. The transcript's tick timer refreshes it even when no event arrives.
 - **Interrupt.** `<C-c>` in the transcript, or in the composer's normal mode, sends `session/cancel`, answers every open permission request with `cancelled` and closes its prompt, and moves queued messages back into the composer. In the composer's insert mode `<C-c>` only leaves insert mode, so it never cancels a running turn.
 
 ## The composer
