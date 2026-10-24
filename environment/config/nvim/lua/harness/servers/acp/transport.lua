@@ -4,6 +4,8 @@ local jsonrpc = require('harness.servers.acp.jsonrpc')
 
 local transport = {}
 
+transport.CLOSE_TIMEOUT_MS = 1000
+
 function transport.process(cmd, opts)
   opts = opts or {}
 
@@ -69,6 +71,7 @@ function transport.process(cmd, opts)
     pcall(function()
       proc:write(nil)
       proc:kill(15)
+      proc:wait(transport.CLOSE_TIMEOUT_MS)
     end)
   end
 
