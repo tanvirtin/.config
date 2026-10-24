@@ -152,23 +152,63 @@ log(
   math.floor(CHUNKS / 2)
 )
 
-local started = now()
+local RUNS = tonumber(os.getenv('RUNS') or 5)
 
-display.open(session)
+local function median(values)
+  local sorted = vim.deepcopy(values)
+
+  table.sort(sorted)
+
+  return sorted[math.ceil(#sorted / 2)]
+end
+
+local function open_once()
+  local started = now()
+
+  display.open(session)
+
+  local mounted = now()
+
+  vim.cmd('redraw')
+
+  return mounted - started, now() - mounted
+end
+
+local load = (vim.uv.loadavg())
+local cpus = #vim.uv.cpu_info()
+
+if load > cpus / 2 then
+  log('warning: load average %.1f on %d cpus, timings are noisy', load, cpus)
+end
+
+open_once()
+display.forget(session)
+spent = {}
+
+local mounts, shows, totals = {}, {}, {}
+
+for run = 1, RUNS do
+  if run > 1 then
+    display.forget(session)
+    spent = {}
+  end
+
+  local mount, show = open_once()
+
+  mounts[run], shows[run], totals[run] = mount, show, mount + show
+end
 
 local view = display.view_of(session)
-local mounted = now()
 
-vim.cmd('redraw')
-
-local shown = now()
-
-log('open')
+log('open (%d runs after 1 warmup, median / min)', RUNS)
 log(
-  '  mount %.1f ms, show+redraw %.1f ms, total %.1f ms, %d lines',
-  mounted - started,
-  shown - mounted,
-  shown - started,
+  '  mount %.1f / %.1f ms, show+redraw %.1f / %.1f ms, total %.1f / %.1f ms, %d lines',
+  median(mounts),
+  math.min(unpack(mounts)),
+  median(shows),
+  math.min(unpack(shows)),
+  median(totals),
+  math.min(unpack(totals)),
   vim.api.nvim_buf_line_count(view.bufnr)
 )
 report()
