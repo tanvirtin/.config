@@ -7,6 +7,7 @@ local router = lazy('harness.cli.router')
 local settings = lazy('harness.settings')
 local composer = lazy('harness.ui.composer')
 local transcript = lazy('harness.ui.transcript')
+local SkillSync = lazy('harness.features.SkillSync')
 local EditCheckTime = lazy('harness.features.EditCheckTime')
 
 local harness = {}
@@ -43,7 +44,7 @@ local function register_events()
     feature:cleanup()
   end
 
-  features = { EditCheckTime():register_events() }
+  features = { EditCheckTime():register_events(), SkillSync():register_events() }
   composer.register_events()
 end
 
