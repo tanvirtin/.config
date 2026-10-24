@@ -84,6 +84,7 @@ function PromptQueue:steer(text, context)
 
     if taken == false then
       steered.steered = nil
+      if session.log then session.log:reindex() end
       session:_notify({ kind = events.NOTICE.reset })
 
       if session:running() then

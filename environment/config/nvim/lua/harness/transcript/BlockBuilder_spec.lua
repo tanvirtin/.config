@@ -621,6 +621,70 @@ describe('harness.transcript.BlockBuilder:', function()
     end)
   end)
 
+  describe('with a turn index', function()
+    local TurnIndex = require('harness.session.TurnIndex')
+
+    local function history()
+      return {
+        events.prompt('first'),
+        { kind = 'tool_call', id = 'bg', name = 'Bash', status = Block.STATUS.in_progress, diffs = {} },
+        events.stop('end_turn'),
+        events.prompt('second'),
+        { kind = 'message', text = 'working' },
+        { kind = 'tool_update', id = 'bg', status = Block.STATUS.completed, diffs = {} },
+        events.stop('end_turn'),
+        events.prompt('third'),
+        { kind = 'message', text = 'now' },
+      }
+    end
+
+    it('builds what a build without one builds', function()
+      local list = history()
+      local index = TurnIndex():rebuild(list)
+
+      eq(blocks.build(list), blocks.build(list, nil, { index = index }))
+      eq(blocks.build(list, nil, { cache = {} }), blocks.build(list, nil, { cache = {}, index = index }))
+    end)
+
+    it('does not read the events of turns it has cached', function()
+      local list, reads = history(), 0
+
+      for i, event in ipairs(list) do
+        list[i] = setmetatable({}, {
+          __index = function(_, key)
+            if i <= 3 then reads = reads + 1 end
+
+            return event[key]
+          end,
+        })
+      end
+
+      local index, cache = TurnIndex():rebuild(list), {}
+
+      blocks.build(list, nil, { cache = cache, index = index })
+
+      reads = 0
+      blocks.build(list, nil, { cache = cache, index = index })
+
+      eq(0, reads)
+    end)
+
+    it('rebuilds a cached turn when a later turn updates its tool', function()
+      local list, cache = history(), {}
+      local index = TurnIndex():rebuild(list)
+
+      table.remove(list, 6)
+      index:rebuild(list)
+
+      eq(Block.STATUS.in_progress, blocks.build(list, nil, { cache = cache, index = index })[3].status)
+
+      table.insert(list, 6, { kind = 'tool_update', id = 'bg', status = Block.STATUS.completed, diffs = {} })
+      index:rebuild(list)
+
+      eq(Block.STATUS.completed, blocks.build(list, nil, { cache = cache, index = index })[3].status)
+    end)
+  end)
+
   describe('fenced output', function()
     it('shows tool output verbatim inside a fence it cannot close', function()
       local list = blocks.build({

@@ -285,6 +285,7 @@ function TranscriptView:write(history, state)
       dir = session.dir,
       running = state.running,
       cache = self.cache,
+      index = session.log and session.log.turns,
       edits = self.edits,
       groups = true,
       live_turns = not self.expanded and settings.transcript:get('live_turns') or nil,

@@ -80,4 +80,41 @@ describe('harness.session.History:', function()
     eq(1, #history.events)
     eq(false, history:replaying())
   end)
+
+  it('keeps its turn index equal to a scan through appends, adoption and reindexing', function()
+    local TurnIndex = require('harness.session.TurnIndex')
+    local history = History()
+
+    local function same()
+      local scanned = TurnIndex():rebuild(history.events)
+
+      eq(scanned.starts, history.turns.starts)
+      eq(scanned.updates, history.turns.updates)
+      eq(scanned.late, history.turns.late)
+      eq(true, history.turns:fresh(history.events))
+    end
+
+    history:append(user('one'))
+    history:append({ kind = events.KIND.tool_call, id = 'a' })
+    history:append(reply('first'))
+    history:append(reply(' more'))
+    history:append(user('two'))
+    history:append({ kind = events.KIND.tool_update, id = 'a', status = 'completed' })
+    same()
+    eq({ 1, 4 }, history.turns.starts)
+
+    history:begin_replay()
+
+    for _, event in ipairs({ user('one'), reply('first'), user('two'), reply('second'), user('three') }) do
+      history:append(event)
+    end
+
+    history:end_replay(true)
+    same()
+
+    history:append({ kind = events.KIND.prompt, text = 'steer', steered = true })
+    history.events[#history.events].steered = nil
+    history:reindex()
+    same()
+  end)
 end)

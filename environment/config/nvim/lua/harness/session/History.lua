@@ -1,4 +1,5 @@
 local lazy = require('core.lazy')
+local TurnIndex = require('harness.session.TurnIndex')
 
 local Timer = lazy('core.Timer')
 local Object = lazy('core.Object')
@@ -10,7 +11,7 @@ local History = Object:extend()
 History.RELATION = { behind = 'behind', extends = 'extends', diverged = 'diverged' }
 
 function History:constructor()
-  return { events = {}, times = {}, _shadow = nil }
+  return { events = {}, times = {}, turns = TurnIndex(), _shadow = nil }
 end
 
 local function stamp(events_list, times)
@@ -26,10 +27,20 @@ function History:append(event)
     return false
   end
 
+  local before = #self.events
+
   events.append(self.events, event)
   stamp(self.events, self.times)
 
+  if #self.events > before then self.turns:add(self.events, #self.events) end
+
   return true
+end
+
+function History:reindex()
+  self.turns:rebuild(self.events)
+
+  return self
 end
 
 function History:last()
@@ -145,7 +156,11 @@ function History:end_replay(ok)
 
   if not ok or not shadow then return nil end
 
-  return self:_adopt(shadow)
+  local notice = self:_adopt(shadow)
+
+  if notice then self:reindex() end
+
+  return notice
 end
 
 return History

@@ -3,8 +3,8 @@ local Object = require('core.Object')
 local fences = require('core.fences')
 local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
-local EVENT = require('harness.types.events').KIND
 local keymaps = require('harness.settings.keymaps')
+local TurnIndex = require('harness.session.TurnIndex')
 local TurnBuilder = require('harness.transcript.TurnBuilder')
 
 local BlockBuilder = Object:extend()
@@ -229,54 +229,20 @@ function BlockBuilder.lines(list)
   return out
 end
 
-function BlockBuilder:_turn_starts(history)
-  local starts = { 1 }
-
-  for i, event in ipairs(history) do
-    if (event.kind == EVENT.prompt or event.kind == EVENT.user) and not event.steered and i > 1 then
-      starts[#starts + 1] = i
-    end
-  end
-
-  return starts
-end
-
-function BlockBuilder:_invalidate(history, starts)
+function BlockBuilder:_invalidate(index)
   local cache = self.opts.cache
-  local owners = cache.owners or {}
 
-  cache.owners = owners
-
-  for n, from in ipairs(starts) do
-    local to = (starts[n + 1] or #history + 1) - 1
-
-    if not cache[from] then
-      for i = from, to do
-        local event = history[i]
-
-        if event.kind == EVENT.tool_call then
-          owners[event.id] = from
-        elseif event.kind == EVENT.tool_update and owners[event.id] and owners[event.id] ~= from then
-          cache[owners[event.id]] = nil
-        end
-      end
-    end
+  if cache.epoch ~= index.epoch then
+    cache.epoch, cache.late = index.epoch, 0
   end
+
+  for k = cache.late + 1, #index.late do
+    cache[index.late[k]] = nil
+  end
+
+  cache.late = #index.late
 
   return self
-end
-
-function BlockBuilder:_updates(history)
-  local updates = {}
-
-  for i, event in ipairs(history) do
-    if event.kind == EVENT.tool_update then
-      updates[event.id] = updates[event.id] or {}
-      table.insert(updates[event.id], i)
-    end
-  end
-
-  return updates
 end
 
 function BlockBuilder:_collapsed(count)
@@ -293,13 +259,13 @@ end
 function BlockBuilder:run(history, title)
   local opts = self.opts
   local list = { Block.make(Block.KIND.title, { '# ' .. compact.line(title or 'untitled', 200) }) }
-  local starts = self:_turn_starts(history)
+  local index = TurnIndex.of(history, opts.index)
+  local starts, updates = index.starts, index.updates
   local cache = opts.cache
 
-  if cache then self:_invalidate(history, starts) end
+  if cache then self:_invalidate(index) end
   if opts.edits then opts.edits:prime(history) end
 
-  local updates = self:_updates(history)
   local first = 1
 
   if opts.live_turns and #starts > opts.live_turns then
