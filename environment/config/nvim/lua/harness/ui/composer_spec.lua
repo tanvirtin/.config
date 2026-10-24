@@ -469,6 +469,16 @@ describe('harness.ui.composer:', function()
       eq(1, #prompt_ids)
     end)
 
+    it('only leaves insert mode on <C-c> while a turn runs, without cancelling it', function()
+      composer.open(session)
+      press('i<C-c>')
+      vim.wait(100)
+
+      eq('n', vim.api.nvim_get_mode().mode)
+      assert.is_nil(fake:sent_method('session/cancel'))
+      eq(true, session:running())
+    end)
+
     it('takes back queued messages however the turn is interrupted, even from the agent\'s session_cancel', function()
       local notify = vim.notify
       vim.notify = function() end

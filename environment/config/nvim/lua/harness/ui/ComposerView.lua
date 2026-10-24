@@ -258,10 +258,8 @@ function ComposerView:_bind(keys)
     self.on_interrupt(session)
   end, 'Interrupt the running turn')
   element:set_keymap('i', keys.interrupt, function()
-    if session:running() then return self.on_interrupt(session) end
-
     Window.stop_insert()
-  end, 'Interrupt the running turn, or leave insert mode')
+  end, 'Leave insert mode')
 
   for _, mode in ipairs({ 'n', 'i' }) do
     element:set_keymap(mode, keys.cycle_mode, function()
