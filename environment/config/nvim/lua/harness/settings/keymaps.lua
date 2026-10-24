@@ -5,6 +5,7 @@ return Config({
     write = { 'i', 'a', 'o', 'I', 'A', 'O' },
     interrupt = '<C-c>',
     activate = '<CR>',
+    bottom = 'G',
     open = 'gf',
     yank = 'gy',
     next_turn = ']]',

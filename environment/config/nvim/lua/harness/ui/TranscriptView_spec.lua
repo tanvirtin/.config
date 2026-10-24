@@ -45,7 +45,53 @@ describe('harness.ui.TranscriptView:', function()
     view:dispose()
   end)
 
-  it('lands at the bottom when shown, decorating only around where the window lands', function()
+  it('opens empty rows under the newest line only once the stream reaches the bottom of the window', function()
+    local transcript_settings = require('harness.settings.transcript')
+
+    transcript_settings:set('anchor_prompt', false)
+
+    for i = 1, 60 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    local view = TranscriptView(session):mount()
+
+    view:show_in(require('core.Window').get_current())
+
+    local win = vim.api.nvim_get_current_win()
+    local margin =
+      math.min(require('harness.settings.composer'):get('height'), math.floor(vim.api.nvim_win_get_height(win) / 3))
+
+    local function room()
+      local last = vim.api.nvim_buf_line_count(view.bufnr)
+
+      return vim.api.nvim_win_call(win, vim.fn.winsaveview).topline + vim.api.nvim_win_get_height(win) - 1 - last
+    end
+
+    local initial = room()
+
+    assert.is_true(margin > 0)
+    assert.is_true(initial >= margin)
+
+    for i = 1, 20 do
+      session:_emit(events.new({ kind = events.KIND.message, text = 'line ' .. i .. '\n\n' }))
+    end
+
+    view:render()
+    eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
+    assert.is_true(room() >= 0)
+
+    local top = vim.fn.line('w0', win)
+
+    session:_emit(events.new({ kind = events.KIND.message, text = 'one more\n\n' }))
+    view:render()
+    assert.is_true(room() >= 0)
+    assert.is_true(room() >= margin - 3 or vim.fn.line('w0', win) == top)
+    transcript_settings:set('anchor_prompt', true)
+    view:dispose()
+  end)
+
+  it('lands on the last prompt when shown, with its reply below, decorating only around there', function()
     for i = 1, 60 do
       session:_emit(events.prompt('turn ' .. i))
     end
@@ -57,7 +103,7 @@ describe('harness.ui.TranscriptView:', function()
     local win = vim.api.nvim_get_current_win()
     local document = require('harness.ui.Document')
 
-    eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
+    eq(TranscriptView.last_prompt(view.document.blocks).start + 1, vim.api.nvim_win_get_cursor(win)[1])
     eq({}, vim.api.nvim_buf_get_extmarks(view.bufnr, document.NAMESPACE, 0, { 3, 0 }, {}))
     assert.is_true(
       #vim.api.nvim_buf_get_extmarks(
@@ -68,6 +114,53 @@ describe('harness.ui.TranscriptView:', function()
           {}
         ) > 0
     )
+    view:dispose()
+  end)
+
+  it('shows a finished session from its last prompt, and from the end when anchoring is off', function()
+    local transcript_settings = require('harness.settings.transcript')
+
+    for i = 1, 40 do
+      session:_emit(events.prompt('turn ' .. i))
+      session:_emit(events.new({ kind = 'message', text = 'answer ' .. i .. '\n\nmore ' .. i }))
+      session:_emit(events.new({ kind = 'stop', reason = 'end_turn' }))
+    end
+
+    local view = TranscriptView(session):mount()
+    local win = vim.api.nvim_get_current_win()
+
+    view:show_in(require('core.Window').get_current())
+
+    local row = TranscriptView.last_prompt(view.document.blocks).start + 1
+
+    eq(row, vim.api.nvim_win_get_cursor(win)[1])
+    eq(row, vim.fn.line('w0', win))
+
+    transcript_settings:set('anchor_prompt', false)
+    view:show_in(require('core.Window').get_current())
+    eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
+    transcript_settings:set('anchor_prompt', true)
+    view:dispose()
+  end)
+
+  it('lands on the last prompt again when a stored session finishes loading', function()
+    for i = 1, 40 do
+      session:_emit(events.prompt('turn ' .. i))
+      session:_emit(events.new({ kind = 'message', text = 'answer ' .. i .. '\n\nmore ' .. i }))
+    end
+
+    local view = TranscriptView(session):mount()
+    local win = vim.api.nvim_get_current_win()
+
+    view:show_in(require('core.Window').get_current())
+    vim.cmd('normal! G')
+    session:_notify({ kind = events.NOTICE.loaded })
+    view:render()
+
+    local row = TranscriptView.last_prompt(view.document.blocks).start + 1
+
+    eq(row, vim.api.nvim_win_get_cursor(win)[1])
+    eq(row, vim.fn.line('w0', win))
     view:dispose()
   end)
 
@@ -82,9 +175,7 @@ describe('harness.ui.TranscriptView:', function()
     view:show_in(require('core.Window').get_current())
     view:render()
 
-    local last = vim.api.nvim_buf_line_count(view.bufnr)
-
-    eq(last, vim.api.nvim_win_get_cursor(win)[1])
+    eq(TranscriptView.last_prompt(view.document.blocks).start + 1, vim.api.nvim_win_get_cursor(win)[1])
 
     session:_emit(events.prompt('next'))
     view:render()

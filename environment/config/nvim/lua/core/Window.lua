@@ -301,6 +301,14 @@ function Window:scroll_to(placement, offset)
   end)
 end
 
+function Window:scroll_down(rows)
+  if rows < 1 then return self end
+
+  return self:call(function()
+    vim.cmd(string.format('norm! %d\5', rows))
+  end)
+end
+
 function Window:call(callback)
   pcall(vim.api.nvim_win_call, self.win_id, callback)
   return self

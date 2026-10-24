@@ -345,6 +345,12 @@ function Element:set_buf_option(key, value)
   return self
 end
 
+function Element:set_buf_var(key, value)
+  if not self:is_valid() then return self end
+  self._buffer:set_var(key, value)
+  return self
+end
+
 function Element:set_win_option(key, value)
   if not self:is_valid() then return self end
   self._window:set_option(key, value)

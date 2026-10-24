@@ -15,7 +15,7 @@ return {
     version = '*',
     opts = {
       enabled = function()
-        return vim.bo.buftype ~= 'prompt'
+        return vim.bo.buftype ~= 'prompt' and vim.b.completion ~= false
       end,
       keymap = {
         preset = 'none',

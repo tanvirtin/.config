@@ -156,15 +156,32 @@ describe('harness.ui.transcript:', function()
       eq({ '# untitled', '', '> hi', '' }, lines(buf))
     end)
 
-    it('opens with the cursor at the bottom, and keeps it there as the reply streams', function()
+    it('opens on the last prompt, and holds still as the reply streams', function()
+      for i = 1, 30 do
+        session:_emit(events.prompt('earlier ' .. i))
+      end
+
+      local buf = transcript.open(session)
+      local row = vim.api.nvim_win_get_cursor(0)[1]
+
+      eq('> earlier 30', lines(buf)[row])
+
+      session:_emit({ kind = 'message', text = 'streaming\nmore\nlines' })
+      vim.wait(1000, function()
+        return lines(buf)[#lines(buf)] == 'lines'
+      end)
+
+      eq(row, vim.api.nvim_win_get_cursor(0)[1])
+    end)
+
+    it('follows the end once the cursor is there', function()
       for i = 1, 30 do
         session:_emit(events.prompt('earlier ' .. i))
       end
 
       local buf = transcript.open(session)
 
-      eq(vim.api.nvim_buf_line_count(buf), vim.api.nvim_win_get_cursor(0)[1])
-
+      vim.cmd('normal! G')
       session:_emit({ kind = 'message', text = 'streaming\nmore\nlines' })
       vim.wait(1000, function()
         return lines(buf)[#lines(buf)] == 'lines'

@@ -269,6 +269,7 @@ function ComposerView:_bind(keys)
     end, 'Next session mode')
   end
 
+  element:set_buf_var('completion', false)
   element:set_buf_option('omnifunc', ComposerView.OMNIFUNC)
   element:set_keymap('i', keys.slash, self.on_slash, 'Slash commands')
   element:set_keymap('n', keys.close, function()

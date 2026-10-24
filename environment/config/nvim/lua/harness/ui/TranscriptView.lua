@@ -95,6 +95,7 @@ function TranscriptView:constructor(session, opts)
     cache = {},
     edits = session.edits,
     dirty = true,
+    landing = nil,
     scheduled = false,
     disposed = false,
   }
@@ -155,12 +156,36 @@ function TranscriptView:style(window)
 end
 
 function TranscriptView.to_bottom(window)
-  if window:is_valid() then window:set_cursor({ window:get_buffer():get_line_count(), 0 }) end
+  if not window:is_valid() then return end
+
+  window:set_cursor({ window:get_buffer():get_line_count(), 0 })
+
+  local margin = math.min(settings.composer:get('height'), math.floor(window:get_height() / 3))
+
+  if margin > 0 then window:scroll_to('bottom'):scroll_down(margin) end
+end
+
+function TranscriptView.follow(window)
+  if not window:is_valid() then return end
+
+  local top = window:get_visible_range()
+
+  window:set_cursor({ window:get_buffer():get_line_count(), 0 })
+
+  if window:get_visible_range() ~= top then TranscriptView.to_bottom(window) end
 end
 
 function TranscriptView.last_prompt(blocks)
   for i = #blocks, 1, -1 do
     if blocks[i].kind == 'prompt' then return blocks[i] end
+  end
+end
+
+function TranscriptView.land(window, prompt)
+  if prompt and settings.transcript:get('anchor_prompt') then
+    TranscriptView.to_prompt(window, prompt)
+  else
+    TranscriptView.to_bottom(window)
   end
 end
 
@@ -239,13 +264,21 @@ function TranscriptView:render()
 
   if not session:loading() then self.anchored = prompt and prompt.event or self.anchored or 0 end
 
-  if anchor then
+  local landing = self.landing
+
+  if landing ~= nil and not session:loading() then
+    self.landing = nil
+
+    for _, window in ipairs(windows) do
+      if landing == true or landing == window.win_id then TranscriptView.land(window, prompt) end
+    end
+  elseif anchor then
     for _, window in ipairs(windows) do
       TranscriptView.to_prompt(window, prompt)
     end
   else
     for _, window in ipairs(following) do
-      TranscriptView.to_bottom(window)
+      TranscriptView.follow(window)
     end
   end
 
@@ -304,6 +337,7 @@ function TranscriptView:on_event(update)
   if kind == NOTICE.loaded or kind == NOTICE.reset then self.anchored = nil end
 
   if kind == NOTICE.loaded then
+    self.landing = true
     self.cache = {}
     self.edits:reset()
   end
@@ -360,11 +394,13 @@ function TranscriptView:show_in(window)
   self.opening = true
   window:set_buffer(self.buffer)
   self.opening = false
-  TranscriptView.to_bottom(window)
+  self.landing = window.win_id
 
   if self.dirty then
     self:render()
   else
+    self.landing = nil
+    TranscriptView.land(window, TranscriptView.last_prompt(self.document.blocks))
     self.document:decorate_visible()
   end
 end
@@ -689,6 +725,18 @@ function TranscriptView:bindings()
         if not self:activate() then Window.get_current():normal('j') end
       end,
       'Open or fold what is under the cursor',
+    },
+    {
+      keys.bottom,
+      function()
+        local count = keymap.count()
+        local window = Window.get_current()
+
+        if count > 1 then return window:normal(count .. 'G') end
+
+        TranscriptView.to_bottom(window)
+      end,
+      'Go to the end, leaving room under the newest line',
     },
     {
       keys.open,
