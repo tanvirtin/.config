@@ -19,6 +19,18 @@ fields:
   - name: model
     type: string
     required: false
+  - name: server
+    type: string
+    required: false
+  - name: login
+    type: string
+    required: false
+  - name: fork_at_message
+    type: boolean
+    required: false
+  - name: transcripts
+    type: string
+    required: false
   - name: recipe
     type: string
     required: false

@@ -22,6 +22,10 @@ command: []const u8,
 args: []const []const u8 = &.{},
 env: []const mcp_mod.Field = &.{},
 model: ?[]const u8 = null,
+server: ?[]const u8 = null,
+login: ?[]const u8 = null,
+fork_at_message: ?bool = null,
+transcripts: ?[]const u8 = null,
 recipe: ?[]const u8 = null,
 system: ?[]const u8 = null,
 include: []const []const u8 = &.{},
@@ -37,6 +41,10 @@ pub fn parse(allocator: std.mem.Allocator, val: yaml.Value) !Agent {
     agent.args = try mcp_mod.stringSeq(allocator, val, "args");
     if (val.getMapping("env")) |env| agent.env = try mcp_mod.mappingFields(allocator, env);
     agent.model = try mcp_mod.optStringDup(allocator, val, "model");
+    agent.server = try mcp_mod.optStringDup(allocator, val, "server");
+    agent.login = try mcp_mod.optStringDup(allocator, val, "login");
+    if (mcp_mod.optString(val, "fork_at_message")) |flag| agent.fork_at_message = std.mem.eql(u8, flag, "true");
+    agent.transcripts = try mcp_mod.optStringDup(allocator, val, "transcripts");
     agent.recipe = try mcp_mod.optStringDup(allocator, val, "recipe");
     agent.system = try mcp_mod.optStringDup(allocator, val, "system");
     agent.include = try mcp_mod.stringSeq(allocator, val, "include");
@@ -159,6 +167,10 @@ pub fn renderExport(
         try object.put("policy", .{ .object = policy });
 
         if (agent.model) |model| try object.put("model", .{ .string = model });
+        if (agent.server) |server| try object.put("server", .{ .string = server });
+        if (agent.login) |login| try object.put("login", .{ .string = login });
+        if (agent.fork_at_message) |flag| try object.put("fork_at_message", .{ .bool = flag });
+        if (agent.transcripts) |transcripts| try object.put("transcripts", .{ .string = transcripts });
         if (agent.recipe) |recipe| try object.put("recipe", .{ .string = recipe });
 
         try by_id.put(agent.id, .{ .object = object });
@@ -190,6 +202,10 @@ test "parse reads every field" {
         \\env:
         \\  TOKEN: $CLAUDE_TOKEN
         \\model: claude-sonnet-5-5
+        \\server: acp
+        \\login: run `claude auth login` in a terminal
+        \\fork_at_message: true
+        \\transcripts: ~/.claude/projects/*/{id}.jsonl
         \\recipe: claude-code-acp
         \\include: [nvim/editor]
         \\system: "{{ nvim/editor }}"
@@ -201,6 +217,10 @@ test "parse reads every field" {
     try std.testing.expectEqualStrings("--verbose", agent.args[0]);
     try std.testing.expectEqualStrings("TOKEN", agent.env[0].key);
     try std.testing.expectEqualStrings("claude-sonnet-5-5", agent.model.?);
+    try std.testing.expectEqualStrings("acp", agent.server.?);
+    try std.testing.expectEqualStrings("run `claude auth login` in a terminal", agent.login.?);
+    try std.testing.expectEqual(@as(?bool, true), agent.fork_at_message);
+    try std.testing.expectEqualStrings("~/.claude/projects/*/{id}.jsonl", agent.transcripts.?);
     try std.testing.expectEqualStrings("claude-code-acp", agent.recipe.?);
     try std.testing.expectEqualStrings("mem0", agent.mcp[0]);
     try std.testing.expectEqual(@as(?bool, true), agent.policy.auto_allow);
@@ -236,6 +256,32 @@ test "renderExport composes the system prompt from rules" {
     try std.testing.expectEqualStrings("claude-agent-acp", claude.get("command").?.string);
     try std.testing.expect(claude.get("policy").?.object.get("auto_allow").?.bool);
     try std.testing.expectEqualStrings("claude-sonnet-5-5", claude.get("model").?.string);
+}
+
+test "renderExport carries the server, login, fork and transcripts fields" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const agents = [_]Agent{.{
+        .id = "opencode",
+        .description = "d",
+        .command = "opencode",
+        .args = &.{"acp"},
+        .model = "opencode/deepseek-v4.1-flash",
+        .server = "acp",
+        .login = "run `opencode auth login` in a terminal",
+        .fork_at_message = true,
+        .transcripts = "~/.local/share/opencode/{id}.json",
+    }};
+
+    const json = try renderExport(a, &agents, &.{}, &.{}, null);
+    const parsed = try std.json.parseFromSlice(std.json.Value, a, json, .{});
+    const opencode = parsed.value.object.get("agents").?.object.get("opencode").?.object;
+
+    try std.testing.expectEqualStrings("acp", opencode.get("server").?.string);
+    try std.testing.expectEqualStrings("run `opencode auth login` in a terminal", opencode.get("login").?.string);
+    try std.testing.expect(opencode.get("fork_at_message").?.bool);
+    try std.testing.expectEqualStrings("~/.local/share/opencode/{id}.json", opencode.get("transcripts").?.string);
 }
 
 test "renderExport hands MCP servers over in ACP shape, secrets as variable names" {
