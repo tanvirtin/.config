@@ -45,10 +45,6 @@ function display.window()
   end
 end
 
-function display.to_bottom(win)
-  TranscriptView.to_bottom(Window(win))
-end
-
 local function create(session, opts)
   local view = TranscriptView(session, opts)
 

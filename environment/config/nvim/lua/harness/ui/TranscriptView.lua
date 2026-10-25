@@ -25,7 +25,9 @@ local Block = lazy('harness.transcript.Block')
 local theme = lazy('harness.transcript.theme')
 local Document = require('harness.ui.Document')
 local PlanPanel = require('harness.ui.PlanPanel')
+local Following = require('harness.ui.Following')
 local code_blocks = lazy('harness.ui.code_blocks')
+local sticky_bottom = require('harness.ui.sticky_bottom')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 local Layout = require('harness.transcript.calculators.Layout')
 local permission_prompt = require('harness.ui.permission_prompt')
@@ -96,6 +98,7 @@ function TranscriptView:constructor(session, opts)
     edits = session.edits,
     dirty = true,
     landing = nil,
+    following = Following(TranscriptView.reserve),
     scheduled = false,
     disposed = false,
   }
@@ -155,37 +158,9 @@ function TranscriptView:style(window)
   end
 end
 
-function TranscriptView.to_bottom(window)
-  if not window:is_valid() then return end
-
-  window:set_cursor({ window:get_buffer():get_line_count(), 0 })
-
-  local margin = math.min(settings.composer:get('height'), math.floor(window:get_height() / 3))
-
-  if margin > 0 then window:scroll_to('bottom'):scroll_down(margin) end
-end
-
-function TranscriptView.follow(window)
-  if not window:is_valid() then return end
-
-  local top = window:get_visible_range()
-
-  window:set_cursor({ window:get_buffer():get_line_count(), 0 })
-
-  if window:get_visible_range() ~= top then TranscriptView.to_bottom(window) end
-end
-
 function TranscriptView.last_prompt(blocks)
   for i = #blocks, 1, -1 do
     if blocks[i].kind == 'prompt' then return blocks[i] end
-  end
-end
-
-function TranscriptView.land(window, prompt)
-  if prompt and settings.transcript:get('anchor_prompt') then
-    TranscriptView.to_prompt(window, prompt)
-  else
-    TranscriptView.to_bottom(window)
   end
 end
 
@@ -233,13 +208,68 @@ function TranscriptView:render()
   local session = self.session
   local last = self.buffer:get_line_count()
   local windows = self:windows()
-  local following = vim.tbl_filter(function(window)
-    return window:get_cursor()[1] >= last
-  end, windows)
+  local loading = session:loading()
+  local tails = {}
+
+  for _, window in ipairs(windows) do
+    if not loading and self.following:follows(window) then tails[#tails + 1] = { window, window:get_cursor()[1] >= last } end
+  end
+
   local state = self:state()
 
+  if not loading or #self.document.blocks == 0 then
+    self:write(loading and {} or session.history, state)
+  else
+    self.document:tick(state)
+  end
+
+  for _, window in ipairs(windows) do
+    self:set_winbar(window)
+  end
+
+  local prompt = TranscriptView.last_prompt(self.document.blocks)
+  local anchor = prompt
+    and self.anchored ~= nil
+    and prompt.event ~= self.anchored
+    and not loading
+    and settings.transcript:get('anchor_prompt')
+
+  if not loading then self.anchored = prompt and prompt.event or self.anchored or 0 end
+
+  local landing = self.landing
+
+  if landing ~= nil and not loading then
+    self.landing = nil
+
+    for _, window in ipairs(windows) do
+      if landing == true or landing == window.win_id then self:land(window) end
+    end
+  elseif anchor then
+    for _, tail in ipairs(tails) do
+      TranscriptView.to_prompt(tail[1], prompt)
+    end
+  else
+    for _, tail in ipairs(tails) do
+      self.following:glide(tail[1], tail[2])
+    end
+  end
+
+  self.following:track(windows)
+  self:settle()
+  self:update_plan()
+
+  if (state.running or state.loading or next(state.active)) and not self.timer:is_active() then
+    self.timer:every(settings.transcript:get('tick_ms'), function()
+      self:tick()
+    end)
+  end
+end
+
+function TranscriptView:write(history, state)
+  local session = self.session
+
   self.document:write(
-    BlockBuilder.build(session.history, session.title, {
+    BlockBuilder.build(history, session.title, {
       times = session.times,
       dir = session.dir,
       running = state.running,
@@ -250,45 +280,32 @@ function TranscriptView:render()
     }),
     state
   )
+end
 
-  for _, window in ipairs(windows) do
-    self:set_winbar(window)
-  end
+function TranscriptView.reserve(window)
+  if composer.is_open() then return 0 end
 
-  local prompt = TranscriptView.last_prompt(self.document.blocks)
-  local anchor = prompt
-    and self.anchored ~= nil
-    and prompt.event ~= self.anchored
-    and not session:loading()
-    and settings.transcript:get('anchor_prompt')
+  return sticky_bottom.margin(window)
+end
 
-  if not session:loading() then self.anchored = prompt and prompt.event or self.anchored or 0 end
+function TranscriptView:keep_end()
+  if not self.session:loading() then self.following:keep_end(self:windows()) end
+end
 
-  local landing = self.landing
+function TranscriptView:hold_end()
+  if not self.session:loading() then self.following:hold_end(self:windows()) end
+end
 
-  if landing ~= nil and not session:loading() then
-    self.landing = nil
+function TranscriptView:settle()
+  if self.settling then return end
 
-    for _, window in ipairs(windows) do
-      if landing == true or landing == window.win_id then TranscriptView.land(window, prompt) end
-    end
-  elseif anchor then
-    for _, window in ipairs(windows) do
-      TranscriptView.to_prompt(window, prompt)
-    end
-  else
-    for _, window in ipairs(following) do
-      TranscriptView.follow(window)
-    end
-  end
+  self.settling = true
 
-  self:update_plan()
+  Timer.schedule(function()
+    self.settling = false
 
-  if (state.running or state.loading or next(state.active)) and not self.timer:is_active() then
-    self.timer:every(settings.transcript:get('tick_ms'), function()
-      self:tick()
-    end)
-  end
+    if not self.disposed and self.buffer:is_valid() then self:keep_end() end
+  end)
 end
 
 function TranscriptView:_step()
@@ -378,11 +395,33 @@ function TranscriptView:on_show()
 
   if self.opening then return end
 
-  if self.dirty then
+  local window = Window.get_current()
+
+  if self.following:arrive(window) ~= false then
+    self:enter(window)
+  elseif self.dirty then
     self:render()
   else
     self.document:decorate_visible()
   end
+end
+
+function TranscriptView:enter(window)
+  self.landing = window.win_id
+
+  if self.dirty then
+    self:render()
+  else
+    self.landing = nil
+    self:land(window)
+  end
+end
+
+function TranscriptView:land(window)
+  self.following:land(window, function()
+    self.document:decorate_visible()
+  end)
+  self:settle()
 end
 
 function TranscriptView:expand()
@@ -399,15 +438,7 @@ function TranscriptView:show_in(window)
   self.opening = true
   window:set_buffer(self.buffer)
   self.opening = false
-  self.landing = window.win_id
-
-  if self.dirty then
-    self:render()
-  else
-    self.landing = nil
-    TranscriptView.land(window, TranscriptView.last_prompt(self.document.blocks))
-    self.document:decorate_visible()
-  end
+  self:enter(window)
 end
 
 function TranscriptView:map(lhs, callback, desc, opts)
@@ -739,7 +770,7 @@ function TranscriptView:bindings()
 
         if count > 1 then return window:normal(count .. 'G') end
 
-        TranscriptView.to_bottom(window)
+        self:land(window)
       end,
       'Go to the end, leaving room under the newest line',
     },
@@ -906,6 +937,9 @@ function TranscriptView:mount(callbacks)
   self.unsubscribe = self.session:subscribe(function(update)
     self:on_event(update)
   end)
+  self.unwatch = settings.composer:on_change(function()
+    if not self.disposed then self:keep_end() end
+  end)
 
   self.group = event.augroup('harness.transcript.' .. self.bufnr)
   self.group.on('BufWinEnter', function()
@@ -915,12 +949,22 @@ function TranscriptView:mount(callbacks)
     for _, window in ipairs(self:windows()) do
       self:set_winbar(window)
     end
+
+    self.following:track(self:windows())
+  end)
+  self.group.on('WinClosed', function(args)
+    local win_id = tonumber(args.match)
+
+    if win_id then self.following:forget(win_id) end
   end)
   self.group.on({ 'WinResized', 'TabEnter' }, function()
     self.document:resize()
+    self:hold_end()
     self:update_plan()
   end)
   self.group.on('BufWinLeave', function()
+    self.following:track(self:windows())
+
     Timer.schedule(function()
       if not self.disposed then self:update_plan() end
     end)
@@ -950,6 +994,7 @@ function TranscriptView:dispose()
   self.disposed = true
 
   if self.unsubscribe then self.unsubscribe() end
+  if self.unwatch then self.unwatch() end
 
   follow.stop(self.session)
   self.plan:hide()

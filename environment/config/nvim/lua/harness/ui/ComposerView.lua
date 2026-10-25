@@ -47,6 +47,7 @@ function ComposerView:constructor(session, store, callbacks)
     source = {},
     on_send = callbacks.on_send,
     on_slash = callbacks.on_slash,
+    on_model = callbacks.on_model,
     on_interrupt = callbacks.on_interrupt,
     on_close = callbacks.on_close,
     on_wipe = callbacks.on_wipe,
@@ -55,6 +56,12 @@ end
 
 function ComposerView:is_open()
   return self.element ~= nil and self.element:is_valid()
+end
+
+ComposerView.WINBAR_ROWS = 1
+
+function ComposerView.footprint()
+  return settings.composer:get('height') + ComposerView.WINBAR_ROWS + Window.split_rows()
 end
 
 function ComposerView:lines()
@@ -108,6 +115,7 @@ function ComposerView:winbar()
 
   if #session.commands > 0 then parts[#parts + 1] = self:_key(keys.slash, 'commands') end
   if session:mode() then parts[#parts + 1] = self:_key(keys.cycle_mode, 'mode') end
+  if session:option('model') then parts[#parts + 1] = self:_key(keys.model, 'model') end
   if store:has_attachments(session.key) then parts[#parts + 1] = self:_key(keys.detach, 'drop selection') end
   parts[#parts + 1] = self:_key(keys.close, 'close')
 
@@ -266,6 +274,10 @@ function ComposerView:_bind(keys)
       session:cycle_mode()
     end, 'Next session mode')
   end
+
+  element:set_keymap('n', keys.model, function()
+    self.on_model(session)
+  end, 'Session model')
 
   element:set_buf_var('completion', false)
   element:set_buf_option('omnifunc', ComposerView.OMNIFUNC)

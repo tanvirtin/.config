@@ -31,6 +31,21 @@ function Window.redraw_bars()
   vim.cmd('redrawstatus!')
 end
 
+function Window.split_rows()
+  local status = vim.o.laststatus
+
+  if status == 0 then return 0 end
+  if status ~= 1 then return 1 end
+
+  local tiled = 0
+
+  for _, win_id in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_get_config(win_id).relative == '' then tiled = tiled + 1 end
+  end
+
+  return tiled == 1 and 2 or 1
+end
+
 function Window.list()
   return vim.tbl_map(Window, vim.api.nvim_list_wins())
 end
@@ -187,6 +202,12 @@ function Window:get_height()
   return vim.api.nvim_win_get_height(self.win_id)
 end
 
+function Window:get_text_height(first, last)
+  local ok, height = pcall(vim.api.nvim_win_text_height, self.win_id, { start_row = first, end_row = last })
+
+  return ok and height.all or last - first + 1
+end
+
 function Window:get_width()
   return vim.api.nvim_win_get_width(self.win_id)
 end
@@ -298,6 +319,20 @@ function Window:scroll_to(placement, offset)
     local cmd = scroll_commands[placement]
     if cmd then vim.cmd(cmd) end
     if offset > 0 then vim.cmd(string.format('norm! %d\25', offset)) end
+  end)
+end
+
+function Window:set_top(lnum)
+  return self:call(function()
+    vim.fn.winrestview({ topline = lnum })
+  end)
+end
+
+function Window:scroll_up(rows)
+  if rows < 1 then return self end
+
+  return self:call(function()
+    vim.cmd(string.format('norm! %d\25', rows))
   end)
 end
 

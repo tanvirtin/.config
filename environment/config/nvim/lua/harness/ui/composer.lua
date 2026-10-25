@@ -3,6 +3,7 @@ local lazy = require('core.lazy')
 local Window = lazy('core.Window')
 local keymap = lazy('core.keymap')
 local console = lazy('core.console')
+local display = lazy('harness.ui.display')
 local session_store = lazy('harness.session_store')
 local ComposerView = lazy('harness.ui.ComposerView')
 local NOTICE = require('harness.types.events').NOTICE
@@ -80,6 +81,12 @@ function composer.interrupt(session)
   return session:cancel()
 end
 
+function composer.model(session)
+  local view = session and display.view_of(session)
+
+  if view then view:pick_model() end
+end
+
 function composer.slash()
   local session = current and current.session
   local complete = session ~= nil and #session.commands > 0 and Window.get_current():get_cursor()[2] == 0
@@ -109,6 +116,7 @@ function composer.open(session, opts)
   current = ComposerView(session, store, {
     on_interrupt = composer.interrupt,
     on_slash = composer.slash,
+    on_model = composer.model,
     on_close = release,
     on_wipe = release,
   }):mount(opts.insert)

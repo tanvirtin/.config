@@ -16,7 +16,6 @@ transcript.view_of = display.view_of
 transcript.buffer_of = display.buffer_of
 transcript.last = display.last
 transcript.window = display.window
-transcript.to_bottom = display.to_bottom
 transcript.open = display.open
 transcript.forget = display.forget
 transcript.winbar = winbar.transcript

@@ -33,6 +33,7 @@ return Config({
     steer = '<C-s>',
     interrupt = '<C-c>',
     cycle_mode = '<S-Tab>',
+    model = 'gm',
     slash = '/',
     close = 'q',
     detach = '<C-x>',
