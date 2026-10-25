@@ -243,4 +243,23 @@ describe('Config:', function()
       })
     end)
   end)
+
+  describe('on_change', function()
+    it('tells listeners after set and assign, until they unsubscribe', function()
+      local config = Config({ height = 6 })
+      local calls = 0
+      local stop = config:on_change(function()
+        calls = calls + 1
+      end)
+
+      config:set('height', 8)
+      config:assign({ height = 10 })
+      eq(2, calls)
+
+      stop()
+      config:set('height', 4)
+      eq(2, calls)
+      eq({ data = { height = 4 } }, config)
+    end)
+  end)
 end)

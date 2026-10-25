@@ -6,6 +6,8 @@ local console = lazy('core.console')
 
 local Config = Object:extend()
 
+local listeners = setmetatable({}, { __mode = 'k' })
+
 function Config:constructor(state)
   assert(type(state) == 'nil' or type(state) == 'table', 'type error :: expected table or nil')
 
@@ -27,8 +29,24 @@ function Config:set(key, value)
   end
 
   self.data[key] = value
+  self:_changed()
 
   return self
+end
+
+function Config:on_change(callback)
+  listeners[self] = listeners[self] or {}
+  listeners[self][callback] = true
+
+  return function()
+    if listeners[self] then listeners[self][callback] = nil end
+  end
+end
+
+function Config:_changed()
+  for callback in pairs(listeners[self] or {}) do
+    callback(self)
+  end
 end
 
 function Config:assign(config)
@@ -43,6 +61,8 @@ function Config:assign(config)
       self.data[key] = value
     end
   end
+
+  self:_changed()
 
   return self.data
 end
