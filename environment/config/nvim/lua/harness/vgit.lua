@@ -281,17 +281,20 @@ function vgit.split(file, opts)
 
   local fits, width = {}, 0
 
-  for r, range in ipairs(ranges) do
-    local needed = range_width(cells, range)
-
-    fits[r] = not limit or needed <= limit
-    if fits[r] then width = math.max(width, needed) end
+  if limit then
+    width = limit
+  else
+    for _, range in ipairs(ranges) do
+      width = math.max(width, range_width(cells, range))
+    end
   end
 
-  if limit then
-    if overflow == 'unified' and not vim.tbl_contains(fits, true) then return nil end
+  if limit and overflow == 'unified' then
+    for r, range in ipairs(ranges) do
+      fits[r] = range_width(cells, range) <= limit
+    end
 
-    width = limit
+    if not vim.tbl_contains(fits, true) then return nil end
   end
 
   for r, range in ipairs(ranges) do
@@ -300,7 +303,7 @@ function vgit.split(file, opts)
       out.rows[#out.rows + 1] = { kind = 'hunk' }
     end
 
-    if fits[r] or overflow ~= 'unified' then
+    if overflow ~= 'unified' or not limit or fits[r] then
       for i = range[1], range[2] do
         split_row(out, cells[i], width, digits)
       end

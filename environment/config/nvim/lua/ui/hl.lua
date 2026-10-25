@@ -99,6 +99,12 @@ end
 
 local SURFACE = 0.12
 
+local function number(group, fallback)
+  return function()
+    return { fg = color(group, 'fg') or color(fallback, 'fg') }
+  end
+end
+
 hl.COMPUTED = {
   UiMarkdownCode = shade(SURFACE, 'ColorColumn'),
   UiToolOutput = function()
@@ -112,15 +118,9 @@ hl.COMPUTED = {
 
     return { fg = hl.blend(foreground, background, 0.16) }
   end,
-  UiDiffNumber = function()
-    return { fg = color('GitLineNr', 'fg') or color('LineNr', 'fg') or color('Normal', 'fg') }
-  end,
-  UiDiffAddNumber = function()
-    return { fg = color('GitSignsAdd', 'fg') or color('Added', 'fg') }
-  end,
-  UiDiffDeleteNumber = function()
-    return { fg = color('GitSignsDelete', 'fg') or color('Removed', 'fg') }
-  end,
+  UiDiffNumber = number('GitLineNr', 'LineNr'),
+  UiDiffAddNumber = number('GitSignsAdd', 'Added'),
+  UiDiffDeleteNumber = number('GitSignsDelete', 'Removed'),
   UiPromptBar = function()
     return { fg = color('UiAccent', 'fg'), bold = true }
   end,
