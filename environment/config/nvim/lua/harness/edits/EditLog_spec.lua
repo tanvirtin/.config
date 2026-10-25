@@ -100,7 +100,9 @@ describe('harness.edits.EditLog:', function()
     end):get({ path = '/a.lua', old = 'local x = 1', new = 'local x = 2' }, 't:1', true)
     local expected = {}
 
-    for _, hl in ipairs(require('vgit.api').patch({ edit.file }, { header = false, context = 3 }).highlights) do
+    for _, hl in
+      ipairs(require('vgit.api').patch({ edit.file }, { header = false, context = 3, syntax = true }).highlights)
+    do
       if hl.syntax then
         expected[#expected + 1] =
           { row = hl.row, col_start = hl.col_start, col_end = hl.col_end, hl_group = hl.hl_group }

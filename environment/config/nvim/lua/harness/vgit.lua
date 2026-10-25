@@ -105,8 +105,8 @@ end
 
 local function cells_of(diff, numbers)
   local previous, current = diff.previous_lines or {}, diff.current_lines or {}
-  local previous_changes = changes_for(diff.lnum_changes, 'previous')
-  local current_changes = changes_for(diff.lnum_changes, 'current')
+  local previous_changes = changes_for(diff.changes, 'previous')
+  local current_changes = changes_for(diff.changes, 'current')
   local digits = math.max(1, #tostring(math.max(#previous, 1)), #tostring(math.max(#current, 1)))
   local cells, old, new = {}, 1, 1
 
@@ -128,8 +128,6 @@ local function cells_of(diff, numbers)
     cells[i] = {
       left = numbered(digits, numbers and old_lnum) .. (previous[i] or ''),
       right = numbered(digits, numbers and new_lnum) .. (current[i] or ''),
-      old_text = previous[i] or '',
-      new_text = current[i] or '',
       old_change = previous_changes[i],
       new_change = current_changes[i],
       ptype = ptype,
@@ -156,13 +154,23 @@ local function range_width(cells, range)
   return width
 end
 
-local function add_word(out, row, offset, change, line)
-  local overlay = api.words(change, line)
+local function words_by_change(words)
+  local map = {}
 
-  if overlay then out.words[#out.words + 1] = { row = row, col = offset + overlay.col, texts = overlay.texts } end
+  for _, word in ipairs(words or {}) do
+    map[word.buftype .. ':' .. word.lnum] = word
+  end
+
+  return map
 end
 
-local function split_row(out, cell, width, digits)
+local function add_word(out, row, offset, change, words)
+  local word = change and words[change.buftype .. ':' .. change.lnum]
+
+  if word then out.words[#out.words + 1] = { row = row, col = offset + word.col, texts = word.texts } end
+end
+
+local function split_row(out, cell, width, digits, words)
   local row = #out.lines
   local left = padded(text.truncate(cell.left, width), width)
   local right = padded(text.truncate(cell.right, width), width)
@@ -206,11 +214,11 @@ local function split_row(out, cell, width, digits)
     highlights[#highlights + 1] = { row = row, col_start = right_col, col_end = #line, hl_group = right_bg }
   end
 
-  if cell.old_lnum then add_word(out, row, digits + 1, cell.old_change, cell.old_text) end
-  if cell.new_lnum then add_word(out, row, right_col + digits + 1, cell.new_change, cell.new_text) end
+  if cell.old_lnum then add_word(out, row, digits + 1, cell.old_change, words) end
+  if cell.new_lnum then add_word(out, row, right_col + digits + 1, cell.new_change, words) end
 end
 
-local function unified_row(out, cell, kind, digits)
+local function unified_row(out, cell, kind, digits, words)
   local row = #out.lines
   local old = kind == 'remove'
   local line = old and cell.left or cell.right
@@ -233,18 +241,18 @@ local function unified_row(out, cell, kind, digits)
   end
 
   if old then
-    add_word(out, row, digits + 1, cell.old_change, cell.old_text)
+    add_word(out, row, digits + 1, cell.old_change, words)
   elseif kind == 'add' then
-    add_word(out, row, digits + 1, cell.new_change, cell.new_text)
+    add_word(out, row, digits + 1, cell.new_change, words)
   end
 end
 
-local function unified_range(out, cells, range, digits)
+local function unified_range(out, cells, range, digits, words)
   local i = range[1]
 
   while i <= range[2] do
     if context(cells[i]) then
-      unified_row(out, cells[i], 'context', digits)
+      unified_row(out, cells[i], 'context', digits, words)
       i = i + 1
     else
       local j = i
@@ -254,11 +262,11 @@ local function unified_range(out, cells, range, digits)
       end
 
       for k = i, j - 1 do
-        if cells[k].ptype == 'remove' then unified_row(out, cells[k], 'remove', digits) end
+        if cells[k].ptype == 'remove' then unified_row(out, cells[k], 'remove', digits, words) end
       end
 
       for k = i, j - 1 do
-        if cells[k].ctype == 'add' then unified_row(out, cells[k], 'add', digits) end
+        if cells[k].ctype == 'add' then unified_row(out, cells[k], 'add', digits, words) end
       end
 
       i = j
@@ -267,10 +275,11 @@ local function unified_range(out, cells, range, digits)
 end
 
 function vgit.split(file, opts)
-  local diff = api.diff(file.old_lines or {}, file.new_lines or {}, { layout = 'split' })
+  local diff = api.diff(file.old_lines or {}, file.new_lines or {}, { layout = 'split', groups = true })
   local cells, digits = cells_of(diff, opts.numbers ~= false)
   local ranges = visible(diff.marks, #cells, opts.context or api.CONTEXT)
   local out = { layout = 'split', lines = {}, rows = {}, highlights = {}, words = {}, voids = {}, stat = diff.stat }
+  local words = words_by_change(diff.words)
   local overflow = opts.overflow or 'truncate'
 
   if #ranges == 0 then return out end
@@ -305,10 +314,10 @@ function vgit.split(file, opts)
 
     if overflow ~= 'unified' or not limit or fits[r] then
       for i = range[1], range[2] do
-        split_row(out, cells[i], width, digits)
+        split_row(out, cells[i], width, digits, words)
       end
     else
-      unified_range(out, cells, range, digits)
+      unified_range(out, cells, range, digits, words)
     end
   end
 
@@ -324,11 +333,11 @@ function vgit.patch(file, opts)
     if split then return split end
   end
 
-  return api.patch({ file }, vim.tbl_extend('force', { syntax = false }, opts))
+  return api.patch({ file }, vim.tbl_extend('force', { syntax = false, groups = true }, opts))
 end
 
 function vgit.stat(file)
-  return api.diff(file.old_lines, file.new_lines).stat or { added = 0, removed = 0 }
+  return api.diff(file.old_lines, file.new_lines, { words = false }).stat or { added = 0, removed = 0 }
 end
 
 function vgit.patch_text(file, opts)
