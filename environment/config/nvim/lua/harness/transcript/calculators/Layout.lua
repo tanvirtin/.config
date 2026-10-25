@@ -130,6 +130,8 @@ function Layout.signature(block)
     tostring(block.nested),
     tostring(block.last_child),
     tostring(block.tight),
+    tostring(block.frame_top),
+    tostring(block.frame_bottom),
     tostring(block.denied),
     tostring(block.interrupted),
   }, ':')

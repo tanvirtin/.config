@@ -44,6 +44,7 @@ TranscriptView.WINDOW_OPTIONS = {
   breakindentopt = 'list:-1',
   number = false,
   relativenumber = false,
+  list = false,
   conceallevel = 2,
   concealcursor = '',
   foldmethod = 'expr',
@@ -95,6 +96,7 @@ function TranscriptView:constructor(session, opts)
     plan = PlanPanel(),
     frame = 1,
     cache = {},
+    layout = nil,
     edits = session.edits,
     dirty = true,
     landing = nil,
@@ -158,19 +160,6 @@ function TranscriptView:style(window)
   end
 end
 
-function TranscriptView.last_prompt(blocks)
-  for i = #blocks, 1, -1 do
-    if blocks[i].kind == 'prompt' then return blocks[i] end
-  end
-end
-
-function TranscriptView.to_prompt(window, prompt)
-  if not window:is_valid() then return end
-
-  window:set_cursor({ prompt.start + 1, 0 })
-  window:scroll_to('top')
-end
-
 TranscriptView.ACTIVE = require('harness.session.Subagents').ACTIVE
 
 function TranscriptView.active_subagents(session)
@@ -212,7 +201,9 @@ function TranscriptView:render()
   local tails = {}
 
   for _, window in ipairs(windows) do
-    if not loading and self.following:follows(window) then tails[#tails + 1] = { window, window:get_cursor()[1] >= last } end
+    if not loading and self.following:follows(window) then
+      tails[#tails + 1] = { window, window:get_cursor()[1] >= last }
+    end
   end
 
   local state = self:state()
@@ -227,15 +218,6 @@ function TranscriptView:render()
     self:set_winbar(window)
   end
 
-  local prompt = TranscriptView.last_prompt(self.document.blocks)
-  local anchor = prompt
-    and self.anchored ~= nil
-    and prompt.event ~= self.anchored
-    and not loading
-    and settings.transcript:get('anchor_prompt')
-
-  if not loading then self.anchored = prompt and prompt.event or self.anchored or 0 end
-
   local landing = self.landing
 
   if landing ~= nil and not loading then
@@ -243,10 +225,6 @@ function TranscriptView:render()
 
     for _, window in ipairs(windows) do
       if landing == true or landing == window.win_id then self:land(window) end
-    end
-  elseif anchor then
-    for _, tail in ipairs(tails) do
-      TranscriptView.to_prompt(tail[1], prompt)
     end
   else
     for _, tail in ipairs(tails) do
@@ -265,8 +243,22 @@ function TranscriptView:render()
   end
 end
 
+function TranscriptView:diff_layout()
+  local layout = vgit.layout(settings.transcript:get('diff_layout'))
+
+  if layout ~= 'split' then return layout end
+
+  return layout .. ':' .. tostring(self.document:text_width())
+end
+
 function TranscriptView:write(history, state)
   local session = self.session
+  local layout = self:diff_layout()
+
+  if layout ~= self.layout then
+    self.cache = {}
+    self.layout = layout
+  end
 
   self.document:write(
     BlockBuilder.build(history, session.title, {
@@ -277,6 +269,7 @@ function TranscriptView:write(history, state)
       edits = self.edits,
       groups = true,
       live_turns = not self.expanded and settings.transcript:get('live_turns') or nil,
+      width = self.document:text_width(),
     }),
     state
   )
@@ -356,8 +349,6 @@ function TranscriptView:on_event(update)
   if kind == EVENT.title then pcall(self.buffer.set_name, self.buffer, TranscriptView.buffer_name(self.session)) end
   if kind == NOTICE.reset then self.cache = {} end
 
-  if kind == NOTICE.loaded or kind == NOTICE.reset then self.anchored = nil end
-
   if kind == NOTICE.loaded then
     self.landing = true
     self.cache = {}
@@ -365,6 +356,10 @@ function TranscriptView:on_event(update)
   end
   if kind == NOTICE.waiting then self:announce_waiting() end
 
+  self:schedule()
+end
+
+function TranscriptView:schedule()
   self.dirty = true
 
   if self.scheduled then return end
@@ -392,6 +387,8 @@ function TranscriptView:on_show()
     self.document:reset()
     self.dirty = true
   end
+
+  if self:diff_layout() ~= self.layout then self.dirty = true end
 
   if self.opening then return end
 
@@ -941,6 +938,10 @@ function TranscriptView:mount(callbacks)
     if not self.disposed then self:keep_end() end
   end)
 
+  local function relayout()
+    if not self.disposed and self:diff_layout() ~= self.layout then self:schedule() end
+  end
+
   self.group = event.augroup('harness.transcript.' .. self.bufnr)
   self.group.on('BufWinEnter', function()
     self:on_show()
@@ -961,6 +962,7 @@ function TranscriptView:mount(callbacks)
     self.document:resize()
     self:hold_end()
     self:update_plan()
+    relayout()
   end)
   self.group.on('BufWinLeave', function()
     self.following:track(self:windows())

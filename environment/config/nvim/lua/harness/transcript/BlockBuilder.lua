@@ -172,6 +172,39 @@ function BlockBuilder.tighten(list)
   return list
 end
 
+function BlockBuilder.artifact(block)
+  if block.kind == Block.KIND.diff then return true end
+
+  return block.kind == Block.KIND.tool and #block.lines > 1
+end
+
+function BlockBuilder.frame(list)
+  local open
+
+  for i, block in ipairs(list) do
+    local after = list[i + 1]
+    local heads_diff = block.kind == Block.KIND.tool
+      and after ~= nil
+      and after.kind == Block.KIND.diff
+      and after.attached == true
+
+    block.frame_top, block.frame_bottom = nil, nil
+
+    if block.kind == Block.KIND.diff and block.attached and open then
+      open.frame_bottom = nil
+      block.frame_bottom = true
+      open = block
+    elseif BlockBuilder.artifact(block) or heads_diff then
+      block.frame_top, block.frame_bottom = true, true
+      open = block
+    else
+      open = nil
+    end
+  end
+
+  return list
+end
+
 function BlockBuilder.lines(list)
   local out, n = {}, 0
 
@@ -295,7 +328,7 @@ function BlockBuilder:run(history, title)
     vim.list_extend(list, turn)
   end
 
-  return BlockBuilder.tighten(list)
+  return BlockBuilder.frame(BlockBuilder.tighten(list))
 end
 
 function BlockBuilder.build(history, title, opts)

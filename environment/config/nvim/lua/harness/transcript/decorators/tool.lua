@@ -2,7 +2,10 @@ local text = require('core.text')
 local MarkSpec = require('ui.MarkSpec')
 local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
+local output_style = require('harness.transcript.output_style')
 local context = require('harness.transcript.decorators.context')
+
+local OUTPUT_PRIORITY = 120
 
 local function count_lines(output)
   local trimmed = (output or ''):gsub('%s+$', '')
@@ -108,6 +111,8 @@ return function(block, ctx)
   local verb = verb_of(block)
   local hidden = 3 + #block.name + (block.argument and 1 or 0)
 
+  if block.category == Block.CATEGORY.execute then MarkSpec.add(out, row, 0, { line_hl_group = 'UiTerminal' }) end
+
   MarkSpec.add(out, row, 0, { end_col = math.min(hidden, #block.lines[1]), conceal = '' })
   MarkSpec.add(out, row, 0, { virt_text = { icon, { verb, 'UiToolName' } }, virt_text_pos = 'inline' })
 
@@ -126,12 +131,23 @@ return function(block, ctx)
 
   if #block.lines > 1 then
     local failed = block.status == Block.STATUS.failed
+    local plain = not block.ansi and not failed and not block.lang
 
     for body_row = row + 2, block.start + #block.lines - 2 do
-      MarkSpec.add(out, body_row, 0, { virt_text = { { theme.GUTTER, 'UiMuted' } }, virt_text_pos = 'inline' })
-
-      if failed then
+      if failed and not block.ansi then
         MarkSpec.add(out, body_row, 0, { end_row = body_row + 1, hl_group = 'UiError', hl_eol = false })
+      elseif plain then
+        for _, span in ipairs(output_style.rules(block.lines[body_row - block.start + 1])) do
+          MarkSpec.add(out, body_row, span[1], { end_col = span[2], hl_group = span[3], priority = OUTPUT_PRIORITY })
+        end
+      end
+    end
+
+    for _, span in ipairs(block.ansi or {}) do
+      local body_row = row + 1 + span[1]
+
+      if body_row < block.start + #block.lines - 1 then
+        MarkSpec.add(out, body_row, span[2], { end_col = span[3], hl_group = span[4], priority = OUTPUT_PRIORITY })
       end
     end
   end

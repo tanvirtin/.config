@@ -8,6 +8,7 @@ local EVENT = require('harness.types.events').KIND
 local settings = require('harness.settings.transcript')
 local block_text = require('harness.transcript.block_text')
 local tool_label = require('harness.transcript.tool_label')
+local output_style = require('harness.transcript.output_style')
 
 local TurnBuilder = Object:extend()
 
@@ -23,6 +24,8 @@ TurnBuilder.BODY = {
   [Block.CATEGORY.fetch] = true,
   [Block.CATEGORY.other] = true,
 }
+
+TurnBuilder.SURFACE = { [Block.CATEGORY.execute] = output_style.TERMINAL }
 
 function TurnBuilder:constructor(history, range, opts)
   opts = opts or {}
@@ -162,7 +165,9 @@ function TurnBuilder:_show_diffs(id, tool)
       TurnBuilder.FINISHED[state.status] == true,
       state.status == Block.STATUS.failed
     )
-    local lines = block_text.diff(edit, tool_label.relative(diff.path, self.opts.dir), self.text)
+    if not self.text then edit:patch(self.opts.width) end
+    local layout = not self.text and edit:patch().layout or nil
+    local lines = block_text.diff(edit, tool_label.relative(diff.path, self.opts.dir), self.text, layout)
     local patch = not self.text and edit:patch() or nil
     local stat = edit:stat()
     local added, removed = stat.added, stat.removed
@@ -175,9 +180,11 @@ function TurnBuilder:_show_diffs(id, tool)
     self:_add(Block.KIND.diff, lines, {
       id = id,
       patch = patch and {
+        layout = patch.layout,
         rows = patch.rows,
         highlights = patch.highlights,
         words = patch.words,
+        voids = patch.voids,
         syntax = function()
           return edit:syntax()
         end,
@@ -236,14 +243,21 @@ function TurnBuilder:on_tool_call(event)
   local lines = { '-> ' .. name .. (argument and ' ' .. argument or '') }
   local category = state.category or Block.CATEGORY.other
   local folds = {}
+  local lang, ansi
 
   if opts.outputs ~= false and state.output and state.output ~= '' then
     if TurnBuilder.BODY[category] or state.status == Block.STATUS.failed then
-      local body = block_text.output(state.output)
+      local body
 
-      vim.list_extend(lines, fences.wrap(body, 'output'))
+      body, ansi = output_style.strip(block_text.output(state.output))
+      lang = not ansi and state.status ~= Block.STATUS.failed and output_style.language(state.input.command, body)
+        or nil
 
-      if #body > settings:get('preview_lines') + 1 then folds[1] = { 2 + settings:get('preview_lines'), #lines - 2 } end
+      vim.list_extend(lines, fences.wrap(body, output_style.label(lang, TurnBuilder.SURFACE[category])))
+
+      if category ~= Block.CATEGORY.execute and #body > settings:get('preview_lines') + 1 then
+        folds[1] = { 2 + settings:get('preview_lines'), #lines - 2 }
+      end
     end
   end
 
@@ -257,6 +271,8 @@ function TurnBuilder:on_tool_call(event)
     category = category,
     locations = state.locations,
     output = state.output,
+    lang = lang,
+    ansi = ansi,
     started = self.times[state.started],
     finished = state.finished and self.times[state.finished] or nil,
     folds = folds,

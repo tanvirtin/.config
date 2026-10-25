@@ -24,6 +24,35 @@ describe('harness.transcript.BlockBuilder:', function()
     eq({ 'Looking' }, list[2].lines)
   end)
 
+  it('frames each artifact once: a tool with output, or a tool line with the diffs attached under it', function()
+    local list = blocks.frame({
+      Block.make(Block.KIND.message, { 'text' }),
+      Block.make(Block.KIND.tool, { '-> Bash ls', '```output', 'a', '```' }),
+      Block.make(Block.KIND.message, { 'text' }),
+      Block.make(Block.KIND.tool, { '-> Edit a.lua' }),
+      Block.make(Block.KIND.diff, { '```edit', '--- a.lua', 'x', '```' }, { attached = true }),
+      Block.make(Block.KIND.diff, { '```edit', '--- b.lua', 'y', '```' }, { attached = true }),
+      Block.make(Block.KIND.tool, { '-> Read a.lua' }),
+      Block.make(Block.KIND.diff, { '```edit', '--- c.lua', 'z', '```' }),
+    })
+
+    eq(
+      {
+        { nil, nil },
+        { true, true },
+        { nil, nil },
+        { true, nil },
+        { nil, nil },
+        { nil, true },
+        { nil, nil },
+        { true, true },
+      },
+      vim.tbl_map(function(block)
+        return { block.frame_top, block.frame_bottom }
+      end, list)
+    )
+  end)
+
   it('shows thoughts as a callout', function()
     local list = blocks.build({ { kind = 'thought', text = 'first\n\nsecond' } })
 
@@ -142,7 +171,7 @@ describe('harness.transcript.BlockBuilder:', function()
     eq({ '-> nvim:buffer_read a.lua' }, list[3].lines)
   end)
 
-  it('shows command output in a fence, folding all but the first lines', function()
+  it('shows command output in a fence, without folding it', function()
     local output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, 10)), '\n')
     local list = blocks.build({
       { kind = 'tool_call', id = 't1', name = 'Bash', category = 'execute', input = { command = 'seq' }, diffs = {} },
@@ -150,10 +179,21 @@ describe('harness.transcript.BlockBuilder:', function()
     })
     local tool = list[2]
 
-    eq('```output', tool.lines[2])
+    eq('```terminal', tool.lines[2])
     eq('10', tool.lines[12])
     eq('```', tool.lines[13])
-    eq({ { 2 + require('harness.settings.transcript'):get('preview_lines'), 11 } }, tool.folds)
+    eq({}, tool.folds)
+  end)
+
+  it('folds a long search result after its preview', function()
+    local output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, 10)), '\n')
+    local list = blocks.build({
+      { kind = 'tool_call', id = 's', name = 'Grep', category = 'search', input = { pattern = 'x' }, diffs = {} },
+      { kind = 'tool_update', id = 's', status = Block.STATUS.completed, output = output, diffs = {} },
+    })
+    local tool = list[2]
+
+    eq({ { 2 + require('harness.settings.transcript'):get('preview_lines'), #tool.lines - 2 } }, tool.folds)
   end)
 
   it('leaves reads and agent transcripts without output', function()
@@ -199,6 +239,36 @@ describe('harness.transcript.BlockBuilder:', function()
     eq(true, blocks.build({ { kind = 'thought', text = 'hmm' } }, nil, { running = true })[2].live)
   end)
 
+  it('labels command output with the language it is in, and strips colour codes into spans', function()
+    local list = blocks.build({
+      {
+        kind = 'tool_call',
+        id = 'j',
+        name = 'Bash',
+        category = 'execute',
+        input = { command = 'curl -s x | jq .' },
+        diffs = {},
+      },
+      { kind = 'tool_update', id = 'j', status = Block.STATUS.completed, output = '{"a": 1}', diffs = {} },
+      {
+        kind = 'tool_call',
+        id = 'c',
+        name = 'Bash',
+        category = 'execute',
+        input = { command = 'make test' },
+        diffs = {},
+      },
+      { kind = 'tool_update', id = 'c', status = Block.STATUS.completed, output = '\27[32mok\27[0m done', diffs = {} },
+    })
+
+    eq('```terminal_json', list[2].lines[2])
+    eq('json', list[2].lang)
+    eq('```terminal', list[3].lines[2])
+    eq('ok done', list[3].lines[3])
+    eq({ { 1, 0, 2, 'UiAnsi2' } }, list[3].ansi)
+    eq(nil, list[3].lang)
+  end)
+
   it('packs runs of tools and diffs tight, and attaches a diff to its tool', function()
     local list = blocks.build({
       events.prompt('one'),
@@ -231,7 +301,7 @@ describe('harness.transcript.BlockBuilder:', function()
       { kind = 'tool_update', id = 't4', status = Block.STATUS.completed, output = '1', diffs = {} },
     })
 
-    eq('```output', list[3].lines[2])
+    eq('```terminal', list[3].lines[2])
     assert.is_nil(list[3].tight)
     eq(true, list[4].tight)
     eq(true, list[5].tight)
@@ -245,9 +315,12 @@ describe('harness.transcript.BlockBuilder:', function()
       { kind = 'tool_call', id = 'b', name = 'Bash', diffs = {} },
     })
 
-    eq({ 'title', 'prompt', 'tool', 'diff', 'tool' }, vim.tbl_map(function(block)
-      return block.kind
-    end, list))
+    eq(
+      { 'title', 'prompt', 'tool', 'diff', 'tool' },
+      vim.tbl_map(function(block)
+        return block.kind
+      end, list)
+    )
     eq(true, list[3].tight)
     assert.is_nil(list[4].tight)
   end)
@@ -260,9 +333,12 @@ describe('harness.transcript.BlockBuilder:', function()
       { kind = 'tool_call', id = 'b', name = 'Bash', diffs = {} },
     }, nil, { groups = true })
 
-    eq({ 'title', 'prompt', 'tool', 'tool', 'tool', 'tool' }, vim.tbl_map(function(block)
-      return block.kind
-    end, list))
+    eq(
+      { 'title', 'prompt', 'tool', 'tool', 'tool', 'tool' },
+      vim.tbl_map(function(block)
+        return block.kind
+      end, list)
+    )
     eq(true, list[3].tight)
     eq(true, list[4].tight)
     eq(true, list[5].last_child)
@@ -552,7 +628,7 @@ describe('harness.transcript.BlockBuilder:', function()
         { kind = 'tool_update', id = 't1', status = 'completed', output = 'before\n```\nafter', diffs = {} },
       })
 
-      eq({ '-> Bash', '````output', 'before', '```', 'after', '````' }, list[2].lines)
+      eq({ '-> Bash', '````terminal', 'before', '```', 'after', '````' }, list[2].lines)
     end)
 
     it('closes a finished message\'s open fence with the same marker', function()

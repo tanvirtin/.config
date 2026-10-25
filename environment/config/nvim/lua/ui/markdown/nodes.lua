@@ -112,13 +112,16 @@ function NODES.code(out, node, src, opts)
 
   local last = src:last_row(node)
 
-  local surface = opts.code_hl and language and opts.code_hl[language] or 'UiMarkdownCode'
+  local family = language and (language:match('^(%w+)_%w') or language)
+  local surface = 'UiMarkdownCode'
+
+  if opts.code_hl and family and opts.code_hl[family] ~= nil then surface = opts.code_hl[family] or nil end
 
   for row = start_row, last do
-    mark(out, row, 0, { line_hl_group = surface, priority = 50 })
+    if surface then mark(out, row, 0, { line_hl_group = surface, priority = 50 }) end
   end
 
-  if language and not opts.hidden_labels[language] and start_row + 1 <= last then
+  if language and not opts.hidden_labels[family] and start_row + 1 <= last then
     mark(out, start_row + 1, 0, { virt_text = { { language .. ' ', 'UiMuted' } }, virt_text_pos = 'right_align' })
   end
 end

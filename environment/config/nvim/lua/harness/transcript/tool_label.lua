@@ -72,7 +72,14 @@ function tool_label.label(state, id, dir)
 
   if not argument and not state.name and not state.title then argument = id end
 
-  return compact.line(name, 80), argument and compact.line(argument, settings:get('argument_max')) or nil
+  local argument_line
+
+  if argument then
+    argument_line = state.category == 'execute' and compact.raw(argument)
+      or compact.line(argument, settings:get('argument_max'))
+  end
+
+  return compact.line(name, 80), argument_line
 end
 
 return tool_label

@@ -101,7 +101,7 @@ describe('harness.transcript.decorators:', function()
     end))
   end)
 
-  it('draws a vgit patch: rails, file line numbers, line backgrounds and changed words', function()
+  it('draws a vgit patch: file line numbers, line backgrounds and changed words', function()
     local function block(whole)
       return make(Block.KIND.diff, { '```edit', '--- a.lua', 'x = 1', 'x = 2', '@@ -9 +9 @@', 'y', '```' }, {
         path = 'a.lua',
@@ -136,7 +136,7 @@ describe('harness.transcript.decorators:', function()
     end
 
     assert.truthy(at(2, function(opts)
-      return virt(opts) == '  4 '
+      return virt(opts) == '  4 ' and opts.hl_mode == 'combine' and opts.virt_text[1][2] == 'UiDiffDeleteNumber'
     end))
     assert.truthy(at(2, function(opts)
       return opts.line_hl_group == 'GitSignsDeleteLn'
@@ -159,11 +159,101 @@ describe('harness.transcript.decorators:', function()
     eq(false, at(5, function(opts)
       return opts.line_hl_group ~= nil
     end) ~= nil)
-    eq(4, #vim.tbl_filter(function(mark)
-      return virt(mark.opts) == theme.GUTTER
-    end, marks))
     assert.truthy(find(decorators.decorate(block(false), {}), function(opts, mark)
       return mark.row == 2 and virt(opts) == '    '
+    end))
+  end)
+
+  it('borders an artifact with a rule above it, below it too when asked, keeping a nested rail', function()
+    local settings = require('harness.settings.theme')
+    local saved = settings:get('artifact_border')
+    local fields = { start = 4, frame_top = true, frame_bottom = true, depth = 1, name = 'Bash' }
+    local lines = { '-> Bash ls', '```output', 'a', '```' }
+
+    local function borders()
+      local out = {}
+
+      for _, mark in ipairs(decorators.decorate(make(Block.KIND.tool, lines, fields), {})) do
+        local line = mark.opts.virt_lines and mark.opts.virt_lines[1]
+
+        if line then out[#out + 1] = { mark.row, mark.opts.virt_lines_above == true, line[1][1], line[2][2] } end
+      end
+
+      return out
+    end
+
+    settings:assign({ artifact_border = 'top' })
+    local top = borders()
+    settings:assign({ artifact_border = 'both' })
+    local both = borders()
+    settings:assign({ artifact_border = 'none' })
+    local none = borders()
+    settings:assign({ artifact_border = saved })
+
+    eq({ { 4, true, theme.GUTTER, 'UiArtifactBorder' } }, top)
+    eq({ { 4, true, theme.GUTTER, 'UiArtifactBorder' }, { 8, true, theme.GUTTER, 'UiArtifactBorder' } }, both)
+    eq({}, none)
+  end)
+
+  it('draws a split patch: two columns, a hunk rule and per-side colours', function()
+    local block = make(
+      Block.KIND.diff,
+      { '```edit', '--- a.lua', ' 1 x  │  1 x', ' 2 y  │  2 Y', '', ' 9 z  │  9 z', '```' },
+      {
+        path = 'a.lua',
+        whole = true,
+        patch = {
+          layout = 'split',
+          rows = {
+            { kind = 'context', old_lnum = 1, new_lnum = 1, old_code = 5, new_code = 15 },
+            { kind = 'remove', old_lnum = 2, new_lnum = 2, old_code = 5, new_code = 15 },
+            { kind = 'hunk' },
+            { kind = 'context', old_lnum = 9, new_lnum = 9, old_code = 5, new_code = 15 },
+          },
+          highlights = {
+            { row = 1, col_start = 0, col_end = 4, hl_group = 'GitSignsDeleteLn' },
+            { row = 1, col_start = 13, col_end = 16, hl_group = 'GitSignsAddLn' },
+          },
+          words = { { row = 1, col = 5, texts = { { 'y', 'GitWordDelete' } } } },
+          voids = { { row = 1, col = 0, text = '⣿⣿' } },
+          syntax = function()
+            return {}
+          end,
+        },
+      }
+    )
+
+    local marks = decorators.decorate(block, {})
+
+    local function at(row, predicate)
+      return find(marks, function(opts, mark)
+        return mark.row == row and predicate(opts)
+      end)
+    end
+
+    assert.truthy(at(3, function(opts)
+      return opts.hl_group == 'GitSignsDeleteLn' and opts.end_col == 4 and opts.priority > theme.SYNTAX_PRIORITY
+    end))
+    assert.truthy(find(marks, function(opts, mark)
+      return mark.row == 3 and mark.col == 13 and opts.hl_group == 'GitSignsAddLn' and opts.end_col == 16
+    end))
+    assert.truthy(at(4, function(opts)
+      return virt(opts) == theme.HUNK
+    end))
+    assert.truthy(find(marks, function(opts, mark)
+      return mark.row == 3 and mark.col == 5 and opts.virt_text_pos == 'overlay' and virt(opts) == 'y'
+    end))
+    assert.truthy(find(marks, function(opts, mark)
+      return mark.row == 3 and mark.col == 0 and opts.virt_text_pos == 'overlay' and virt(opts) == '⣿⣿'
+    end))
+    assert.truthy(at(0, function(opts)
+      return opts.line_hl_group == 'UiMarkdownCode'
+    end))
+    assert.truthy(at(1, function(opts)
+      return opts.line_hl_group == 'UiMarkdownCode'
+    end))
+    assert.truthy(at(6, function(opts)
+      return opts.line_hl_group == 'UiMarkdownCode'
     end))
   end)
 
@@ -319,5 +409,75 @@ describe('harness.transcript.decorators:', function()
     assert.truthy(find(marks, function(opts)
       return opts.virt_text_pos == 'eol' and virt(opts) == '  2 tools'
     end))
+  end)
+
+  describe('command output', function()
+    local function output(lines, fields)
+      local all = { '-> Bash make', '```output' }
+
+      vim.list_extend(all, lines)
+      all[#all + 1] = '```'
+
+      return make(
+        Block.KIND.tool,
+        all,
+        vim.tbl_extend('force', {
+          name = 'Bash',
+          argument = 'make',
+          category = 'execute',
+          status = Block.STATUS.completed,
+        }, fields or {})
+      )
+    end
+
+    local function highlights(marks)
+      local out = {}
+
+      for _, mark in ipairs(marks) do
+        if mark.opts.hl_group and mark.opts.end_col then
+          out[#out + 1] = { mark.row, mark.col, mark.opts.end_col, mark.opts.hl_group }
+        end
+      end
+
+      return out
+    end
+
+    it('colours plain output the way a terminal would', function()
+      local marks = decorators.decorate(output({ 'error: boom', 'fine' }), {})
+
+      eq({ { 2, 0, 11, 'UiError' } }, highlights(marks))
+    end)
+
+    it('uses the colours the command printed instead, when it printed some', function()
+      local marks = decorators.decorate(output({ 'error: boom', 'ok' }, { ansi = { { 2, 0, 2, 'UiAnsi2' } } }), {})
+
+      eq({ { 3, 0, 2, 'UiAnsi2' } }, highlights(marks))
+    end)
+
+    it('leaves output in a known language to its syntax', function()
+      local marks = decorators.decorate(output({ 'error: in json' }, { lang = 'json' }), {})
+
+      eq({}, highlights(marks))
+    end)
+
+    it('sits the command on the terminal surface too, so the operation reads as one panel', function()
+      local marks = decorators.decorate(output({ 'ok' }), {})
+
+      assert.truthy(find(marks, function(opts, mark)
+        return mark.row == 0 and opts.line_hl_group == 'UiTerminal'
+      end))
+    end)
+
+    it('leaves other operations off the terminal surface', function()
+      local read = make(
+        Block.KIND.tool,
+        { '-> Read a.lua', '```output', 'x', '```' },
+        { name = 'Read', category = 'read', status = Block.STATUS.completed }
+      )
+
+      assert.is_nil(find(decorators.decorate(read, {}), function(opts)
+        return opts.line_hl_group == 'UiTerminal'
+      end))
+    end)
   end)
 end)

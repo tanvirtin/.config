@@ -26,6 +26,8 @@ return Config({
   branch = '├ ',
   branch_end = '└ ',
   rule = '─',
+  artifact_border = 'top',
+  artifact_rule = '─',
   hunk = '┈┈┈┈',
   collapsed_icon = '⋯ ',
   highlights = {},

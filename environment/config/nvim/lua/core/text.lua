@@ -34,6 +34,19 @@ function text.width(value)
   return vim.fn.strdisplaywidth(value)
 end
 
+function text.truncate(value, width)
+  if width <= 0 then return '' end
+  if text.width(value) <= width then return value end
+
+  for n = vim.fn.strchars(value) - 1, 0, -1 do
+    local cut = vim.fn.strcharpart(value, 0, n) .. '…'
+
+    if text.width(cut) <= width then return cut end
+  end
+
+  return ''
+end
+
 function text.read_file(path)
   return vim.fn.readfile(path)
 end

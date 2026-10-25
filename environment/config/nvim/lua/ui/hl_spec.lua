@@ -43,11 +43,61 @@ describe('ui.hl:', function()
       hl.clear_overrides()
     end)
 
-    it('blends code and output backgrounds from the scheme\'s own colours', function()
+    it('shares one default block surface with the terminal, and leaves command output on Normal', function()
       hl.define()
 
-      eq(hl.blend(0xffffff, 0x000000, 0.06), vim.api.nvim_get_hl(0, { name = 'UiMarkdownCode' }).bg)
-      eq(hl.blend(0x808080, 0x000000, 0.08), vim.api.nvim_get_hl(0, { name = 'UiToolOutput' }).bg)
+      eq(vim.api.nvim_get_hl(0, { name = 'UiTerminal' }).bg, vim.api.nvim_get_hl(0, { name = 'UiMarkdownCode' }).bg)
+      eq(0x000000, vim.api.nvim_get_hl(0, { name = 'UiToolOutput' }).bg)
+    end)
+
+    it('keeps the default surface a shade below the background, close to it', function()
+      vim.api.nvim_set_hl(0, 'Normal', { fg = 0xffffff, bg = 0x404040 })
+      hl.define()
+
+      local normal = 0x404040
+      local code = vim.api.nvim_get_hl(0, { name = 'UiMarkdownCode' }).bg
+      local terminal = vim.api.nvim_get_hl(0, { name = 'UiTerminal' })
+
+      local function channel(value, shift)
+        return math.floor(value / 2 ^ shift) % 256
+      end
+
+      local function within(from, to, delta)
+        for _, shift in ipairs({ 16, 8, 0 }) do
+          if math.abs(channel(from, shift) - channel(to, shift)) > delta then return false end
+        end
+
+        return true
+      end
+
+      assert.is_true(code < normal)
+      eq(code, terminal.bg)
+      assert.is_true(within(code, normal, 12))
+      eq(nil, terminal.fg)
+    end)
+
+    it('keeps diff line numbers foreground-only, so the line fill shows through', function()
+      local saved = vim.api.nvim_get_hl(0, { name = 'GitLineNr' })
+
+      vim.api.nvim_set_hl(0, 'GitLineNr', { fg = 0x888888, bg = 0x111111 })
+      hl.define()
+
+      local number = vim.api.nvim_get_hl(0, { name = 'UiDiffNumber' })
+
+      vim.api.nvim_set_hl(0, 'GitLineNr', saved)
+
+      eq(0x888888, number.fg)
+      eq(nil, number.bg)
+    end)
+
+    it('draws the artifact border as a dim line, not the scheme foreground', function()
+      vim.api.nvim_set_hl(0, 'Normal', { fg = 0xffffff, bg = 0x000000 })
+      hl.define()
+
+      local border = vim.api.nvim_get_hl(0, { name = 'UiArtifactBorder' })
+
+      eq(hl.blend(0xffffff, 0x000000, 0.16), border.fg)
+      eq(nil, border.bg)
     end)
 
     it('falls back to links when the scheme sets no background', function()
@@ -55,6 +105,7 @@ describe('ui.hl:', function()
       hl.define()
 
       eq('ColorColumn', vim.api.nvim_get_hl(0, { name = 'UiMarkdownCode' }).link)
+      eq('ColorColumn', vim.api.nvim_get_hl(0, { name = 'UiTerminal' }).link)
     end)
 
     it('lets overrides win, and keeps them across colour scheme changes', function()
@@ -65,7 +116,7 @@ describe('ui.hl:', function()
 
       hl.clear_overrides()
 
-      eq(hl.blend(0x808080, 0x000000, 0.08), vim.api.nvim_get_hl(0, { name = 'UiToolOutput' }).bg)
+      eq(0x000000, vim.api.nvim_get_hl(0, { name = 'UiToolOutput' }).bg)
     end)
   end)
 end)

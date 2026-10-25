@@ -79,6 +79,113 @@ function Renderer.highlights(lang)
   return queries[lang] or nil
 end
 
+local aliases = {}
+
+function Renderer.alias(label)
+  local known = aliases[label]
+
+  if known ~= nil then return known end
+
+  local lang = label:match('^%w+_(%w+)$')
+  local ok = lang ~= nil and pcall(vim.treesitter.language.add, lang)
+
+  if ok then vim.treesitter.language.register(lang, label) end
+
+  aliases[label] = ok and lang or false
+
+  return aliases[label]
+end
+
+local function register_aliases(lines)
+  for _, line in ipairs(lines) do
+    local label = line:match('^%s*```+(%w+_%w+)%s*$')
+
+    if label then Renderer.alias(label) end
+  end
+end
+
+local syntax_cache, syntax_size = {}, 0
+local warm, waiting = {}, {}
+
+Renderer.SYNTAX_MAX = 1000
+
+function Renderer.ready(lang, on_ready)
+  if warm[lang] then return true end
+
+  if on_ready then
+    if not waiting[lang] then
+      waiting[lang] = {}
+
+      vim.schedule(function()
+        pcall(vim.treesitter.query.get, lang, 'highlights')
+        warm[lang] = true
+
+        local callbacks = waiting[lang]
+
+        waiting[lang] = nil
+
+        for _, callback in ipairs(callbacks) do
+          pcall(callback)
+        end
+      end)
+    end
+
+    table.insert(waiting[lang], on_ready)
+  end
+
+  return false
+end
+
+function Renderer.syntax(text, lang)
+  local key = lang .. '\0' .. text
+  local cached = syntax_cache[key]
+
+  if cached then return cached end
+
+  local spans = {}
+  local found, query = pcall(vim.treesitter.query.get, lang, 'highlights')
+  local ok, parser = pcall(vim.treesitter.get_string_parser, text, lang, { injections = { [lang] = '' } })
+
+  if found and query and ok and parser then
+    local tree = parser:parse(true)[1]
+
+    if tree then
+      for id, node, metadata in query:iter_captures(tree:root(), text, 0, 1) do
+        local name = query.captures[id]
+
+        if name:sub(1, 1) ~= '_' and name ~= 'spell' and name ~= 'nospell' and name ~= 'conceal' then
+          local range = vim.treesitter.get_range(node, text, metadata[id])
+
+          if range[1] == 0 then
+            spans[#spans + 1] = {
+              range[2],
+              range[4] == 0 and range[5] or #text,
+              '@' .. name .. '.' .. lang,
+              tonumber(metadata.priority or (metadata[id] and metadata[id].priority)) or Renderer.HIGHLIGHT_PRIORITY,
+            }
+          end
+        end
+      end
+    end
+  end
+
+  if syntax_size >= Renderer.SYNTAX_MAX then
+    syntax_cache, syntax_size = {}, 0
+  end
+
+  syntax_cache[key], syntax_size = spans, syntax_size + 1
+
+  return spans
+end
+
+function Renderer.code(out, text, lang, row, col)
+  for _, span in ipairs(Renderer.syntax(text, lang)) do
+    MarkSpec.add(out, row, col + span[1], { end_col = col + span[2], hl_group = span[3], priority = span[4] })
+  end
+
+  return out
+end
+
 local function capture_option(metadata, id, key)
   return metadata[key] or (metadata[id] and metadata[id][key])
 end
@@ -155,6 +262,8 @@ function Renderer:annotate(lines, offset, from)
   local out = {}
 
   offset = offset or 0
+
+  register_aliases(lines)
 
   local src = nodes.source(lines, offset)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src.text, 'markdown')

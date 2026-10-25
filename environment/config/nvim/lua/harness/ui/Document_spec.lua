@@ -53,6 +53,38 @@ describe('harness.ui.Document:', function()
     eq({}, drawn)
   end)
 
+  it('colours a command once its syntax is loaded, without holding up the first draw', function()
+    local saved = Document.COMMAND_LANG[Block.CATEGORY.execute]
+
+    Document.COMMAND_LANG[Block.CATEGORY.execute] = 'lua'
+    emit({
+      kind = 'tool_call',
+      id = 't',
+      name = 'Bash',
+      category = 'execute',
+      input = { command = 'local x = 1' },
+      diffs = {},
+    })
+
+    local tool = document.blocks[#document.blocks]
+
+    local function keywords()
+      local found = 0
+
+      for _, mark in ipairs(marks(buf, Document.NAMESPACE)) do
+        if mark[2] == tool.start and mark[4].hl_group == '@keyword.lua' then found = found + 1 end
+      end
+
+      return found
+    end
+
+    vim.wait(200, function()
+      return keywords() > 0
+    end)
+    Document.COMMAND_LANG[Block.CATEGORY.execute] = saved
+    eq(1, keywords())
+  end)
+
   it('writes the transcript and leaves the buffer read-only and unmodified', function()
     emit(events.prompt('hi'))
 
@@ -488,7 +520,7 @@ describe('harness.ui.Document:', function()
     local output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, 10)), '\n')
 
     emit({ kind = 'thought', text = 'a\nb' })
-    emit({ kind = 'tool_call', id = 't1', name = 'Bash', category = 'execute', diffs = {} })
+    emit({ kind = 'tool_call', id = 't1', name = 'Grep', category = 'search', diffs = {} })
     emit({ kind = 'tool_update', id = 't1', status = Block.STATUS.completed, output = output, diffs = {} })
 
     local thought, tool = document.blocks[2], document.blocks[3]
@@ -577,7 +609,7 @@ describe('harness.ui.Document:', function()
     events.append(history, { kind = 'tool_call', id = 'task1', name = 'Task', diffs = {} })
     events.append(
       history,
-      { kind = 'tool_call', id = 'inner', name = 'Bash', category = 'execute', parent = 'task1', diffs = {} }
+      { kind = 'tool_call', id = 'inner', name = 'Grep', category = 'search', parent = 'task1', diffs = {} }
     )
     events.append(
       history,

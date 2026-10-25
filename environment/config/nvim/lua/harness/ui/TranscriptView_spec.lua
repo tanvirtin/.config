@@ -16,6 +16,63 @@ describe('harness.ui.TranscriptView:', function()
     session = Session({ key = 'h' .. math.random(1e6), id = 's1', connection = Connection(fake_agent.new()) })
   end)
 
+  it('lays a finished edit out again when the diff layout changes and the buffer is shown', function()
+    local settings = require('harness.settings.transcript')
+    local saved = settings:get('diff_layout')
+    local file = { 'local a = 0', 'local x = 2', 'return x' }
+
+    session = Session({
+      key = 'h' .. math.random(1e6),
+      id = 's1',
+      connection = Connection(fake_agent.new()),
+      file_lines = function()
+        return file
+      end,
+    })
+    session:_emit(events.prompt('edit it'))
+    session:_emit(events.new({
+      kind = events.KIND.tool_call,
+      id = 'e',
+      name = 'Edit',
+      status = 'completed',
+      diffs = { { path = '/a.lua', old = 'local x = 1', new = 'local x = 2' } },
+    }))
+    session:_emit(events.stop('end_turn'))
+    session:_emit(events.prompt('after'))
+
+    for i = 1, 30 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    local view = TranscriptView(session):mount()
+
+    view:show_in(require('core.Window').get_current())
+
+    local function lines()
+      return table.concat(vim.api.nvim_buf_get_lines(view.bufnr, 0, -1, false), '\n')
+    end
+
+    settings:assign({ diff_layout = 'unified' })
+    view:on_show()
+    vim.wait(200, function()
+      return not view.scheduled
+    end)
+    eq(nil, lines():find(' │ ', 1, true))
+
+    settings:assign({ diff_layout = 'split' })
+    view:on_show()
+    vim.wait(200, function()
+      return lines():find(' │ ', 1, true) ~= nil
+    end)
+
+    local split = lines():find(' │ ', 1, true) ~= nil
+
+    settings:assign({ diff_layout = saved })
+    view:dispose()
+
+    eq(true, split)
+  end)
+
   it('names the buffer after the session', function()
     eq('harness://h1 untitled', TranscriptView.buffer_name({ key = 'h1' }))
   end)
@@ -46,10 +103,6 @@ describe('harness.ui.TranscriptView:', function()
   end)
 
   it('opens empty rows under the newest line only once the stream reaches the bottom of the window', function()
-    local transcript_settings = require('harness.settings.transcript')
-
-    transcript_settings:set('anchor_prompt', false)
-
     for i = 1, 60 do
       session:_emit(events.prompt('turn ' .. i))
     end
@@ -87,7 +140,6 @@ describe('harness.ui.TranscriptView:', function()
     view:render()
     assert.is_true(room() >= 0)
     assert.is_true(room() >= margin - 3 or vim.fn.line('w0', win) == top)
-    transcript_settings:set('anchor_prompt', true)
     view:dispose()
   end)
 
@@ -150,89 +202,87 @@ describe('harness.ui.TranscriptView:', function()
     view:dispose()
   end)
 
-  it('puts a prompt sent from here at the top of the window, then holds still while the reply grows', function()
+  it('follows a prompt sent from here to the end, then keeps the reply in view', function()
     for i = 1, 30 do
-      session:_emit(events.prompt('turn ' .. i))
-    end
-
-    local view = TranscriptView(session):mount()
-    local win = vim.api.nvim_get_current_win()
-
-    view:show_in(require('core.Window').get_current())
-    view:render()
-
-    eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
-
-    session:_emit(events.prompt('next'))
-    view:render()
-
-    local row = TranscriptView.last_prompt(view.document.blocks).start + 1
-
-    eq(row, vim.fn.line('w0', win))
-    eq(row, vim.api.nvim_win_get_cursor(win)[1])
-
-    session:_emit(events.new({ kind = 'message', text = 'one\n\ntwo\n\nthree' }))
-    view:render()
-
-    eq(row, vim.fn.line('w0', win))
-
-    vim.cmd('normal! G')
-    session:_emit(events.new({ kind = 'message', text = '\n\nfour' }))
-    view:render()
-
-    eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
-    view:dispose()
-  end)
-
-  it('keeps the cursor on the prompt but scrolls once the reply reaches the bottom of the window', function()
-    for i = 1, 30 do
-      session:_emit(events.prompt('turn ' .. i))
-    end
-
-    local view = TranscriptView(session):mount()
-    local win = vim.api.nvim_get_current_win()
-
-    view:show_in(require('core.Window').get_current())
-    session:_emit(events.prompt('next'))
-    view:render()
-
-    local row = TranscriptView.last_prompt(view.document.blocks).start + 1
-    local height = vim.api.nvim_win_get_height(win)
-
-    session:_emit(events.new({ kind = 'message', text = 'short' }))
-    view:render()
-    eq(row, vim.fn.line('w0', win))
-
-    session:_emit(events.new({ kind = 'message', text = string.rep('\n\nmore', height) }))
-    view:render()
-    assert.is_true(vim.fn.line('w0', win) > row)
-    assert.is_true(vim.fn.line('w$', win) >= vim.api.nvim_buf_line_count(view.bufnr))
-    view:dispose()
-  end)
-
-  it('leaves a scrolled-up window alone when a prompt arrives, and follows again once the end is back in view', function()
-    for i = 1, 60 do
       session:_emit(events.prompt('turn ' .. i))
     end
 
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
     local Window = require('core.Window')
+    local sticky_bottom = require('harness.ui.sticky_bottom')
 
     view:show_in(Window.get_current())
-    vim.cmd('normal! gg')
-    session:_emit(events.prompt('next'))
-    session:_emit(events.new({ kind = 'message', text = 'reply' }))
     view:render()
-    eq(1, vim.fn.line('w0', win))
-    eq(1, vim.api.nvim_win_get_cursor(win)[1])
 
-    vim.cmd('normal! G')
-    session:_emit(events.new({ kind = 'message', text = string.rep('\n\nmore', vim.api.nvim_win_get_height(win)) }))
+    eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
+
+    session:_emit(events.prompt('next'))
     view:render()
-    eq(true, require('harness.ui.sticky_bottom').at_end(Window(win)))
+
+    eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
+    assert.is_true(sticky_bottom.at_end(Window(win)))
+
+    session:_emit(events.new({ kind = 'message', text = 'one\n\ntwo\n\nthree' }))
+    view:render()
+
+    eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
+    assert.is_true(sticky_bottom.at_end(Window(win)))
     view:dispose()
   end)
+
+  it('scrolls the reply up as it grows past the window, keeping the end in view', function()
+    for i = 1, 30 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    local view = TranscriptView(session):mount()
+    local win = vim.api.nvim_get_current_win()
+    local Window = require('core.Window')
+    local sticky_bottom = require('harness.ui.sticky_bottom')
+
+    view:show_in(Window.get_current())
+    session:_emit(events.prompt('next'))
+    view:render()
+
+    local top = vim.fn.line('w0', win)
+    local height = vim.api.nvim_win_get_height(win)
+
+    session:_emit(events.new({ kind = 'message', text = string.rep('\n\nmore', height) }))
+    view:render()
+
+    assert.is_true(vim.fn.line('w0', win) > top)
+    eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
+    assert.is_true(sticky_bottom.at_end(Window(win)))
+    view:dispose()
+  end)
+
+  it(
+    'leaves a scrolled-up window alone when a prompt arrives, and follows again once the end is back in view',
+    function()
+      for i = 1, 60 do
+        session:_emit(events.prompt('turn ' .. i))
+      end
+
+      local view = TranscriptView(session):mount()
+      local win = vim.api.nvim_get_current_win()
+      local Window = require('core.Window')
+
+      view:show_in(Window.get_current())
+      vim.cmd('normal! gg')
+      session:_emit(events.prompt('next'))
+      session:_emit(events.new({ kind = 'message', text = 'reply' }))
+      view:render()
+      eq(1, vim.fn.line('w0', win))
+      eq(1, vim.api.nvim_win_get_cursor(win)[1])
+
+      vim.cmd('normal! G')
+      session:_emit(events.new({ kind = 'message', text = string.rep('\n\nmore', vim.api.nvim_win_get_height(win)) }))
+      view:render()
+      eq(true, require('harness.ui.sticky_bottom').at_end(Window(win)))
+      view:dispose()
+    end
+  )
 
   it('follows the stream that ran while hidden when it was left at the end', function()
     for i = 1, 30 do

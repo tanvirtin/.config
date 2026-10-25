@@ -68,6 +68,9 @@ wrap('harness.vgit', 'stat', 'vgit.stat')
 wrap('harness.edits.Edit', 'syntax', 'Edit.syntax')
 wrap('harness.transcript.decorators', 'decorate', 'decorators.decorate')
 wrap('core.buffers', 'lines_of', 'buffers.lines_of')
+wrap('harness.transcript.output_style', 'strip', 'output_style.strip')
+wrap('harness.transcript.output_style', 'language', 'output_style.language')
+wrap('ui.markdown.Renderer', 'syntax', 'Renderer.syntax')
 
 local files = vim.fn.glob(root .. '/lua/harness/**/*.lua', false, true)
 local session = Session({ key = 'bench', id = 'bench', dir = root, connection = Connection(fake_agent.new()) })
@@ -229,6 +232,48 @@ local function stream(label, kind, chunks)
   report()
 end
 
+local function stream_tool(label, lines)
+  local total, worst, output = 0, 0, {}
+
+  update({
+    sessionUpdate = 'tool_call',
+    toolCallId = 'live',
+    title = 'make test',
+    kind = 'execute',
+    status = 'in_progress',
+    rawInput = { command = 'make test 2>&1 | tee out.log' },
+  })
+
+  for line = 1, lines do
+    output[line] = line % 25 == 0 and ('\27[31mFAIL\27[0m lua/x_spec.lua:' .. line .. ': expected')
+      or line % 7 == 0 and ('warning: lua/y.lua:' .. line .. ': unused')
+      or ('\27[32mok\27[0m test ' .. line .. ' passed')
+
+    update({
+      sessionUpdate = 'tool_call_update',
+      toolCallId = 'live',
+      status = 'in_progress',
+      content = { { type = 'content', content = text(table.concat(output, '\n')) } },
+    })
+
+    local start = now()
+
+    view:render()
+    vim.cmd('redraw')
+
+    local took = now() - start
+
+    worst = math.max(worst, took)
+    total = total + took
+  end
+
+  update({ sessionUpdate = 'tool_call_update', toolCallId = 'live', status = 'completed' })
+  log(label)
+  log('  per update avg %.2f ms, worst %.2f ms', total / lines, worst)
+  report()
+end
+
+stream_tool('stream tool output', 300)
 stream('stream thought', 'agent_thought_chunk', math.floor(CHUNKS / 2))
 log('  thought folded away: %s', tostring(view.document:folded(view.document.blocks[#view.document.blocks])))
 stream('stream reply', 'agent_message_chunk', CHUNKS)

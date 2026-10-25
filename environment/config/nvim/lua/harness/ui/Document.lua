@@ -47,8 +47,8 @@ function Document:constructor(bufnr)
     blocks = {},
     state = { running = false, frame = 1 },
     renderer = Renderer(bufnr, {
-      hidden_labels = { output = true, diff = true, edit = true },
-      code_hl = { output = 'UiToolOutput' },
+      hidden_labels = { output = true, terminal = true, split = true, diff = true, edit = true },
+      code_hl = { output = 'UiToolOutput', terminal = 'UiTerminal', split = false },
     }),
   }
 end
@@ -103,9 +103,20 @@ function Document:resize()
   self:decorate_visible()
 end
 
+Document.COMMAND_LANG = { [Block.CATEGORY.execute] = 'bash' }
+
 function Document:_decorate(block, ctx)
+  local marks = decorators.decorate(block, ctx or self:_context())
+  local lang = block.kind == Block.KIND.tool and block.argument and Document.COMMAND_LANG[block.category]
+
+  if lang and Renderer.ready(lang, function()
+    self:_redecorate(lang)
+  end) then
+    Renderer.code(marks, block.argument, lang, block.start, #block.lines[1] - #block.argument)
+  end
+
   self.buffer:clear_namespace(Document.NAMESPACE, block.start, block.finish)
-  MarkSpec.apply(self.buffer, Document.NAMESPACE, decorators.decorate(block, ctx or self:_context()))
+  MarkSpec.apply(self.buffer, Document.NAMESPACE, marks)
 end
 
 function Document:_live(block)
@@ -146,7 +157,7 @@ function Document:_set_lines(lines, from, to)
   if to then
     buffer:set_lines(lines, from, to)
   else
-    for _, edit in ipairs(Document.edits(self.buffer:get_lines(from, -1), lines, from)) do
+    for _, edit in ipairs(Document.edits(self.buffer:get_lines(from, -1), lines, from, self:_watched_below(from))) do
       buffer:set_lines(edit.lines, edit.from, edit.to)
     end
 
@@ -157,8 +168,18 @@ function Document:_set_lines(lines, from, to)
   buffer:set_option('modified', false)
 end
 
-function Document.edits(old, new, offset)
-  if #old + #new < Document.SPLICE_LINES then return { { lines = new, from = offset, to = offset + #old } } end
+function Document:_watched_below(row)
+  for _, window in ipairs(self.buffer:get_windows()) do
+    if window:get_cursor()[1] > row + 1 then return true end
+  end
+
+  return false
+end
+
+function Document.edits(old, new, offset, splice)
+  if not splice and #old + #new < Document.SPLICE_LINES then
+    return { { lines = new, from = offset, to = offset + #old } }
+  end
 
   local out = {}
   local hunks = text.hunks(old, new)
@@ -298,6 +319,18 @@ local function overlaps(block, ranges)
   end
 
   return false
+end
+
+function Document:_redecorate(lang)
+  if not self.buffer:is_valid() then return end
+
+  local ctx, ranges = self:_context(), self:visible_ranges()
+
+  for i, block in ipairs(self.blocks) do
+    local command = block.kind == Block.KIND.tool and Document.COMMAND_LANG[block.category] == lang
+
+    if command and not self.pending[i] and overlaps(block, ranges) then self:_decorate(block, ctx) end
+  end
 end
 
 function Document:has_pending(top, bottom)

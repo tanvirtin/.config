@@ -113,6 +113,52 @@ describe('harness.edits.EditLog:', function()
     eq(edit:syntax(), edit:syntax())
   end)
 
+  it('maps syntax onto both columns of a split patch', function()
+    local settings = require('harness.settings.transcript')
+    local saved = settings:get('diff_layout')
+
+    settings:assign({ diff_layout = 'split' })
+
+    local file = { 'local a = 0', 'local x = 2', 'return x' }
+    local edit = EditLog(function()
+      return file
+    end):get({ path = '/a.lua', old = 'local x = 1', new = 'local x = 2' }, 't:1', true)
+    local syntax = edit:syntax()
+    local layout = edit:patch().layout
+
+    settings:assign({ diff_layout = saved })
+
+    eq('split', layout)
+
+    local left, right = 0, 0
+
+    for _, hl in ipairs(syntax) do
+      if hl.row == 1 and hl.col_start < 10 then left = left + 1 end
+      if hl.row == 1 and hl.col_start >= 10 then right = right + 1 end
+    end
+
+    assert.is_true(left > 0)
+    assert.is_true(right > 0)
+  end)
+
+  it('leaves a snippet split without line numbers, since they are not the file lines', function()
+    local settings = require('harness.settings.transcript')
+    local saved = settings:get('diff_layout')
+
+    settings:assign({ diff_layout = 'split' })
+
+    local edit = EditLog(function()
+      return {}
+    end):get({ path = '/a.lua', old = 'local x = 1', new = 'local x = 2' }, 't:1', true, true)
+    local patch = edit:patch()
+
+    settings:assign({ diff_layout = saved })
+
+    eq(false, edit.whole)
+    eq('split', patch.layout)
+    eq('  local x = 1', patch.lines[1]:sub(1, 13))
+  end)
+
   it('belongs to its session, so every reader of a session sees the same frozen edits', function()
     local one, two = Session({ key = 'h1', id = 's1' }), Session({ key = 'h2', id = 's2' })
 

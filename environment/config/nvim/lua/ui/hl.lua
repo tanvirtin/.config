@@ -58,41 +58,83 @@ function hl.blend(fg, bg, alpha)
   return out
 end
 
-local function surface(alpha, fallback)
-  return function()
-    local foreground, background = color('Normal', 'fg'), color('Normal', 'bg')
-
-    if not foreground or not background then return { link = fallback } end
-
-    return { bg = hl.blend(foreground, background, alpha) }
-  end
-end
-
-local function tint(groups, alpha, fallback)
+local function shade(strength, fallback)
   return function()
     local background = color('Normal', 'bg')
-    local accent
 
-    for _, group in ipairs(groups) do
-      accent = accent or color(group, 'fg')
-    end
+    if not background then return { link = fallback } end
 
-    if not accent or not background then return { link = fallback } end
-
-    return { bg = hl.blend(accent, background, alpha) }
+    return { bg = hl.blend(0x000000, background, strength) }
   end
 end
 
+hl.ANSI = {
+  [0] = 'Comment',
+  'DiagnosticError',
+  'DiagnosticOk',
+  'DiagnosticWarn',
+  'DiagnosticInfo',
+  'Constant',
+  'DiagnosticHint',
+  'Normal',
+  'Comment',
+  'DiagnosticError',
+  'DiagnosticOk',
+  'DiagnosticWarn',
+  'DiagnosticInfo',
+  'Constant',
+  'DiagnosticHint',
+  'Normal',
+}
+
+local function ansi(n)
+  return function()
+    local terminal = vim.g['terminal_color_' .. n]
+
+    if type(terminal) == 'string' and terminal ~= '' then return { fg = terminal } end
+
+    return { fg = color(hl.ANSI[n], 'fg') or color('Normal', 'fg') }
+  end
+end
+
+local SURFACE = 0.12
+
 hl.COMPUTED = {
-  UiMarkdownCode = surface(0.06, 'ColorColumn'),
-  UiToolOutput = tint({ 'Comment' }, 0.08, 'ColorColumn'),
+  UiMarkdownCode = shade(SURFACE, 'ColorColumn'),
+  UiToolOutput = function()
+    return { bg = color('Normal', 'bg') }
+  end,
+  UiTerminal = shade(SURFACE, 'ColorColumn'),
+  UiArtifactBorder = function()
+    local foreground, background = color('Normal', 'fg'), color('Normal', 'bg')
+
+    if not foreground or not background then return { link = 'WinSeparator' } end
+
+    return { fg = hl.blend(foreground, background, 0.16) }
+  end,
+  UiDiffNumber = function()
+    return { fg = color('GitLineNr', 'fg') or color('LineNr', 'fg') or color('Normal', 'fg') }
+  end,
+  UiDiffAddNumber = function()
+    return { fg = color('GitSignsAdd', 'fg') or color('Added', 'fg') }
+  end,
+  UiDiffDeleteNumber = function()
+    return { fg = color('GitSignsDelete', 'fg') or color('Removed', 'fg') }
+  end,
   UiPromptBar = function()
     return { fg = color('UiAccent', 'fg'), bold = true }
   end,
   UiPromptText = function()
     return { fg = color('Normal', 'fg'), bold = true }
   end,
+  UiAnsiBold = function()
+    return { bold = true }
+  end,
 }
+
+for n = 0, 15 do
+  hl.COMPUTED['UiAnsi' .. n] = ansi(n)
+end
 
 local overrides = {}
 

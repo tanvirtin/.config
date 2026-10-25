@@ -11,10 +11,14 @@ function compact.path(path)
   return vim.fn.fnamemodify(path, ':~:.')
 end
 
+function compact.raw(text)
+  return vim.trim(tostring(text or ''):gsub('%s+', ' '))
+end
+
 function compact.line(text, width)
   width = width or compact.WIDTH
 
-  local line = vim.trim(tostring(text or ''):gsub('%s+', ' '))
+  local line = compact.raw(text)
 
   if vim.fn.strchars(line) > width then line = vim.fn.strcharpart(line, 0, width - 1) .. '…' end
 

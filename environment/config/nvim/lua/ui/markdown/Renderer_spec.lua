@@ -298,4 +298,54 @@ describe('ui.markdown.Renderer:', function()
     eq('UiToolOutput', surfaces[1])
     eq('UiMarkdownCode', surfaces[5])
   end)
+
+  it('shades a terminal fence with the terminal surface it is given', function()
+    local renderer = Renderer(0, { code_hl = { terminal = 'UiTerminal' } })
+    local surfaces = {}
+
+    for _, mark in ipairs(renderer:annotate({ '```terminal_bash', 'ls', '```' }, 0)) do
+      if mark.opts.line_hl_group then surfaces[mark.row] = mark.opts.line_hl_group end
+    end
+
+    eq({ 'UiTerminal', 'UiTerminal', 'UiTerminal' }, { surfaces[0], surfaces[1], surfaces[2] })
+  end)
+
+  it('leaves a fence with no surface when its family is set to false', function()
+    local renderer = Renderer(0, { code_hl = { split = false } })
+    local surfaces = 0
+
+    for _, mark in ipairs(renderer:annotate({ '```split', 'x', '```' }, 0)) do
+      if mark.opts.line_hl_group then surfaces = surfaces + 1 end
+    end
+
+    eq(0, surfaces)
+  end)
+
+  it('highlights an output fence in its language, shaded and unlabelled like any output', function()
+    local renderer = Renderer(0, { hidden_labels = { output = true }, code_hl = { output = 'UiToolOutput' } })
+    local surface, lua, label = false, false, false
+
+    for _, mark in ipairs(renderer:annotate({ '```output_lua', 'local x = 1', '```' }, 0)) do
+      if mark.opts.line_hl_group == 'UiToolOutput' then surface = true end
+      if mark.opts.hl_group and mark.opts.hl_group:find('%.lua$') then lua = true end
+      if mark.opts.virt_text_pos == 'right_align' then label = true end
+    end
+
+    eq({ true, true, false }, { surface, lua, label })
+  end)
+
+  it('colours one line of code, parsing each distinct text once, and nothing for an unknown language', function()
+    local out = Renderer.code({}, 'local x = require("a")', 'lua', 3, 7)
+    local groups = {}
+
+    for _, mark in ipairs(out) do
+      eq(3, mark.row)
+      assert.is_true(mark.col >= 7)
+      groups[mark.opts.hl_group] = true
+    end
+
+    assert.truthy(groups['@keyword.lua'])
+    eq(true, Renderer.syntax('local y', 'lua') == Renderer.syntax('local y', 'lua'))
+    eq({}, Renderer.syntax('anything', 'no_such_language'))
+  end)
 end)

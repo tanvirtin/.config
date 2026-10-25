@@ -345,7 +345,7 @@ describe('harness.ui.transcript:', function()
       local output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, 20)), '\n')
       local buf = transcript.open(session)
 
-      session:_emit({ kind = 'tool_call', id = 't1', name = 'Bash', category = 'execute', diffs = {} })
+      session:_emit({ kind = 'tool_call', id = 't1', name = 'Grep', category = 'search', diffs = {} })
       session:_emit({ kind = 'tool_update', id = 't1', status = 'completed', output = output, diffs = {} })
 
       local function fold_start()

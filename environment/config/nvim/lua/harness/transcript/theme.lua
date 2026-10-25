@@ -24,6 +24,8 @@ local FROM_SETTINGS = {
   BRANCH = 'branch',
   BRANCH_END = 'branch_end',
   RULE = 'rule',
+  ARTIFACT_BORDER = 'artifact_border',
+  ARTIFACT_RULE = 'artifact_rule',
   HUNK = 'hunk',
   COLLAPSED_ICON = 'collapsed_icon',
 }

@@ -83,10 +83,11 @@ function block_text.output(output)
   return lines
 end
 
-function block_text.diff(edit, path, text)
+function block_text.diff(edit, path, text, layout)
   local body = text and edit:text() or edit:patch().lines
   local fence = fences.fence_for(body)
-  local lines = { fence .. (text and 'diff' or 'edit'), '--- ' .. tostring(path) }
+  local label = text and 'diff' or (layout == 'split' and 'split' or 'edit')
+  local lines = { fence .. label, '--- ' .. tostring(path) }
 
   vim.list_extend(lines, body)
   lines[#lines + 1] = fence
