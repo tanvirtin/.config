@@ -161,7 +161,9 @@ function BlockBuilder.tighten(list)
 
   for i, block in ipairs(list) do
     local after = list[i + 1]
+    local spaced = (ROW[block.kind] and #block.lines > 1) or block.last_child
     local tight = after ~= nil
+      and not spaced
       and ((ROW[after.kind] and (ROW[block.kind] or block.depth ~= nil)) or (ROW[block.kind] and after.depth ~= nil))
 
     block.tight = tight or nil

@@ -220,6 +220,55 @@ describe('harness.transcript.BlockBuilder:', function()
     eq(true, list[5].attached)
   end)
 
+  it('keeps a gap after a tool that shows an output box, and packs one-line tools tight', function()
+    local list = blocks.build({
+      events.prompt('go'),
+      { kind = 'tool_call', id = 't1', name = 'Bash', category = 'execute', input = { command = 'seq' }, diffs = {} },
+      { kind = 'tool_update', id = 't1', status = Block.STATUS.completed, output = '1\n2', diffs = {} },
+      { kind = 'tool_call', id = 't2', name = 'Read', diffs = {} },
+      { kind = 'tool_call', id = 't3', name = 'Read', diffs = {} },
+      { kind = 'tool_call', id = 't4', name = 'Bash', category = 'execute', input = { command = 'seq' }, diffs = {} },
+      { kind = 'tool_update', id = 't4', status = Block.STATUS.completed, output = '1', diffs = {} },
+    })
+
+    eq('```output', list[3].lines[2])
+    assert.is_nil(list[3].tight)
+    eq(true, list[4].tight)
+    eq(true, list[5].tight)
+    assert.is_nil(list[6].tight)
+  end)
+
+  it('keeps a gap after a diff before the next tool, while the diff hangs tight under its tool', function()
+    local list = blocks.build({
+      events.prompt('go'),
+      { kind = 'tool_call', id = 'e', name = 'Edit', diffs = { { path = 'a.txt', old = 'x', new = 'y' } } },
+      { kind = 'tool_call', id = 'b', name = 'Bash', diffs = {} },
+    })
+
+    eq({ 'title', 'prompt', 'tool', 'diff', 'tool' }, vim.tbl_map(function(block)
+      return block.kind
+    end, list))
+    eq(true, list[3].tight)
+    assert.is_nil(list[4].tight)
+  end)
+
+  it('keeps a gap after a group of tools or a sub-agent, whose members are folded away', function()
+    local list = blocks.build({
+      events.prompt('go'),
+      { kind = 'tool_call', id = 'r1', name = 'Read', category = 'read', status = 'completed', diffs = {} },
+      { kind = 'tool_call', id = 'r2', name = 'Read', category = 'read', status = 'completed', diffs = {} },
+      { kind = 'tool_call', id = 'b', name = 'Bash', diffs = {} },
+    }, nil, { groups = true })
+
+    eq({ 'title', 'prompt', 'tool', 'tool', 'tool', 'tool' }, vim.tbl_map(function(block)
+      return block.kind
+    end, list))
+    eq(true, list[3].tight)
+    eq(true, list[4].tight)
+    eq(true, list[5].last_child)
+    assert.is_nil(list[5].tight)
+  end)
+
   it('closes each sub-agent on its last child and indents the sub-agent\'s prose', function()
     local list = blocks.build({
       events.prompt('go'),
