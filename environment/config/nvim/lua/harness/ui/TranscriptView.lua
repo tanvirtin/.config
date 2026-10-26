@@ -24,6 +24,7 @@ local Renderer = lazy('ui.markdown.Renderer')
 local Block = lazy('harness.transcript.Block')
 local theme = lazy('harness.transcript.theme')
 local Document = require('harness.ui.Document')
+local hit_test = require('harness.ui.hit_test')
 local PlanPanel = require('harness.ui.PlanPanel')
 local Following = require('harness.ui.Following')
 local code_blocks = lazy('harness.ui.code_blocks')
@@ -734,6 +735,19 @@ function TranscriptView:fork()
   async.drain()
 
   return true
+end
+
+function TranscriptView:yank_token(block)
+  local window = Window.get_current()
+  local row = window:get_cursor()[1] - 1
+  local col = window:get_cursor()[2]
+  local hit = hit_test.at(block, row, col)
+
+  if hit and hit.text then
+    register.set(hit.text)
+
+    return hit.text, true
+  end
 end
 
 function TranscriptView:yank_block(block, name)

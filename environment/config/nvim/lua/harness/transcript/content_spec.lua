@@ -32,6 +32,7 @@ describe('harness.transcript.content:', function()
 
     eq('json', spec.language)
     eq('UiPath', spec.captures.property)
+    eq('json', content.resolve(block).hit_test)
     eq('markdown', content.mode(block))
   end)
 

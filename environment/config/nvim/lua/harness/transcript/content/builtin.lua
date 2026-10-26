@@ -65,6 +65,20 @@ return function()
         captures = { property = 'UiPath' },
       },
     },
+    hit_test = 'json',
+    actions = {
+      {
+        key = 'yank',
+        label = 'yank the JSON token',
+        handler = function(view, block)
+          local text, code = view:yank_token(block)
+
+          if text then return text, code end
+
+          return view:yank_block(block)
+        end,
+      },
+    },
   })
 
   content.register({

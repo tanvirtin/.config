@@ -30,6 +30,12 @@ describe('harness.transcript.actions:', function()
     assert.is_not_nil(actions.find(block, 'yank'))
   end)
 
+  it('should find the built-in JSON yank action', function()
+    local block = { kind = Block.KIND.tool, lang = 'json' }
+
+    assert.is_not_nil(actions.find(block, 'yank'))
+  end)
+
   it('should run an action and return its result', function()
     local called = false
 
