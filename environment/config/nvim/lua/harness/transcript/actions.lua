@@ -37,7 +37,7 @@ function actions.run(view, block, key, ctx)
 
   if not action then return false end
 
-  local handler = action.handler or handlers[action.key] or handlers[action.id]
+  local handler = action.handler or handlers[action.key]
 
   if not handler then return false end
 

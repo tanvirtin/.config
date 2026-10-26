@@ -8,7 +8,6 @@ local cache = setmetatable({}, { __mode = 'k' })
 
 local fallback = {
   id = 'fallback',
-  priority = -1000,
   render = { mode = 'raw' },
 }
 
@@ -35,9 +34,7 @@ function content.register(def)
   assert(type(def) == 'table', 'content: definition must be a table')
   assert(type(def.id) == 'string' and def.id ~= '', 'content: definition needs an id')
 
-  local existing = by_id[def.id]
-
-  if existing then
+  if by_id[def.id] then
     for i, entry in ipairs(entries) do
       if entry.id == def.id then
         entries[i] = def
