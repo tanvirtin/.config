@@ -5,19 +5,21 @@ local Object = require('core.Object')
 local MarkSpec = require('ui.MarkSpec')
 local Renderer = require('ui.markdown.Renderer')
 local Block = require('harness.transcript.Block')
+local content = require('harness.transcript.content')
 local settings = require('harness.settings.transcript')
 local decorators = require('harness.transcript.decorators')
 local status_line = require('harness.transcript.status_line')
+local builtin = require('harness.transcript.content.builtin')
 local Layout = require('harness.transcript.calculators.Layout')
 local context = require('harness.transcript.decorators.context')
 local FoldCalculator = require('harness.transcript.calculators.FoldCalculator')
+
+builtin()
 
 local Document = Object:extend()
 
 Document.NAMESPACE = Buffer.namespace('harness.document')
 
-Document.RAW = { [Block.KIND.prompt] = true, [Block.KIND.note] = true, [Block.KIND.plan] = true }
-Document.QUOTED = { [Block.KIND.thought] = true }
 Document.SPLICE_LINES = 400
 Document.STATUS_NAMESPACE = Buffer.namespace('harness.document.status')
 
@@ -106,7 +108,8 @@ end
 Document.COMMAND_LANG = { [Block.CATEGORY.execute] = 'bash' }
 
 function Document:_decorate(block, ctx)
-  local marks = decorators.decorate(block, ctx or self:_context())
+  local decorate_ctx = ctx or self:_context()
+  local marks = content.decorate(block, decorate_ctx) or decorators.decorate(block, decorate_ctx)
   local lang = block.kind == Block.KIND.tool and block.argument and Document.COMMAND_LANG[block.category]
 
   if lang and Renderer.ready(lang, function()
@@ -282,7 +285,7 @@ function Document.growing(list, i)
   local block = list[i]
 
   if i ~= #list then return false end
-  if block.kind == Block.KIND.thought then return block.live == true end
+  if content.option(block, 'live') then return block.live == true end
 
   return Layout.streaming(list, i)
 end
@@ -374,7 +377,7 @@ function Document:decorate_visible()
   for i, block in ipairs(self.blocks) do
     local waiting = self.pending[i] or self.deferred[i]
 
-    if waiting and overlaps(block, ranges) and Document.QUOTED[block.kind] and self:folded(block) then
+    if waiting and overlaps(block, ranges) and content.option(block, 'quote') and self:folded(block) then
       flush()
 
       if self.pending[i] then
@@ -388,13 +391,13 @@ function Document:decorate_visible()
       due[#due + 1] = block
       self.pending[i], self.partial[i], self.deferred[i] = nil, nil, nil
 
-      if Document.RAW[block.kind] then
+      if content.mode(block) == 'raw' then
         flush()
       elseif group and group[2] == block.start then
         group[2] = block.finish
       else
         flush()
-        group = { top, block.finish, Document.QUOTED[block.kind] and block.start or top }
+        group = { top, block.finish, content.option(block, 'quote') and block.start or top }
       end
     else
       flush()
