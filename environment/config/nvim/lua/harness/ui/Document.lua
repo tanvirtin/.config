@@ -109,7 +109,15 @@ Document.COMMAND_LANG = { [Block.CATEGORY.execute] = 'bash' }
 
 function Document:_decorate(block, ctx)
   local decorate_ctx = ctx or self:_context()
-  local marks = content.decorate(block, decorate_ctx) or decorators.decorate(block, decorate_ctx)
+  local marks = decorators.decorate(block, decorate_ctx)
+  local extra = content.decorate(block, decorate_ctx)
+
+  if extra then vim.list_extend(marks, extra) end
+
+  local treesitter = content.option(block, 'treesitter')
+
+  if treesitter then vim.list_extend(marks, Renderer.content(block, treesitter)) end
+
   local lang = block.kind == Block.KIND.tool and block.argument and Document.COMMAND_LANG[block.category]
 
   if lang and Renderer.ready(lang, function()

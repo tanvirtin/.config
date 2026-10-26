@@ -348,4 +348,21 @@ describe('ui.markdown.Renderer:', function()
     eq(true, Renderer.syntax('local y', 'lua') == Renderer.syntax('local y', 'lua'))
     eq({}, Renderer.syntax('anything', 'no_such_language'))
   end)
+
+  it('maps content treesitter captures onto block rows', function()
+    local marks = Renderer.content({
+      start = 10,
+      lines = { '-> cat a.lua', '```output_lua', 'local x = 1', '```' },
+    }, { language = 'lua', first = 3, trim = 1, captures = { keyword = 'UiPath' } })
+
+    local found
+
+    for _, mark in ipairs(marks) do
+      if mark.row == 12 and mark.opts.hl_group == 'UiPath' then found = mark end
+    end
+
+    assert.is_not_nil(found)
+    eq(0, found.col)
+    eq(5, found.opts.end_col)
+  end)
 end)

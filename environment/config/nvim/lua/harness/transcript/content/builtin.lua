@@ -51,6 +51,23 @@ return function()
   })
 
   content.register({
+    id = 'json',
+    match = function(block)
+      return block.kind == Block.KIND.tool and block.lang == 'json'
+    end,
+    priority = 20,
+    render = {
+      mode = 'markdown',
+      treesitter = {
+        language = 'json',
+        first = 3,
+        trim = 1,
+        captures = { property = 'UiPath' },
+      },
+    },
+  })
+
+  content.register({
     id = 'tool',
     kind = Block.KIND.tool,
     render = { mode = 'markdown' },

@@ -26,6 +26,15 @@ describe('harness.transcript.content:', function()
     eq('markdown', content.mode(Block.make(Block.KIND.diff, { 'x' })))
   end)
 
+  it('should register a treesitter content type', function()
+    local block = { kind = Block.KIND.tool, lang = 'json' }
+    local spec = content.option(block, 'treesitter')
+
+    eq('json', spec.language)
+    eq('UiPath', spec.captures.property)
+    eq('markdown', content.mode(block))
+  end)
+
   it('should expose the built-in options', function()
     local prompt = Block.make(Block.KIND.prompt, { 'x' })
     local thought = Block.make(Block.KIND.thought, { 'x' })

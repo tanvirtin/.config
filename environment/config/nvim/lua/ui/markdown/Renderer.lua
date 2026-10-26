@@ -186,6 +186,39 @@ function Renderer.code(out, text, lang, row, col)
   return out
 end
 
+function Renderer.content(block, spec)
+  local out = {}
+  local lines = block and block.lines
+
+  if not lines or not spec or not spec.language then return out end
+
+  local captures = spec.captures or {}
+  local first = spec.first or 1
+  local last = spec.last or (#lines - (spec.trim or 0))
+  local start = block.start or 0
+
+  for i = first, last do
+    local line = lines[i]
+
+    if line and line ~= '' then
+      for _, span in ipairs(Renderer.syntax(line, spec.language)) do
+        local name = span[3]:match('^@([%w_]+)')
+        local hl = name and captures[name]
+
+        if hl then
+          MarkSpec.add(out, start + i - 1, span[1], {
+            end_col = span[2],
+            hl_group = hl,
+            priority = span[4],
+          })
+        end
+      end
+    end
+  end
+
+  return out
+end
+
 local function capture_option(metadata, id, key)
   return metadata[key] or (metadata[id] and metadata[id][key])
 end
