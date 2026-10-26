@@ -1,0 +1,48 @@
+name: Harness
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: harness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: environment/config/nvim
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+
+      - uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: "5.1"
+
+      - uses: leafo/gh-actions-luarocks@v4
+
+      - name: Install Lua tools
+        run: |
+          luarocks install vusted
+          luarocks install luacheck
+
+      - name: Install stylua
+        run: |
+          cargo install stylua --version 2.0.2
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Check and test
+        run: make ci
