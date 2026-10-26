@@ -40,6 +40,15 @@ describe('harness.transcript.content:', function()
     eq('markdown', content.resolve(Block.make(Block.KIND.message, { 'x' })).hit_test)
   end)
 
+  it('should register a table content type', function()
+    local block = { kind = Block.KIND.tool, lang = 'csv' }
+    local spec = content.option(block, 'table')
+
+    eq(3, spec.first)
+    eq(1, spec.trim)
+    eq('csv', content.resolve(block).id)
+  end)
+
   it('should expose the built-in options', function()
     local prompt = Block.make(Block.KIND.prompt, { 'x' })
     local thought = Block.make(Block.KIND.thought, { 'x' })

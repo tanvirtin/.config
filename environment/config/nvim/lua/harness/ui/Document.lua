@@ -17,6 +17,7 @@ local FoldCalculator = require('harness.transcript.calculators.FoldCalculator')
 builtin()
 require('ui.content.json')
 require('ui.content.markdown')
+require('ui.content.table')
 
 local Document = Object:extend()
 
@@ -119,6 +120,10 @@ function Document:_decorate(block, ctx)
   local treesitter = content.option(block, 'treesitter')
 
   if treesitter then vim.list_extend(marks, Renderer.content(block, treesitter)) end
+
+  local table_spec = content.option(block, 'table')
+
+  if table_spec then vim.list_extend(marks, require('ui.content.table').render(block, table_spec, decorate_ctx)) end
 
   local lang = block.kind == Block.KIND.tool and block.argument and Document.COMMAND_LANG[block.category]
 

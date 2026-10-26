@@ -96,6 +96,18 @@ return function()
   })
 
   content.register({
+    id = 'csv',
+    match = function(block)
+      return block.kind == Block.KIND.tool and (block.lang == 'csv' or block.lang == 'tsv')
+    end,
+    priority = 20,
+    render = {
+      mode = 'markdown',
+      table = { first = 3, trim = 1 },
+    },
+  })
+
+  content.register({
     id = 'tool',
     kind = Block.KIND.tool,
     render = { mode = 'markdown' },

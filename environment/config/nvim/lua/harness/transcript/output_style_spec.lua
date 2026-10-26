@@ -11,6 +11,8 @@ describe('harness.transcript.output_style:', function()
       eq('lua', output_style.language('cat lua/init.lua', { 'x' }))
       eq('python', output_style.language('cd src && head -n 20 "main.py"', { 'x' }))
       eq('yaml', output_style.language('sed -n 1,20p config.yml', { 'x' }))
+      eq('csv', output_style.language('cat data.csv', { 'a,b' }))
+      eq('tsv', output_style.language('head -n 5 data.tsv', { 'a\tb' }))
     end)
 
     it('falls back to the content, and to nothing for plain text', function()
