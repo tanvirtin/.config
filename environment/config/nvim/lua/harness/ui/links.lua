@@ -37,7 +37,7 @@ end
 local function file(path, line, dir)
   local full = absolute(path, dir)
 
-  if exists(full) then return { path = full, line = line } end
+  if exists(full) and not fs.is_dir(full) then return { path = full, line = line } end
 end
 
 local function split_location(text)
@@ -110,6 +110,8 @@ function links.open(target)
     console.open_url(target.url)
     return true
   end
+
+  if target.path and fs.is_dir(target.path) then return false end
 
   local window = target.bufnr and Window.tab_with(Buffer(target.bufnr)) or Window.tab_edit(target.path)
 

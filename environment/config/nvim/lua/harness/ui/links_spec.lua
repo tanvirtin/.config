@@ -37,6 +37,11 @@ describe('harness.ui.links:', function()
     assert.is_nil(links.resolve('code', 'x', dir))
   end)
 
+  it('never resolves or opens a directory as a file', function()
+    assert.is_nil(links.resolve('link', 'lua', dir))
+    eq(false, links.open({ path = dir .. '/lua' }))
+  end)
+
   it('opens a file in a new tab at its line', function()
     local tabs = #vim.api.nvim_list_tabpages()
 

@@ -42,6 +42,13 @@ local TranscriptView = Object:extend()
 
 TranscriptView.FILETYPE = 'harness'
 
+TranscriptView.FILE_CATEGORY = {
+  [Block.CATEGORY.read] = true,
+  [Block.CATEGORY.edit] = true,
+  [Block.CATEGORY.delete] = true,
+  [Block.CATEGORY.move] = true,
+}
+
 TranscriptView.WINDOW_OPTIONS = {
   wrap = true,
   linebreak = true,
@@ -576,14 +583,23 @@ function TranscriptView:_target_at(window)
 
   if block.kind == Block.KIND.diff then
     local line = Block.file_line(block, row)
+    local target = links.resolve(Renderer.INLINE.link, block.path, dir)
 
-    return links.resolve(Renderer.INLINE.link, block.path, dir) and { path = block.path, line = line } or nil
+    if target then return { path = target.path, line = line } end
   end
 
-  if block.kind == Block.KIND.tool and block.locations and block.locations[1] then
-    local location = block.locations[1]
+  if block.kind == Block.KIND.tool then
+    local location = block.locations and block.locations[1]
 
-    return { path = location.path, line = location.line }
+    if location then
+      local target = links.resolve(Renderer.INLINE.link, location.path, dir)
+
+      if target then return { path = target.path, line = location.line or target.line } end
+    end
+
+    if TranscriptView.FILE_CATEGORY[block.category] and block.argument then
+      return links.resolve(Renderer.INLINE.link, block.argument, dir)
+    end
   end
 end
 
