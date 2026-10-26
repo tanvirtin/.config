@@ -114,4 +114,53 @@ describe('harness.transcript.calculators.Layout:', function()
     eq(7, Layout.settled({ 'intro', '```lua', 'a', '', 'b', '```', '', 'after' }, 8))
     eq(0, Layout.settled({ '- one', '', '  continued' }, 3))
   end)
+
+  it('keeps placement, lookup and change detection consistent over generated blocks', function()
+    local seed = 17
+    local kinds = { 'prompt', 'message', 'tool', 'diff', 'stop' }
+
+    local function next(n)
+      seed = (seed * 1103515245 + 12345) % 2147483648
+
+      return seed % n
+    end
+
+    for _ = 1, 40 do
+      local list = {}
+
+      for i = 1, 1 + next(8) do
+        local lines = {}
+
+        for j = 1, 1 + next(4) do
+          lines[j] = 'line ' .. i .. ':' .. j
+        end
+
+        list[i] = block(kinds[1 + next(#kinds)], lines)
+      end
+
+      local rendered = Layout.place(list, 1, 0)
+
+      for i, item in ipairs(list) do
+        local expected = item.start + #item.lines + (Layout.streaming(list, i) and 0 or 1)
+
+        eq(expected, item.finish)
+        eq(item, Layout.block_at(list, item.start))
+        eq(item, Layout.block_at(list, item.finish - 1))
+      end
+
+      eq(list[#list].finish, #rendered)
+      assert.is_nil(Layout.first_changed(list, list))
+
+      local changed = 1 + next(#list)
+      local copy = {}
+
+      for i, item in ipairs(list) do
+        copy[i] = block(item.kind, item.lines)
+      end
+
+      copy[changed].lines = { 'different' }
+
+      eq(changed, Layout.first_changed(list, copy))
+    end
+  end)
 end)

@@ -406,6 +406,8 @@ A session can be open in Neovim while another program drives it, for example `cl
 make test          # all specs
 make test-file FILE=lua/harness/Session_spec.lua
 make ci            # luacheck, stylua, and all specs
+make coverage      # luacov report in luacov.report.out
+BENCH_BUDGET_MS=250 make bench-check
 ```
 
 `make ci` is what the `Harness` workflow runs on `main` and pull requests. The fixture loads vgit from `VGIT_DIR` or `~/workspace/vgit.nvim`; CI checks out `alpha-v2.0.x`. The workflow uses Neovim nightly because the harness relies on `vim.async`.

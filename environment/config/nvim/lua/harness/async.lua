@@ -1,5 +1,6 @@
 local Timer = require('core.Timer')
 local Object = require('core.Object')
+local console = require('core.console')
 
 local async = {}
 
@@ -17,20 +18,19 @@ local function drain()
 
   draining = true
 
-  local ok, err = pcall(function()
-    while head <= tail do
-      local fn = queue[head]
-      queue[head] = nil
-      head = head + 1
-      fn()
-    end
-  end)
+  while head <= tail do
+    local fn = queue[head]
+    queue[head] = nil
+    head = head + 1
+
+    local ok, err = pcall(fn)
+
+    if not ok then pcall(console.notify, 'Harness: async callback failed: ' .. tostring(err), 'error') end
+  end
 
   queue = {}
   head, tail = 1, 0
   draining = false
-
-  if not ok then error(err, 0) end
 end
 
 local Future = Object:extend()

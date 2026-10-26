@@ -56,6 +56,36 @@ describe('harness.async:', function()
     eq({ nil, 'broken' }, { raised:wait() })
   end)
 
+  it('keeps draining after a callback fails', function()
+    local console = require('core.console')
+    local notify = console.notify
+    local errors, seen = {}, {}
+
+    console.notify = function(message)
+      errors[#errors + 1] = message
+    end
+
+    local ok, err = pcall(function()
+      local future = async.Future.new()
+
+      future:on_complete(function()
+        error('boom', 0)
+      end)
+      future:on_complete(function()
+        seen[#seen + 1] = 'after'
+      end)
+      future:set_result(1)
+      async.drain()
+    end)
+
+    console.notify = notify
+
+    if not ok then error(err, 0) end
+
+    eq({ 'after' }, seen)
+    assert.is_truthy(errors[1]:find('boom', 1, true))
+  end)
+
   it('times out with an error value, not an error', function()
     eq({ nil, 'timed out waiting for a result' }, { async.Future():wait(10) })
   end)

@@ -23,6 +23,7 @@ secret_*
 /yaml-test-data/
 *.tmp
 __pycache__/
+luacov.*.out
 
 # Agent config
 .claude/

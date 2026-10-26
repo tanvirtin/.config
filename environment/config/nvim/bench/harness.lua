@@ -11,6 +11,7 @@ local fake_agent = require('harness.servers.acp.fake_agent')
 
 local TURNS = tonumber(os.getenv('TURNS') or 30)
 local CHUNKS = tonumber(os.getenv('CHUNKS') or 1500)
+local BUDGET_MS = tonumber(os.getenv('BENCH_BUDGET_MS') or '')
 
 vim.o.columns, vim.o.lines = 160, 50
 
@@ -19,6 +20,7 @@ local function now()
 end
 
 local out = {}
+local failed = false
 
 local function log(...)
   out[#out + 1] = string.format(...)
@@ -211,6 +213,12 @@ log(
   math.min(unpack(totals)),
   vim.api.nvim_buf_line_count(view.bufnr)
 )
+
+if BUDGET_MS and median(totals) > BUDGET_MS then
+  failed = true
+  log('  budget %.1f ms exceeded by %.1f ms', BUDGET_MS, median(totals) - BUDGET_MS)
+end
+
 report()
 
 log('build')
@@ -327,4 +335,4 @@ session.state = 'idle'
 view:dispose()
 
 io.stdout:write(table.concat(out, '\n') .. '\n')
-vim.cmd('qa!')
+vim.cmd(failed and 'cquit 1' or 'qa!')
