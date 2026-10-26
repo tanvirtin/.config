@@ -213,6 +213,12 @@ function Buffer:get_extmarks(namespace, from, to, opts)
   return vim.api.nvim_buf_get_extmarks(self.bufnr, namespace, from or 0, to or -1, opts or {})
 end
 
+function Buffer:get_extmark_row(namespace, id)
+  local ok, mark = pcall(vim.api.nvim_buf_get_extmark_by_id, self.bufnr, namespace, id, {})
+
+  return ok and mark[1] or nil
+end
+
 function Buffer:del_extmark(namespace, id)
   return pcall(vim.api.nvim_buf_del_extmark, self.bufnr, namespace, id)
 end

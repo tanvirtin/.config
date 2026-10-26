@@ -328,6 +328,18 @@ function Window:set_top(lnum)
   end)
 end
 
+function Window:get_view()
+  local ok, view = pcall(vim.api.nvim_win_call, self.win_id, vim.fn.winsaveview)
+
+  return ok and view or { topline = 1, topfill = 0, lnum = 1, col = 0 }
+end
+
+function Window:set_view(view)
+  return self:call(function()
+    vim.fn.winrestview(view)
+  end)
+end
+
 function Window:scroll_up(rows)
   if rows < 1 then return self end
 

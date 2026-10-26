@@ -351,6 +351,31 @@ describe('Window:', function()
       window:close()
     end)
   end)
+  describe('get_view and set_view', function()
+    it('reads and restores the top line and the filler rows shown above it', function()
+      local buf = vim.api.nvim_create_buf(false, true)
+      local lines = {}
+
+      for i = 1, 40 do
+        lines[i] = tostring(i)
+      end
+
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+      local ns = vim.api.nvim_create_namespace('core.Window_spec.view')
+
+      vim.api.nvim_buf_set_extmark(buf, ns, 20, 0, { virt_lines = { { { 'above' } } }, virt_lines_above = true })
+
+      local window = Window(vim.api.nvim_open_win(buf, false, default_float_opts))
+
+      window:set_view({ topline = 21, topfill = 1, lnum = 22 })
+
+      local view = window:get_view()
+
+      eq({ 21, 1 }, { view.topline, view.topfill })
+      window:close()
+    end)
+  end)
   describe('tabs and folds', function()
     after_each(function()
       vim.cmd('silent! tabonly!')

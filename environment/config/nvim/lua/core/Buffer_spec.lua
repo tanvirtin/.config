@@ -179,6 +179,30 @@ describe('Buffer:', function()
     end)
   end)
 
+  describe('set_extmark and get_extmark_row', function()
+    it('keeps a mark on its line as rows come and go above it', function()
+      local namespace = Buffer.namespace('spec.buffer.extmark')
+
+      buffer:set_lines({ 'one', 'two', 'three' })
+
+      local id = buffer:set_extmark(namespace, 1, 0, {})
+
+      eq(1, buffer:get_extmark_row(namespace, id))
+
+      buffer:set_lines({ 'above' }, 0, 0)
+      eq(2, buffer:get_extmark_row(namespace, id))
+
+      buffer:set_lines({}, 0, 1)
+      eq(1, buffer:get_extmark_row(namespace, id))
+    end)
+
+    it('returns nil for a mark that is gone', function()
+      buffer:set_lines({ 'one' })
+
+      assert.is_nil(buffer:get_extmark_row(Buffer.namespace('spec.buffer.gone'), 999))
+    end)
+  end)
+
   describe('set_option', function()
     it('should set buffer option', function()
       vim.api.nvim_set_option_value('ft', 'lua', { buf = buffer.bufnr })

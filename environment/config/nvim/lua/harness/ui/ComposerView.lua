@@ -147,9 +147,16 @@ function ComposerView:close(discard)
 
   if self:is_open() then
     local lines = self.element:get_lines()
+    local view = display.view_of(self.session)
 
     self.store:set_draft(key, ComposerView.has_text(lines) and lines or nil)
+
+    -- the transcript takes the rows back: put its top line back once it has grown
+    if view then view:watch() end
+
     self.element:unmount()
+
+    if view then view:hold_end() end
   end
 
   if discard then self.store:clear(key) end
@@ -348,7 +355,14 @@ function ComposerView:mount(insert)
   self.source = { win = view and view.source_win, buf = view and view.source_buf }
   self.element = element
 
+  -- the split takes rows from the transcript: note where the reader is first,
+  -- then put the top line back once the window has shrunk
+  if view then view:watch() end
+
   element:mount()
+
+  if view then view:hold_end() end
+
   element:set_name(ComposerView.NAME)
   element:set_lines(self.store:draft(session.key) or { '' })
   element:set_buf_option('modified', false)

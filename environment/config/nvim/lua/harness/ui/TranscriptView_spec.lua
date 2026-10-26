@@ -257,32 +257,29 @@ describe('harness.ui.TranscriptView:', function()
     view:dispose()
   end)
 
-  it(
-    'leaves a scrolled-up window alone when a prompt arrives, and follows again once the end is back in view',
-    function()
-      for i = 1, 60 do
-        session:_emit(events.prompt('turn ' .. i))
-      end
-
-      local view = TranscriptView(session):mount()
-      local win = vim.api.nvim_get_current_win()
-      local Window = require('core.Window')
-
-      view:show_in(Window.get_current())
-      vim.cmd('normal! gg')
-      session:_emit(events.prompt('next'))
-      session:_emit(events.new({ kind = 'message', text = 'reply' }))
-      view:render()
-      eq(1, vim.fn.line('w0', win))
-      eq(1, vim.api.nvim_win_get_cursor(win)[1])
-
-      vim.cmd('normal! G')
-      session:_emit(events.new({ kind = 'message', text = string.rep('\n\nmore', vim.api.nvim_win_get_height(win)) }))
-      view:render()
-      eq(true, require('harness.ui.sticky_bottom').at_end(Window(win)))
-      view:dispose()
+  it('leaves a scrolled-up window alone when a prompt arrives, and follows again when it lands', function()
+    for i = 1, 60 do
+      session:_emit(events.prompt('turn ' .. i))
     end
-  )
+
+    local view = TranscriptView(session):mount()
+    local win = vim.api.nvim_get_current_win()
+    local Window = require('core.Window')
+
+    view:show_in(Window.get_current())
+    vim.cmd('normal! gg')
+    session:_emit(events.prompt('next'))
+    session:_emit(events.new({ kind = 'message', text = 'reply' }))
+    view:render()
+    eq(1, vim.fn.line('w0', win))
+    eq(1, vim.api.nvim_win_get_cursor(win)[1])
+
+    view:land(Window.get_current())
+    session:_emit(events.new({ kind = 'message', text = string.rep('\n\nmore', vim.api.nvim_win_get_height(win)) }))
+    view:render()
+    eq(true, require('harness.ui.sticky_bottom').at_end(Window(win)))
+    view:dispose()
+  end)
 
   it('follows the stream that ran while hidden when it was left at the end', function()
     for i = 1, 30 do
@@ -335,6 +332,109 @@ describe('harness.ui.TranscriptView:', function()
 
     session:_emit(events.new({ kind = 'message', text = 'more' }))
     view:render()
+    eq(top, vim.fn.line('w0', win))
+    view:dispose()
+  end)
+
+  it('does not move a window when no text arrives', function()
+    for i = 1, 60 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    local view = TranscriptView(session):mount()
+    local win = vim.api.nvim_get_current_win()
+    local Window = require('core.Window')
+    local sticky_bottom = require('harness.ui.sticky_bottom')
+
+    view:show_in(Window.get_current())
+    vim.cmd('normal! 3\25')
+
+    local top = vim.fn.line('w0', win)
+
+    eq(true, sticky_bottom.at_end(Window(win)))
+
+    view:render()
+    view:watch()
+
+    eq(top, vim.fn.line('w0', win))
+    eq(false, view.following:follows(Window(win)))
+    view:dispose()
+  end)
+
+  it('takes the stream back up when the end is scrolled back into view', function()
+    for i = 1, 60 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    local view = TranscriptView(session):mount()
+    local win = vim.api.nvim_get_current_win()
+    local Window = require('core.Window')
+    local sticky_bottom = require('harness.ui.sticky_bottom')
+
+    view:show_in(Window.get_current())
+    vim.cmd('normal! ' .. (sticky_bottom.margin(Window(win)) + 3) .. '\25')
+    view:watch()
+    eq(false, view.following:follows(Window(win)))
+
+    vim.cmd('normal! G')
+    vim.cmd('normal! ' .. (sticky_bottom.margin(Window(win)) + 1) .. '\5')
+
+    session:_emit(events.new({ kind = 'message', text = 'more' }))
+    view:render()
+
+    eq(true, view.following:follows(Window(win)))
+    assert.is_true(sticky_bottom.at_end(Window(win)))
+    view:dispose()
+  end)
+
+  it('leaves a window scrolled up alone while the newest line is still in view', function()
+    for i = 1, 60 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    local view = TranscriptView(session):mount()
+    local win = vim.api.nvim_get_current_win()
+    local Window = require('core.Window')
+    local sticky_bottom = require('harness.ui.sticky_bottom')
+
+    view:show_in(Window.get_current())
+
+    vim.cmd('normal! 3\25')
+
+    local scrolled = vim.fn.line('w0', win)
+
+    eq(true, sticky_bottom.at_end(Window(win)))
+
+    session:_emit(events.new({ kind = 'message', text = 'more' }))
+    view:render()
+
+    eq(scrolled, vim.fn.line('w0', win))
+    eq(false, view.following:follows(Window(win)))
+    view:dispose()
+  end)
+
+  it('notices the window being scrolled, without waiting for an event', function()
+    for i = 1, 60 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    local view = TranscriptView(session):mount()
+    local win = vim.api.nvim_get_current_win()
+    local Window = require('core.Window')
+
+    view:show_in(Window.get_current())
+    vim.wait(100)
+    vim.cmd('normal! ' .. (require('harness.ui.sticky_bottom').margin(Window(win)) + 3) .. '\25')
+
+    local top = vim.fn.line('w0', win)
+
+    assert.is_true(vim.wait(1000, function()
+      return not view.following:follows(Window(win))
+    end))
+
+    session:_emit(events.new({ kind = 'message', text = 'more' }))
+    view:render()
+
     eq(top, vim.fn.line('w0', win))
     view:dispose()
   end)
@@ -419,6 +519,48 @@ describe('harness.ui.TranscriptView:', function()
 
     vim.api.nvim_win_set_buf(win, view.bufnr)
     eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
+    view:dispose()
+  end)
+
+  it('follows the stream in a second window that came to show it without BufWinEnter', function()
+    for i = 1, 60 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    local view = TranscriptView(session):mount()
+    local Window = require('core.Window')
+
+    view:show_in(Window.get_current())
+
+    local first = vim.api.nvim_get_current_win()
+
+    vim.cmd('noautocmd vsplit')
+
+    local second = vim.api.nvim_get_current_win()
+
+    eq(false, view.following:settled(Window(second)))
+    view:watch()
+    eq(true, view.following:settled(Window(second)))
+    eq(true, view.following:follows(Window(second)))
+
+    vim.api.nvim_win_call(first, function()
+      vim.cmd('normal! 6\25')
+    end)
+    view:watch()
+
+    local function top_text()
+      local row = vim.fn.line('w0', first)
+
+      return vim.api.nvim_buf_get_lines(view.bufnr, row - 1, row, false)[1]
+    end
+
+    local top = top_text()
+
+    session:_emit(events.new({ kind = 'message', text = string.rep('more rows\n\n', 30) }))
+    view:render()
+
+    eq(top, top_text())
+    eq(true, require('harness.ui.sticky_bottom').at_end(Window(second)))
     view:dispose()
   end)
 
@@ -612,7 +754,7 @@ describe('harness.ui.TranscriptView:', function()
     vim.api.nvim_win_set_cursor(win, { 1, 0 })
     vim.fn.winrestview({ topline = 1 })
     eq(1, vim.fn.line('w0', win))
-    vim.api.nvim_exec_autocmds('WinScrolled', {})
+    view:watch()
     vim.cmd('tabnew')
     vim.api.nvim_win_set_buf(win, vim.api.nvim_create_buf(true, true))
     vim.api.nvim_win_set_buf(win, view.bufnr)
@@ -644,6 +786,7 @@ describe('harness.ui.TranscriptView:', function()
 
     eq({}, session._listeners)
     eq(false, view.timer:is_active())
+    eq(false, view.watcher:is_active())
     eq(false, pcall(vim.api.nvim_get_autocmds, { group = group }))
   end)
 

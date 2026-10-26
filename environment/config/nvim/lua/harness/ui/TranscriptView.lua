@@ -195,15 +195,18 @@ function TranscriptView:render()
   if not self.buffer:is_valid() then return end
 
   local session = self.session
-  local last = self.buffer:get_line_count()
+  local before = self.buffer:get_line_count()
   local windows = self:windows()
   local loading = session:loading()
   local tails = {}
 
+  self:adopt(windows)
+
+  -- see a scroll made since the last frame before writing can pull the window back
+  self.following:track(windows)
+
   for _, window in ipairs(windows) do
-    if not loading and self.following:follows(window) then
-      tails[#tails + 1] = { window, window:get_cursor()[1] >= last }
-    end
+    if not loading then tails[#tails + 1] = { window = window, on_last = window:get_cursor()[1] >= before } end
   end
 
   local state = self:state()
@@ -220,15 +223,18 @@ function TranscriptView:render()
 
   local landing = self.landing
 
+  -- only text arriving moves a window, and only while the reader is at the edge
+  local grew = self.buffer:get_line_count() > before
+
   if landing ~= nil and not loading then
     self.landing = nil
 
     for _, window in ipairs(windows) do
       if landing == true or landing == window.win_id then self:land(window) end
     end
-  else
+  elseif grew then
     for _, tail in ipairs(tails) do
-      self.following:glide(tail[1], tail[2])
+      if self.following:follows(tail.window) then self.following:glide(tail.window, tail.on_last) end
     end
   end
 
@@ -343,6 +349,27 @@ function TranscriptView:announce_waiting()
   console.notify(string.format('Harness %s: waiting for permission: %s', self.session.key, what), 'warn')
 end
 
+-- a window that came to show the transcript without BufWinEnter (a split of it,
+-- another tab) has never been landed, so nothing would follow the stream in it
+function TranscriptView:adopt(windows)
+  for _, window in ipairs(windows) do
+    if not self.following:settled(window) then self:land(window) end
+  end
+end
+
+function TranscriptView:watch()
+  local windows = self:windows()
+
+  self:adopt(windows)
+
+  for _, window in ipairs(windows) do
+    self:set_winbar(window)
+  end
+
+  -- note where the reader is, and put back only a top line a resize moved
+  self.following:hold_end(windows)
+end
+
 function TranscriptView:on_event(update)
   local kind = update.kind
 
@@ -394,7 +421,7 @@ function TranscriptView:on_show()
 
   local window = Window.get_current()
 
-  if self.following:arrive(window) ~= false then
+  if self.following:arrive(window) then
     self:enter(window)
   elseif self.dirty then
     self:render()
@@ -946,13 +973,6 @@ function TranscriptView:mount(callbacks)
   self.group.on('BufWinEnter', function()
     self:on_show()
   end, { buffer = self.buffer })
-  self.group.on('WinScrolled', function()
-    for _, window in ipairs(self:windows()) do
-      self:set_winbar(window)
-    end
-
-    self.following:track(self:windows())
-  end)
   self.group.on('WinClosed', function(args)
     local win_id = tonumber(args.match)
 
@@ -985,6 +1005,12 @@ function TranscriptView:mount(callbacks)
     end,
   })
 
+  -- WinScrolled is not delivered everywhere, so the window is watched for the
+  -- user's own scrolling instead of waiting for an event
+  self.watcher = Timer():every(settings.transcript:get('watch_ms'), function()
+    if not self.disposed and self:is_visible() then self:watch() end
+  end)
+
   self:render()
 
   return self
@@ -1002,6 +1028,7 @@ function TranscriptView:dispose()
   self.plan:hide()
   self.timer:close()
   self.pacer:close()
+  if self.watcher then self.watcher:close() end
 
   if self.group then self.group.dispose() end
 

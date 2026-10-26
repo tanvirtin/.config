@@ -76,6 +76,34 @@ describe('harness.ui.composer:', function()
     eq(true, element:is_valid())
   end)
 
+  it('opens without moving a transcript that was scrolled up', function()
+    local events = require('harness.types.events')
+
+    for i = 1, 60 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    local view = transcript.view_of(session)
+    local win = vim.api.nvim_get_current_win()
+
+    view:render()
+    vim.cmd('normal! 6\25')
+
+    local top = vim.fn.line('w0', win)
+
+    composer.open(session)
+    vim.wait(100)
+
+    eq(true, composer.is_open())
+    -- a wrapped bottom line can cost a row
+    assert.is_true(math.abs(vim.fn.line('w0', win) - top) <= 1)
+
+    composer.close(true)
+    vim.wait(100)
+
+    assert.is_true(math.abs(vim.fn.line('w0', win) - top) <= 1)
+  end)
+
   it('sends on <CR> in normal mode, then clears and closes', function()
     local origin = vim.api.nvim_get_current_win()
 
