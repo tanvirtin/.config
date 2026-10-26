@@ -105,6 +105,20 @@ return function()
       mode = 'markdown',
       table = { first = 3, trim = 1 },
     },
+    hit_test = 'csv',
+    actions = {
+      {
+        key = 'yank',
+        label = 'yank the table cell',
+        handler = function(view, block)
+          local text, code = view:yank_token(block)
+
+          if text then return text, code end
+
+          return view:yank_block(block)
+        end,
+      },
+    },
   })
 
   content.register({

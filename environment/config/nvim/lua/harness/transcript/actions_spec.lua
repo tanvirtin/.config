@@ -40,6 +40,12 @@ describe('harness.transcript.actions:', function()
     assert.is_not_nil(actions.find(Block.make(Block.KIND.message, { 'x' }), 'yank'))
   end)
 
+  it('should find the built-in CSV yank action', function()
+    local block = { kind = Block.KIND.tool, lang = 'csv' }
+
+    assert.is_not_nil(actions.find(block, 'yank'))
+  end)
+
   it('should run an action and return its result', function()
     local called = false
 

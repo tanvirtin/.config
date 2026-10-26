@@ -1,10 +1,18 @@
 local MarkSpec = require('ui.MarkSpec')
 local text = require('core.text')
+local content = require('harness.transcript.content')
+local hit_test = require('harness.ui.hit_test')
 
 local content_table = {}
 
 local function parse(line, delimiter)
-  local cells, cell, quoted, i = {}, {}, false, 1
+  local cells, ranges, cell, quoted, i, start = {}, {}, {}, false, 1, 0
+
+  local function push(finish)
+    cells[#cells + 1] = table.concat(cell)
+    ranges[#ranges + 1] = { start, finish }
+    cell = {}
+  end
 
   while i <= #line do
     local char = line:sub(i, i)
@@ -26,8 +34,8 @@ local function parse(line, delimiter)
       quoted = true
       i = i + 1
     elseif char == delimiter then
-      cells[#cells + 1] = table.concat(cell)
-      cell = {}
+      push(i - 1)
+      start = i
       i = i + 1
     else
       cell[#cell + 1] = char
@@ -35,9 +43,9 @@ local function parse(line, delimiter)
     end
   end
 
-  cells[#cells + 1] = table.concat(cell)
+  push(#line)
 
-  return cells
+  return cells, ranges
 end
 
 function content_table.render(block, spec, ctx)
@@ -91,5 +99,32 @@ function content_table.render(block, spec, ctx)
 
   return out
 end
+
+hit_test.bind('csv', function(block, row, col)
+  local spec = content.option(block, 'table')
+
+  if not spec then return nil end
+
+  local lines = block.lines
+
+  if not lines then return nil end
+
+  local first = spec.first or 1
+  local last = spec.last or (#lines - (spec.trim or 0))
+  local index = row - (block.start or 0) + 1
+
+  if index < first or index > last then return nil end
+
+  local line = lines[index]
+
+  if not line or line == '' or line:match('^…%s+%d+ more lines$') then return nil end
+
+  local delimiter = block.lang == 'tsv' and '\t' or ','
+  local cells, ranges = parse(line, delimiter)
+
+  for c, range in ipairs(ranges) do
+    if col >= range[1] and col < range[2] then return { text = cells[c], group = 'table_cell' } end
+  end
+end)
 
 return content_table

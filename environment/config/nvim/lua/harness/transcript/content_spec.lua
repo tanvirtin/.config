@@ -47,6 +47,7 @@ describe('harness.transcript.content:', function()
     eq(3, spec.first)
     eq(1, spec.trim)
     eq('csv', content.resolve(block).id)
+    eq('csv', content.resolve(block).hit_test)
   end)
 
   it('should expose the built-in options', function()
