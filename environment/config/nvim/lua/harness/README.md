@@ -405,6 +405,9 @@ A session can be open in Neovim while another program drives it, for example `cl
 ```sh
 make test          # all specs
 make test-file FILE=lua/harness/Session_spec.lua
+make ci            # luacheck, stylua, and all specs
 ```
+
+`make ci` is what the `Harness` workflow runs on `main` and pull requests. The fixture loads vgit from `VGIT_DIR` or `~/workspace/vgit.nvim`; CI checks out `alpha-v2.0.x`. The workflow uses Neovim nightly because the harness relies on `vim.async`.
 
 `harness/servers/acp/fake_agent.lua` is a scripted ACP agent for specs. It handles sessions, list and load, and permission requests. `servers/fake` is an in-memory server with no protocol, and `connection_spec.lua` runs the same contract against it and against ACP over the fake agent. Specs sit next to their module (`Layout.lua`, `Layout_spec.lua`) and go bottom up: calculators and decorators are tested as data, views against real buffers, and `architecture_spec.lua` guards the layers.
