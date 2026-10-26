@@ -36,6 +36,10 @@ describe('harness.transcript.content:', function()
     eq('markdown', content.mode(block))
   end)
 
+  it('should give markdown messages a table hit test', function()
+    eq('markdown', content.resolve(Block.make(Block.KIND.message, { 'x' })).hit_test)
+  end)
+
   it('should expose the built-in options', function()
     local prompt = Block.make(Block.KIND.prompt, { 'x' })
     local thought = Block.make(Block.KIND.thought, { 'x' })

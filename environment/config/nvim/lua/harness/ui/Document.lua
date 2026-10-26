@@ -16,6 +16,7 @@ local FoldCalculator = require('harness.transcript.calculators.FoldCalculator')
 
 builtin()
 require('ui.content.json')
+require('ui.content.markdown')
 
 local Document = Object:extend()
 
