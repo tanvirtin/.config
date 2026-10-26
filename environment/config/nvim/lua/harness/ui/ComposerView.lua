@@ -10,7 +10,6 @@ local tools = lazy('nvim_mcp.tools')
 local context = lazy('harness.context')
 local settings = lazy('harness.settings')
 local Element = lazy('ui.elements.Element')
-local display = lazy('harness.ui.display_api')
 local theme = lazy('harness.transcript.theme')
 local permission_state = lazy('harness.ui.permission_state')
 
@@ -42,6 +41,7 @@ function ComposerView:constructor(session, store, callbacks)
   return {
     session = session,
     store = store,
+    display = callbacks.display,
     element = nil,
     origin = nil,
     source = {},
@@ -141,7 +141,7 @@ function ComposerView:close(discard)
 
   if self:is_open() then
     local lines = self.element:get_lines()
-    local view = display.view_of(self.session)
+    local view = self.display and self.display.view_of(self.session)
 
     self.store:set_draft(key, ComposerView.has_text(lines) and lines or nil)
 
@@ -189,7 +189,9 @@ function ComposerView:_deliver(message, opts)
 
   if sent.task then
     sent.task:on_complete(function(turn_err)
-      if turn_err and not display.showing(session) then ComposerView.warn(tostring(turn_err)) end
+      if turn_err and not (self.display and self.display.showing(session)) then
+        ComposerView.warn(tostring(turn_err))
+      end
     end)
   end
 
@@ -202,7 +204,7 @@ function ComposerView:send(opts)
 
   if not sent then return ComposerView.warn(why) end
 
-  local shown = display.reveal(message.session, message.origin, message.source)
+  local shown = self.display and self.display.reveal(message.session, message.origin, message.source)
 
   self:close(true)
   ComposerView.focus_window(shown)
@@ -221,7 +223,7 @@ function ComposerView:_send_after_write()
       return ComposerView.warn(why)
     end
 
-    local shown = display.reveal(message.session, message.origin, message.source)
+    local shown = self.display and self.display.reveal(message.session, message.origin, message.source)
 
     if self:is_open() then self:close(true) end
     ComposerView.focus_window(shown)
@@ -324,7 +326,7 @@ end
 
 function ComposerView:mount(insert)
   local session = self.session
-  local view = display.view_of(session)
+  local view = self.display and self.display.view_of(session)
   local element = Element({
     buf_options = {
       buftype = 'acwrite',

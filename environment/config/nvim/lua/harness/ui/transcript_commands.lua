@@ -10,7 +10,6 @@ local register = lazy('core.register')
 local edits = lazy('harness.ui.edits')
 local links = require('harness.ui.links')
 local Renderer = lazy('ui.markdown.Renderer')
-local display = lazy('harness.ui.display_api')
 local theme = lazy('harness.transcript.theme')
 local hit_test = require('harness.ui.hit_test')
 local Block = require('harness.transcript.Block')
@@ -192,7 +191,7 @@ function commands.fork(view)
     Timer.schedule(function()
       if err then return console.notify_now('Harness: could not fork: ' .. tostring(err), 'warn') end
 
-      display.open(forked)
+      if view.display then view.display.open(forked) end
     end)
   end)
   async.drain()

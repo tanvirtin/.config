@@ -5,7 +5,6 @@ local edits = lazy('harness.ui.edits')
 local console = require('core.console')
 local settings = require('harness.settings')
 local code_blocks = lazy('harness.ui.code_blocks')
-local composer_api = require('harness.ui.composer_api')
 
 local bindings = {}
 
@@ -17,7 +16,7 @@ function bindings.bindings(view)
     {
       keys.interrupt,
       function()
-        composer_api.interrupt(session)
+        if view.composer then view.composer.interrupt(session) end
       end,
       'Interrupt this session',
     },

@@ -17,7 +17,6 @@ local theme = lazy('harness.transcript.theme')
 local Document = require('harness.ui.Document')
 local PlanPanel = require('harness.ui.PlanPanel')
 local Following = require('harness.ui.Following')
-local composer_api = lazy('harness.ui.composer_api')
 local commands = lazy('harness.ui.transcript_commands')
 local bindings = lazy('harness.ui.transcript_bindings')
 local sticky_bottom = require('harness.ui.sticky_bottom')
@@ -77,11 +76,13 @@ function TranscriptView:constructor(session, opts)
 
   local document = Document(buffer.bufnr):attach()
 
-  return {
+  local view = {
     session = session,
     buffer = buffer,
     bufnr = buffer.bufnr,
     document = document,
+    composer = opts.composer,
+    display = opts.display,
     source_win = opts.source_win,
     source_buf = opts.source_buf,
     timer = Timer(),
@@ -93,10 +94,16 @@ function TranscriptView:constructor(session, opts)
     edits = session.edits,
     dirty = true,
     landing = nil,
-    following = Following(TranscriptView.reserve),
+    following = nil,
     scheduled = false,
     disposed = false,
   }
+
+  view.following = Following(function(window)
+    return TranscriptView.reserve(view, window)
+  end)
+
+  return view
 end
 
 function TranscriptView:windows()
@@ -275,8 +282,8 @@ function TranscriptView:write(history, state)
   )
 end
 
-function TranscriptView.reserve(window)
-  if composer_api.is_open() then return 0 end
+function TranscriptView.reserve(view, window)
+  if view.composer and view.composer.is_open() then return 0 end
 
   return sticky_bottom.margin(window)
 end
@@ -472,7 +479,7 @@ function TranscriptView:bind(actions)
 
   for _, lhs in ipairs(settings.keymaps:get('transcript').write) do
     self:map(lhs, function()
-      composer_api.open(session, { insert = true })
+      if self.composer then self.composer.open(session, { insert = true }) end
     end, 'Write to this session')
   end
 

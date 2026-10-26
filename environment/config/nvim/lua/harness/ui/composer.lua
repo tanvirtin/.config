@@ -3,7 +3,6 @@ local lazy = require('core.lazy')
 local Window = lazy('core.Window')
 local keymap = lazy('core.keymap')
 local console = lazy('core.console')
-local display = lazy('harness.ui.display_api')
 local session_store = lazy('harness.session_store')
 local ComposerView = lazy('harness.ui.ComposerView')
 local NOTICE = require('harness.types.events').NOTICE
@@ -15,6 +14,12 @@ composer.WINBAR = ComposerView.WINBAR
 
 local store = ComposerStore()
 local current
+
+function composer.install(display)
+  composer.display = display
+
+  return composer
+end
 
 function composer.winbar(session)
   if session and not (current and current.session == session) then return ComposerView(session, store):winbar() end
@@ -82,7 +87,7 @@ function composer.interrupt(session)
 end
 
 function composer.model(session)
-  local view = session and display.view_of(session)
+  local view = session and composer.display and composer.display.view_of(session)
 
   if view then view:pick_model() end
 end
@@ -114,6 +119,7 @@ function composer.open(session, opts)
   if session.state == 'closed' then return ComposerView.warn('this session has ended') end
 
   current = ComposerView(session, store, {
+    display = composer.display,
     on_interrupt = composer.interrupt,
     on_slash = composer.slash,
     on_model = composer.model,
@@ -195,7 +201,5 @@ function composer.forget(session)
 
   if current and current.session == session then composer.close(true) end
 end
-
-require('harness.ui.composer_api').install(composer)
 
 return composer

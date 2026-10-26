@@ -611,14 +611,14 @@ describe('harness.ui.TranscriptView:', function()
       session:_emit(events.prompt('turn ' .. i))
     end
 
-    local view = TranscriptView(session):mount()
+    local composer = require('harness.ui.composer')
+    local view = TranscriptView(session, { composer = composer }):mount()
     local win = vim.api.nvim_get_current_win()
     local Window = require('core.Window')
     local sticky_bottom = require('harness.ui.sticky_bottom')
 
     view:show_in(Window.get_current())
 
-    local composer = require('harness.ui.composer')
     local is_open = composer.is_open
 
     composer.is_open = function()
@@ -651,14 +651,14 @@ describe('harness.ui.TranscriptView:', function()
       session:_emit(events.prompt('turn ' .. i))
     end
 
-    local view = TranscriptView(session):mount()
+    local composer = require('harness.ui.composer')
+    local view = TranscriptView(session, { composer = composer }):mount()
     local win = vim.api.nvim_get_current_win()
     local Window = require('core.Window')
     local sticky_bottom = require('harness.ui.sticky_bottom')
 
     view:show_in(Window.get_current())
 
-    local composer = require('harness.ui.composer')
     local is_open = composer.is_open
 
     composer.is_open = function()
