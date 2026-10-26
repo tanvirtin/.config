@@ -3,7 +3,7 @@ local lazy = require('core.lazy')
 local Window = lazy('core.Window')
 local keymap = lazy('core.keymap')
 local console = lazy('core.console')
-local display = lazy('harness.ui.display')
+local display = lazy('harness.ui.display_api')
 local session_store = lazy('harness.session_store')
 local ComposerView = lazy('harness.ui.ComposerView')
 local NOTICE = require('harness.types.events').NOTICE
@@ -195,5 +195,7 @@ function composer.forget(session)
 
   if current and current.session == session then composer.close(true) end
 end
+
+require('harness.ui.composer_api').install(composer)
 
 return composer

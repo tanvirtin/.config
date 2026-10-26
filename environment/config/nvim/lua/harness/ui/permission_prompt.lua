@@ -2,35 +2,16 @@ local lazy = require('core.lazy')
 
 local Timer = lazy('core.Timer')
 local display = lazy('harness.ui.display')
+local state = require('harness.ui.permission_state')
 local NOTICE = require('harness.types.events').NOTICE
 local PermissionPrompt = lazy('harness.ui.PermissionPrompt')
 
 local permission_prompt = {}
 
-permission_prompt.KEYS = { '1', '2', '3', '4', '5', '6', '7', '8', '9' }
-
-local asks = setmetatable({}, { __mode = 'k' })
-
-local function forget(session, prompt)
-  local list = asks[session]
-
-  if not list then return end
-
-  for i, candidate in ipairs(list) do
-    if candidate == prompt then
-      table.remove(list, i)
-      break
-    end
-  end
-
-  if #list == 0 then asks[session] = nil end
-end
-
-function permission_prompt.asks_of(session)
-  return vim.tbl_filter(function(prompt)
-    return prompt:is_open()
-  end, asks[session] or {})
-end
+permission_prompt.KEYS = state.KEYS
+permission_prompt.asks_of = state.asks_of
+permission_prompt.choice = state.choice
+permission_prompt.answer = state.answer
 
 local function refresh(session)
   Timer.schedule(function()
@@ -43,15 +24,14 @@ function permission_prompt.ask(request)
   local prompt = PermissionPrompt(request)
   local future = prompt.future
 
-  asks[session] = asks[session] or {}
-  table.insert(asks[session], prompt)
+  state.add(session, prompt)
 
   function future.dismiss()
     prompt:dismiss()
   end
 
   future:on_complete(function()
-    forget(session, prompt)
+    state.forget(session, prompt)
     refresh(session)
   end)
 
@@ -61,18 +41,6 @@ function permission_prompt.ask(request)
   end)
 
   return future
-end
-
-function permission_prompt.choice(session, key)
-  local pending = permission_prompt.asks_of(session)[1]
-
-  return pending and pending:choice(key), pending
-end
-
-function permission_prompt.answer(session, key)
-  local pending = permission_prompt.asks_of(session)[1]
-
-  return pending ~= nil and pending:answer(key)
 end
 
 return permission_prompt

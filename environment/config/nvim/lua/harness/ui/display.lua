@@ -2,6 +2,7 @@ local lazy = require('core.lazy')
 
 local Buffer = lazy('core.Buffer')
 local Window = lazy('core.Window')
+local display_api = require('harness.ui.display_api')
 local TranscriptView = lazy('harness.ui.TranscriptView')
 
 local display = {}
@@ -113,5 +114,8 @@ function display.reveal(session, origin, source)
 
   return Window.get_current().win_id
 end
+
+display_api.install(display)
+require('harness.ui.composer')
 
 return display

@@ -264,7 +264,7 @@ describe('harness architecture:', function()
     eq({}, stale)
   end)
 
-  it('has no top-level require cycles', function()
+  it('has no module cycles', function()
     local graph, names = {}, {}
 
     for _, module in ipairs(modules()) do
@@ -273,10 +273,8 @@ describe('harness architecture:', function()
     end
 
     for _, module in ipairs(modules()) do
-      for line in module.source:gmatch('[^\n]+') do
-        local target = line:match('^local [%w_, ]+ = require%(\'(harness[%w_.]*)\'%)')
-
-        if target and names[target] then graph[module.name][#graph[module.name] + 1] = target end
+      for _, target in module.source:gmatch('(require|lazy)%(\'(harness[%w_.]*)\'%)') do
+        if names[target] then graph[module.name][#graph[module.name] + 1] = target end
       end
     end
 

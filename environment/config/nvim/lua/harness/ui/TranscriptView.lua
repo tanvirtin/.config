@@ -12,17 +12,18 @@ local keymap = require('core.keymap')
 local console = require('core.console')
 local links = require('harness.ui.links')
 local winbar = require('harness.ui.winbar')
-local composer = lazy('harness.ui.composer')
 local settings = require('harness.settings')
 local theme = lazy('harness.transcript.theme')
 local Document = require('harness.ui.Document')
 local PlanPanel = require('harness.ui.PlanPanel')
 local Following = require('harness.ui.Following')
+local composer_api = lazy('harness.ui.composer_api')
 local commands = lazy('harness.ui.transcript_commands')
+local bindings = lazy('harness.ui.transcript_bindings')
 local sticky_bottom = require('harness.ui.sticky_bottom')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 local Layout = require('harness.transcript.calculators.Layout')
-local permission_prompt = require('harness.ui.permission_prompt')
+local permission_state = require('harness.ui.permission_state')
 local EVENT, NOTICE = require('harness.types.events').KIND, require('harness.types.events').NOTICE
 
 local TranscriptView = Object:extend()
@@ -174,7 +175,7 @@ function TranscriptView:state()
     started = TranscriptView.turn_started(session),
     queue = session:queued(),
     waiting = session:waiting(),
-    asks = permission_prompt.asks_of(session),
+    asks = permission_state.asks_of(session),
     active = TranscriptView.active_subagents(session),
   }
 end
@@ -275,7 +276,7 @@ function TranscriptView:write(history, state)
 end
 
 function TranscriptView.reserve(window)
-  if composer.is_open() then return 0 end
+  if composer_api.is_open() then return 0 end
 
   return sticky_bottom.margin(window)
 end
@@ -471,7 +472,7 @@ function TranscriptView:bind(actions)
 
   for _, lhs in ipairs(settings.keymaps:get('transcript').write) do
     self:map(lhs, function()
-      composer.open(session, { insert = true })
+      composer_api.open(session, { insert = true })
     end, 'Write to this session')
   end
 
@@ -479,12 +480,12 @@ function TranscriptView:bind(actions)
     self:map(binding[1], binding[2], binding[3], binding[4])
   end
 
-  for _, key in ipairs(permission_prompt.KEYS) do
+  for _, key in ipairs(permission_state.KEYS) do
     self:map(key, function()
-      if not permission_prompt.choice(session, key) then return key end
+      if not permission_state.choice(session, key) then return key end
 
       Timer.schedule(function()
-        permission_prompt.answer(session, key)
+        permission_state.answer(session, key)
       end)
 
       return ''
@@ -613,7 +614,7 @@ function TranscriptView.report(ok, why)
 end
 
 function TranscriptView:bindings()
-  return commands.bindings(self)
+  return bindings.bindings(self)
 end
 
 function TranscriptView:mount(callbacks)

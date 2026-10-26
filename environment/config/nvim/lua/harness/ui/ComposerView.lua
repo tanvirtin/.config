@@ -9,10 +9,10 @@ local console = lazy('core.console')
 local tools = lazy('nvim_mcp.tools')
 local context = lazy('harness.context')
 local settings = lazy('harness.settings')
-local display = lazy('harness.ui.display')
 local Element = lazy('ui.elements.Element')
+local display = lazy('harness.ui.display_api')
 local theme = lazy('harness.transcript.theme')
-local permission_prompt = lazy('harness.ui.permission_prompt')
+local permission_state = lazy('harness.ui.permission_state')
 
 local ComposerView = Object:extend()
 
@@ -91,7 +91,7 @@ function ComposerView:winbar()
   end
 
   if session.external then parts[#parts + 1] = '%#UiWarn#⇄ also driven elsewhere: sending forks it ' end
-  if #permission_prompt.asks_of(session) > 0 then
+  if #permission_state.asks_of(session) > 0 then
     parts[#parts + 1] = '%#UiWarn#' .. theme.WAITING_ICON[1] .. 'answer in the transcript '
   end
 
