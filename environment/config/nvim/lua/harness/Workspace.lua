@@ -173,8 +173,7 @@ function Workspace:delete(agent, id)
   local live = self:find(id)
 
   if live then
-    live:cancel()
-    live:_to('closed')
+    live:shutdown()
     self.sessions[live.key] = nil
   end
 
@@ -191,7 +190,7 @@ end
 
 function Workspace:close()
   for _, session in pairs(self.sessions) do
-    session:_to('closed')
+    session:shutdown()
   end
 
   for _, future in pairs(self._connections) do

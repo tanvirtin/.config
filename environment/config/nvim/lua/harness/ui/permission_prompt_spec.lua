@@ -43,6 +43,26 @@ describe('harness.ui.permission_prompt:', function()
     eq(0, #permission_prompt.asks_of(session))
   end)
 
+  it('forgets a settled ask instead of retaining it', function()
+    local future = permission_prompt.ask({ session = session, tool = 'Bash' })
+
+    assert.is_true(permission_prompt.answer(session, Connection.DECISION.allow_once))
+    eq(Connection.DECISION.allow_once, future.result)
+
+    local _, asks
+
+    for i = 1, 10 do
+      local name, value = debug.getupvalue(permission_prompt.asks_of, i)
+
+      if name == 'asks' then
+        asks = value
+        break
+      end
+    end
+
+    eq(nil, asks[session])
+  end)
+
   it('opens the transcript in the background so the ask has somewhere to show', function()
     permission_prompt.ask({ session = session, tool = 'Bash' })
 

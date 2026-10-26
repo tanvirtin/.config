@@ -460,6 +460,26 @@ describe('harness.Workspace:', function()
     end)
   end)
 
+  it('detaches subagents when a session is deleted', function()
+    local ws = workspace()
+    local session = run(function()
+      return ws:new_session(claude, { key = 'h1' })
+    end)
+    local detached = false
+
+    session.subagents.detach_all = function()
+      detached = true
+    end
+
+    run(function()
+      return ws:delete(claude, session.id)
+    end)
+
+    eq(true, detached)
+    eq('closed', session.state)
+    eq(nil, ws.sessions.h1)
+  end)
+
   it('closes every session and process', function()
     local ws, spawned = workspace()
     local session = run(function()

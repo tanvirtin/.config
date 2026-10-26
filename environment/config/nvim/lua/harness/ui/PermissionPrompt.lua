@@ -40,6 +40,7 @@ end
 
 function PermissionPrompt:dismiss()
   self.future:set_result(DECISION.cancelled)
+  async.drain()
 
   return self
 end

@@ -11,6 +11,21 @@ permission_prompt.KEYS = { '1', '2', '3', '4', '5', '6', '7', '8', '9' }
 
 local asks = setmetatable({}, { __mode = 'k' })
 
+local function forget(session, prompt)
+  local list = asks[session]
+
+  if not list then return end
+
+  for i, candidate in ipairs(list) do
+    if candidate == prompt then
+      table.remove(list, i)
+      break
+    end
+  end
+
+  if #list == 0 then asks[session] = nil end
+end
+
 function permission_prompt.asks_of(session)
   return vim.tbl_filter(function(prompt)
     return prompt:is_open()
@@ -33,10 +48,10 @@ function permission_prompt.ask(request)
 
   function future.dismiss()
     prompt:dismiss()
-    refresh(session)
   end
 
   future:on_complete(function()
+    forget(session, prompt)
     refresh(session)
   end)
 

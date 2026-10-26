@@ -355,12 +355,20 @@ function Session:cancel()
   return returned
 end
 
-function Session:close()
-  if self.state == Session.STATE.closed then return end
+function Session:shutdown()
+  if self.state == Session.STATE.closed then return self end
 
   self.subagents:detach_all()
   self:cancel()
   self:_to(Session.STATE.closed)
+
+  return self
+end
+
+function Session:close()
+  if self.state == Session.STATE.closed then return end
+
+  self:shutdown()
 
   local connection, id = self.connection, self.id
 
