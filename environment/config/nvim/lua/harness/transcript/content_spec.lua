@@ -31,7 +31,7 @@ describe('harness.transcript.content:', function()
     local spec = content.option(block, 'treesitter')
 
     eq('json', spec.language)
-    eq('UiPath', spec.captures.property)
+    eq('UiPath', spec.captures.property())
     eq('json', content.resolve(block).hit_test)
     eq('markdown', content.mode(block))
   end)

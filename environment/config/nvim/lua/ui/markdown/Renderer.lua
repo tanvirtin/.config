@@ -186,6 +186,10 @@ function Renderer.code(out, text, lang, row, col)
   return out
 end
 
+local function group_of(value)
+  return type(value) == 'function' and value() or value
+end
+
 function Renderer.content(block, spec)
   local out = {}
   local lines = block and block.lines
@@ -203,7 +207,7 @@ function Renderer.content(block, spec)
     if line and line ~= '' then
       for _, span in ipairs(Renderer.syntax(line, spec.language)) do
         local name = span[3]:match('^@([%w_]+)')
-        local hl = name and captures[name]
+        local hl = name and group_of(captures[name])
 
         if hl then
           MarkSpec.add(out, start + i - 1, span[1], {

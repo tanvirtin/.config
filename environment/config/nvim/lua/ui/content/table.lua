@@ -2,6 +2,7 @@ local MarkSpec = require('ui.MarkSpec')
 local text = require('core.text')
 local content = require('harness.transcript.content')
 local hit_test = require('harness.ui.hit_test')
+local content_settings = require('harness.settings.content')
 
 local content_table = {}
 
@@ -56,6 +57,11 @@ function content_table.render(block, spec, ctx)
   local first = spec.first or 1
   local last = spec.last or (#lines - (spec.trim or 0))
   local delimiter = block.lang == 'tsv' and '\t' or ','
+  local config = content_settings:get('csv') or {}
+  local separator = config.separator or ' │ '
+  local max_columns = config.max_columns or math.huge
+  local header_group = config.header or 'UiToolName'
+  local cell_group = config.cell or 'UiToolOutput'
   local rows, widths = {}, {}
 
   for i = first, last do
@@ -81,10 +87,12 @@ function content_table.render(block, spec, ctx)
     local parts = {}
 
     for c, cell in ipairs(row.cells) do
+      if c > max_columns then break end
+
       parts[#parts + 1] = cell .. string.rep(' ', math.max(widths[c] - text.width(cell), 0))
     end
 
-    local formatted = table.concat(parts, ' │ ')
+    local formatted = table.concat(parts, separator)
 
     if ctx and ctx.width and text.width(formatted) > ctx.width then formatted = text.truncate(formatted, ctx.width) end
 
@@ -92,7 +100,7 @@ function content_table.render(block, spec, ctx)
 
     MarkSpec.add(out, start + row.index - 1, 0, { end_col = #line, conceal = '' })
     MarkSpec.add(out, start + row.index - 1, 0, {
-      virt_text = { { formatted, r == 1 and 'UiToolName' or 'UiToolOutput' } },
+      virt_text = { { formatted, r == 1 and header_group or cell_group } },
       virt_text_pos = 'overlay',
     })
   end

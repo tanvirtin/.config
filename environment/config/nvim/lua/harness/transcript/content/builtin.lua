@@ -1,5 +1,6 @@
 local Block = require('harness.transcript.Block')
 local content = require('harness.transcript.content')
+local content_settings = require('harness.settings.content')
 
 return function()
   content.register({
@@ -76,7 +77,11 @@ return function()
         language = 'json',
         first = 3,
         trim = 1,
-        captures = { property = 'UiPath' },
+        captures = {
+          property = function()
+            return content_settings:get('json').property
+          end,
+        },
       },
     },
     hit_test = 'json',

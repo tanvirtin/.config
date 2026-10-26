@@ -1,6 +1,6 @@
 local settings = {}
 
-settings.NAMES = { 'transcript', 'composer', 'follow', 'sessions', 'skills', 'keymaps', 'theme' }
+settings.NAMES = { 'transcript', 'content', 'composer', 'follow', 'sessions', 'skills', 'keymaps', 'theme' }
 
 for _, name in ipairs(settings.NAMES) do
   settings[name] = require('harness.settings.' .. name)
