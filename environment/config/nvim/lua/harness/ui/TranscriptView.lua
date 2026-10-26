@@ -27,11 +27,16 @@ local Document = require('harness.ui.Document')
 local PlanPanel = require('harness.ui.PlanPanel')
 local Following = require('harness.ui.Following')
 local code_blocks = lazy('harness.ui.code_blocks')
+local actions = require('harness.transcript.actions')
 local sticky_bottom = require('harness.ui.sticky_bottom')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 local Layout = require('harness.transcript.calculators.Layout')
 local permission_prompt = require('harness.ui.permission_prompt')
 local EVENT, NOTICE = require('harness.types.events').KIND, require('harness.types.events').NOTICE
+
+actions.bind('diff', function(view)
+  return edits.show_edit(view)
+end)
 
 local TranscriptView = Object:extend()
 
@@ -651,6 +656,13 @@ function TranscriptView:open_target()
   return links.open(self:_target_at(Window.get_current())) or false
 end
 
+function TranscriptView:run_block_action(key)
+  local window = Window.get_current()
+  local block = self.document:block_at(window:get_cursor()[1] - 1)
+
+  return actions.run(self, block, key)
+end
+
 function TranscriptView:path_at()
   local target = self:_target_at(Window.get_current())
 
@@ -849,7 +861,11 @@ function TranscriptView:bindings()
     {
       keys.diff,
       function()
-        report(edits.show_edit(self))
+        local handled, ok, why = self:run_block_action('diff')
+        if not handled then
+          ok, why = edits.show_edit(self)
+        end
+        report(ok, why)
       end,
       'Open the edit under the cursor in vgit',
     },

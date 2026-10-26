@@ -48,6 +48,12 @@ return function()
     id = 'diff',
     kind = Block.KIND.diff,
     render = { mode = 'markdown' },
+    actions = {
+      {
+        key = 'diff',
+        label = 'open edit in vgit',
+      },
+    },
   })
 
   content.register({
