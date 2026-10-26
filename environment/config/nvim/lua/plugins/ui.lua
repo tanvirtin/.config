@@ -46,6 +46,22 @@ return {
         lualine_x = {
           {
             function()
+              local ok, status = pcall(require, 'harness.ui.status')
+              if not ok then return '' end
+              return status.text()
+            end,
+            cond = function()
+              local ok, status = pcall(require, 'harness.ui.status')
+              return ok and status.visible()
+            end,
+            on_click = function()
+              local ok, status = pcall(require, 'harness.ui.status')
+              if ok then status.jump() end
+            end,
+            color = { fg = '#7aa2f7' },
+          },
+          {
+            function()
               local reg = vim.fn.reg_recording()
               if reg ~= '' then return '󰑋 @' .. reg end
               return ''
