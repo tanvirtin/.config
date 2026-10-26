@@ -163,8 +163,8 @@ function Session:prompt(text, context, opts)
   self._turn = { text = {}, permissions = {} }
   if not (opts and opts.shown) then self:_emit(events.prompt(text, { selections = content.labels(context) })) end
 
-  local instruct = self:_needs_instructions()
   local system = self:_system()
+  local instruct = self:_needs_instructions(system)
   local prompt = content.prompt(text, context, instruct and system and editor_context.instructions(system) or nil)
 
   return async.run(function()
@@ -223,8 +223,8 @@ function Session:_system()
   return extra ~= '' and (system .. '\n\n' .. extra) or system
 end
 
-function Session:_needs_instructions()
-  local system = self:_system()
+function Session:_needs_instructions(system)
+  system = system or self:_system()
 
   return not self._instructed and type(system) == 'string' and system ~= '' and not self:can('system_prompt')
 end
