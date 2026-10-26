@@ -23,10 +23,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: rhysd/action-setup-vim@v1
-        with:
-          neovim: true
-          version: stable
+      - name: Install Neovim
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/nvim.tar.gz" https://github.com/neovim/neovim/releases/download/stable/nvim-linux-x86_64.tar.gz
+          tar -C "$HOME" -xzf "$RUNNER_TEMP/nvim.tar.gz"
+          echo "$HOME/nvim-linux-x86_64/bin" >> "$GITHUB_PATH"
 
       - uses: leafo/gh-actions-lua@v10
         with:
