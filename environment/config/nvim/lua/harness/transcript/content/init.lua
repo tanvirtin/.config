@@ -109,12 +109,6 @@ function content.actions(block)
   return def.actions or {}
 end
 
-function content.instructions(block)
-  local def = content.resolve(block)
-
-  return def.instructions or {}
-end
-
 function content.reset()
   entries = {}
   by_id = {}
@@ -122,7 +116,5 @@ function content.reset()
 
   instructions.reset()
 end
-
-content.FALLBACK = fallback
 
 return content

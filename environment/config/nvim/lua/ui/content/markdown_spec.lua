@@ -24,8 +24,8 @@ describe('ui.content.markdown:', function()
       lines = { '| a | b |', '| --- | --- |', '| 1 | 2 |' },
     }
 
-    eq({ text = '1', group = 'table_cell' }, hit_test.at(block, 2, 2))
-    eq({ text = '2', group = 'table_cell' }, hit_test.at(block, 2, 6))
+    eq({ text = '1' }, hit_test.at(block, 2, 2))
+    eq({ text = '2' }, hit_test.at(block, 2, 6))
   end)
 
   it('should return nil outside a table cell', function()

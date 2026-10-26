@@ -10,7 +10,4 @@ return Config({
     separator = ' │ ',
     max_columns = 12,
   },
-  markdown = {
-    table_cell = 'UiPath',
-  },
 })

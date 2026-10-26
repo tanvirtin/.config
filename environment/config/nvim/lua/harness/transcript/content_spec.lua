@@ -51,14 +51,10 @@ describe('harness.transcript.content:', function()
   end)
 
   it('should expose the built-in options', function()
-    local prompt = Block.make(Block.KIND.prompt, { 'x' })
     local thought = Block.make(Block.KIND.thought, { 'x' })
-    local message = Block.make(Block.KIND.message, { 'x' })
 
-    eq(true, content.option(prompt, 'anchor'))
     eq(true, content.option(thought, 'quote'))
     eq(true, content.option(thought, 'live'))
-    eq(true, content.option(message, 'stream'))
   end)
 
   it('should prefer a more specific match', function()
@@ -97,7 +93,6 @@ describe('harness.transcript.content:', function()
     eq('raw', content.mode(unknown))
     eq(nil, content.decorate(unknown))
     eq({}, content.actions(unknown))
-    eq({}, content.instructions(unknown))
   end)
 
   it('should let a type supply decorate, actions and instructions', function()
@@ -120,7 +115,6 @@ describe('harness.transcript.content:', function()
 
     eq({ { row = 0 } }, content.decorate(block))
     eq(actions, content.actions(block))
-    eq(instructions, content.instructions(block))
   end)
 
   it('should replace a type with the same id and clear the cache', function()

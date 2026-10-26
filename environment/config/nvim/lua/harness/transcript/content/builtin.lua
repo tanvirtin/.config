@@ -2,29 +2,31 @@ local Block = require('harness.transcript.Block')
 local content = require('harness.transcript.content')
 local content_settings = require('harness.settings.content')
 
+local function yank(view, block)
+  local text, code = view:yank_token(block)
+
+  if text then return text, code end
+
+  return view:yank_block(block)
+end
+
 return function()
   content.register({
     id = 'title',
     kind = Block.KIND.title,
-    render = { mode = 'markdown', batch = true },
+    render = { mode = 'markdown' },
   })
 
   content.register({
     id = 'message',
     kind = Block.KIND.message,
-    render = { mode = 'markdown', batch = true, stream = true },
+    render = { mode = 'markdown' },
     hit_test = 'markdown',
     actions = {
       {
         key = 'yank',
         label = 'yank the table cell',
-        handler = function(view, block)
-          local text, code = view:yank_token(block)
-
-          if text then return text, code end
-
-          return view:yank_block(block)
-        end,
+        handler = yank,
       },
     },
   })
@@ -32,13 +34,13 @@ return function()
   content.register({
     id = 'thought',
     kind = Block.KIND.thought,
-    render = { mode = 'markdown', batch = true, quote = true, fold = true, live = true },
+    render = { mode = 'markdown', quote = true, live = true },
   })
 
   content.register({
     id = 'prompt',
     kind = Block.KIND.prompt,
-    render = { mode = 'raw', anchor = true },
+    render = { mode = 'raw' },
   })
 
   content.register({
@@ -89,13 +91,7 @@ return function()
       {
         key = 'yank',
         label = 'yank the JSON token',
-        handler = function(view, block)
-          local text, code = view:yank_token(block)
-
-          if text then return text, code end
-
-          return view:yank_block(block)
-        end,
+        handler = yank,
       },
     },
   })
@@ -115,13 +111,7 @@ return function()
       {
         key = 'yank',
         label = 'yank the table cell',
-        handler = function(view, block)
-          local text, code = view:yank_token(block)
-
-          if text then return text, code end
-
-          return view:yank_block(block)
-        end,
+        handler = yank,
       },
     },
   })

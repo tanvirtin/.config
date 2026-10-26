@@ -70,8 +70,8 @@ describe('ui.content.table:', function()
       lines = { '-> cat a.csv', '```output_csv', 'name,age', 'Ada,36', '```' },
     }
 
-    eq({ text = 'Ada', group = 'table_cell' }, hit_test.at(block, 13, 0))
-    eq({ text = '36', group = 'table_cell' }, hit_test.at(block, 13, 4))
+    eq({ text = 'Ada' }, hit_test.at(block, 13, 0))
+    eq({ text = '36' }, hit_test.at(block, 13, 4))
     assert.is_nil(hit_test.at(block, 13, 3))
 
     block = {
@@ -81,7 +81,7 @@ describe('ui.content.table:', function()
       lines = { '-> cat a.tsv', '```output_tsv', 'name\tage', 'Ada\t36', '```' },
     }
 
-    eq({ text = '36', group = 'table_cell' }, hit_test.at(block, 3, 4))
+    eq({ text = '36' }, hit_test.at(block, 3, 4))
   end)
 
   it('should honour per-content table settings', function()

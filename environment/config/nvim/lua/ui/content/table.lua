@@ -131,7 +131,7 @@ hit_test.bind('csv', function(block, row, col)
   local cells, ranges = parse(line, delimiter)
 
   for c, range in ipairs(ranges) do
-    if col >= range[1] and col < range[2] then return { text = cells[c], group = 'table_cell' } end
+    if col >= range[1] and col < range[2] then return { text = cells[c] } end
   end
 end)
 
