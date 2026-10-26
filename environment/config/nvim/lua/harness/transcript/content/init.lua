@@ -1,3 +1,5 @@
+local instructions = require('harness.types.instructions')
+
 local content = {}
 
 local entries = {}
@@ -50,6 +52,12 @@ function content.register(def)
   sort()
 
   cache = setmetatable({}, { __mode = 'k' })
+
+  instructions.unregister(def.id)
+
+  if def.instructions and type(def.instructions.agent) == 'string' and def.instructions.agent ~= '' then
+    instructions.register(def.id, def.instructions.agent, def.instructions.when)
+  end
 
   return def
 end
@@ -111,6 +119,8 @@ function content.reset()
   entries = {}
   by_id = {}
   cache = setmetatable({}, { __mode = 'k' })
+
+  instructions.reset()
 end
 
 content.FALLBACK = fallback

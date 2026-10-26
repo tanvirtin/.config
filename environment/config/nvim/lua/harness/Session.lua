@@ -14,6 +14,7 @@ local History = require('harness.session.History')
 local permissions = require('harness.permissions')
 local Subagents = require('harness.session.Subagents')
 local PromptQueue = require('harness.session.PromptQueue')
+local instructions = require('harness.types.instructions')
 local SessionConfig = require('harness.session.SessionConfig')
 local PermissionGate = require('harness.session.PermissionGate')
 
@@ -163,7 +164,8 @@ function Session:prompt(text, context, opts)
   if not (opts and opts.shown) then self:_emit(events.prompt(text, { selections = content.labels(context) })) end
 
   local instruct = self:_needs_instructions()
-  local prompt = content.prompt(text, context, instruct and editor_context.instructions(self.agent.system) or nil)
+  local system = self:_system()
+  local prompt = content.prompt(text, context, instruct and system and editor_context.instructions(system) or nil)
 
   return async.run(function()
     local reason, err = self.connection:prompt(self.id, prompt)
@@ -197,8 +199,32 @@ function Session:prompt(text, context, opts)
   end)
 end
 
+function Session:_active_content()
+  local active = { categories = {}, names = {}, kinds = {} }
+  local list = self.history or {}
+
+  for _, event in ipairs(list) do
+    active.kinds[event.kind] = true
+    if event.category then active.categories[event.category] = true end
+    if event.name then active.names[event.name] = true end
+    if event.title then active.names[event.title] = true end
+  end
+
+  return active
+end
+
+function Session:_system()
+  local system = type(self.agent) == 'table' and self.agent.system or nil
+
+  if type(system) ~= 'string' or system == '' then return nil end
+
+  local extra = instructions.text(self:_active_content())
+
+  return extra ~= '' and (system .. '\n\n' .. extra) or system
+end
+
 function Session:_needs_instructions()
-  local system = type(self.agent) == 'table' and self.agent.system
+  local system = self:_system()
 
   return not self._instructed and type(system) == 'string' and system ~= '' and not self:can('system_prompt')
 end

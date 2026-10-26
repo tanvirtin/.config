@@ -4,8 +4,11 @@ local acp_config = require('harness.servers.acp.config')
 local async = require('harness.async')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
+local builtin = require('harness.transcript.content.builtin')
 
 local eq = assert.are.same
+
+builtin()
 
 local function session_with(script, approve)
   local agent = fake_agent.new(script)
@@ -83,6 +86,20 @@ describe('harness.Session:', function()
     taking:prompt('one'):wait()
 
     eq(1, #sent:sent_method('session/prompt').params.prompt)
+  end)
+
+  it('adds instructions for content the session has used', function()
+    local session, agent = session_with({ ['session/prompt'] = fake_agent.replying('ok') })
+    local events = require('harness.types.events')
+
+    session.agent = { system = 'be brief' }
+    session.history = { { kind = events.KIND.tool_call, category = 'execute' } }
+    session:prompt('one'):wait()
+
+    local prompt = agent:sent_method('session/prompt').params.prompt[1].text
+
+    assert.is_truthy(prompt:find('be brief', 1, true))
+    assert.is_truthy(prompt:find('Keep terminal commands and output verbatim', 1, true))
   end)
 
   it('runs a turn, joining the reply and recording the history', function()

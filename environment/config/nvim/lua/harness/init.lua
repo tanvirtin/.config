@@ -10,6 +10,8 @@ local transcript = lazy('harness.ui.transcript')
 local SkillSync = lazy('harness.features.SkillSync')
 local EditCheckTime = lazy('harness.features.EditCheckTime')
 
+require('harness.transcript.content.builtin')()
+
 local harness = {}
 
 harness.agent = require('harness.agent')

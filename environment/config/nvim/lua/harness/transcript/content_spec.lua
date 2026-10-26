@@ -1,5 +1,6 @@
 local Block = require('harness.transcript.Block')
 local content = require('harness.transcript.content')
+local instructions = require('harness.types.instructions')
 local builtin = require('harness.transcript.content.builtin')
 
 local eq = assert.are.same
@@ -119,5 +120,17 @@ describe('harness.transcript.content:', function()
   it('should look types up by id', function()
     eq('message', content.get('message').id)
     eq(nil, content.get('missing'))
+  end)
+
+  it('should forward agent instructions to the instruction registry', function()
+    content.register({
+      id = 'instructed',
+      kind = 'instructed',
+      render = { mode = 'raw' },
+      instructions = { agent = 'be careful', when = { categories = { 'custom' } } },
+    })
+
+    eq('be careful', instructions.text({ categories = { custom = true } }))
+    eq('', instructions.text({}))
   end)
 end)

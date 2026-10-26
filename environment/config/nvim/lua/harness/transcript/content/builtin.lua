@@ -39,6 +39,18 @@ return function()
   })
 
   content.register({
+    id = 'execute',
+    kind = Block.KIND.tool,
+    category = Block.CATEGORY.execute,
+    priority = 10,
+    render = { mode = 'markdown' },
+    instructions = {
+      agent = 'Keep terminal commands and output verbatim; do not wrap or reflow them.',
+      when = { categories = { Block.CATEGORY.execute } },
+    },
+  })
+
+  content.register({
     id = 'tool',
     kind = Block.KIND.tool,
     render = { mode = 'markdown' },
@@ -48,6 +60,10 @@ return function()
     id = 'diff',
     kind = Block.KIND.diff,
     render = { mode = 'markdown' },
+    instructions = {
+      agent = 'When showing diffs, keep paths relative and do not reflow the patch.',
+      when = { categories = { Block.CATEGORY.edit, Block.CATEGORY.delete, Block.CATEGORY.move } },
+    },
     actions = {
       {
         key = 'diff',
