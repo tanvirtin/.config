@@ -746,7 +746,7 @@ function TranscriptView:yank_token(block)
   if hit and hit.text then
     register.set(hit.text)
 
-    return hit.text, true
+    return hit.text, hit.kind or 'token'
   end
 end
 
@@ -760,7 +760,7 @@ function TranscriptView:yank_block(block, name)
 
     register.set(patch, name)
 
-    return patch, true
+    return patch, 'patch'
   end
 
   local lines = block.lines
@@ -775,7 +775,7 @@ function TranscriptView:yank_block(block, name)
 
   register.set(text, name)
 
-  return text, first ~= nil
+  return text, first and 'code block' or 'block'
 end
 
 function TranscriptView:yank(name)
@@ -861,10 +861,10 @@ function TranscriptView:bindings()
     {
       keys.yank,
       function()
-        local text, code = self:yank()
+        local text, what = self:yank()
 
         if text then
-          local what = code and 'code block' or 'block'
+          what = what or 'block'
 
           console.notify_now(string.format('Harness: yanked the %s (%d line%s)', what, #text, #text == 1 and '' or 's'))
         end

@@ -30,6 +30,25 @@ describe('harness.ui.hit_test:', function()
     eq({ text = 'ok', row = 2, col = 3 }, hit_test.at({ kind = 'custom' }, 2, 3))
   end)
 
+  it('should unbind a handler', function()
+    content.register({
+      id = 'unbind',
+      kind = 'unbind',
+      render = { mode = 'raw' },
+      hit_test = 'unbind',
+    })
+
+    hit_test.bind('unbind', function()
+      return { text = 'ok' }
+    end)
+
+    eq({ text = 'ok' }, hit_test.at({ kind = 'unbind' }, 0, 0))
+
+    hit_test.unbind('unbind')
+
+    assert.is_nil(hit_test.at({ kind = 'unbind' }, 0, 0))
+  end)
+
   it('should return nil for a type without a hit test', function()
     assert.is_nil(hit_test.at({ kind = 'message' }, 0, 0))
   end)

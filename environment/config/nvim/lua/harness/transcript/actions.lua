@@ -10,6 +10,18 @@ function actions.bind(key, handler)
   return actions
 end
 
+function actions.unbind(key)
+  handlers[key] = nil
+
+  return actions
+end
+
+function actions.reset()
+  handlers = {}
+
+  return actions
+end
+
 function actions.find(block, key, ctx)
   if not block then return nil end
 

@@ -422,11 +422,19 @@ describe('harness.ui.transcript:', function()
       eq({ 'local x = 1', 'return x' }, vim.fn.getreg('"', 1, true))
       eq('V', vim.fn.getregtype('"'))
 
+      local text, kind = transcript.view(buf):yank('a')
+      eq({ 'local x = 1', 'return x' }, text)
+      eq('code block', kind)
+
       vim.api.nvim_win_set_cursor(0, { rows['Done.'], 0 })
-      eq({ 'Here:', '', '```lua', 'local x = 1', 'return x', '```', '', 'Done.' }, (transcript.view(buf):yank('a')))
+      text, kind = transcript.view(buf):yank('a')
+      eq({ 'Here:', '', '```lua', 'local x = 1', 'return x', '```', '', 'Done.' }, text)
+      eq('block', kind)
 
       vim.api.nvim_win_set_cursor(0, { rows['> show me'], 0 })
-      eq({ 'show me' }, (transcript.view(buf):yank('a')))
+      text, kind = transcript.view(buf):yank('a')
+      eq({ 'show me' }, text)
+      eq('block', kind)
     end)
 
     it('shows when the session is also being driven by another program', function()
@@ -897,9 +905,10 @@ describe('harness.ui.transcript:', function()
     end)
 
     it('yanks an edit as a patch', function()
-      local text = transcript.view():yank()
+      local text, kind = transcript.view():yank()
 
       eq({ '--- ' .. path, '+++ ' .. path, '@@ -1 +1 @@', '-local y = 2', '+local z = 2' }, text)
+      eq('patch', kind)
     end)
   end)
 end)

@@ -10,6 +10,18 @@ function hit_test.bind(id, handler)
   return hit_test
 end
 
+function hit_test.unbind(id)
+  handlers[id] = nil
+
+  return hit_test
+end
+
+function hit_test.reset()
+  handlers = {}
+
+  return hit_test
+end
+
 function hit_test.at(block, row, col)
   local def = content.resolve(block)
   local handler = def.hit_test and handlers[def.hit_test]

@@ -89,6 +89,28 @@ describe('harness.transcript.actions:', function()
     eq('bound', result)
   end)
 
+  it('should unbind a handler', function()
+    content.register({
+      id = 'unbind',
+      kind = 'unbind',
+      render = { mode = 'raw' },
+      actions = { { key = 'unbind-key' } },
+    })
+
+    actions.bind('unbind-key', function()
+      return 'ok'
+    end)
+
+    local handled, result = actions.run({}, { kind = 'unbind' }, 'unbind-key')
+
+    eq(true, handled)
+    eq('ok', result)
+
+    actions.unbind('unbind-key')
+
+    assert.is_false(actions.run({}, { kind = 'unbind' }, 'unbind-key'))
+  end)
+
   it('should respect when and fall back', function()
     content.register({
       id = 'custom',

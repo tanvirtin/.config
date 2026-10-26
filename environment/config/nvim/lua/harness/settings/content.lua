@@ -6,7 +6,7 @@ return Config({
   },
   csv = {
     header = 'UiToolName',
-    cell = 'UiToolOutput',
+    cell = 'auto',
     separator = ' │ ',
     max_columns = 12,
   },

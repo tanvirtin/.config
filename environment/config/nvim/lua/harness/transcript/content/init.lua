@@ -109,6 +109,24 @@ function content.actions(block)
   return def.actions or {}
 end
 
+function content.unregister(id)
+  if not by_id[id] then return end
+
+  by_id[id] = nil
+
+  for i, entry in ipairs(entries) do
+    if entry.id == id then
+      table.remove(entries, i)
+      break
+    end
+  end
+
+  instructions.unregister(id)
+  cache = setmetatable({}, { __mode = 'k' })
+
+  return content
+end
+
 function content.reset()
   entries = {}
   by_id = {}

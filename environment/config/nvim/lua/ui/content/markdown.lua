@@ -27,7 +27,7 @@ local function cell(block, row, col)
 
   if not node then return nil end
 
-  return { text = vim.trim(vim.treesitter.get_node_text(node, text)) }
+  return { text = vim.trim(vim.treesitter.get_node_text(node, text)), kind = 'cell' }
 end
 
 hit_test.bind('markdown', cell)

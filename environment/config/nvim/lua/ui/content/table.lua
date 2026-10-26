@@ -61,7 +61,11 @@ function content_table.render(block, spec, ctx)
   local separator = config.separator or ' │ '
   local max_columns = config.max_columns or math.huge
   local header_group = config.header or 'UiToolName'
-  local cell_group = config.cell or 'UiToolOutput'
+  local cell_group = config.cell
+
+  if not cell_group or cell_group == 'auto' then
+    cell_group = block.category == 'execute' and 'UiTerminal' or 'UiToolOutput'
+  end
   local rows, widths = {}, {}
 
   for i = first, last do
@@ -131,7 +135,7 @@ hit_test.bind('csv', function(block, row, col)
   local cells, ranges = parse(line, delimiter)
 
   for c, range in ipairs(ranges) do
-    if col >= range[1] and col < range[2] then return { text = cells[c] } end
+    if col >= range[1] and col < range[2] then return { text = cells[c], kind = 'cell' } end
   end
 end)
 

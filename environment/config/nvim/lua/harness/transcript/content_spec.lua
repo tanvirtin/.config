@@ -125,6 +125,23 @@ describe('harness.transcript.content:', function()
     eq('markdown', content.mode({ kind = 'same' }))
   end)
 
+  it('should unregister a type and its instructions', function()
+    content.register({
+      id = 'gone',
+      kind = 'gone',
+      render = { mode = 'raw' },
+      instructions = { agent = 'gone' },
+    })
+
+    eq('gone', content.resolve({ kind = 'gone' }).id)
+    eq('gone', instructions.text({}))
+
+    content.unregister('gone')
+
+    eq('fallback', content.resolve({ kind = 'gone' }).id)
+    eq('', instructions.text({}))
+  end)
+
   it('should invalidate the resolution cache when a new type is registered', function()
     local block = { kind = 'late' }
 

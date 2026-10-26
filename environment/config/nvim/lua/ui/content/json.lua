@@ -8,6 +8,6 @@ hit_test.bind('json', function(block, row, col)
   if not line or line == '' then return nil end
 
   for _, span in ipairs(Renderer.syntax(line, 'json')) do
-    if col >= span[1] and col < span[2] then return { text = line:sub(span[1] + 1, span[2]) } end
+    if col >= span[1] and col < span[2] then return { text = line:sub(span[1] + 1, span[2]), kind = 'token' } end
   end
 end)

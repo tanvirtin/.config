@@ -70,8 +70,8 @@ describe('ui.content.table:', function()
       lines = { '-> cat a.csv', '```output_csv', 'name,age', 'Ada,36', '```' },
     }
 
-    eq({ text = 'Ada' }, hit_test.at(block, 13, 0))
-    eq({ text = '36' }, hit_test.at(block, 13, 4))
+    eq({ text = 'Ada', kind = 'cell' }, hit_test.at(block, 13, 0))
+    eq({ text = '36', kind = 'cell' }, hit_test.at(block, 13, 4))
     assert.is_nil(hit_test.at(block, 13, 3))
 
     block = {
@@ -81,7 +81,7 @@ describe('ui.content.table:', function()
       lines = { '-> cat a.tsv', '```output_tsv', 'name\tage', 'Ada\t36', '```' },
     }
 
-    eq({ text = '36' }, hit_test.at(block, 3, 4))
+    eq({ text = '36', kind = 'cell' }, hit_test.at(block, 3, 4))
   end)
 
   it('should honour per-content table settings', function()
@@ -108,6 +108,24 @@ describe('ui.content.table:', function()
     end
 
     eq({ [12] = 'UiMuted', [13] = 'UiPath', [14] = 'UiPath' }, groups)
+  end)
+
+  it('should use the terminal surface for execute tables', function()
+    local marks = Table.render({
+      kind = 'tool',
+      lang = 'csv',
+      category = 'execute',
+      start = 0,
+      lines = { '-> cat a.csv', '```terminal_csv', 'name,age', 'Ada,36', '```' },
+    }, { first = 3, trim = 1 }, { width = 80 })
+
+    local groups = {}
+
+    for _, mark in ipairs(marks) do
+      if mark.opts.virt_text then groups[mark.row] = mark.opts.virt_text[1][2] end
+    end
+
+    eq({ [2] = 'UiToolName', [3] = 'UiTerminal' }, groups)
   end)
 
   it('should cap columns from settings', function()

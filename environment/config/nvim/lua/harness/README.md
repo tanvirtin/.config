@@ -121,7 +121,7 @@ require('harness').setup({
   },
   content = {
     json = { property = 'UiPath' },
-    csv = { header = 'UiToolName', cell = 'UiToolOutput', separator = ' │ ', max_columns = 12 },
+    csv = { header = 'UiToolName', cell = 'auto', separator = ' │ ', max_columns = 12 },
   },
   sessions = { confirm_ms = 3000 },
   composer = { height = 10 },
