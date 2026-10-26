@@ -23,6 +23,13 @@ describe('harness.transcript.actions:', function()
     eq('diff', action.key)
   end)
 
+  it('should find the built-in diff open and yank actions', function()
+    local block = Block.make(Block.KIND.diff, { 'x' })
+
+    assert.is_not_nil(actions.find(block, 'open'))
+    assert.is_not_nil(actions.find(block, 'yank'))
+  end)
+
   it('should run an action and return its result', function()
     local called = false
 

@@ -736,11 +736,10 @@ function TranscriptView:fork()
   return true
 end
 
-function TranscriptView:yank(name)
-  local row = Window.get_current():get_cursor()[1] - 1
-  local block = self.document:block_at(row)
-
+function TranscriptView:yank_block(block, name)
   if not block then return nil end
+
+  local row = Window.get_current():get_cursor()[1] - 1
 
   if block.kind == Block.KIND.diff and block.edit then
     local patch = vgit.patch_text(block.edit)
@@ -763,6 +762,16 @@ function TranscriptView:yank(name)
   register.set(text, name)
 
   return text, first ~= nil
+end
+
+function TranscriptView:yank(name)
+  local row = Window.get_current():get_cursor()[1] - 1
+  local block = self.document:block_at(row)
+  local handled, text, code = self:run_block_action('yank')
+
+  if handled then return text, code end
+
+  return self:yank_block(block, name)
 end
 
 function TranscriptView:_describe_choice(choice, current)
@@ -829,7 +838,9 @@ function TranscriptView:bindings()
     {
       keys.open,
       function()
-        if not self:open_target() then console.notify_now('Harness: nothing to open here', 'info') end
+        local handled, ok = self:run_block_action('open')
+        if not handled then ok = self:open_target() end
+        if not ok then console.notify_now('Harness: nothing to open here', 'info') end
       end,
       'Open the file under the cursor in a new tab',
     },

@@ -86,6 +86,20 @@ return function()
         key = 'diff',
         label = 'open edit in vgit',
       },
+      {
+        key = 'open',
+        label = 'open the file',
+        handler = function(view)
+          return view:open_target()
+        end,
+      },
+      {
+        key = 'yank',
+        label = 'yank the patch',
+        handler = function(view, block)
+          return view:yank_block(block)
+        end,
+      },
     },
   })
 
