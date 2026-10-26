@@ -58,12 +58,6 @@ function ComposerView:is_open()
   return self.element ~= nil and self.element:is_valid()
 end
 
-ComposerView.WINBAR_ROWS = 1
-
-function ComposerView.footprint()
-  return settings.composer:get('height') + ComposerView.WINBAR_ROWS + Window.split_rows()
-end
-
 function ComposerView:lines()
   return self:is_open() and self.element:get_lines() or {}
 end

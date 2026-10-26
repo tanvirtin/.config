@@ -1,11 +1,9 @@
-local lazy = require('core.lazy')
-
-local ComposerView = lazy('harness.ui.ComposerView')
+local geometry = require('harness.ui.composer_geometry')
 
 local sticky_bottom = {}
 
 function sticky_bottom.composer_rows()
-  return ComposerView.footprint()
+  return geometry.footprint()
 end
 
 function sticky_bottom.margin(window)

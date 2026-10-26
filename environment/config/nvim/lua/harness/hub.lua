@@ -26,7 +26,7 @@ local next_key = 0
 local function lua_root()
   local source = debug.getinfo(1, 'S').source:sub(2)
 
-  return vim.fs.normalize(vim.fs.dirname(source) .. '/..')
+  return fs.normalize(fs.dirname(source) .. '/..')
 end
 
 function hub.dir()

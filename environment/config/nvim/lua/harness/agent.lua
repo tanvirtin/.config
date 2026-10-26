@@ -1,6 +1,7 @@
 local lazy = require('core.lazy')
 
 local fs = lazy('core.fs')
+local env = lazy('core.env')
 local Object = lazy('core.Object')
 local console = lazy('core.console')
 
@@ -70,7 +71,7 @@ agent.TRANSCRIPTS = {
 }
 
 function Agent:transcript(id)
-  local pattern = self.transcripts or agent.TRANSCRIPTS[vim.fs.basename(self.command or '')]
+  local pattern = self.transcripts or agent.TRANSCRIPTS[fs.basename(self.command or '')]
 
   if not pattern or not id then return nil end
 
@@ -80,7 +81,7 @@ function Agent:transcript(id)
 end
 
 local function resolve(value)
-  if type(value) == 'string' and value:sub(1, 1) == '$' then return vim.env[value:sub(2)] or '' end
+  if type(value) == 'string' and value:sub(1, 1) == '$' then return env.var(value:sub(2)) or '' end
 
   return value
 end

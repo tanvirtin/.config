@@ -28,6 +28,32 @@ local NEOVIM = {
   'keycode',
 }
 
+local UTILITY = {
+  NIL = true,
+  deep_equal = true,
+  deepcopy = true,
+  empty_dict = true,
+  inspect = true,
+  json = true,
+  list_extend = true,
+  list_slice = true,
+  pesc = true,
+  split = true,
+  startswith = true,
+  tbl_contains = true,
+  tbl_extend = true,
+  tbl_filter = true,
+  tbl_keys = true,
+  tbl_map = true,
+  trim = true,
+}
+
+local NEOVIM_SET = {}
+
+for _, name in ipairs(NEOVIM) do
+  NEOVIM_SET[name] = true
+end
+
 local LAYERS = {
   { 'harness.types', 1 },
   { 'harness.async', 1 },
@@ -155,7 +181,7 @@ local function upward(module)
   local out = {}
   local own = rank(module.name)
 
-  for target in module.source:gmatch('require%(\'(harness[%w_.]*)\'%)') do
+  for _, target in module.source:gmatch('(require|lazy)%(\'(harness[%w_.]*)\'%)') do
     local theirs = rank(target)
 
     if own and theirs and theirs > own then out[#out + 1] = module.name .. ' -> ' .. target end
@@ -195,6 +221,18 @@ describe('harness architecture:', function()
     eq({}, loose)
   end)
 
+  it('uses only approved Neovim helpers outside core and ui', function()
+    local found = {}
+
+    for _, module in ipairs(modules()) do
+      for name in module.source:gmatch('vim%.([%w_]+)') do
+        if not NEOVIM_SET[name] and not UTILITY[name] then found[#found + 1] = module.name .. ': vim.' .. name end
+      end
+    end
+
+    eq({}, found)
+  end)
+
   it('only requires its own layer or lower ones', function()
     local found = {}
 
@@ -224,6 +262,50 @@ describe('harness architecture:', function()
 
     table.sort(stale)
     eq({}, stale)
+  end)
+
+  it('has no top-level require cycles', function()
+    local graph, names = {}, {}
+
+    for _, module in ipairs(modules()) do
+      names[module.name] = true
+      graph[module.name] = {}
+    end
+
+    for _, module in ipairs(modules()) do
+      for line in module.source:gmatch('[^\n]+') do
+        local target = line:match('^local [%w_, ]+ = require%(\'(harness[%w_.]*)\'%)')
+
+        if target and names[target] then graph[module.name][#graph[module.name] + 1] = target end
+      end
+    end
+
+    local visiting, done, found = {}, {}, {}
+
+    local function visit(name, path)
+      if done[name] then return end
+      if visiting[name] then
+        found[#found + 1] = table.concat(path, ' -> ') .. ' -> ' .. name
+        return
+      end
+
+      visiting[name] = true
+      path[#path + 1] = name
+
+      for _, target in ipairs(graph[name]) do
+        visit(target, path)
+      end
+
+      path[#path] = nil
+      visiting[name] = nil
+      done[name] = true
+    end
+
+    for name in pairs(graph) do
+      visit(name, {})
+    end
+
+    eq({}, found)
   end)
 
   it('reaches a server only through harness.servers', function()
