@@ -1,10 +1,21 @@
 local Config = require('core.Config')
 
 return Config({
-  spinner = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' },
+  motion = {
+    pulse_ms = 300,
+    working = {
+      word_ms = 3000,
+      words = { 'working', 'pondering', 'noodling', 'cogitating', 'musing', 'tinkering' },
+    },
+    thinking = { ms = 300, frames = { 'thinking.', 'thinking..', 'thinking...' } },
+    loading = {
+      ms = 100,
+      frames = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' },
+    },
+  },
   tool_icons = {
     pending = { '○ ', 'UiToolPending' },
-    in_progress = { '○ ', 'UiToolPending' },
+    in_progress = { '◆ ', 'UiAccent' },
     completed = { '✓ ', 'UiToolDone' },
     failed = { '✗ ', 'UiToolFailed' },
   },

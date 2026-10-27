@@ -15,12 +15,6 @@ composer.WINBAR = ComposerView.WINBAR
 local store = ComposerStore()
 local current
 
-function composer.install(display)
-  composer.display = display
-
-  return composer
-end
-
 function composer.winbar(session)
   if session and not (current and current.session == session) then return ComposerView(session, store):winbar() end
 
@@ -86,8 +80,8 @@ function composer.interrupt(session)
   return session:cancel()
 end
 
-function composer.model(session)
-  local view = session and composer.display and composer.display.view_of(session)
+function composer.model(session, display)
+  local view = session and display and display.view_of(session)
 
   if view then view:pick_model() end
 end
@@ -107,6 +101,8 @@ end
 function composer.open(session, opts)
   opts = opts or {}
 
+  local display = opts.display
+
   if composer.is_open() then
     if current.session == session then
       current:focus(opts.insert)
@@ -119,7 +115,7 @@ function composer.open(session, opts)
   if session.state == 'closed' then return ComposerView.warn('this session has ended') end
 
   current = ComposerView(session, store, {
-    display = composer.display,
+    display = display,
     on_interrupt = composer.interrupt,
     on_slash = composer.slash,
     on_model = composer.model,

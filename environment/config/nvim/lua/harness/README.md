@@ -127,9 +127,26 @@ require('harness').setup({
   composer = { height = 10 },
   follow = { debounce_ms = 300, grace_ms = 1500, poll_ms = 3000 },
   keymaps = { transcript = { yank = 'gy', plan = 'gp', diff = 'gd' }, composer = { steer = '<C-s>', detach = '<C-x>' } },
-  theme = { prompt_icon = '>', spinner = { '◐', '◓', '◑', '◒' }, highlights = { UiToolOutput = { bg = '#1e2228' } } },
+  theme = {
+    prompt_icon = '>',
+    motion = {
+      pulse_ms = 300,
+      working = { word_ms = 3000, words = { 'working', 'pondering', 'noodling' } },
+      thinking = { ms = 300, frames = { 'thinking.', 'thinking..', 'thinking...' } },
+      loading = { ms = 100, frames = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' } },
+    },
+    highlights = {
+      UiWorking1 = 'Special', -- each cycling word has its own role
+      UiWorking2 = 'Directory',
+      UiWorking = 'Special', -- drives the running-icon pulse
+      UiMuted = 'Comment', -- map a semantic role to a colourscheme group
+      UiToolOutput = { bg = '#1e2228' }, -- or give it an explicit spec
+    },
+  },
 })
 ```
+
+`Ui*` groups are semantic roles. By default they link to colourscheme groups; `highlights` can relink them, give explicit specs, or compute a spec. Overrides reapply on `ColorScheme`.
 
 ## Sessions are buffers, scoped to a directory
 
@@ -321,7 +338,7 @@ In a transcript:
 | You see | Where it comes from |
 | --- | --- |
 | `❯ fix the parser` in bold, wrapped lines indented under the text | each prompt |
-| `✓ bash    seq 1 20` with a spinner while it runs, then `✓` or `✗` | the tool call: a lowercase verb and its main argument (command, path, pattern, url) |
+| `✓ bash    seq 1 20` with the running icon and elapsed time, then `✓` or `✗` | the tool call: a lowercase verb and its main argument (command, path, pattern, url) |
 | `1 line`, `12 results` at the right edge | the result of reads and searches |
 | Output under a `│` rail, the first 5 lines shown and the rest folded | commands show all their output; searches and fetches fold after 5 lines. Output is shown verbatim: its fence is longer than any backtick run in it |
 | `✓ edit    a.lua   +2 −2`, then the change under a `│` rail as vgit lays it out: three lines of context, file line numbers, add and delete backgrounds, changed words marked on top of the file's own syntax colours | edits. ACP sends a snippet; `EditResolver` finds it in the file to rebuild the whole file before and after (from the old text while the edit waits for permission), and `vgit.api.patch` lays that out. An edit it can't find, or one that failed, shows just its snippet with no numbers. A finished edit is frozen, so later changes to the file don't move it. A session opened later finds its edits newest first, each in the file as the edits after it left it, and an edit the agent replays without a diff is rebuilt from its input (`oldString`/`newString` or `old_string`/`new_string`). Past 12 rows the rest of a diff is folded. The layout follows vgit's own `scene.diff_preference`: `unified`, or `split`, which lays the old and new sides in two equal-width numbered columns with each side's add and delete backgrounds, changed words and its own syntax colours (`transcript.diff_layout` overrides it with `unified`/`split`, or `auto` to follow vgit). Split is decided hunk by hunk against the narrowest window showing the session: a hunk too wide for both sides is truncated with `…`, so a session set to split stays split throughout; set `transcript.diff_overflow = 'unified'` to lay that hunk out unified instead (nothing is cut off, but the view can mix), and an edit with no hunk that fits falls back to unified whole. A snippet's split columns carry no numbers, as in unified. Changing either setting, or resizing a window while split is in use, lays the session's edits out again in place; the edits stay frozen, only their layout changes. Agents reading the session get the same change as a classic `+`/`-` diff. A diff shown away from its edit keeps a path line |
@@ -337,7 +354,7 @@ In a transcript:
 | The current turn's prompt in the winbar (`❯ fix the parser`) | once that prompt scrolls out of view |
 | A floating `Plan  2/5` checklist at the top right | the latest ACP plan while any entry is unfinished |
 | `──────── 12s · 3 tools ──` | the end of each turn; `interrupted` or the limit hit is named in the warning colour, and `failed` (a turn the agent could not run) in the error colour |
-| `⠋ working · 12s · <C-c> interrupt` under the last line | a running turn |
+| `◆ working · 12s · <C-c> interrupt` under the last line, with the label pulsing and cycling words | a running turn |
 | `◆ waiting for you: Edit a.lua` on the tool and the working line, and a notification when the transcript is out of sight | a permission request waiting for an answer |
 | `◆ running  [Plan]  ctx 3%  $0.07` in the winbar | the session's state and its latest usage |
 

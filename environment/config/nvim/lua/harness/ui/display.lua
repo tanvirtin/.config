@@ -120,6 +120,4 @@ function display.reveal(session, origin, source)
   return Window.get_current().win_id
 end
 
-composer.install(display)
-
 return display

@@ -7,6 +7,13 @@ hl.GROUPS = {
   UiSelected = 'CursorLine',
   UiMuted = 'Comment',
   UiAccent = 'Special',
+  UiWorking = 'Special',
+  UiWorking1 = 'Special',
+  UiWorking2 = 'Directory',
+  UiWorking3 = 'DiagnosticInfo',
+  UiWorking4 = 'Constant',
+  UiWorking5 = 'Function',
+  UiWorking6 = 'Keyword',
   UiPath = 'Directory',
   UiLineNr = 'LineNr',
   UiAdded = 'Added',
@@ -132,6 +139,17 @@ hl.COMPUTED = {
   end,
 }
 
+for i, alpha in ipairs({ 1, 0.65, 0.3, 0.65 }) do
+  hl.COMPUTED['UiPulse' .. i] = function()
+    local accent = color('UiWorking', 'fg') or color('UiAccent', 'fg') or color('Special', 'fg')
+    local background = color('Normal', 'bg')
+
+    if not accent or not background then return { link = i % 2 == 1 and 'UiAccent' or 'UiMuted' } end
+
+    return { fg = hl.blend(accent, background, alpha) }
+  end
+end
+
 for n = 0, 15 do
   hl.COMPUTED['UiAnsi' .. n] = ansi(n)
 end
@@ -148,6 +166,18 @@ function hl.clear_overrides()
   hl.define()
 end
 
+local function apply(group, spec)
+  if spec == false then
+    vim.api.nvim_set_hl(0, group, {})
+  elseif type(spec) == 'string' then
+    vim.api.nvim_set_hl(0, group, { link = spec })
+  elseif type(spec) == 'function' then
+    vim.api.nvim_set_hl(0, group, spec())
+  elseif type(spec) == 'table' then
+    vim.api.nvim_set_hl(0, group, spec)
+  end
+end
+
 function hl.define()
   for group, link in pairs(hl.GROUPS) do
     vim.api.nvim_set_hl(0, group, { link = link, default = true })
@@ -158,7 +188,7 @@ function hl.define()
   end
 
   for group, spec in pairs(overrides) do
-    vim.api.nvim_set_hl(0, group, spec)
+    apply(group, spec)
   end
 end
 

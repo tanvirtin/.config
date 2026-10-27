@@ -279,7 +279,7 @@ function ComposerView:_bind(keys)
   end
 
   element:set_keymap('n', keys.model, function()
-    self.on_model(session)
+    self.on_model(session, self.display)
   end, 'Session model')
 
   element:set_buf_var('completion', false)

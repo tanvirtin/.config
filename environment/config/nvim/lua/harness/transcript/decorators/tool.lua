@@ -25,9 +25,9 @@ local SUMMARY = {
   end,
 }
 
-local function icon_of(block, ctx, live, waiting)
+local function icon_of(block, live, waiting)
   if waiting then return theme.WAITING_ICON end
-  if live then return { context.spinner(ctx) .. ' ', 'UiToolPending' } end
+  if live then return theme.TOOL_ICONS.in_progress end
   if block.interrupted then return { theme.TOOL_ICONS.failed[1], 'UiMuted' } end
 
   return theme.TOOL_ICONS[block.status] or theme.TOOL_ICONS[Block.STATUS.pending]
@@ -107,7 +107,7 @@ return function(block, ctx)
   local row = block.start
   local live = context.live_tool(block, ctx)
   local waiting = live and context.waiting_for(block, ctx)
-  local icon = icon_of(block, ctx, live, waiting)
+  local icon = icon_of(block, live, waiting)
   local verb = verb_of(block)
   local hidden = 3 + #block.name + (block.argument and 1 or 0)
 

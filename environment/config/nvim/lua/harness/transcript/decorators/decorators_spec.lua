@@ -79,7 +79,7 @@ describe('harness.transcript.decorators:', function()
     end))
   end)
 
-  it('spins a live tool and times it, or says it waits for you', function()
+  it('shows a live tool as running and times it, or says it waits for you', function()
     local block = make(
       Block.KIND.tool,
       { '-> Bash' },
@@ -89,7 +89,7 @@ describe('harness.transcript.decorators:', function()
     local marks = decorators.decorate(block, ctx)
 
     assert.truthy(find(marks, function(opts)
-      return first_chunk(opts) == theme.SPINNER[3] .. ' '
+      return first_chunk(opts) == theme.TOOL_ICONS.in_progress[1]
     end))
     assert.truthy(find(marks, function(opts)
       return opts.virt_text_pos == 'eol' and virt(opts) == '  3s'
@@ -271,11 +271,11 @@ describe('harness.transcript.decorators:', function()
     eq(' done ──', label({ reason = 'end_turn' }))
   end)
 
-  it('spins a live thought and times a finished one', function()
-    local live = decorators.decorate(make(Block.KIND.thought, { 'x' }, { live = true }), { running = true, frame = 1 })
+  it('animates a live thought and times a finished one', function()
+    local live = decorators.decorate(make(Block.KIND.thought, { 'x' }, { live = true }), { running = true, now = 0 })
     local done = decorators.decorate(make(Block.KIND.thought, { 'x' }, { started = 0, finished = 2000 }), {})
 
-    eq('  ' .. theme.SPINNER[1] .. ' thinking', virt(live[1].opts))
+    eq('  ' .. theme.motion('thinking', 0), virt(live[1].opts))
     eq('  2s', virt(done[1].opts))
   end)
 
@@ -395,7 +395,7 @@ describe('harness.transcript.decorators:', function()
     }):find('^  3 tools', 1))
   end)
 
-  it('spins a delegating tool while its sub-agent runs, even after the call returned and the turn ended', function()
+  it('shows a delegating tool as running while its sub-agent runs, even after the call returned', function()
     local block = make(
       Block.KIND.tool,
       { '-> Agent' },
@@ -404,7 +404,7 @@ describe('harness.transcript.decorators:', function()
     local marks = decorators.decorate(block, { running = false, frame = 2, active = { A = true } })
 
     assert.truthy(find(marks, function(opts)
-      return first_chunk(opts) == theme.SPINNER[2] .. ' '
+      return first_chunk(opts) == theme.TOOL_ICONS.in_progress[1]
     end))
     assert.truthy(find(marks, function(opts)
       return opts.virt_text_pos == 'eol' and virt(opts) == '  2 tools'

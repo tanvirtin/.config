@@ -1,13 +1,12 @@
 local MarkSpec = require('ui.MarkSpec')
 local theme = require('harness.transcript.theme')
-local context = require('harness.transcript.decorators.context')
 
 return function(block, ctx)
   local out = {}
   local text
 
   if block.live and ctx.running then
-    text = { { '  ' .. context.spinner(ctx) .. ' ', 'UiToolPending' }, { 'thinking', 'UiMuted' } }
+    text = { { '  ' .. theme.motion('thinking', ctx.now), 'UiMuted' } }
   elseif block.started and block.finished then
     local duration = theme.duration(block.finished - block.started)
     if duration then text = { { '  ' .. duration, 'UiMuted' } } end

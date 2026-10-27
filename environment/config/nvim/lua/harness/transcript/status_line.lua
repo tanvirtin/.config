@@ -54,10 +54,13 @@ local function working_line(state, now)
   end
 
   local elapsed = state.started and now and theme.duration(now - state.started)
+  local word, word_hl = theme.working_word(now, state.started)
+  local label = state.label or word or 'working'
+  local label_hl = state.label and theme.pulse(now) or word_hl or theme.pulse(now)
 
   return {
-    { theme.spinner(state.frame) .. ' ', 'UiToolPending' },
-    { state.label or 'working', 'UiAccent' },
+    { theme.RUNNING_ICON, theme.pulse(now) },
+    { label, label_hl },
     { elapsed and ' · ' .. elapsed or '', 'UiMuted' },
     { ' · ', 'UiMuted' },
     { keymaps:get('transcript').interrupt, 'UiAccent' },
@@ -65,9 +68,9 @@ local function working_line(state, now)
   }
 end
 
-local function loading_line(state)
+local function loading_line(state, now)
   return {
-    { theme.spinner(state.frame) .. ' ', 'UiToolPending' },
+    { theme.motion('loading', now) .. ' ', 'UiAccent' },
     { 'loading', 'UiAccent' },
     { ' · the agent is replaying this session', 'UiMuted' },
   }
@@ -77,7 +80,7 @@ function status_line.lines(state, now)
   local queued = queue_lines(state)
 
   if state.loading and not state.running then
-    local lines = { { { '' } }, loading_line(state) }
+    local lines = { { { '' } }, loading_line(state, now) }
 
     return vim.list_extend(lines, queued)
   end

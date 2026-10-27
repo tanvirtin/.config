@@ -118,5 +118,18 @@ describe('ui.hl:', function()
 
       eq(0x000000, vim.api.nvim_get_hl(0, { name = 'UiToolOutput' }).bg)
     end)
+
+    it('maps a role to a theme group, or computes its spec', function()
+      hl.override({
+        UiMuted = 'Title',
+        UiAccent = function()
+          return { fg = 0x123456 }
+        end,
+      })
+      hl.define()
+
+      eq('Title', vim.api.nvim_get_hl(0, { name = 'UiMuted' }).link)
+      eq(0x123456, vim.api.nvim_get_hl(0, { name = 'UiAccent' }).fg)
+    end)
   end)
 end)

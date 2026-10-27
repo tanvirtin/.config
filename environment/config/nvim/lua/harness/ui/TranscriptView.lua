@@ -479,7 +479,7 @@ function TranscriptView:bind(actions)
 
   for _, lhs in ipairs(settings.keymaps:get('transcript').write) do
     self:map(lhs, function()
-      if self.composer then self.composer.open(session, { insert = true }) end
+      if self.composer then self.composer.open(session, { insert = true, display = self.display }) end
     end, 'Write to this session')
   end
 

@@ -1,5 +1,4 @@
 local Block = require('harness.transcript.Block')
-local theme = require('harness.transcript.theme')
 
 local context = {}
 
@@ -18,10 +17,6 @@ function context.waiting_for(block, ctx)
   for _, request in ipairs(ctx.waiting or {}) do
     if request.id and request.id == block.id then return request end
   end
-end
-
-function context.spinner(ctx)
-  return theme.spinner(ctx.frame)
 end
 
 return context

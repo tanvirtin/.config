@@ -4,10 +4,18 @@ local fake_agent = require('harness.servers.acp.fake_agent')
 local hub = require('harness.hub')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
 local transcript = require('harness.ui.transcript')
+local display = require('harness.ui.display')
 
 local eq = assert.are.same
 
 local defaults = vim.deepcopy(hub.config)
+
+local function open_composer(session, opts)
+  opts = opts or {}
+  opts.display = display
+
+  return composer.open(session, opts)
+end
 
 local function press(keys)
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(keys, true, false, true), 'x', false)
@@ -60,7 +68,7 @@ describe('harness.ui.composer:', function()
 
   it('opens as a fileless split along the bottom, naming its session', function()
     local above = vim.api.nvim_get_current_win()
-    local element = composer.open(session)
+    local element = open_composer(session)
     local buf = vim.api.nvim_get_current_buf()
     local win = vim.api.nvim_get_current_win()
 
@@ -91,7 +99,7 @@ describe('harness.ui.composer:', function()
 
     local top = vim.fn.line('w0', win)
 
-    composer.open(session)
+    open_composer(session)
     vim.wait(100)
 
     eq(true, composer.is_open())
@@ -107,7 +115,7 @@ describe('harness.ui.composer:', function()
   it('sends on <CR> in normal mode, then clears and closes', function()
     local origin = vim.api.nvim_get_current_win()
 
-    composer.open(session)
+    open_composer(session)
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'rename x', 'to y' })
     press('<CR>')
     vim.wait(1000, function()
@@ -118,7 +126,7 @@ describe('harness.ui.composer:', function()
     eq(false, composer.is_open())
     eq(origin, vim.api.nvim_get_current_win())
 
-    composer.open(session)
+    open_composer(session)
     eq({ '' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   end)
 
@@ -142,7 +150,7 @@ describe('harness.ui.composer:', function()
     end)
 
     it('rides along with the next message, named in the winbar until sent', function()
-      composer.open(session)
+      open_composer(session)
       eq(true, composer.attach(file, { 2, 3 }))
       eq(true, composer.attach(file, { 1, 1 }))
       assert.is_truthy(composer.winbar():find('+ /w/a.lua:2-3', 1, true))
@@ -168,7 +176,7 @@ describe('harness.ui.composer:', function()
     end)
 
     it('is dropped last first, and with a discarded draft', function()
-      composer.open(session)
+      open_composer(session)
       composer.attach(file, { 1, 1 })
       composer.attach(file, { 2, 2 })
       press('<C-x>')
@@ -185,7 +193,7 @@ describe('harness.ui.composer:', function()
     end)
 
     it('is taken from a visual selection in another window', function()
-      composer.open(session)
+      open_composer(session)
       vim.cmd('wincmd k')
       vim.api.nvim_win_set_buf(0, file)
       press('Vj')
@@ -205,7 +213,7 @@ describe('harness.ui.composer:', function()
   end)
 
   it('treats <CR> in insert mode as a newline', function()
-    composer.open(session)
+    open_composer(session)
     press('ione<CR>two<Esc>')
 
     eq({ 'one', 'two' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
@@ -214,7 +222,7 @@ describe('harness.ui.composer:', function()
   end)
 
   it('sends on :w', function()
-    composer.open(session)
+    open_composer(session)
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'hello' })
     vim.cmd('write')
     vim.wait(1000, function()
@@ -226,7 +234,7 @@ describe('harness.ui.composer:', function()
   end)
 
   it('says where the user was, from the session\'s source buffer', function()
-    composer.open(session)
+    open_composer(session)
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'what is this?' })
     press('<CR>')
     vim.wait(1000, function()
@@ -239,13 +247,13 @@ describe('harness.ui.composer:', function()
   end)
 
   it('keeps a draft when closed with q, and an empty send just closes', function()
-    composer.open(session)
+    open_composer(session)
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'half a thought' })
     press('q')
 
     eq(false, composer.is_open())
 
-    composer.open(session)
+    open_composer(session)
     eq({ 'half a thought' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
 
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { '   ' })
@@ -256,38 +264,38 @@ describe('harness.ui.composer:', function()
   end)
 
   it('is only ever one: opening again focuses it, another session moves it', function()
-    local first = composer.open(session)
+    local first = open_composer(session)
 
     vim.cmd('wincmd p')
-    eq(first, composer.open(session))
+    eq(first, open_composer(session))
     eq(1, #composers())
 
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'for the first' })
 
     local other = hub.start({ dir = '/w' }):wait()
 
-    composer.open(other)
+    open_composer(other)
     eq(other, composer.target())
     eq({ '' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
 
-    composer.open(session)
+    open_composer(session)
     eq({ 'for the first' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   end)
 
   it('stays open when the user leaves it, like any window', function()
-    local element = composer.open(session)
+    local element = open_composer(session)
 
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'later' })
     vim.cmd('wincmd p')
     vim.wait(50)
 
     eq(true, composer.is_open())
-    eq(element, composer.open(session))
+    eq(element, open_composer(session))
     eq({ 'later' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   end)
 
   it('keeps the draft when its window is closed some other way', function()
-    composer.open(session)
+    open_composer(session)
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'closed with <C-w>c' })
     vim.wait(50)
     vim.cmd('wincmd p')
@@ -296,14 +304,14 @@ describe('harness.ui.composer:', function()
     eq(false, composer.is_open())
     eq(0, #composers())
 
-    composer.open(session)
+    open_composer(session)
     eq({ 'closed with <C-w>c' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   end)
 
   it('stays when the session buffer is closed, and sending shows it in a window of its own', function()
     local session_buf = vim.api.nvim_get_current_buf()
 
-    composer.open(session)
+    open_composer(session)
     vim.cmd('bwipeout! ' .. session_buf)
 
     eq(true, composer.is_open())
@@ -328,7 +336,7 @@ describe('harness.ui.composer:', function()
     local origin = vim.api.nvim_get_current_win()
 
     vim.cmd('enew')
-    composer.open(session)
+    open_composer(session)
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'over here' })
     press('<CR>')
     vim.wait(1000, function()
@@ -341,7 +349,7 @@ describe('harness.ui.composer:', function()
   end)
 
   it('keeps the draft when quit with :q', function()
-    composer.open(session)
+    open_composer(session)
     press('ccwritten then quit<Esc>')
     vim.cmd('quit')
     vim.wait(200, function()
@@ -350,18 +358,18 @@ describe('harness.ui.composer:', function()
 
     eq(false, composer.is_open())
 
-    composer.open(session)
+    open_composer(session)
     eq({ 'written then quit' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   end)
 
   it('quits with :q even with text in it, and sends with :wq', function()
-    composer.open(session)
+    open_composer(session)
     press('ccunsent<Esc>')
 
     vim.cmd('quit')
     eq(false, composer.is_open())
 
-    composer.open(session)
+    open_composer(session)
     eq({ 'unsent' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
 
     vim.cmd('wq')
@@ -381,7 +389,7 @@ describe('harness.ui.composer:', function()
       warned = message
     end
 
-    composer.open(session)
+    open_composer(session)
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'anyone there?' })
     session.state = 'closed'
     press('<CR>')
@@ -397,14 +405,14 @@ describe('harness.ui.composer:', function()
   end)
 
   it('closes and drops the draft when the session is deleted', function()
-    composer.open(session)
+    open_composer(session)
     press('ccto be dropped<Esc>')
     composer.forget(session)
 
     eq(false, composer.is_open())
 
     session.state = 'idle'
-    composer.open(session)
+    open_composer(session)
     eq({ '' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   end)
 
@@ -435,7 +443,7 @@ describe('harness.ui.composer:', function()
     end)
 
     it('queues what you send, shows it, and sends it when the turn ends', function()
-      composer.open(session)
+      open_composer(session)
 
       assert.is_truthy(composer.winbar():find('queue', 1, true))
       assert.is_truthy(composer.winbar():find('<C-c>', 1, true))
@@ -485,7 +493,7 @@ describe('harness.ui.composer:', function()
       local notify = vim.notify
       vim.notify = function() end
 
-      composer.open(session)
+      open_composer(session)
       vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'my draft' })
       press('<C-c>')
       vim.wait(200)
@@ -498,7 +506,7 @@ describe('harness.ui.composer:', function()
     end)
 
     it('only leaves insert mode on <C-c> while a turn runs, without cancelling it', function()
-      composer.open(session)
+      open_composer(session)
       press('i<C-c>')
       vim.wait(100)
 
@@ -515,13 +523,13 @@ describe('harness.ui.composer:', function()
       session:cancel()
       vim.notify = notify
 
-      composer.open(session)
+      open_composer(session)
 
       eq({ 'from the queue' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
     end)
 
     it('steers with <C-s>, falling back to the queue when the agent cannot steer', function()
-      composer.open(session)
+      open_composer(session)
       vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'change course' })
       press('<C-s>')
 
@@ -535,7 +543,7 @@ describe('harness.ui.composer:', function()
       { name = 'review', description = 'review changes', hint = 'branch' },
       { name = 'compact', description = 'summarize' },
     }
-    composer.open(session)
+    open_composer(session)
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { '/re' })
     vim.api.nvim_win_set_cursor(0, { 1, 3 })
 

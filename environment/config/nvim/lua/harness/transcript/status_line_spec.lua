@@ -21,17 +21,34 @@ describe('harness.transcript.status_line:', function()
     eq('  ' .. theme.QUEUE_ICON .. 'queued next thing', text(lines[2]))
   end)
 
-  it('shows a spinner, the label and the elapsed time while working', function()
-    local lines = status_line.lines({ running = true, frame = 2, started = 0, label = 'Thinking' }, 5000)
+  it('shows the running icon, a pulsing label and the elapsed time while working', function()
+    local lines = status_line.lines({ running = true, started = 0, label = 'Thinking' }, 5000)
 
-    eq(theme.SPINNER[2] .. ' Thinking · 5s · <C-c> interrupt', text(lines[2]))
+    eq(theme.RUNNING_ICON .. 'Thinking · 5s · <C-c> interrupt', text(lines[2]))
+  end)
+
+  it('cycles working words when no label is given', function()
+    local first = status_line.lines({ running = true, started = 0 }, 0)
+    local second = status_line.lines({ running = true, started = 0 }, 3000)
+
+    assert.truthy(text(first[2]):find(theme.working_word(0, 0), 1, true))
+    assert.truthy(text(second[2]):find(theme.working_word(3000, 0), 1, true))
+    eq('UiWorking2', second[2][2][2])
+  end)
+
+  it('pulses the running icon', function()
+    local first = status_line.lines({ running = true, started = 0 }, 0)
+    local second = status_line.lines({ running = true, started = 0 }, 300)
+
+    eq('UiPulse1', first[2][1][2])
+    eq('UiPulse2', second[2][1][2])
   end)
 
   it('says a session is loading while the agent replays it, above prompts waiting for it', function()
-    local lines = status_line.lines({ running = false, loading = true, frame = 1, queue = { 'next' } })
+    local lines = status_line.lines({ running = false, loading = true, queue = { 'next' } })
 
     eq(3, #lines)
-    eq(theme.SPINNER[1] .. ' loading · the agent is replaying this session', text(lines[2]))
+    eq(theme.motion('loading') .. ' loading · the agent is replaying this session', text(lines[2]))
     eq('  ' .. theme.QUEUE_ICON .. 'queued next', text(lines[3]))
   end)
 
