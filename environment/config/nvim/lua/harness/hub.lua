@@ -16,6 +16,7 @@ hub.config = {
   max_running = 4,
   max_depth = 2,
   ask = nil,
+  elicit = nil,
   spawn = nil,
 }
 
@@ -114,6 +115,7 @@ function hub.start(opts)
     local session, start_err = hub.workspace(dir):new_session(a, {
       key = key,
       approve = approve_for(a),
+      elicit = hub.config.elicit,
       parent = parent and parent.key,
       depth = depth,
     })
@@ -155,6 +157,7 @@ function hub.load(opts)
     local session, load_err = workspace:load_session(a, opts.id, {
       key = new_key(),
       approve = approve_for(a),
+      elicit = hub.config.elicit,
       title = opts.title,
       on_session = opts.on_session and function(session)
         shown = register(session)
@@ -181,6 +184,7 @@ function hub.fork(session, message_id)
     local forked, err = workspace:fork(session, message_id, {
       key = new_key(),
       approve = approve_for(session.agent),
+      elicit = hub.config.elicit,
       title = (session.title or 'untitled') .. ' (fork)',
     })
 

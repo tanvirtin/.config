@@ -445,7 +445,7 @@ describe('harness.Session:', function()
         return #session:waiting() == 1
       end)
 
-      eq({ { tool = 'Edit', id = 't1', title = 'Edit' } }, session:waiting())
+      eq({ { kind = 'permission', tool = 'Edit', id = 't1', title = 'Edit' } }, session:waiting())
 
       answer:set_result('allow_once')
       async.drain()

@@ -17,6 +17,7 @@ local PromptQueue = require('harness.session.PromptQueue')
 local instructions = require('harness.types.instructions')
 local SessionConfig = require('harness.session.SessionConfig')
 local PermissionGate = require('harness.session.PermissionGate')
+local ElicitationGate = require('harness.session.ElicitationGate')
 
 local K = events.KIND
 
@@ -46,6 +47,7 @@ function Session:constructor(opts)
     dir = opts.dir,
     connection = opts.connection,
     approve = opts.approve or permissions.new(),
+    elicit = opts.elicit,
     parent = opts.parent,
     depth = opts.depth or 0,
     title = opts.title,
@@ -63,6 +65,7 @@ function Session:constructor(opts)
   session.times = session.log.times
   session.permissions = PermissionGate(session)
   session._pending = session.permissions.pending
+  session.elicitations = ElicitationGate(session)
   session.prompts = PromptQueue(session)
   session.queue = session.prompts.items
   session.config = SessionConfig(session)
@@ -79,6 +82,12 @@ function Session:attach()
     end,
     permission = function(request)
       return self.permissions:request(request)
+    end,
+    elicitation = function(request)
+      return self.elicitations:request(request)
+    end,
+    elicitation_complete = function(id)
+      self.elicitations:complete(id)
     end,
     close = function(reason)
       self:_on_close(reason)
@@ -150,6 +159,7 @@ function Session:_on_close(reason)
   local running = self:running()
 
   self:_to(Session.STATE.closed)
+  self.elicitations:cancel_all()
 
   if not running then self:_emit(events.error(reason)) end
 end
@@ -278,7 +288,7 @@ function Session:queued()
 end
 
 function Session:waiting()
-  return self.permissions:waiting()
+  return vim.list_extend(self.permissions:waiting(), self.elicitations:waiting())
 end
 
 function Session:begin_load()
@@ -346,6 +356,8 @@ function Session:cancel()
   local returned = self.prompts:take_all()
 
   if #returned > 0 then self:_notify({ kind = events.NOTICE.returned, texts = returned }) end
+
+  self.elicitations:cancel_all()
 
   if not self:running() then return returned end
 

@@ -104,7 +104,7 @@ function composer.open(session, opts)
   local display = opts.display
 
   if composer.is_open() then
-    if current.session == session then
+    if current.session == session and current.answering == opts.answer then
       current:focus(opts.insert)
       return current.element
     end
@@ -116,6 +116,7 @@ function composer.open(session, opts)
 
   current = ComposerView(session, store, {
     display = display,
+    answering = opts.answer,
     on_interrupt = composer.interrupt,
     on_slash = composer.slash,
     on_model = composer.model,

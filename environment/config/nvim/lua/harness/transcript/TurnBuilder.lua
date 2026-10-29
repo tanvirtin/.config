@@ -6,6 +6,7 @@ local EditLog = require('harness.edits.EditLog')
 local Block = require('harness.transcript.Block')
 local EVENT = require('harness.types.events').KIND
 local settings = require('harness.settings.transcript')
+local elicitation = require('harness.types.elicitation')
 local block_text = require('harness.transcript.block_text')
 local tool_label = require('harness.transcript.tool_label')
 local output_style = require('harness.transcript.output_style')
@@ -320,6 +321,32 @@ function TurnBuilder:on_permission(event)
   end
 end
 
+TurnBuilder.ELICITATION_NOTES = {
+  [elicitation.ACTION.decline] = Block.NOTE.declined,
+  [elicitation.ACTION.cancel] = Block.NOTE.cancelled,
+}
+
+function TurnBuilder:on_elicitation(event)
+  local label, detail = TurnBuilder.ELICITATION_NOTES[event.action], event.message
+
+  if event.completed then
+    label = Block.NOTE.done
+  elseif not label and event.mode == elicitation.MODE.url then
+    label = Block.NOTE.opened
+  elseif not label then
+    local answers = {}
+
+    for _, answer in ipairs(event.answers or {}) do
+      answers[#answers + 1] = answer.label .. ' → ' .. answer.value
+    end
+
+    label = Block.NOTE.answered
+    if #answers > 0 then detail = detail .. ' ' .. table.concat(answers, '; ') end
+  end
+
+  self:_add(Block.KIND.note, block_text.note(label, compact.line(detail, 400)), { label = label })
+end
+
 function TurnBuilder:on_stop(event, i)
   local times, turn = self.times, self.turn
   local duration = turn.started and times[i] and times[i] - turn.started or nil
@@ -342,6 +369,7 @@ TurnBuilder.HANDLERS = {
   tool_update = TurnBuilder.on_tool_update,
   plan = TurnBuilder.on_plan,
   permission = TurnBuilder.on_permission,
+  elicitation = TurnBuilder.on_elicitation,
   stop = TurnBuilder.on_stop,
   error = TurnBuilder.on_error,
 }

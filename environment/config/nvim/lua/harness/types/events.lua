@@ -1,4 +1,5 @@
 local dataclass = require('core.dataclass')
+local elicitation = require('harness.types.elicitation')
 
 local events = {}
 
@@ -13,6 +14,7 @@ events.KIND = dataclass.enum({
   'title',
   'usage',
   'permission',
+  'elicitation',
   'stop',
   'error',
   'config',
@@ -23,6 +25,8 @@ events.KIND = dataclass.enum({
 })
 
 events.NOTICE = dataclass.enum({ 'queue', 'waiting', 'reset', 'appended', 'external', 'config', 'returned', 'loaded' })
+
+events.ASK = dataclass.enum({ 'permission', 'elicitation' })
 
 events.STOP_REASON = dataclass.enum({ 'end_turn', 'max_tokens', 'max_turn_requests', 'refusal', 'cancelled' })
 
@@ -95,6 +99,18 @@ events.TYPES = {
       cancelled = { type = 'boolean' },
     })
   ),
+  [K.elicitation] = dataclass.define(
+    'Elicitation',
+    schema({
+      message = { type = 'string', required = true },
+      action = { type = 'string', required = true },
+      mode = STRING,
+      tool = STRING,
+      parent = STRING,
+      answers = TABLE,
+      completed = { type = 'boolean' },
+    })
+  ),
   [K.stop] = dataclass.define('Stop', schema({ reason = STRING })),
   [K.error] = dataclass.define('Error', schema({ message = { type = 'string', required = true } })),
   [K.config] = dataclass.define('Config', schema({ options = { type = 'table', required = true } })),
@@ -132,6 +148,20 @@ function events.permission(tool, allowed, opts)
   opts = opts or {}
 
   return events.new({ kind = K.permission, tool = tool, allowed = allowed, id = opts.id, cancelled = opts.cancelled })
+end
+
+function events.elicitation(request, answer, opts)
+  opts = opts or {}
+
+  return events.new({
+    kind = K.elicitation,
+    message = request.message,
+    mode = request.mode,
+    tool = request.tool,
+    action = answer.action,
+    answers = elicitation.summary(request, answer),
+    completed = opts.completed,
+  })
 end
 
 function events.stop(reason)

@@ -1,4 +1,5 @@
 local MarkSpec = require('ui.MarkSpec')
+local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
 
 return function(block)
@@ -6,18 +7,19 @@ return function(block)
 
   if not block.label then return out end
 
-  local failed = theme.TOOL_ICONS.failed
+  local good = Block.SETTLED_NOTES[block.label] == true
+  local icon = good and theme.TOOL_ICONS.completed or theme.TOOL_ICONS.failed
 
   for index, line in ipairs(block.lines) do
     local row = block.start + index - 1
 
     MarkSpec.add(out, row, 0, {
-      virt_text = { { index == 1 and failed[1] or '  ', failed[2] } },
+      virt_text = { { index == 1 and icon[1] or '  ', icon[2] } },
       virt_text_pos = 'inline',
     })
 
     if index == 1 then
-      MarkSpec.add(out, row, 0, { end_col = #block.label + 1, hl_group = 'UiError' })
+      MarkSpec.add(out, row, 0, { end_col = #block.label + 1, hl_group = good and 'UiAccent' or 'UiError' })
       MarkSpec.add(
         out,
         row,

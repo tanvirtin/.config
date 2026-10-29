@@ -42,6 +42,12 @@ function Subagents:_follow(child)
     permission = function(request)
       return session.permissions:request(request)
     end,
+    elicitation = function(request)
+      return session.elicitations:request(request)
+    end,
+    elicitation_complete = function(id)
+      session.elicitations:complete(id)
+    end,
   })
 end
 

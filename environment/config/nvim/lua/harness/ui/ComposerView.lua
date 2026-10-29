@@ -7,11 +7,11 @@ local Object = lazy('core.Object')
 local Window = lazy('core.Window')
 local console = lazy('core.console')
 local tools = lazy('nvim_mcp.tools')
+local asks = lazy('harness.ui.asks')
 local context = lazy('harness.context')
 local settings = lazy('harness.settings')
 local Element = lazy('ui.elements.Element')
 local theme = lazy('harness.transcript.theme')
-local permission_state = lazy('harness.ui.permission_state')
 
 local ComposerView = Object:extend()
 
@@ -51,7 +51,14 @@ function ComposerView:constructor(session, store, callbacks)
     on_interrupt = callbacks.on_interrupt,
     on_close = callbacks.on_close,
     on_wipe = callbacks.on_wipe,
+    answering = callbacks.answering,
   }
+end
+
+function ComposerView:answer_target()
+  local prompt = self.answering
+
+  return prompt and prompt:is_open() and prompt:writing() and prompt or nil
 end
 
 function ComposerView:is_open()
@@ -91,7 +98,13 @@ function ComposerView:winbar()
   end
 
   if session.external then parts[#parts + 1] = '%#UiWarn#⇄ also driven elsewhere: sending forks it ' end
-  if #permission_state.asks_of(session) > 0 then
+
+  local target = self:answer_target()
+  local answering = target and target:writing_label()
+
+  if answering then
+    parts[#parts + 1] = '%#UiWarn#' .. theme.WAITING_ICON[1] .. 'answering: ' .. answering:gsub('%%', '%%%%') .. ' '
+  elseif #asks.asks_of(session) > 0 then
     parts[#parts + 1] = '%#UiWarn#' .. theme.WAITING_ICON[1] .. 'answer in the transcript '
   end
 
@@ -99,7 +112,9 @@ function ComposerView:winbar()
 
   local keys = settings.keymaps:get('composer')
 
-  if session:running() then
+  if answering then
+    parts[#parts + 1] = self:_key(keys.send, 'answer')
+  elseif session:running() then
     parts[#parts + 1] = self:_key(keys.send, 'queue')
     if session:can('steer') then parts[#parts + 1] = self:_key(keys.steer, 'steer') end
     parts[#parts + 1] = self:_key(keys.interrupt, 'interrupt')
@@ -126,7 +141,7 @@ function ComposerView:attach(buf, range)
 end
 
 function ComposerView:_keep()
-  if not self:is_open() then return self end
+  if not self:is_open() or self.answering then return self end
 
   local lines = self.element:get_lines()
 
@@ -139,11 +154,22 @@ end
 function ComposerView:close(discard)
   local key = self.session.key
 
+  if self.answering then
+    local target = self:answer_target()
+
+    if target then
+      target:stop_writing()
+      asks.changed(self.session)
+    end
+
+    discard = false
+  end
+
   if self:is_open() then
     local lines = self.element:get_lines()
     local view = self.display and self.display.view_of(self.session)
 
-    self.store:set_draft(key, ComposerView.has_text(lines) and lines or nil)
+    if not self.answering then self.store:set_draft(key, ComposerView.has_text(lines) and lines or nil) end
 
     -- the transcript takes the rows back: put its top line back once it has grown
     if view then view:watch() end
@@ -166,10 +192,26 @@ function ComposerView:_outgoing()
   return { session = self.session, lines = self:lines(), source = self.source, origin = self.origin }
 end
 
+function ComposerView:_answer(text)
+  local target = self:answer_target()
+
+  if not target then return false, 'the question was already answered or withdrawn' end
+  if text == '' then return false, 'write an answer, or close to go back to the choices' end
+
+  local ok, why = target:submit_text(text)
+
+  if not ok then return false, why end
+
+  asks.changed(self.session)
+
+  return true, 'answered'
+end
+
 function ComposerView:_deliver(message, opts)
   local session, source, store = message.session, message.source, self.store
   local text = vim.trim(table.concat(message.lines, '\n'))
 
+  if self.answering then return self:_answer(text) end
   if text == '' then return true end
   if session.state == 'closed' then return false, 'this session has ended; your text is kept' end
 
@@ -219,7 +261,7 @@ function ComposerView:_send_after_write()
     local sent, why = self:_deliver(message)
 
     if not sent then
-      self.store:set_draft(message.session.key, message.lines)
+      if not self.answering then self.store:set_draft(message.session.key, message.lines) end
       return ComposerView.warn(why)
     end
 
@@ -360,7 +402,7 @@ function ComposerView:mount(insert)
   if view then view:hold_end() end
 
   element:set_name(ComposerView.NAME)
-  element:set_lines(self.store:draft(session.key) or { '' })
+  element:set_lines(not self.answering and self.store:draft(session.key) or { '' })
   element:set_buf_option('modified', false)
   element:focus()
   element:set_cursor({ element:get_line_count(), #(element:get_lines()[element:get_line_count()] or '') })

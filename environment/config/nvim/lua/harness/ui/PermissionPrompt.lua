@@ -3,12 +3,14 @@ local lazy = require('core.lazy')
 local Object = lazy('core.Object')
 local async = lazy('harness.async')
 local permissions = lazy('harness.permissions')
+local ASK = require('harness.types.events').ASK
 local DECISION = require('harness.types.permission').DECISION
 
 local PermissionPrompt = Object:extend()
 
 function PermissionPrompt:constructor(request)
   return {
+    kind = ASK.permission,
     session = request.session,
     future = async.Future(),
     text = permissions.describe(request),

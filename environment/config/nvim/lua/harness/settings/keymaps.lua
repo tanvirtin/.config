@@ -4,6 +4,7 @@ return Config({
   transcript = {
     write = { 'i', 'a', 'o', 'I', 'A', 'O' },
     interrupt = '<C-c>',
+    decline = '0',
     activate = '<CR>',
     bottom = 'G',
     open = 'gf',

@@ -30,6 +30,42 @@ function fake_agent.permission(session_id, tool_name, id)
   })
 end
 
+fake_agent.QUESTION = {
+  mode = 'form',
+  message = 'Which database?',
+  requestedSchema = {
+    type = 'object',
+    properties = {
+      question_0 = {
+        type = 'string',
+        title = 'Database',
+        oneOf = {
+          { const = 'Postgres', title = 'Postgres', description = 'relational' },
+          { const = 'Redis', title = 'Redis' },
+        },
+      },
+      question_0_custom = { type = 'string', title = 'Other' },
+    },
+  },
+}
+
+function fake_agent.elicitation(session_id, params, id)
+  return jsonrpc.request(
+    id or 'ask-1',
+    'elicitation/create',
+    vim.tbl_extend('force', params or fake_agent.QUESTION, { sessionId = session_id })
+  )
+end
+
+function fake_agent.url_elicitation(session_id, id)
+  return fake_agent.elicitation(session_id, {
+    mode = 'url',
+    message = 'Authenticate with MCP server linear',
+    url = 'https://example.com/oauth',
+    elicitationId = 'mcp-oauth-1',
+  }, id)
+end
+
 function fake_agent.replying(text)
   return function(message)
     local id = message.params.sessionId
@@ -172,6 +208,12 @@ function fake_agent.new(script)
     end)
 
     return reply and reply.result.outcome.optionId
+  end
+
+  function agent:reply_to(id)
+    return self:find(function(message)
+      return message.id == id and message.method == nil
+    end)
   end
 
   return agent

@@ -38,7 +38,7 @@ describe('harness.session.PermissionGate:', function()
     local gate = PermissionGate(session)
     local answer = gate:request(PARAMS)
 
-    eq({ { tool = 'Edit', id = 't1', title = 'Edit a.lua' } }, gate:waiting())
+    eq({ { kind = 'permission', tool = 'Edit', id = 't1', title = 'Edit a.lua' } }, gate:waiting())
 
     later:set_result('reject_once')
     async.drain()

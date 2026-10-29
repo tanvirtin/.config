@@ -1,4 +1,5 @@
 local compact = require('compact')
+local ASK = require('harness.types.events').ASK
 local theme = require('harness.transcript.theme')
 local keymaps = require('harness.settings.keymaps')
 local settings = require('harness.settings.transcript')
@@ -39,6 +40,59 @@ local function ask_lines(state, ask)
   return { question, choices }
 end
 
+local function more(state)
+  if #state.asks > 1 then return { string.format('  (+%d more)', #state.asks - 1), 'UiMuted' } end
+end
+
+local function elicitation_lines(state, ask)
+  local view = ask:view()
+  local width = settings:get('request_preview')
+  local keys = keymaps:get('transcript')
+  local question = { theme.WAITING_ICON, { compact.line(view.message, width), 'UiPromptBar' } }
+
+  if view.count > 1 then question[#question + 1] = { string.format('  %d/%d', view.step, view.count), 'UiMuted' } end
+  question[#question + 1] = more(state)
+
+  local lines = { question }
+
+  if view.label and (view.count > 1 or view.label ~= view.message) then
+    lines[#lines + 1] = { { '   ' }, { compact.line(view.label, width), 'UiWarn' } }
+  end
+
+  if view.url then lines[#lines + 1] = { { '   ' }, { compact.line(view.url, width), 'UiPath' } } end
+
+  if view.writing then
+    lines[#lines + 1] = {
+      { '   ' },
+      { 'write ', 'UiMuted' },
+      { compact.line(view.writing, width), 'UiPromptBar' },
+      { ' in the composer, or close it to go back', 'UiMuted' },
+    }
+  end
+
+  for _, choice in ipairs(view.choices) do
+    local line = { { '   ' }, { choice.key, 'UiAccent' }, { ' ' } }
+
+    if choice.checked ~= nil then line[#line + 1] = { choice.checked and '[x] ' or '[ ] ', 'UiAccent' } end
+    line[#line + 1] = { choice.label }
+    if choice.description then line[#line + 1] = { '  ' .. compact.line(choice.description, width), 'UiMuted' } end
+
+    lines[#lines + 1] = line
+  end
+
+  if view.error then lines[#lines + 1] = { { '   ' }, { view.error, 'UiWarn' } } end
+
+  lines[#lines + 1] = {
+    { '   ' },
+    { keys.decline, 'UiAccent' },
+    { ' decline   ', 'UiMuted' },
+    { keys.interrupt, 'UiAccent' },
+    { ' interrupt', 'UiMuted' },
+  }
+
+  return lines
+end
+
 local function working_line(state, now)
   local request = (state.waiting or {})[1]
 
@@ -76,8 +130,23 @@ local function loading_line(state, now)
   }
 end
 
+local function ask_body(state, ask)
+  if ask.kind == ASK.elicitation then return elicitation_lines(state, ask) end
+
+  return ask_lines(state, ask)
+end
+
 function status_line.lines(state, now)
   local queued = queue_lines(state)
+  local ask = (state.asks or {})[1]
+
+  if ask and not state.running then
+    local lines = { { { '' } } }
+
+    vim.list_extend(lines, ask_body(state, ask))
+
+    return vim.list_extend(lines, queued)
+  end
 
   if state.loading and not state.running then
     local lines = { { { '' } }, loading_line(state, now) }
@@ -93,8 +162,7 @@ function status_line.lines(state, now)
     return queued
   end
 
-  local ask = (state.asks or {})[1]
-  local body = ask and ask_lines(state, ask) or { working_line(state, now) }
+  local body = ask and ask_body(state, ask) or { working_line(state, now) }
   local lines = { { { '' } } }
 
   vim.list_extend(lines, body)

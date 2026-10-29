@@ -64,6 +64,35 @@ describe('harness.ui.transcript:', function()
       assert.is_truthy(out:find('+x = 1', 1, true))
     end)
 
+    it('notes each question the agent asked and what became of it', function()
+      local elicitation = require('harness.types.elicitation')
+      local translate = require('harness.servers.acp.translate')
+      local form = translate.elicitation_request(fake_agent.QUESTION)
+      local url =
+        translate.elicitation_request({ mode = 'url', message = 'Sign in', url = 'https://x', elicitationId = 'e' })
+      local out = transcript.render({
+        events.prompt('set it up'),
+        events.elicitation(form, elicitation.accept({ question_0 = 'Postgres' })),
+        events.elicitation(form, elicitation.accept({ question_0_custom = 'MySQL 8' })),
+        events.elicitation(form, elicitation.decline()),
+        events.elicitation(form, elicitation.cancel()),
+        events.elicitation(url, elicitation.accept()),
+        events.elicitation(url, elicitation.accept(), { completed = true }),
+      })
+      local notes = vim.tbl_filter(function(line)
+        return line:find(': ', 1, true) ~= nil
+      end, out)
+
+      eq({
+        'answered: Which database? Database → Postgres',
+        'answered: Which database? Database → MySQL 8',
+        'declined: Which database?',
+        'cancelled: Which database?',
+        'opened: Sign in',
+        'done: Sign in',
+      }, notes)
+    end)
+
     it('never puts a newline inside a buffer line', function()
       local lines = transcript.render({
         { kind = 'tool_call', id = 't1', title = 'Bash: for f in *; do\n  echo $f\ndone', diffs = {} },
@@ -641,6 +670,264 @@ describe('harness.ui.transcript:', function()
         assert.is_truthy(require('harness.ui.composer').winbar(asked):find('answer in the transcript', 1, true))
         transcript.asks_of(asked)[1].future:set_result('reject_once')
         async.drain()
+      end)
+
+      describe('a question from the agent', function()
+        local composer = require('harness.ui.composer')
+        local console = require('core.console')
+
+        local function questioning_session(params, opts)
+          opts = opts or {}
+          agent = fake_agent.new({
+            ['session/prompt'] = function(message)
+              prompt_id = message.id
+              return { fake_agent.elicitation('s1', params) }
+            end,
+            reply = function(message)
+              if message.id ~= 'ask-1' then return {} end
+              return { jsonrpc.result(prompt_id, { stopReason = 'end_turn' }) }
+            end,
+          })
+
+          return Session({
+            key = 'he' .. math.random(1e6),
+            id = 's1',
+            connection = Connection(agent),
+            approve = permissions.new({ ask = transcript.ask }),
+            elicit = opts.elicit or transcript.elicit,
+          }):attach()
+        end
+
+        local function press(buf, keys)
+          vim.api.nvim_set_current_buf(buf)
+          vim.api.nvim_feedkeys(keys, 'x', false)
+        end
+
+        local function asked_in(buf, text)
+          vim.wait(1000, function()
+            return status_text(buf):find(text, 1, true) ~= nil
+          end)
+
+          return status_text(buf)
+        end
+
+        local function answered()
+          vim.wait(1000, function()
+            return agent:reply_to('ask-1') ~= nil
+          end)
+
+          return agent:reply_to('ask-1')
+        end
+
+        local function written(buf, text)
+          vim.wait(1000, function()
+            return table.concat(lines(buf), '\n'):find(text, 1, true) ~= nil
+          end)
+
+          return table.concat(lines(buf), '\n'):find(text, 1, true) ~= nil
+        end
+
+        after_each(function()
+          composer.close(true)
+        end)
+
+        it('asks under the transcript and sends the option picked by number', function()
+          local asked = questioning_session()
+          local buf = transcript.open(asked)
+          local task = asked:prompt('pick a database')
+          local shown = asked_in(buf, 'Which database?')
+
+          assert.is_truthy(shown:find('1 Postgres  relational', 1, true))
+          assert.is_truthy(shown:find('3 Other…', 1, true))
+          assert.is_truthy(shown:find('0 decline', 1, true))
+
+          press(buf, '1')
+
+          eq({ action = 'accept', content = { question_0 = 'Postgres' } }, answered().result)
+          vim.wait(1000, function()
+            return task.done
+          end)
+          eq({}, transcript.asks_of(asked))
+          assert.is_true(written(buf, 'answered: Which database? Database → Postgres'))
+        end)
+
+        it('takes a written answer from the composer, keeping the draft already there', function()
+          local asked = questioning_session()
+          local buf = transcript.open(asked)
+
+          composer.open(asked, { display = require('harness.ui.display') })
+          vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'my unsent draft' })
+          composer.close()
+
+          asked:prompt('pick a database')
+          asked_in(buf, 'Which database?')
+          press(buf, '3')
+
+          vim.wait(1000, function()
+            return composer.is_open()
+          end)
+
+          assert.is_true(composer.is_open())
+          eq({ '' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+          assert.is_truthy(composer.winbar():find('answering: Other', 1, true))
+          assert.is_truthy(asked_in(buf, 'write Other in the composer'):find('write Other', 1, true))
+
+          vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'MySQL 8' })
+          composer.send()
+
+          eq({ action = 'accept', content = { question_0_custom = 'MySQL 8' } }, answered().result)
+          assert.is_false(composer.is_open())
+
+          composer.open(asked, { display = require('harness.ui.display') })
+          eq({ 'my unsent draft' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+        end)
+
+        it('keeps the composer open and says why when a written answer does not fit', function()
+          local asked = questioning_session({
+            mode = 'form',
+            message = 'How many?',
+            requestedSchema = { properties = { n = { type = 'integer', maximum = 5 } }, required = { 'n' } },
+          })
+          local buf = transcript.open(asked)
+          local warned = {}
+          local original = console.notify
+
+          console.notify = function(message)
+            warned[#warned + 1] = message
+          end
+
+          asked:prompt('count')
+          asked_in(buf, 'How many?')
+          press(buf, '1')
+          vim.wait(1000, function()
+            return composer.is_open()
+          end)
+          vim.api.nvim_buf_set_lines(0, 0, -1, false, { '9' })
+          composer.send()
+          console.notify = original
+
+          assert.is_true(composer.is_open())
+          eq('Harness: write at most 5', warned[1])
+          assert.is_nil(agent:reply_to('ask-1'))
+
+          vim.api.nvim_buf_set_lines(0, 0, -1, false, { '4' })
+          composer.send()
+
+          eq({ action = 'accept', content = { n = 4 } }, answered().result)
+        end)
+
+        it('goes back to the choices when the composer is closed without an answer', function()
+          local asked = questioning_session()
+          local buf = transcript.open(asked)
+
+          asked:prompt('pick a database')
+          asked_in(buf, 'Which database?')
+          press(buf, '3')
+          vim.wait(1000, function()
+            return composer.is_open()
+          end)
+          composer.close()
+
+          assert.is_truthy(asked_in(buf, '1 Postgres'):find('1 Postgres', 1, true))
+          press(buf, '2')
+          eq({ action = 'accept', content = { question_0 = 'Redis' } }, answered().result)
+        end)
+
+        it('declines on 0', function()
+          local asked = questioning_session()
+          local buf = transcript.open(asked)
+
+          asked:prompt('pick a database')
+          asked_in(buf, 'Which database?')
+          press(buf, '0')
+
+          eq({ action = 'decline' }, answered().result)
+          assert.is_true(written(buf, 'declined: Which database?'))
+        end)
+
+        it('lets 0 move to the start of the line when nothing is asked', function()
+          transcript.open(session)
+
+          eq('0', vim.fn.maparg('0', 'n', false, true).callback())
+        end)
+
+        it('cancels the question when the turn is interrupted', function()
+          local asked = questioning_session()
+          local buf = transcript.open(asked)
+
+          asked:prompt('pick a database')
+          asked_in(buf, 'Which database?')
+          asked:cancel()
+
+          eq({ action = 'cancel' }, agent:reply_to('ask-1').result)
+          vim.wait(500, function()
+            return not status_text(buf):find('Which database?', 1, true)
+          end)
+          assert.is_falsy(status_text(buf):find('Which database?', 1, true))
+        end)
+
+        it('closes the question when the agent withdraws it', function()
+          local asked = questioning_session()
+          local buf = transcript.open(asked)
+
+          asked:prompt('pick a database')
+          asked_in(buf, 'Which database?')
+          agent:push(jsonrpc.notification('$/cancel_request', { requestId = 'ask-1' }))
+
+          eq({ action = 'cancel' }, agent:reply_to('ask-1').result)
+          eq({}, transcript.asks_of(asked))
+        end)
+
+        it('opens a sign-in link that arrives while idle, and notes when it is done', function()
+          local asked = questioning_session()
+          local opened
+          local original = console.open_url
+
+          console.open_url = function(url)
+            opened = url
+          end
+
+          agent:push(fake_agent.url_elicitation('s1'))
+
+          vim.wait(1000, function()
+            return transcript.buffer_of(asked) ~= nil
+          end)
+
+          local buf = transcript.buffer_of(asked)
+
+          assert.is_truthy(
+            asked_in(buf, 'Authenticate with MCP server linear'):find('https://example.com/oauth', 1, true)
+          )
+          press(buf, '1')
+
+          local reply = answered()
+
+          console.open_url = original
+
+          eq('https://example.com/oauth', opened)
+          eq('accept', reply.result.action)
+
+          agent:push(jsonrpc.notification('elicitation/complete', { elicitationId = 'mcp-oauth-1' }))
+
+          assert.is_true(written(buf, 'opened: Authenticate with MCP server linear'))
+          assert.is_true(written(buf, 'done: Authenticate with MCP server linear'))
+        end)
+
+        it('answers questions and permissions in the order they came', function()
+          local asked = questioning_session()
+          local buf = transcript.open(asked)
+
+          agent:push(fake_agent.permission('s1', 'Edit'))
+          agent:push(fake_agent.elicitation('s1'))
+          assert.is_truthy(asked_in(buf, 'Allow Edit'):find('Allow Edit', 1, true))
+
+          press(buf, '1')
+          assert.is_truthy(asked_in(buf, 'Which database?'):find('Which database?', 1, true))
+          press(buf, '2')
+
+          eq({ action = 'accept', content = { question_0 = 'Redis' } }, answered().result)
+          eq('allow', agent:selected())
+        end)
       end)
     end)
   end)

@@ -2,6 +2,7 @@ local Connection = require('harness.servers.acp.Connection')
 local async = require('harness.async')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
+local elicitation = require('harness.types.elicitation')
 
 local eq = assert.are.same
 
@@ -433,6 +434,167 @@ describe('harness.servers.acp.Connection:', function()
       eq({ outcome = 'cancelled' }, Connection.permission_outcome(options, 'cancelled'))
       eq({ outcome = 'cancelled' }, Connection.permission_outcome({}, 'allow_once'))
       eq({ outcome = 'cancelled' }, Connection.permission_outcome(options, nil))
+    end)
+  end)
+
+  describe('elicitation', function()
+    local function asked_with(answer)
+      local conn, agent = connected()
+      local asked = {}
+
+      conn:attach('s1', {
+        elicitation = function(request)
+          asked[#asked + 1] = request
+          return answer
+        end,
+      })
+
+      return conn, agent, asked
+    end
+
+    it('tells the agent it can show forms and urls', function()
+      local _, agent = connected()
+      local capabilities = agent:sent_method('initialize').params.clientCapabilities
+
+      eq({ 'table', 'table' }, { type(capabilities.elicitation.form), type(capabilities.elicitation.url) })
+    end)
+
+    it('hands a form to the session and sends back what the user answered, even later', function()
+      local later = async.Future.new()
+      local _, agent, asked = asked_with(later)
+
+      agent:push(fake_agent.elicitation('s1'))
+
+      eq('Which database?', asked[1].message)
+      eq('question_0_custom', asked[1].fields[1].other)
+      assert.is_nil(agent:reply_to('ask-1'))
+
+      later:set_result(elicitation.accept({ question_0 = 'Redis' }))
+      async.drain()
+
+      eq({ action = 'accept', content = { question_0 = 'Redis' } }, agent:reply_to('ask-1').result)
+    end)
+
+    it('sends an answer that is already known at once, and a decline for anything unreadable', function()
+      local _, agent = asked_with(elicitation.cancel())
+
+      agent:push(fake_agent.elicitation('s1'))
+      eq({ action = 'cancel' }, agent:reply_to('ask-1').result)
+
+      local _, other = asked_with('nonsense')
+
+      other:push(fake_agent.elicitation('s1'))
+      eq({ action = 'decline' }, other:reply_to('ask-1').result)
+    end)
+
+    it('declines a form it cannot show without asking anyone', function()
+      local _, agent, asked = asked_with(elicitation.accept({}))
+
+      agent:push(fake_agent.elicitation('s1', {
+        mode = 'form',
+        message = 'x',
+        requestedSchema = { properties = { blob = { type = 'object' } }, required = { 'blob' } },
+      }))
+
+      eq(0, #asked)
+      eq({ action = 'decline' }, agent:reply_to('ask-1').result)
+    end)
+
+    it('keeps a question for a session that is not attached yet, and asks once it is', function()
+      local conn, agent = connected()
+      local asked
+
+      agent:push(fake_agent.url_elicitation('s9'))
+      assert.is_nil(agent:reply_to('ask-1'))
+
+      conn:attach('s9', {
+        elicitation = function(request)
+          asked = request
+          return elicitation.accept()
+        end,
+      })
+
+      eq('https://example.com/oauth', asked.url)
+      eq({ action = 'accept' }, { action = agent:reply_to('ask-1').result.action })
+    end)
+
+    it('declines questions for a session it has let go of, held or new', function()
+      local conn, agent = connected()
+
+      agent:push(fake_agent.elicitation('s9', nil, 'held'))
+      conn:detach('s9')
+      agent:push(fake_agent.elicitation('s9', nil, 'late'))
+
+      eq({ action = 'decline' }, agent:reply_to('held').result)
+      eq({ action = 'decline' }, agent:reply_to('late').result)
+    end)
+
+    it('finds the session of a question scoped to one of its requests', function()
+      local conn, agent = connected({
+        ['session/prompt'] = function(message)
+          return {
+            fake_agent.elicitation(nil, vim.tbl_extend('force', fake_agent.QUESTION, { requestId = message.id })),
+          }
+        end,
+      })
+      local asked
+
+      conn:attach('s1', {
+        elicitation = function(request)
+          asked = request
+          return elicitation.decline()
+        end,
+      })
+      async.run(function()
+        conn:prompt('s1', require('harness.types.content').prompt('hi'))
+      end)
+      async.drain()
+
+      eq('Which database?', asked.message)
+      eq({ action = 'decline' }, agent:reply_to('ask-1').result)
+    end)
+
+    it('tells the session when the agent says a url question is done', function()
+      local conn, agent = connected()
+      local completed
+
+      conn:attach('s1', {
+        elicitation = function()
+          return elicitation.accept()
+        end,
+        elicitation_complete = function(id)
+          completed = id
+        end,
+      })
+      agent:push(fake_agent.url_elicitation('s1'))
+      agent:push(jsonrpc.notification('elicitation/complete', { elicitationId = 'mcp-oauth-1' }))
+      agent:push(jsonrpc.notification('elicitation/complete', { elicitationId = 'unknown' }))
+
+      eq('mcp-oauth-1', completed)
+    end)
+
+    it('cancels an open question when the agent cancels its request', function()
+      local later = async.Future.new()
+      local _, agent = asked_with(later)
+
+      function later.cancel()
+        later:set_result(elicitation.cancel())
+      end
+
+      agent:push(fake_agent.elicitation('s1'))
+      agent:push(jsonrpc.notification('$/cancel_request', { requestId = 'ask-1' }))
+      async.drain()
+
+      eq({ action = 'cancel' }, agent:reply_to('ask-1').result)
+    end)
+
+    it('cancels a held question when the agent cancels it before the session attaches', function()
+      local _, agent = connected()
+
+      agent:push(fake_agent.elicitation('s9'))
+      agent:push(jsonrpc.notification('$/cancel_request', { requestId = 'ask-1' }))
+
+      eq({ action = 'cancel' }, agent:reply_to('ask-1').result)
     end)
   end)
 

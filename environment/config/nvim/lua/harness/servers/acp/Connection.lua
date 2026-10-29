@@ -4,6 +4,7 @@ local console = require('core.console')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
 local updates = require('harness.servers.acp.updates')
 local acp_config = require('harness.servers.acp.config')
+local elicitation = require('harness.types.elicitation')
 local capabilities = require('harness.types.capabilities')
 local translate = require('harness.servers.acp.translate')
 
@@ -22,6 +23,11 @@ function Connection:constructor(transport)
     _pending = {},
     _listeners = {},
     _early = {},
+    _early_asks = {},
+    _detached = {},
+    _incoming = {},
+    _scopes = {},
+    _elicitations = {},
     closed = false,
     agent_capabilities = {},
   }
@@ -70,6 +76,7 @@ function Connection:_closed(out)
 
   for id, future in pairs(self._pending) do
     self._pending[id] = nil
+    self._scopes[id] = nil
     future:set_exception(reason)
   end
 
@@ -91,6 +98,7 @@ function Connection:request(method, params)
 
   local future = async.Future.new()
   self._pending[self._next_id] = future
+  if type(params) == 'table' and params.sessionId then self._scopes[self._next_id] = params.sessionId end
   self._transport:send(jsonrpc.request(self._next_id, method, params))
 
   return future
@@ -110,6 +118,7 @@ end
 
 function Connection:attach(session_id, delegate)
   self._listeners[session_id] = delegate
+  self._detached[session_id] = nil
 
   local early = self._early[session_id] or {}
   self._early[session_id] = nil
@@ -117,10 +126,30 @@ function Connection:attach(session_id, delegate)
   for _, update in ipairs(early) do
     deliver(delegate, update)
   end
+
+  local asks = self._early_asks[session_id] or {}
+  self._early_asks[session_id] = nil
+
+  for _, message in ipairs(asks) do
+    self:_on_request(message)
+  end
 end
 
 function Connection:detach(session_id)
+  local listener = self._listeners[session_id]
+
+  for id, owner in pairs(self._elicitations) do
+    if owner == listener then self._elicitations[id] = nil end
+  end
+
   self._listeners[session_id] = nil
+  self._detached[session_id] = true
+
+  for _, message in ipairs(self._early_asks[session_id] or {}) do
+    self:_refuse(message)
+  end
+
+  self._early_asks[session_id] = nil
 end
 
 function Connection:_dispatch(message)
@@ -130,6 +159,7 @@ function Connection:_dispatch(message)
     if not future then return end
 
     self._pending[message.id] = nil
+    self._scopes[message.id] = nil
 
     if message.error then
       future:set_exception(self:_failure(message.error))
@@ -140,6 +170,10 @@ function Connection:_dispatch(message)
     async.drain()
   elseif jsonrpc.is_request(message) then
     self:_on_request(message)
+  elseif message.method == Connection.ELICIT_COMPLETE_METHOD then
+    self:_on_elicitation_complete(message.params or {})
+  elseif message.method == Connection.CANCEL_METHOD then
+    self:_on_cancel(message.params or {})
   elseif message.method == 'session/update' then
     local params = message.params or {}
     local listener = self._listeners[params.sessionId]
@@ -154,42 +188,123 @@ function Connection:_dispatch(message)
   end
 end
 
-function Connection:_on_request(message)
-  local params = message.params or {}
-  local listener = self._listeners[params.sessionId]
+Connection.ELICIT_METHOD = 'elicitation/create'
 
-  local function reply(ok, result)
-    if self.closed then return end
+Connection.ELICIT_COMPLETE_METHOD = 'elicitation/complete'
 
-    if ok then
-      self._transport:send(jsonrpc.result(message.id, result))
-    else
-      self._transport:send(jsonrpc.error(message.id, jsonrpc.INTERNAL_ERROR, tostring(result)))
-    end
+Connection.CANCEL_METHOD = '$/cancel_request'
+
+local function elicitation_reply(value)
+  return translate.elicitation_response(elicitation.answer_of(value))
+end
+
+function Connection:_reply(message, ok, result)
+  self._incoming[message.id] = nil
+
+  if self.closed then return end
+
+  if ok then
+    self._transport:send(jsonrpc.result(message.id, result))
+  else
+    self._transport:send(jsonrpc.error(message.id, jsonrpc.INTERNAL_ERROR, tostring(result)))
+  end
+end
+
+function Connection:_refuse(message)
+  if message.method == Connection.ELICIT_METHOD then
+    return self:_reply(message, true, elicitation_reply(elicitation.decline()))
   end
 
-  if message.method ~= Connection.PERMISSION_METHOD or not (listener and listener.permission) then
-    self._transport:send(
-      jsonrpc.error(message.id, jsonrpc.METHOD_NOT_FOUND, 'not supported by the Neovim client: ' .. message.method)
-    )
-    return
-  end
+  self._transport:send(
+    jsonrpc.error(message.id, jsonrpc.METHOD_NOT_FOUND, 'not supported by the Neovim client: ' .. message.method)
+  )
+end
 
-  local function answer(kind)
-    return { outcome = Connection.permission_outcome(params.options, kind) }
-  end
-
-  local ok, result = pcall(listener.permission, translate.permission_request(params))
-
-  if ok and type(result) == 'table' and result.on_complete then
-    result:on_complete(function(err, value)
-      reply(not err, err or answer(value))
+function Connection:_settle(message, ok, value, shape)
+  if ok and type(value) == 'table' and value.on_complete then
+    self._incoming[message.id] = value
+    value:on_complete(function(err, result)
+      self:_reply(message, not err, err or shape(result))
     end)
     async.drain()
     return
   end
 
-  reply(ok, ok and answer(result) or result)
+  self:_reply(message, ok, ok and shape(value) or value)
+end
+
+function Connection:_on_request(message)
+  local params = message.params or {}
+  local session_id = params.sessionId or self._scopes[params.requestId]
+  local listener = session_id and self._listeners[session_id]
+
+  if message.method == Connection.ELICIT_METHOD then return self:_elicit(message, params, session_id, listener) end
+
+  if message.method ~= Connection.PERMISSION_METHOD or not (listener and listener.permission) then
+    return self:_refuse(message)
+  end
+
+  local ok, result = pcall(listener.permission, translate.permission_request(params))
+
+  self:_settle(message, ok, result, function(kind)
+    return { outcome = Connection.permission_outcome(params.options, kind) }
+  end)
+end
+
+function Connection:_elicit(message, params, session_id, listener)
+  if session_id and not listener and not self._detached[session_id] then
+    local asks = self._early_asks[session_id] or {}
+
+    asks[#asks + 1] = message
+    self._early_asks[session_id] = asks
+    return
+  end
+
+  if not (listener and listener.elicitation) then return self:_refuse(message) end
+
+  local request, why = translate.elicitation_request(params)
+
+  if not request then
+    console.warn('Harness: declined a question from the agent: ' .. why)
+    return self:_refuse(message)
+  end
+
+  if request.id then self._elicitations[request.id] = listener end
+
+  local ok, result = pcall(listener.elicitation, request)
+
+  self:_settle(message, ok, result, elicitation_reply)
+end
+
+function Connection:_on_elicitation_complete(params)
+  local id = params.elicitationId
+  local listener = id and self._elicitations[id]
+
+  if not listener then return end
+
+  self._elicitations[id] = nil
+
+  if listener.elicitation_complete then listener.elicitation_complete(id) end
+end
+
+function Connection:_on_cancel(params)
+  local id = params.requestId
+  local pending = id ~= nil and self._incoming[id]
+
+  if pending then
+    if pending.cancel then pending.cancel() end
+    return
+  end
+
+  for session_id, asks in pairs(self._early_asks) do
+    for i, message in ipairs(asks) do
+      if message.id == id then
+        table.remove(asks, i)
+        if #asks == 0 then self._early_asks[session_id] = nil end
+        return self:_reply(message, true, elicitation_reply(elicitation.cancel()))
+      end
+    end
+  end
 end
 
 Connection.DECISION = require('harness.types.permission').DECISION
@@ -244,7 +359,10 @@ function Connection:initialize()
   local result, err = async.await(self:request('initialize', {
     protocolVersion = Connection.PROTOCOL_VERSION,
     clientInfo = Connection.CLIENT_INFO,
-    clientCapabilities = { subagents = vim.empty_dict() },
+    clientCapabilities = {
+      subagents = vim.empty_dict(),
+      elicitation = { form = vim.empty_dict(), url = vim.empty_dict() },
+    },
   }))
 
   if err then return nil, err end

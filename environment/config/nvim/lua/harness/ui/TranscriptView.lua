@@ -10,11 +10,13 @@ local Window = require('core.Window')
 local follow = lazy('harness.follow')
 local keymap = require('core.keymap')
 local console = require('core.console')
+local asks = require('harness.ui.asks')
 local links = require('harness.ui.links')
 local winbar = require('harness.ui.winbar')
 local settings = require('harness.settings')
 local theme = lazy('harness.transcript.theme')
 local Document = require('harness.ui.Document')
+local ASK = require('harness.types.events').ASK
 local PlanPanel = require('harness.ui.PlanPanel')
 local Following = require('harness.ui.Following')
 local commands = lazy('harness.ui.transcript_commands')
@@ -22,7 +24,7 @@ local bindings = lazy('harness.ui.transcript_bindings')
 local sticky_bottom = require('harness.ui.sticky_bottom')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 local Layout = require('harness.transcript.calculators.Layout')
-local permission_state = require('harness.ui.permission_state')
+local elicitation_actions = lazy('harness.ui.elicitation_actions')
 local EVENT, NOTICE = require('harness.types.events').KIND, require('harness.types.events').NOTICE
 
 local TranscriptView = Object:extend()
@@ -182,7 +184,7 @@ function TranscriptView:state()
     started = TranscriptView.turn_started(session),
     queue = session:queued(),
     waiting = session:waiting(),
-    asks = permission_state.asks_of(session),
+    asks = asks.asks_of(session),
     active = TranscriptView.active_subagents(session),
   }
 end
@@ -347,7 +349,9 @@ function TranscriptView:announce_waiting()
 
   local what = waiting[1].title or waiting[1].tool or 'a tool'
 
-  console.notify(string.format('Harness %s: waiting for permission: %s', self.session.key, what), 'warn')
+  local why = waiting[1].kind == ASK.elicitation and 'waiting for your answer' or 'waiting for permission'
+
+  console.notify(string.format('Harness %s: %s: %s', self.session.key, why, what), 'warn')
 end
 
 -- a window that came to show the transcript without BufWinEnter (a split of it,
@@ -487,12 +491,16 @@ function TranscriptView:bind(actions)
     self:map(binding[1], binding[2], binding[3], binding[4])
   end
 
-  for _, key in ipairs(permission_state.KEYS) do
+  local keys = vim.list_extend({ settings.keymaps:get('transcript').decline }, asks.KEYS)
+
+  for _, key in ipairs(keys) do
     self:map(key, function()
-      if not permission_state.choice(session, key) then return key end
+      if not asks.choice(session, key) then return key end
 
       Timer.schedule(function()
-        permission_state.answer(session, key)
+        local action, prompt = asks.answer(session, key)
+
+        if prompt and prompt.kind == ASK.elicitation then elicitation_actions.follow(self, prompt, action) end
       end)
 
       return ''

@@ -54,7 +54,7 @@ describe('harness.ui.permission_prompt:', function()
     for i = 1, 10 do
       local name, value = debug.getupvalue(permission_prompt.asks_of, i)
 
-      if name == 'asks' then
+      if name == 'open' then
         asks = value
         break
       end

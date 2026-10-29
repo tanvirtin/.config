@@ -70,7 +70,7 @@ function PermissionGate:waiting()
   local out = {}
 
   for pending in pairs(self.pending) do
-    out[#out + 1] = { tool = pending.tool, id = pending.id, title = pending.title }
+    out[#out + 1] = { kind = events.ASK.permission, tool = pending.tool, id = pending.id, title = pending.title }
   end
 
   return out

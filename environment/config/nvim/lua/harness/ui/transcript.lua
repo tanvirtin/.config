@@ -6,6 +6,7 @@ local winbar = lazy('harness.ui.winbar')
 local display = lazy('harness.ui.display')
 local TranscriptView = lazy('harness.ui.TranscriptView')
 local permission_prompt = lazy('harness.ui.permission_prompt')
+local elicitation_prompt = lazy('harness.ui.elicitation_prompt')
 
 local transcript = {}
 
@@ -22,6 +23,7 @@ transcript.winbar = winbar.transcript
 transcript.asks_of = permission_prompt.asks_of
 transcript.ask = permission_prompt.ask
 transcript.answer = permission_prompt.answer
+transcript.elicit = elicitation_prompt.ask
 transcript.report = TranscriptView.report
 
 function transcript.render(history, title)

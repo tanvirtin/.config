@@ -65,6 +65,95 @@ describe('harness.transcript.status_line:', function()
     eq(4, #lines)
   end)
 
+  describe('a question from the agent', function()
+    local translate = require('harness.servers.acp.translate')
+    local fake_agent = require('harness.servers.acp.fake_agent')
+    local ElicitationPrompt = require('harness.ui.ElicitationPrompt')
+
+    local function prompt_for(params)
+      return ElicitationPrompt({ request = assert(translate.elicitation_request(params)), session = {} })
+    end
+
+    local function texts(lines)
+      return vim.tbl_map(text, lines)
+    end
+
+    it('lists its choices one per line with their notes, then how to decline', function()
+      local lines = status_line.lines({ running = true, asks = { prompt_for(fake_agent.QUESTION), {} } })
+
+      eq({
+        '',
+        theme.WAITING_ICON[1] .. 'Which database?  (+1 more)',
+        '   Database',
+        '   1 Postgres  relational',
+        '   2 Redis',
+        '   3 Other…',
+        '   4 Skip',
+        '   0 decline   <C-c> interrupt',
+      }, texts(lines))
+    end)
+
+    it('shows the step and the question of a form with several, with boxes for a multi-select', function()
+      local prompt = prompt_for({
+        mode = 'form',
+        message = 'Please answer the following questions.',
+        requestedSchema = {
+          properties = {
+            question_0 = {
+              type = 'array',
+              title = 'Tools',
+              description = 'Which tools?',
+              items = { enum = { 'a', 'b' } },
+            },
+            question_1 = { type = 'string', enum = { 'x' } },
+          },
+        },
+      })
+
+      prompt:answer('2')
+
+      local shown = texts(status_line.lines({ running = true, asks = { prompt } }))
+
+      eq(theme.WAITING_ICON[1] .. 'Please answer the following questions.  1/2', shown[2])
+      eq('   Tools: Which tools?', shown[3])
+      eq({ '   1 [ ] a', '   2 [x] b', '   3 Done' }, { shown[4], shown[5], shown[6] })
+    end)
+
+    it('says where to write while an answer is being written, and shows what was wrong', function()
+      local prompt = prompt_for({
+        mode = 'form',
+        message = 'Age?',
+        requestedSchema = { properties = { age = { type = 'integer', title = 'Age' } } },
+      })
+
+      prompt:answer('1')
+
+      local writing = texts(status_line.lines({ running = true, asks = { prompt } }))
+
+      eq({ '   Age', '   write Age in the composer, or close it to go back' }, { writing[3], writing[4] })
+
+      prompt:stop_writing()
+      prompt.error = 'write a number'
+
+      local shown = texts(status_line.lines({ running = true, asks = { prompt } }))
+
+      eq('   write a number', shown[#shown - 1])
+    end)
+
+    it('asks even when no turn is running, as a sign-in link arrives on its own', function()
+      local prompt = prompt_for({ mode = 'url', message = 'Sign in to linear', url = 'https://x', elicitationId = 'e' })
+
+      eq({
+        '',
+        theme.WAITING_ICON[1] .. 'Sign in to linear',
+        '   https://x',
+        '   1 Open in the browser',
+        '   0 decline   <C-c> interrupt',
+        '  ' .. theme.QUEUE_ICON .. 'queued later',
+      }, texts(status_line.lines({ running = false, asks = { prompt }, queue = { 'later' } })))
+    end)
+  end)
+
   it('points at a request answered elsewhere', function()
     local lines = status_line.lines({ running = true, waiting = { { title = 'Write a.lua' } } })
 

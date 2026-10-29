@@ -72,6 +72,10 @@ end
 
 Block.STATUS = dataclass.enum({ 'pending', 'in_progress', 'completed', 'failed' })
 
+Block.NOTE = dataclass.enum({ 'answered', 'opened', 'done', 'declined', 'cancelled' })
+
+Block.SETTLED_NOTES = { [Block.NOTE.answered] = true, [Block.NOTE.opened] = true, [Block.NOTE.done] = true }
+
 Block.CATEGORY = dataclass.enum({ 'read', 'edit', 'delete', 'move', 'search', 'execute', 'think', 'fetch', 'other' })
 
 function Block.make(kind, lines, fields)
