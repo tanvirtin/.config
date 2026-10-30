@@ -3,6 +3,7 @@ local async = require('harness.async')
 local console = require('core.console')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
 local updates = require('harness.servers.acp.updates')
+local permission = require('harness.types.permission')
 local acp_config = require('harness.servers.acp.config')
 local elicitation = require('harness.types.elicitation')
 local capabilities = require('harness.types.capabilities')
@@ -307,27 +308,36 @@ function Connection:_on_cancel(params)
   end
 end
 
-Connection.DECISION = require('harness.types.permission').DECISION
+Connection.DECISION = permission.DECISION
 
 Connection.STOP_REASON = require('harness.types.events').STOP_REASON
 
-function Connection.permission_outcome(options, kind)
-  if kind == true then kind = Connection.DECISION.allow_once end
-  if type(kind) ~= 'string' or kind == Connection.DECISION.cancelled then return { outcome = 'cancelled' } end
+function Connection.permission_outcome(options, value)
+  if value == nil then return { outcome = 'cancelled' } end
+
+  local decision = permission.decision(value)
+  local kind = decision.kind
+
+  if kind == Connection.DECISION.cancelled then return { outcome = 'cancelled' } end
 
   local family = kind:match('^(%a+)_') or kind
 
   local function find(matches)
     for _, option in ipairs(options or {}) do
-      if type(option.kind) == 'string' and matches(option.kind) then return option end
+      if type(option.kind) == 'string' and matches(option) then return option end
     end
   end
 
-  local chosen = find(function(option_kind)
-    return option_kind == kind
-  end) or find(function(option_kind)
-    return option_kind:sub(1, #family) == family
-  end)
+  local chosen = decision.option
+      and find(function(option)
+        return option.optionId == decision.option and option.kind == kind
+      end)
+    or find(function(option)
+      return option.kind == kind
+    end)
+    or find(function(option)
+      return option.kind:sub(1, #family) == family
+    end)
 
   if not chosen then return { outcome = 'cancelled' } end
 

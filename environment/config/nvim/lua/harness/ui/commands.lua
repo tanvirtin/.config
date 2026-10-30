@@ -138,6 +138,14 @@ function commands.quickfix(scope)
   return transcript.report(scoped('quickfix', scope))
 end
 
+function commands.permissions()
+  local view = transcript.view() or display.last()
+
+  if not view then return transcript.report(false, 'no session here') end
+
+  return view:show_permissions()
+end
+
 function commands.sessions()
   local from = source()
 

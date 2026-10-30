@@ -14,6 +14,7 @@ return Config({
     cycle_mode = '<S-Tab>',
     model = 'gm',
     plan = 'gp',
+    permissions = 'gP',
     diff = 'gd',
     git_diff = 'gD',
     changes = 'gC',

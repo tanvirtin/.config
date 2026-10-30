@@ -60,7 +60,11 @@ function translate.permission_request(params)
     if type(option) == 'table' and dataclass.is_member(permission.DECISION, option.kind) then
       local label = type(option.name) == 'string' and option.name ~= '' and option.name or option.kind
 
-      choices[#choices + 1] = { kind = option.kind, label = label }
+      choices[#choices + 1] = permission.Choice({
+        kind = option.kind,
+        label = label,
+        option = type(option.optionId) == 'string' and option.optionId or nil,
+      })
     end
   end
 

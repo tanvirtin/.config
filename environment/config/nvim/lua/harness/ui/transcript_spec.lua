@@ -635,6 +635,79 @@ describe('harness.ui.transcript:', function()
         eq({}, transcript.asks_of(asked))
       end)
 
+      it('sends the exact option picked when the agent offers several of one kind', function()
+        local asked = asking_session()
+        local buf = transcript.open(asked)
+
+        agent:push(jsonrpc.request('perm-plan', 'session/request_permission', {
+          sessionId = 's1',
+          toolCall = {
+            toolCallId = 't9',
+            title = 'Ready to code?',
+            _meta = { claudeCode = { toolName = 'ExitPlanMode' } },
+          },
+          options = {
+            { optionId = 'clearAuto', kind = 'allow_always', name = 'Yes, clear context and use auto mode' },
+            { optionId = 'bypassPermissions', kind = 'allow_always', name = 'Yes, and bypass permissions' },
+            { optionId = 'acceptEdits', kind = 'allow_always', name = 'Yes, auto-accept edits' },
+            { optionId = 'default', kind = 'allow_once', name = 'Yes, manually approve edits' },
+            { optionId = 'plan', kind = 'reject_once', name = 'No, keep planning' },
+          },
+        }))
+
+        vim.wait(1000, function()
+          return status_text(buf):find('3 Yes, auto-accept edits', 1, true) ~= nil
+        end)
+        vim.api.nvim_set_current_buf(buf)
+        vim.api.nvim_feedkeys('3', 'x', false)
+        vim.wait(1000, function()
+          return agent:selected('perm-plan') ~= nil
+        end)
+
+        eq('acceptEdits', agent:selected('perm-plan'))
+      end)
+
+      it('asks again for a tool whose always the agent keeps, rather than allowing all its uses', function()
+        local asked = asking_session()
+        local buf = transcript.open(asked)
+
+        local function bash(id, command)
+          agent:push(jsonrpc.request(id, 'session/request_permission', {
+            sessionId = 's1',
+            toolCall = {
+              toolCallId = id,
+              title = command,
+              rawInput = { command = command },
+              _meta = { claudeCode = { toolName = 'Bash' } },
+            },
+            options = {
+              { optionId = 'allow', kind = 'allow_once', name = 'Yes' },
+              { optionId = 'always', kind = 'allow_always', name = 'Yes, and don\'t ask again for ' .. command },
+              { optionId = 'reject', kind = 'reject_once', name = 'No' },
+            },
+          }))
+        end
+
+        bash('perm-a', 'npm test')
+        vim.wait(1000, function()
+          return status_text(buf):find('Allow Bash', 1, true) ~= nil
+        end)
+        vim.api.nvim_set_current_buf(buf)
+        vim.api.nvim_feedkeys('2', 'x', false)
+        vim.wait(1000, function()
+          return agent:selected('perm-a') ~= nil
+        end)
+
+        bash('perm-b', 'rm -rf build')
+        vim.wait(200, function()
+          return agent:selected('perm-b') ~= nil
+        end)
+
+        eq('always', agent:selected('perm-a'))
+        assert.is_nil(agent:selected('perm-b'))
+        eq(1, #transcript.asks_of(asked))
+      end)
+
       it('lets 1, 2 and 3 be counts when nothing is being asked', function()
         transcript.open(session)
 

@@ -55,18 +55,40 @@ describe('harness.permissions:', function()
 
   describe('new', function()
     it('hands allow always to the agent when it offers it, and remembers it itself when not', function()
+      local asked = 0
       local approve = permissions.new({
         ask = function()
+          asked = asked + 1
           return 'allow_always'
         end,
       })
       local offered = request('Bash')
 
-      offered.choices = { { kind = 'allow_always', label = 'Always' } }
+      offered.choices = { { kind = 'allow_always', label = 'Always', option = 'always' } }
 
-      eq('allow_always', approve(offered))
-      eq('allow_once', approve(request('Grep')))
-      eq('allow_once', approve(request('Grep')))
+      eq('allow_always', approve(offered).kind)
+      eq('allow_always', approve(offered).kind)
+      eq(2, asked)
+
+      eq('allow_once', approve(request('Grep')).kind)
+      eq('allow_once', approve(request('Grep')).kind)
+      eq(3, asked)
+    end)
+
+    it('keeps the option the user picked, so the agent gets that one', function()
+      local approve = permissions.new({
+        ask = function()
+          return { kind = 'allow_always', option = 'acceptEdits' }
+        end,
+      })
+      local plan = request('ExitPlanMode')
+
+      plan.choices = {
+        { kind = 'allow_always', label = 'Yes, and bypass permissions', option = 'bypassPermissions' },
+        { kind = 'allow_always', label = 'Yes, auto-accept edits', option = 'acceptEdits' },
+      }
+
+      eq('acceptEdits', approve(plan).option)
     end)
 
     it('allows read and write tools without asking', function()
@@ -76,8 +98,8 @@ describe('harness.permissions:', function()
         end,
       })
 
-      eq('allow_once', approve(request('mcp__nvim__buffer_read')))
-      eq('allow_once', approve(request('mcp__nvim__buffer_edit')))
+      eq('allow_once', approve(request('mcp__nvim__buffer_read')).kind)
+      eq('allow_once', approve(request('mcp__nvim__buffer_edit')).kind)
     end)
 
     it('allows every tool of this editor with auto_allow, but still asks for others', function()
@@ -90,17 +112,17 @@ describe('harness.permissions:', function()
         end,
       })
 
-      eq('allow_once', approve(request('mcp__nvim__lua')))
-      eq('allow_once', approve(request('mcp__nvim__nvim_exec_lua')))
-      eq('reject_once', approve(request('Bash')))
+      eq('allow_once', approve(request('mcp__nvim__lua')).kind)
+      eq('allow_once', approve(request('mcp__nvim__nvim_exec_lua')).kind)
+      eq('reject_once', approve(request('Bash')).kind)
       eq({ 'Bash' }, asked)
     end)
 
     it('refuses exec and foreign tools when it cannot ask', function()
       local approve = permissions.new()
 
-      eq('reject_once', approve(request('mcp__nvim__lua')))
-      eq('reject_once', approve(request('Bash')))
+      eq('reject_once', approve(request('mcp__nvim__lua')).kind)
+      eq('reject_once', approve(request('Bash')).kind)
     end)
 
     it('asks for exec tools and passes the answer through', function()
@@ -112,7 +134,7 @@ describe('harness.permissions:', function()
         end,
       })
 
-      eq('reject_once', approve(request('mcp__nvim__ex')))
+      eq('reject_once', approve(request('mcp__nvim__ex')).kind)
       eq('mcp__nvim__ex', asked)
     end)
 
@@ -125,8 +147,8 @@ describe('harness.permissions:', function()
         end,
       })
 
-      eq('allow_once', approve(request('mcp__nvim__lua')))
-      eq('allow_once', approve(request('mcp__nvim__lua')))
+      eq('allow_once', approve(request('mcp__nvim__lua')).kind)
+      eq('allow_once', approve(request('mcp__nvim__lua')).kind)
       eq(1, asks)
 
       approve(request('mcp__nvim__ex'))
@@ -140,7 +162,7 @@ describe('harness.permissions:', function()
 
       permissions.new({ ask = always })(request('mcp__nvim__lua'))
 
-      eq('reject_once', permissions.new()(request('mcp__nvim__lua')))
+      eq('reject_once', permissions.new()(request('mcp__nvim__lua')).kind)
     end)
 
     it('resolves an asynchronous answer', function()
@@ -156,8 +178,8 @@ describe('harness.permissions:', function()
       answer:set_result('allow_always')
       async.drain()
 
-      eq('allow_once', decided.result)
-      eq('allow_once', approve(request('mcp__nvim__lua')))
+      eq('allow_once', decided.result.kind)
+      eq('allow_once', approve(request('mcp__nvim__lua')).kind)
     end)
   end)
 
@@ -213,7 +235,7 @@ describe('harness.permissions:', function()
     vim.ui.select = select
 
     eq(true, closed)
-    eq('cancelled', future.result)
+    eq('cancelled', future.result.kind)
   end)
 
   it('never opens the picker when dismissed before it was shown', function()

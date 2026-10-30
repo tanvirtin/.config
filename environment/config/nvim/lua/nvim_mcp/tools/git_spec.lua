@@ -222,9 +222,9 @@ describe('nvim_mcp.tools.git:', function()
       return { tool = tool, params = { toolCall = { toolCallId = 't' } } }
     end
 
-    eq('allow_once', approve(request('mcp__nvim__git_stage')))
-    eq('allow_once', approve(request('mcp__nvim__git_discard')))
-    eq('allow_once', approve(request('mcp__nvim__git_discard')))
+    eq('allow_once', approve(request('mcp__nvim__git_stage')).kind)
+    eq('allow_once', approve(request('mcp__nvim__git_discard')).kind)
+    eq('allow_once', approve(request('mcp__nvim__git_discard')).kind)
     eq({ 'mcp__nvim__git_discard', 'mcp__nvim__git_discard' }, asked)
   end)
 end)

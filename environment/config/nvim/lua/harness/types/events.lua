@@ -24,7 +24,17 @@ events.KIND = dataclass.enum({
   'delegation',
 })
 
-events.NOTICE = dataclass.enum({ 'queue', 'waiting', 'reset', 'appended', 'external', 'config', 'returned', 'loaded' })
+events.NOTICE = dataclass.enum({
+  'queue',
+  'waiting',
+  'reset',
+  'appended',
+  'external',
+  'config',
+  'returned',
+  'loaded',
+  'permissions',
+})
 
 events.ASK = dataclass.enum({ 'permission', 'elicitation' })
 

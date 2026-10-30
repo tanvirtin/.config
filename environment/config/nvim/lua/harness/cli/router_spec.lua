@@ -28,6 +28,7 @@ describe('harness.cli.router:', function()
         'HarnessFork',
         'HarnessRevert',
         'HarnessQuickfix',
+        'HarnessPermissions',
       },
       vim.tbl_map(function(command)
         return command.name

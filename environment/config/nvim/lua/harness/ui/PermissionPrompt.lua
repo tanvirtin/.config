@@ -4,7 +4,7 @@ local Object = lazy('core.Object')
 local async = lazy('harness.async')
 local permissions = lazy('harness.permissions')
 local ASK = require('harness.types.events').ASK
-local DECISION = require('harness.types.permission').DECISION
+local permission = require('harness.types.permission')
 
 local PermissionPrompt = Object:extend()
 
@@ -34,14 +34,14 @@ function PermissionPrompt:answer(key)
 
   if not chosen then return false end
 
-  self.future:set_result(chosen.kind)
+  self.future:set_result(permission.Decision({ kind = chosen.kind, option = chosen.option }))
   async.drain()
 
   return true
 end
 
 function PermissionPrompt:dismiss()
-  self.future:set_result(DECISION.cancelled)
+  self.future:set_result(permission.decision(permission.DECISION.cancelled))
   async.drain()
 
   return self

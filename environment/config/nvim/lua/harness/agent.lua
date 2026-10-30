@@ -63,6 +63,7 @@ function Agent:constructor(name, spec)
     mcp = spec.mcp or {},
     policy = spec.policy or {},
     transcripts = spec.transcripts,
+    permission_rules = spec.permission_rules,
   }
 end
 

@@ -1,5 +1,6 @@
 local lazy = require('core.lazy')
 local vgit = lazy('harness.vgit')
+local surfaces = lazy('surfaces')
 local hub = require('harness.hub')
 local fences = lazy('core.fences')
 local async = lazy('harness.async')
@@ -14,6 +15,7 @@ local theme = lazy('harness.transcript.theme')
 local hit_test = require('harness.ui.hit_test')
 local Block = require('harness.transcript.Block')
 local actions = require('harness.transcript.actions')
+local PermissionsView = lazy('harness.ui.PermissionsView')
 
 local commands = {}
 
@@ -272,6 +274,10 @@ function commands.pick_model(view)
   }, function(choice)
     if choice then session:set_option(option.id, choice.value) end
   end)
+end
+
+function commands.show_permissions(view)
+  return surfaces.add(PermissionsView(view.session)):open()
 end
 
 return commands

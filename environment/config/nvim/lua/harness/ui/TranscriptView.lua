@@ -622,6 +622,10 @@ function TranscriptView:pick_model()
   return commands.pick_model(self)
 end
 
+function TranscriptView:show_permissions()
+  return commands.show_permissions(self)
+end
+
 function TranscriptView.report(ok, why)
   if not ok and why then console.notify_now('Harness: ' .. why, 'info') end
 

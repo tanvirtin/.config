@@ -90,6 +90,13 @@ function bindings.bindings(view)
       'Show or hide the plan',
     },
     {
+      keys.permissions,
+      function()
+        view:show_permissions()
+      end,
+      'Show this session\'s permissions: grants, saved rules and decisions',
+    },
+    {
       keys.diff,
       function()
         local handled, ok, why = view:run_block_action('diff')

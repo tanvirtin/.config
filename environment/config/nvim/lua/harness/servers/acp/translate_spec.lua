@@ -50,6 +50,24 @@ describe('harness.servers.acp.translate:', function()
     eq({ { type = 'text', text = 'plain' } }, translate.prompt(content.prompt('plain')))
   end)
 
+  it('keeps the agent\'s id for each permission option', function()
+    local request = translate.permission_request({
+      toolCall = { toolCallId = 't1', title = 'Plan' },
+      options = {
+        { optionId = 'acceptEdits', kind = 'allow_always', name = 'Yes, auto-accept edits' },
+        { optionId = 'bypass', kind = 'allow_always', name = 'Yes, and bypass permissions' },
+        { optionId = 'x', kind = 'mystery', name = 'Unknown' },
+      },
+    })
+
+    eq(
+      { 'acceptEdits', 'bypass' },
+      vim.tbl_map(function(choice)
+        return choice.option
+      end, request.choices)
+    )
+  end)
+
   describe('elicitation_request', function()
     local function form(properties, required)
       return {

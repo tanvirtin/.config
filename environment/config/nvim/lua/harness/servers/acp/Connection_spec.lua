@@ -2,6 +2,7 @@ local Connection = require('harness.servers.acp.Connection')
 local async = require('harness.async')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
+local permission = require('harness.types.permission')
 local elicitation = require('harness.types.elicitation')
 
 local eq = assert.are.same
@@ -428,6 +429,30 @@ describe('harness.servers.acp.Connection:', function()
       eq({ outcome = 'selected', optionId = 'always' }, Connection.permission_outcome(options, 'allow_always'))
       eq({ outcome = 'selected', optionId = 'allow' }, Connection.permission_outcome(options, true))
       eq({ outcome = 'selected', optionId = 'reject' }, Connection.permission_outcome(options, 'reject_always'))
+    end)
+
+    it('sends the exact option chosen among several of one kind', function()
+      local plan = {
+        { optionId = 'clearAuto', kind = 'allow_always' },
+        { optionId = 'acceptEdits', kind = 'allow_always' },
+        { optionId = 'default', kind = 'allow_once' },
+      }
+
+      eq(
+        { outcome = 'selected', optionId = 'acceptEdits' },
+        Connection.permission_outcome(plan, permission.Decision({ kind = 'allow_always', option = 'acceptEdits' }))
+      )
+    end)
+
+    it('falls back to the kind when the chosen option is not offered, or is of another kind', function()
+      eq(
+        { outcome = 'selected', optionId = 'always' },
+        Connection.permission_outcome(options, permission.Decision({ kind = 'allow_always', option = 'gone' }))
+      )
+      eq(
+        { outcome = 'selected', optionId = 'reject' },
+        Connection.permission_outcome(options, permission.Decision({ kind = 'reject_once', option = 'allow' }))
+      )
     end)
 
     it('cancels when nothing fits', function()

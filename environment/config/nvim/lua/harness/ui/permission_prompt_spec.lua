@@ -21,7 +21,7 @@ describe('harness.ui.permission_prompt:', function()
 
     eq(2, #permission_prompt.asks_of(session))
     assert.is_true(permission_prompt.answer(session, Connection.DECISION.allow_once))
-    eq(Connection.DECISION.allow_once, first.result)
+    eq(Connection.DECISION.allow_once, first.result.kind)
     eq(
       { second },
       vim.tbl_map(function(ask)
@@ -39,7 +39,7 @@ describe('harness.ui.permission_prompt:', function()
 
     future.dismiss()
 
-    eq(Connection.DECISION.cancelled, future.result)
+    eq(Connection.DECISION.cancelled, future.result.kind)
     eq(0, #permission_prompt.asks_of(session))
   end)
 
@@ -47,7 +47,7 @@ describe('harness.ui.permission_prompt:', function()
     local future = permission_prompt.ask({ session = session, tool = 'Bash' })
 
     assert.is_true(permission_prompt.answer(session, Connection.DECISION.allow_once))
-    eq(Connection.DECISION.allow_once, future.result)
+    eq(Connection.DECISION.allow_once, future.result.kind)
 
     local _, asks
 
