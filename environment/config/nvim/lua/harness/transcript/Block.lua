@@ -43,6 +43,7 @@ Block = dataclass.define('Block', {
   status = STRING,
   category = STRING,
   locations = TABLE,
+  links = TABLE,
   output = STRING,
   lang = STRING,
   ansi = TABLE,

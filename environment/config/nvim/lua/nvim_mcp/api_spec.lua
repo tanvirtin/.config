@@ -151,12 +151,17 @@ describe('nvim_mcp.api:', function()
       eq('rpc', by_name.nvim_get_mode.kind)
     end)
 
-    it('makes the handle parameter optional on method functions only', function()
+    it('requires the handle parameter on method functions', function()
       local buf = entries[1].params
 
-      eq(true, buf[1].optional)
+      eq(false, buf[1].optional)
       eq(false, buf[2].optional)
-      eq(false, entries[2].params[1].optional)
+    end)
+
+    it('publishes the handle as required so a dropped argument fails loudly', function()
+      local published = schema.json_schema(schema.model(entries[1].params))
+
+      assert.is_true(vim.tbl_contains(published.required, 'buffer'))
     end)
 
     it('makes container parameters optional', function()
@@ -171,16 +176,17 @@ describe('nvim_mcp.api:', function()
     local entry = api.entries(FUNCTIONS, {})[1]
 
     it('orders named args by parameter position', function()
-      local args, err = api.positional_args(entry, { start = 0, ['end'] = -1, strict_indexing = false })
+      local args, err = api.positional_args(entry, { buffer = 3, start = 0, ['end'] = -1, strict_indexing = false })
 
       eq(nil, err)
-      eq({ 0, 0, -1, false }, args)
+      eq({ 3, 0, -1, false }, args)
     end)
 
-    it('defaults a missing handle to 0', function()
-      local args = api.positional_args(entry, { start = 0, ['end'] = -1, strict_indexing = true })
+    it('reports a missing handle instead of defaulting to the current buffer', function()
+      local args, err = api.positional_args(entry, { start = 0, ['end'] = -1, strict_indexing = true })
 
-      eq(0, args[1])
+      eq(nil, args)
+      assert.is_truthy(err:find('buffer: required', 1, true))
     end)
 
     it('reports a missing required argument', function()
@@ -199,8 +205,11 @@ describe('nvim_mcp.api:', function()
     end)
 
     it('rejects a wrongly typed argument and coerces numeric strings', function()
-      eq(nil, (api.positional_args(entry, { start = 'x', ['end'] = -1, strict_indexing = false })))
-      eq({ 0, 1, -1, false }, api.positional_args(entry, { start = '1', ['end'] = -1, strict_indexing = false }))
+      eq(nil, (api.positional_args(entry, { buffer = 3, start = 'x', ['end'] = -1, strict_indexing = false })))
+      eq(
+        { 3, 1, -1, false },
+        api.positional_args(entry, { buffer = '3', start = '1', ['end'] = -1, strict_indexing = false })
+      )
     end)
 
     it('fills omitted containers, sending an empty Dict as a dict', function()

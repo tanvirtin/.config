@@ -125,6 +125,8 @@ function Document:_decorate(block, ctx)
 
   if table_spec then vim.list_extend(marks, require('ui.content.table').render(block, table_spec, decorate_ctx)) end
 
+  self:_links(marks, block)
+
   local lang = block.kind == Block.KIND.tool and block.argument and Document.COMMAND_LANG[block.category]
 
   if lang and Renderer.ready(lang, function()
@@ -135,6 +137,27 @@ function Document:_decorate(block, ctx)
 
   self.buffer:clear_namespace(Document.NAMESPACE, block.start, block.finish)
   MarkSpec.apply(self.buffer, Document.NAMESPACE, marks)
+end
+
+function Document:_links(marks, block)
+  local resolve = self.renderer.resolve
+
+  for _, link in ipairs(block.links or {}) do
+    local row = block.start + link.row - 1
+    local decoration = resolve and resolve(Renderer.INLINE.link, link.target)
+
+    if decoration then
+      MarkSpec.add(marks, row, link.col, { virt_text = { decoration.icon }, virt_text_pos = 'inline' })
+    end
+
+    MarkSpec.add(marks, row, link.col, {
+      end_col = link.end_col,
+      hl_group = 'UiMarkdownLink',
+      priority = Renderer.LINK_PRIORITY,
+    })
+  end
+
+  return marks
 end
 
 function Document:_live(block)

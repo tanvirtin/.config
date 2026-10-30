@@ -16,17 +16,24 @@ server.INSTRUCTIONS = table.concat({
   'Editor tools take a path (or bufnr; omit both for the focused buffer) and 1-based, inclusive lines.',
   'Edits stay unsaved; call buffer_save only when the user asks to save.',
   'The nvim_* tools are the raw RPC API: 0-based rows, integer handles, and argument names exactly as their schema lists. Use them for anything the editor tools do not cover.',
+  'Pass handles explicitly on every nvim_* call: 0 means the current buffer, window or tabpage, and an omitted handle is an error rather than a default.',
   'For anything visual or multi-step, write one Lua script with the lua tool instead of many small calls: fill a quickfix list, open a float or scratch buffer, draw extmarks. Present results in the editor when that helps the user explore.',
 }, ' ')
 
 local MAX_RESULT_CHARS = { buffer_read = 200000 }
 
-local function text_result(value, is_error)
+local function text_result(value, is_error, structured)
   if value == nil then value = vim.NIL end
 
   local text = type(value) == 'string' and value or vim.json.encode(value)
 
-  return { content = { { type = 'text', text = text } }, isError = is_error == true }
+  local result = { content = { { type = 'text', text = text } }, isError = is_error == true }
+
+  -- structuredContent must be a JSON object, so scalars are wrapped. Raw API
+  -- results get it so handles and booleans arrive as types, not as text.
+  if structured then result.structuredContent = { result = value } end
+
+  return result
 end
 
 function server.error_text(err)
@@ -74,13 +81,20 @@ function server.tool_definition(entry)
 
   if entry.kind == 'rpc' then description = description .. ' [raw API, ' .. entry.risk .. ']' end
 
-  return {
+  local definition = {
     name = entry.name,
     description = description,
     inputSchema = schema.json_schema(schema.model(entry.params)),
     annotations = annotations(entry),
     _meta = { tier = entry.risk, ['anthropic/maxResultSizeChars'] = MAX_RESULT_CHARS[entry.name] },
   }
+
+  -- Raw API results carry structuredContent, so declare an object output
+  -- schema: clients then require the structured half instead of falling back
+  -- to the text copy, which is where handles used to lose their type.
+  if entry.kind == 'rpc' then definition.outputSchema = { type = 'object' } end
+
+  return definition
 end
 
 function server.entries(editor, functions, docs)
@@ -113,7 +127,7 @@ function server.new(entries, call_rpc, call_editor)
 
     if not ok then return text_result(server.error_text(value), true) end
 
-    return text_result(value)
+    return text_result(value, false, entry.kind == 'rpc')
   end
 
   local handlers = {

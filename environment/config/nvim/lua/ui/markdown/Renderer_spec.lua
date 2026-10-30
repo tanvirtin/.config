@@ -68,7 +68,7 @@ describe('ui.markdown.Renderer:', function()
     end
 
     eq({ false, true, true, true, true, false }, shaded)
-    eq({ 'lua ' }, virt_text(2))
+    eq({ { { 'lua', 'UiMuted' } } }, find(2, 'virt_lines').virt_lines)
   end)
 
   it('draws bullets by depth and checkboxes as icons', function()
@@ -328,11 +328,24 @@ describe('ui.markdown.Renderer:', function()
     for _, mark in ipairs(renderer:annotate({ '```output_lua', 'local x = 1', '```' }, 0)) do
       if mark.opts.line_hl_group == 'UiToolOutput' then surface = true end
       if mark.opts.hl_group and mark.opts.hl_group:find('%.lua$') then lua = true end
-      if mark.opts.virt_text_pos == 'right_align' then label = true end
+      if mark.opts.virt_lines then label = true end
     end
 
     eq({ true, true, false }, { surface, lua, label })
   end)
+
+  it(
+    'names a code block\'s language on a line of its own above the code, so a long first line never runs under it',
+    function()
+      local label
+
+      for _, mark in ipairs(Renderer(0):annotate({ 'Text', '```lua', string.rep('x', 300), '```' }, 0)) do
+        if mark.opts.virt_lines then label = mark end
+      end
+
+      eq({ 2, true, 'lua' }, { label.row, label.opts.virt_lines_above, label.opts.virt_lines[1][1][1] })
+    end
+  )
 
   it('colours one line of code, parsing each distinct text once, and nothing for an unknown language', function()
     local out = Renderer.code({}, 'local x = require("a")', 'lua', 3, 7)

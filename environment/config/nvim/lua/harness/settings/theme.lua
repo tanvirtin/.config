@@ -38,7 +38,7 @@ return Config({
   branch_end = '└ ',
   rule = '─',
   artifact_border = 'top',
-  artifact_rule = '─',
+  artifact_rule = '┄',
   hunk = '┈┈┈┈',
   collapsed_icon = '⋯ ',
   highlights = {},

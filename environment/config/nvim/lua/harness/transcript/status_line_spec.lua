@@ -21,6 +21,13 @@ describe('harness.transcript.status_line:', function()
     eq('  ' .. theme.QUEUE_ICON .. 'queued next thing', text(lines[2]))
   end)
 
+  it('says a queued message is waiting for a free turn when the session is held', function()
+    local lines = status_line.lines({ running = false, held = true, queue = { 'next' } })
+
+    eq(theme.WAITING_ICON[1] .. 'waiting for a free turn: other sessions are running (max_running)', text(lines[2]))
+    eq('  ' .. theme.QUEUE_ICON .. 'queued next', text(lines[3]))
+  end)
+
   it('shows the running icon, a pulsing label and the elapsed time while working', function()
     local lines = status_line.lines({ running = true, started = 0, label = 'Thinking' }, 5000)
 
@@ -61,8 +68,33 @@ describe('harness.transcript.status_line:', function()
     })
 
     eq(theme.WAITING_ICON[1] .. 'Allow Bash ls?  (+1 more)', text(lines[2]))
-    eq('   1 Allow once   <C-c> interrupt', text(lines[3]))
-    eq(4, #lines)
+    eq('   1 Allow once', text(lines[3]))
+    eq('   <C-c> interrupt', text(lines[4]))
+    eq(5, #lines)
+  end)
+
+  it('keeps every choice of a permission in view in a narrow window, one per line', function()
+    local lines = status_line.lines({
+      running = true,
+      width = 40,
+      asks = {
+        {
+          text = 'Bash: git -C /tmp/work status --short && npm test -- --coverage',
+          choices = {
+            { key = '1', label = 'Yes' },
+            { key = '2', label = 'Yes, and don\'t ask again for git -C /tmp/work status --short commands' },
+            { key = '3', label = 'No' },
+          },
+        },
+      },
+    })
+
+    for i = 2, #lines do
+      assert.is_true(vim.fn.strdisplaywidth(text(lines[i])) <= 40, text(lines[i]))
+    end
+
+    eq('   3 No', text(lines[5]))
+    eq('   <C-c> interrupt', text(lines[6]))
   end)
 
   describe('a question from the agent', function()

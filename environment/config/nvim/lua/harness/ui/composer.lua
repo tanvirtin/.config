@@ -167,12 +167,15 @@ function composer.restore(session, texts)
   view:restore(texts)
 end
 
-function composer.on_returned(session, texts)
+composer.RETURNED_BECAUSE = { failed = 'the turn failed', interrupted = 'interrupted' }
+
+function composer.on_returned(session, texts, reason)
   composer.restore(session, texts)
 
   console.notify_now(
     string.format(
-      'Harness: interrupted; %d queued message%s moved back to the composer',
+      'Harness: %s; %d queued message%s moved back to the composer',
+      composer.RETURNED_BECAUSE[reason] or composer.RETURNED_BECAUSE.interrupted,
       #texts,
       #texts == 1 and '' or 's'
     )
@@ -180,7 +183,7 @@ function composer.on_returned(session, texts)
 end
 
 function composer.on_session_event(session, event)
-  if event.kind == NOTICE.returned then composer.on_returned(session, event.texts) end
+  if event.kind == NOTICE.returned then composer.on_returned(session, event.texts, event.reason) end
 end
 
 local dispose

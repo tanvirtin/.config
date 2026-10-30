@@ -7,6 +7,7 @@ local Block = require('harness.transcript.Block')
 local EVENT = require('harness.types.events').KIND
 local settings = require('harness.settings.transcript')
 local elicitation = require('harness.types.elicitation')
+local link_text = require('harness.transcript.link_text')
 local block_text = require('harness.transcript.block_text')
 local tool_label = require('harness.transcript.tool_label')
 local output_style = require('harness.transcript.output_style')
@@ -405,6 +406,13 @@ function TurnBuilder:_finish()
       if block.depth then
         block.lines = block_text.indented(block.lines)
         block.indented = true
+      end
+
+      if not self.text then
+        local links
+
+        block.lines, links = link_text.strip(block.lines)
+        block.links = #links > 0 and links or nil
       end
     else
       block.lines = block_text.flatten(block.lines)

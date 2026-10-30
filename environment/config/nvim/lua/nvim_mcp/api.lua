@@ -111,7 +111,7 @@ function api.entries(functions, docs)
           name = name,
           api_type = api_type,
           type = api.schema_type(api_type),
-          optional = (fn.method == true and index == 1 and HANDLE_TYPES[api_type] ~= nil) or is_container(api_type),
+          optional = is_container(api_type),
         }
       end
 

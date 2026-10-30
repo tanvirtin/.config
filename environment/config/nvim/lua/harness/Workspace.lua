@@ -159,9 +159,17 @@ function Workspace:list(agent)
 
     if list_err then return nil, list_err end
 
+    local live = {}
+
+    for _, entry in ipairs(out) do
+      live[entry.id] = entry
+    end
+
     for _, stored in ipairs(stored_sessions) do
       if not seen[stored.id] then
         out[#out + 1] = { id = stored.id, title = stored.title, updated_at = stored.updated_at }
+      elseif live[stored.id].session:adopt_title(stored.title) then
+        live[stored.id].title = stored.title
       end
     end
   end

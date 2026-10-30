@@ -198,13 +198,19 @@ function PermissionsView:open()
   local lines = self:refresh()
   local keys = settings.keymaps:get('transcript')
 
-  self._body = LinesComponent({ lines = lines, filetype = 'harness_permissions', wrap = false, border = 'rounded' })
+  self._body = LinesComponent({
+    lines = lines,
+    filetype = 'harness_permissions',
+    wrap = false,
+    border = 'rounded',
+    title = self.title,
+  })
   self._view = View()
   self._view:_render({
     component = self._body,
     mode = 'popup',
     width = '70vw',
-    height = math.min(#lines + 2, 30),
+    height = math.min(#lines, 30),
   })
   self:refresh()
 

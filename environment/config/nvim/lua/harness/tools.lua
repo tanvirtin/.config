@@ -52,11 +52,13 @@ local function target(key, ctx)
 end
 
 local function prompt(session, text)
-  local task, err = hub.prompt(session, text)
+  if session:running() then fail('a turn is already running in this session') end
+
+  local sent, err = hub.send(session, text)
 
   if err then fail(err) end
 
-  task:on_complete(function() end)
+  if sent.task then sent.task:on_complete(function() end) end
 end
 
 local function session_list(_, ctx)

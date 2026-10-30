@@ -8,7 +8,6 @@ describe('harness.ui.Following:', function()
   local win, bufnr, reserve, following
   local cmdheight = vim.o.cmdheight
 
-  -- shrinking the only window gives its rows to the command line
   after_each(function()
     vim.o.cmdheight = cmdheight
   end)
@@ -106,12 +105,74 @@ describe('harness.ui.Following:', function()
     eq(true, following:follows(window()))
   end)
 
+  it('follows again when scrolled back down to the bottom, short of the reserved edge', function()
+    following:land(window(), function() end)
+    vim.cmd('normal! gg')
+    following:track({ window() })
+    eq(false, following:follows(window()))
+
+    append(1)
+    vim.cmd('normal! G')
+    following:track({ window() })
+
+    eq(true, sticky_bottom.at_end(window()))
+    eq(true, following:follows(window()))
+  end)
+
+  local function rewrite_tail(from, count)
+    local lines = {}
+
+    for i = 1, count do
+      lines[i] = 'rewritten ' .. i
+    end
+
+    vim.api.nvim_buf_set_lines(bufnr, from, -1, false, lines)
+  end
+
+  it('follows again when a tail rewrite swallowed the edge, once scrolled as far as the window goes', function()
+    following:land(window(), function() end)
+    vim.cmd('normal! gg')
+    following:track({ window() })
+    eq(false, following:follows(window()))
+
+    rewrite_tail(100, 120)
+
+    local state = following:of(window())
+
+    eq(vim.api.nvim_buf_line_count(bufnr), state.buffer:get_extmark_row(Following.ANCHOR, state.edge))
+
+    vim.fn.winrestview({ topline = vim.api.nvim_buf_line_count(bufnr) })
+    following:track({ window() })
+
+    eq(true, following:follows(window()))
+  end)
+
+  it(
+    'follows again when scrolled back down to the end after a rewrite swallowed the edge, though the end never left view',
+    function()
+      following:land(window(), function() end)
+      vim.cmd('normal! 2\25')
+      following:track({ window() })
+      eq(true, sticky_bottom.at_end(window()))
+      eq(false, following:follows(window()))
+
+      rewrite_tail(150, 50)
+      following:track({ window() })
+      eq(false, following:follows(window()))
+
+      vim.cmd('normal! 1\5')
+      following:track({ window() })
+
+      eq(true, sticky_bottom.at_end(window()))
+      eq(true, following:follows(window()))
+    end
+  )
+
   it('stops following when the window is scrolled with the cursor on the last row', function()
     reserve = 0
     following:land(window(), function() end)
     following:track({ window() })
 
-    -- the cursor sits on the bottom row, where a scroll carries it along
     eq(vim.api.nvim_win_get_height(win), vim.fn.winline())
 
     local top = vim.fn.line('w0', win)

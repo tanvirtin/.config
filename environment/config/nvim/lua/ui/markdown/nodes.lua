@@ -122,7 +122,7 @@ function NODES.code(out, node, src, opts)
   end
 
   if language and not opts.hidden_labels[family] and start_row + 1 <= last then
-    mark(out, start_row + 1, 0, { virt_text = { { language .. ' ', 'UiMuted' } }, virt_text_pos = 'right_align' })
+    mark(out, start_row + 1, 0, { virt_lines = { { { language, 'UiMuted' } } }, virt_lines_above = true })
   end
 end
 

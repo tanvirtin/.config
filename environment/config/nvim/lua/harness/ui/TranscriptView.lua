@@ -185,6 +185,8 @@ function TranscriptView:state()
     queue = session:queued(),
     waiting = session:waiting(),
     asks = asks.asks_of(session),
+    width = self.document:text_width(),
+    held = session:idle() and #session.queue > 0,
     active = TranscriptView.active_subagents(session),
   }
 end
@@ -204,7 +206,6 @@ function TranscriptView:render()
 
   self:adopt(windows)
 
-  -- see a scroll made since the last frame before writing can pull the window back
   self.following:track(windows)
 
   for _, window in ipairs(windows) do

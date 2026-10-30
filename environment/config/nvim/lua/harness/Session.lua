@@ -48,6 +48,7 @@ function Session:constructor(opts)
     connection = opts.connection,
     approve = opts.approve or permissions.new(),
     elicit = opts.elicit,
+    admit = opts.admit,
     parent = opts.parent,
     depth = opts.depth or 0,
     title = opts.title,
@@ -168,6 +169,7 @@ function Session:prompt(text, context, opts)
   if self:running() then return nil, 'a turn is already running in this session' end
   if self:loading() then return nil, 'this session is loading' end
   if self.state == Session.STATE.closed then return nil, 'this session is closed' end
+  if self.admit and not self.admit(self) then return nil, PromptQueue.BUSY end
 
   self:_to(Session.STATE.running)
   self._turn = { text = {}, permissions = {} }
@@ -192,12 +194,14 @@ function Session:prompt(text, context, opts)
       self.turn_ended = Timer.now()
       self:_emit(events.error(tostring(err)))
       self:_emit(events.stop('error'))
+      self:_return_queued(Session.RETURNED.failed)
 
       return nil, err
     end
 
     self.turn_ended = Timer.now()
     self:_emit(events.stop(reason))
+    self:_look_up_title()
 
     if reason ~= events.STOP_REASON.cancelled and self.prompts:size() > 0 then
       Timer.defer(0, function()
@@ -206,6 +210,26 @@ function Session:prompt(text, context, opts)
     end
 
     return { stop_reason = reason, text = table.concat(turn.text, ''), permissions = turn.permissions }
+  end)
+end
+
+function Session:adopt_title(title)
+  if self.title or type(title) ~= 'string' or title == '' then return false end
+
+  self:_handle(events.new({ kind = K.title, title = title }))
+
+  return true
+end
+
+function Session:_look_up_title()
+  if self.title or not self:can('list') then return end
+
+  async.run(function()
+    local stored = self.connection:list_sessions(self.dir)
+
+    for _, entry in ipairs(stored or {}) do
+      if entry.id == self.id then return self:adopt_title(entry.title) end
+    end
   end)
 end
 
@@ -352,10 +376,18 @@ function Session:cycle_mode()
   return self.config:cycle_mode()
 end
 
-function Session:cancel()
+Session.RETURNED = dataclass.enum({ 'interrupted', 'failed' })
+
+function Session:_return_queued(reason)
   local returned = self.prompts:take_all()
 
-  if #returned > 0 then self:_notify({ kind = events.NOTICE.returned, texts = returned }) end
+  if #returned > 0 then self:_notify({ kind = events.NOTICE.returned, texts = returned, reason = reason }) end
+
+  return returned
+end
+
+function Session:cancel()
+  local returned = self:_return_queued(Session.RETURNED.interrupted)
 
   self.elicitations:cancel_all()
 

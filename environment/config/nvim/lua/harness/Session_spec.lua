@@ -287,6 +287,55 @@ describe('harness.Session:', function()
     eq('Rename x', session.title)
   end)
 
+  it('takes the title the agent stored when it sends none, once a turn ends', function()
+    local session, agent = session_with()
+
+    async
+      .run(function()
+        session.connection:initialize()
+      end)
+      :wait()
+    agent.stored = { { sessionId = 's1', title = 'Locating Connection definition' } }
+    session:prompt('find Connection'):wait()
+    vim.wait(500, function()
+      return session.title ~= nil
+    end)
+
+    eq('Locating Connection definition', session.title)
+    eq(1, agent:count('session/list'))
+
+    session:prompt('again'):wait()
+    async.drain()
+
+    eq(1, agent:count('session/list'))
+  end)
+
+  it('keeps a title it has over a later one, and never asks an agent that cannot list', function()
+    local session, agent = session_with()
+
+    agent:push(fake_agent.update('s1', { sessionUpdate = 'session_info_update', title = 'From the agent' }))
+
+    assert.is_false(session:adopt_title('Stored'))
+    eq('From the agent', session.title)
+
+    local other, quiet = session_with({
+      initialize = function(message)
+        return { jsonrpc.result(message.id, { protocolVersion = 1, agentCapabilities = {} }) }
+      end,
+    })
+
+    async
+      .run(function()
+        other.connection:initialize()
+      end)
+      :wait()
+    other:prompt('hi'):wait()
+    async.drain()
+
+    eq(0, quiet:count('session/list'))
+    eq(nil, other.title)
+  end)
+
   describe('queue and interrupt', function()
     local function held()
       local ids = {}
@@ -335,6 +384,37 @@ describe('harness.Session:', function()
 
       eq({ 'first', 'second' }, prompt_texts(agent))
       eq({ 'third' }, session:queued())
+    end)
+
+    it('hands back what was queued when the turn fails, instead of leaving it stuck', function()
+      local ids, script = held()
+      local session, agent = session_with(script)
+      local returned
+
+      local reason
+
+      session:subscribe(function(event)
+        if event.kind == 'returned' then
+          returned, reason = event.texts, event.reason
+        end
+      end)
+      session:prompt('first')
+      vim.wait(500, function()
+        return #ids == 1
+      end)
+      session:enqueue('second')
+      session:enqueue('third')
+
+      agent:push(jsonrpc.error(ids[1], jsonrpc.INTERNAL_ERROR, 'Insufficient account funds'))
+      vim.wait(500, function()
+        return returned ~= nil
+      end)
+
+      eq({ 'second', 'third' }, returned)
+      eq(Session.RETURNED.failed, reason)
+      eq({}, session:queued())
+      eq({ 'first' }, prompt_texts(agent))
+      eq('idle', session.state)
     end)
 
     it('sends right away when queued while idle', function()

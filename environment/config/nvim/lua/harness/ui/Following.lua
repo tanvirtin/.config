@@ -25,8 +25,6 @@ function Following:follows(window)
   return self:of(window).away == false
 end
 
--- a position is the top line and the virtual rows shown above it; scrolling up
--- can reveal those rows without moving the top line
 function Following.position(window)
   local view = window:get_view()
 
@@ -37,12 +35,17 @@ function Following.above(top, fill, other_top, other_fill)
   return top < other_top or (top == other_top and fill > other_fill)
 end
 
--- the edge the window was left on, kept as a mark so rows arriving or leaving
--- above it travel with the text instead of looking like the reader scrolling
 function Following:edge(window)
   local state = self:of(window)
+  local row = state.edge and state.buffer:get_extmark_row(Following.ANCHOR, state.edge)
 
-  return state.edge and state.buffer:get_extmark_row(Following.ANCHOR, state.edge), state.edge_fill
+  if not row then return nil end
+
+  local last = state.buffer:get_line_count() - 1
+
+  if row > last then return last, 0, true end
+
+  return row, state.edge_fill, false
 end
 
 function Following:settle(window)
@@ -62,9 +65,9 @@ function Following:track(windows)
     local seen = state.seen
     local up = seen ~= nil and Following.above(top, fill, seen[1], seen[2])
     local still = seen ~= nil and top == seen[1] and fill == seen[2]
+    local down = seen ~= nil and not up and not still
+    local at_end = sticky_bottom.at_end(window)
 
-    -- to keep the cursor in view a shrinking window moves its top line down and a
-    -- growing one moves it up; a move the other way, or with no resize, is the reader
     if state.height ~= nil and state.height ~= height then
       state.moved = (height < state.height) ~= up
     elseif not still then
@@ -72,15 +75,16 @@ function Following:track(windows)
     end
 
     if not state.moved then
-      local edge, edge_fill = self:edge(window)
+      local edge, edge_fill, lost = self:edge(window)
 
-      -- above the edge the reader is in charge; at or below it the stream follows
       if edge then state.away = Following.above(top, fill, edge, edge_fill) end
+
+      if state.away and down and at_end and (lost or not state.seen_end) then state.away = false end
 
       state.top, state.fill = top, fill
     end
 
-    state.seen, state.height = { top, fill }, height
+    state.seen, state.seen_end, state.height = { top, fill }, at_end, height
   end
 end
 
@@ -125,8 +129,6 @@ function Following:keep_end(windows)
   self:track(windows)
 end
 
--- puts back the top line a resize moved, with the cursor inside the window so
--- the text stays where it was instead of being dragged after the cursor
 function Following.restore(window, top, fill)
   local cursor = window:get_cursor()
 

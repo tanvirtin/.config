@@ -466,6 +466,45 @@ describe('harness.ui.transcript:', function()
       eq('block', kind)
     end)
 
+    it('shows a link as its label alone, so lines wrap where they look, and opens and yanks it whole', function()
+      local dir = vim.fn.tempname()
+
+      vim.fn.mkdir(dir, 'p')
+      vim.fn.writefile({ 'one', 'two', 'three' }, dir .. '/a.lua')
+      session.dir = dir
+      session:_emit(events.prompt('where?'))
+      session:_emit({ kind = 'message', text = 'It is at [a.lua:2](nvim://file/a.lua#L2), see `[x](y)`.' })
+      session:_emit(events.stop('end_turn'))
+
+      local buf = transcript.open(session)
+      local row
+
+      for i, line in ipairs(lines(buf)) do
+        if line:find('It is at', 1, true) then row = i end
+      end
+
+      eq('It is at a.lua:2, see `[x](y)`.', lines(buf)[row])
+
+      vim.api.nvim_win_set_cursor(0, { row, 10 })
+
+      local view = transcript.view(buf)
+      local target = view:_target_at(require('core.Window').get_current())
+
+      eq({ vim.fs.normalize(dir .. '/a.lua'), 2 }, { vim.fs.normalize(target.path), target.line })
+
+      local icons = 0
+
+      for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(buf, -1, { row - 1, 0 }, { row - 1, -1 }, { details = true })) do
+        if mark[4].virt_text and mark[4].virt_text_pos == 'inline' and mark[3] == 9 then icons = icons + 1 end
+      end
+
+      eq(1, icons)
+
+      local text = view:yank('a')
+
+      eq('It is at [a.lua:2](nvim://file/a.lua#L2), see `[x](y)`.', text[1])
+    end)
+
     it('shows when the session is also being driven by another program', function()
       local follow = require('harness.follow')
 
@@ -618,7 +657,7 @@ describe('harness.ui.transcript:', function()
         local shown = status_text(buf)
 
         assert.is_truthy(shown:find('Allow Edit?', 1, true))
-        assert.is_truthy(shown:find('1 Allow   2 Always allow   3 Reject', 1, true))
+        assert.is_truthy(shown:find('1 Allow\n   2 Always allow\n   3 Reject\n   <C-c> interrupt', 1, true))
 
         vim.api.nvim_set_current_buf(buf)
         vim.api.nvim_feedkeys('2', 'x', false)

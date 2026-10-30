@@ -8,6 +8,16 @@ local content = lazy('harness.types.content')
 
 local PromptQueue = Object:extend()
 
+PromptQueue.BUSY = 'no free turn slot; queued until a running turn ends'
+
+local queued = 0
+
+local function item(text, context, shown)
+  queued = queued + 1
+
+  return { text = text, context = context, shown = shown, order = queued }
+end
+
 function PromptQueue:constructor(session)
   return { session = session, items = {} }
 end
@@ -24,6 +34,10 @@ end
 
 function PromptQueue:size()
   return #self.items
+end
+
+function PromptQueue:since()
+  return self.items[1] and self.items[1].order or math.huge
 end
 
 function PromptQueue:take_all()
@@ -52,12 +66,13 @@ function PromptQueue:drain()
   if err then
     table.insert(self.items, 1, next)
     self:_changed()
-    console.warn('Harness: could not send the queued message: ' .. tostring(err))
+
+    if err ~= PromptQueue.BUSY then console.warn('Harness: could not send the queued message: ' .. tostring(err)) end
   end
 end
 
 function PromptQueue:enqueue(text, context, shown)
-  self.items[#self.items + 1] = { text = text, context = context, shown = shown }
+  self.items[#self.items + 1] = item(text, context, shown)
   self:_changed()
 
   if self.session:idle() then self:drain() end
@@ -88,7 +103,7 @@ function PromptQueue:steer(text, context)
       session:_notify({ kind = events.NOTICE.reset })
 
       if session:running() then
-        self.items[#self.items + 1] = { text = text, context = context, shown = true }
+        self.items[#self.items + 1] = item(text, context, true)
         self:_changed()
       else
         session:prompt(text, context, { shown = true })

@@ -15,6 +15,7 @@ local theme = lazy('harness.transcript.theme')
 local hit_test = require('harness.ui.hit_test')
 local Block = require('harness.transcript.Block')
 local actions = require('harness.transcript.actions')
+local link_text = require('harness.transcript.link_text')
 local PermissionsView = lazy('harness.ui.PermissionsView')
 
 local commands = {}
@@ -34,6 +35,11 @@ function commands.target_at(view, window)
   local cursor = window:get_cursor()
   local row, col = cursor[1] - 1, cursor[2]
   local document, dir = view.document, view.session.dir
+  local here = document:block_at(row)
+  local link = here and link_text.at(here.links, row - here.start + 1, col)
+
+  if link then return links.resolve(Renderer.INLINE.link, link.target, dir) end
+
   local kind, text = document.renderer:inline_at(row, col)
 
   if kind then
@@ -227,7 +233,7 @@ function commands.yank_block(view, block, name)
     return patch, 'patch'
   end
 
-  local lines = block.lines
+  local lines = link_text.restore(block.lines, block.links)
   local first, last = fences.fenced_at(lines, row - block.start + 1)
   local text = vim.list_slice(lines, first or 1, last or #lines)
 

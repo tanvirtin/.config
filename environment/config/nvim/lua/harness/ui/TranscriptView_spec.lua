@@ -387,6 +387,31 @@ describe('harness.ui.TranscriptView:', function()
     view:dispose()
   end)
 
+  it('takes the stream back up when the end is scrolled back to the bottom', function()
+    for i = 1, 60 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    local view = TranscriptView(session):mount()
+    local win = vim.api.nvim_get_current_win()
+    local Window = require('core.Window')
+    local sticky_bottom = require('harness.ui.sticky_bottom')
+
+    view:show_in(Window.get_current())
+    vim.cmd('normal! ' .. (sticky_bottom.margin(Window(win)) + 3) .. '\25')
+    view:watch()
+    eq(false, view.following:follows(Window(win)))
+
+    vim.cmd('normal! G')
+
+    session:_emit(events.new({ kind = 'message', text = 'more' }))
+    view:render()
+
+    eq(true, view.following:follows(Window(win)))
+    assert.is_true(sticky_bottom.at_end(Window(win)))
+    view:dispose()
+  end)
+
   it('leaves a window scrolled up alone while the newest line is still in view', function()
     for i = 1, 60 do
       session:_emit(events.prompt('turn ' .. i))

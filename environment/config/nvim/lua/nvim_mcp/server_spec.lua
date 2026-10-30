@@ -100,6 +100,14 @@ describe('nvim_mcp.server:', function()
       eq(200000, tools(protocol()).buffer_read._meta['anthropic/maxResultSizeChars'])
     end)
 
+    it('declares an object output schema on raw API tools only', function()
+      local by_name = tools(protocol())
+
+      eq({ type = 'object' }, by_name.nvim_command.outputSchema)
+      eq({ type = 'object' }, by_name.nvim_buf_get_lines.outputSchema)
+      eq(nil, by_name.buffer_edit.outputSchema)
+    end)
+
     it('encodes empty schema objects as JSON objects, not arrays', function()
       local text = server.encode(protocol():handle({ jsonrpc = '2.0', id = 2, method = 'tools/list' }))
 
@@ -160,6 +168,32 @@ describe('nvim_mcp.server:', function()
 
       eq({ name = 'nvim_buf_get_lines', positional = { 3, 0 } }, seen)
       eq('["alpha"]', result.content[1].text)
+      eq({ 'alpha' }, result.structuredContent.result)
+    end)
+
+    it('returns a scalar raw result as a typed value, not text', function()
+      local result = call(
+        protocol(function()
+          return 161
+        end),
+        'nvim_buf_get_lines',
+        { buffer = 3, start = 0 }
+      )
+
+      eq(161, result.structuredContent.result)
+      eq('161', result.content[1].text)
+    end)
+
+    it('leaves editor tool results as text only, so large reads are not duplicated', function()
+      local result = call(
+        protocol(nil, function()
+          return '     1\talpha'
+        end),
+        'buffer_read',
+        {}
+      )
+
+      eq(nil, result.structuredContent)
     end)
 
     it('encodes a nil raw result as null', function()

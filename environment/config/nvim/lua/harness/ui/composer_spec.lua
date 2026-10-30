@@ -528,6 +528,25 @@ describe('harness.ui.composer:', function()
       eq({ 'from the queue' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
     end)
 
+    it('says why queued messages came back: an interrupt, or a failed turn', function()
+      local said = {}
+      local console = require('core.console')
+      local original = console.notify_now
+
+      console.notify_now = function(message)
+        said[#said + 1] = message
+      end
+
+      composer.on_returned(session, { 'a' }, 'failed')
+      composer.on_returned(session, { 'b', 'c' }, 'interrupted')
+      console.notify_now = original
+
+      eq({
+        'Harness: the turn failed; 1 queued message moved back to the composer',
+        'Harness: interrupted; 2 queued messages moved back to the composer',
+      }, said)
+    end)
+
     it('steers with <C-s>, falling back to the queue when the agent cannot steer', function()
       open_composer(session)
       vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'change course' })

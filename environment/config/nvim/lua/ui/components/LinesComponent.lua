@@ -24,7 +24,12 @@ function LinesComponent:mount()
       signcolumn = 'no',
       wrap = self.props.wrap == true,
     }, self.props.win_options or {}),
-    win_plot = { border = self.props.border, focusable = true },
+    win_plot = {
+      border = self.props.border,
+      title = self.props.border and self.props.title and (' ' .. self.props.title .. ' ') or nil,
+      title_pos = self.props.border and self.props.title and 'left' or nil,
+      focusable = true,
+    },
   })
   self._mounted = true
 end

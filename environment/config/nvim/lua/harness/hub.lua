@@ -2,11 +2,12 @@ local lazy = require('core.lazy')
 
 local fs = lazy('core.fs')
 local env = lazy('core.env')
+local Timer = lazy('core.Timer')
 local agent = lazy('harness.agent')
 local async = lazy('harness.async')
 local Workspace = lazy('harness.Workspace')
 local permissions = lazy('harness.permissions')
-local session_store = lazy('harness.session_store')
+local session_store = require('harness.session_store')
 
 local hub = {}
 
@@ -70,6 +71,14 @@ local function approve_for(a)
   return permissions.new({ ask = hub.config.ask, auto_allow = auto_allow })
 end
 
+function hub.admit(session)
+  return session:running() or hub.running() < hub.config.max_running
+end
+
+local function session_opts(a, extra)
+  return vim.tbl_extend('force', { approve = approve_for(a), elicit = hub.config.elicit, admit = hub.admit }, extra)
+end
+
 local function register(session)
   return session_store.add(session)
 end
@@ -112,13 +121,8 @@ function hub.start(opts)
     end
 
     local dir = opts.dir or (parent and parent.dir) or hub.dir()
-    local session, start_err = hub.workspace(dir):new_session(a, {
-      key = key,
-      approve = approve_for(a),
-      elicit = hub.config.elicit,
-      parent = parent and parent.key,
-      depth = depth,
-    })
+    local session, start_err =
+      hub.workspace(dir):new_session(a, session_opts(a, { key = key, parent = parent and parent.key, depth = depth }))
 
     if start_err then return nil, start_err end
 
@@ -154,16 +158,18 @@ function hub.load(opts)
     if err then return nil, err end
 
     local shown
-    local session, load_err = workspace:load_session(a, opts.id, {
-      key = new_key(),
-      approve = approve_for(a),
-      elicit = hub.config.elicit,
-      title = opts.title,
-      on_session = opts.on_session and function(session)
-        shown = register(session)
-        opts.on_session(session)
-      end,
-    })
+    local session, load_err = workspace:load_session(
+      a,
+      opts.id,
+      session_opts(a, {
+        key = new_key(),
+        title = opts.title,
+        on_session = opts.on_session and function(session)
+          shown = register(session)
+          opts.on_session(session)
+        end,
+      })
+    )
 
     if load_err then
       if shown then
@@ -181,12 +187,11 @@ end
 function hub.fork(session, message_id)
   return async.run(function()
     local workspace = hub.workspace(session.dir)
-    local forked, err = workspace:fork(session, message_id, {
-      key = new_key(),
-      approve = approve_for(session.agent),
-      elicit = hub.config.elicit,
-      title = (session.title or 'untitled') .. ' (fork)',
-    })
+    local forked, err = workspace:fork(
+      session,
+      message_id,
+      session_opts(session.agent, { key = new_key(), title = (session.title or 'untitled') .. ' (fork)' })
+    )
 
     if err then return nil, err end
 
@@ -234,12 +239,39 @@ function hub.running()
 end
 
 function hub.prompt(session, text, context)
-  if not session:running() and hub.running() >= hub.config.max_running then
+  if not hub.admit(session) then
     return nil, string.format('%d turns are already running (max_running)', hub.config.max_running)
   end
 
   return session:prompt(text, context)
 end
+
+function hub.admit_waiting()
+  local waiting = {}
+
+  session_store.each(function(session)
+    if session:idle() and session.prompts:size() > 0 then waiting[#waiting + 1] = session end
+  end)
+
+  table.sort(waiting, function(a, b)
+    return a.prompts:since() < b.prompts:since()
+  end)
+
+  for _, session in ipairs(waiting) do
+    if hub.running() >= hub.config.max_running then return end
+
+    session.prompts:drain()
+  end
+end
+
+local function on_session_event(_, event)
+  if event.kind == 'stop' then Timer.schedule(hub.admit_waiting) end
+end
+
+session_store.on(session_store.EVENT.event, on_session_event)
+session_store.on(session_store.EVENT.close, function()
+  Timer.schedule(hub.admit_waiting)
+end)
 
 function hub.reload(session)
   return async.run(function()
@@ -264,6 +296,14 @@ function hub.send(session, text, context, opts)
     if err then return nil, err end
 
     return { how = task and hub.SENT.steered or hub.SENT.queued, task = task }
+  end
+
+  if not hub.admit(session) then
+    local _, err = session:enqueue(text, context)
+
+    if err then return nil, err end
+
+    return { how = hub.SENT.queued }
   end
 
   local task, err = hub.prompt(session, text, context)

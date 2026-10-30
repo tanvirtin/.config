@@ -94,6 +94,88 @@ describe('harness.hub:', function()
     eq(1, hub.running())
   end)
 
+  it('holds a message sent beyond max_running, and starts it when a turn ends, oldest first', function()
+    local prompts = {}
+
+    use_fakes({
+      ['session/prompt'] = function(message)
+        prompts[#prompts + 1] = { id = message.id, text = message.params.prompt[#message.params.prompt].text }
+        return {}
+      end,
+    })
+    hub.config.max_running = 1
+
+    local one = hub.start({ dir = '/w' }):wait()
+    local two = hub.start({ dir = '/w' }):wait()
+    local three = hub.start({ dir = '/w' }):wait()
+
+    eq('started', hub.send(one, 'first').how)
+    eq('queued', hub.send(two, 'second').how)
+    eq('queued', hub.send(three, 'third').how)
+
+    vim.wait(500, function()
+      return #prompts == 1
+    end)
+
+    eq({ 'second' }, two:queued())
+    eq(1, hub.running())
+    eq(1, #prompts)
+
+    spawned[1].fake:push(jsonrpc.result(prompts[1].id, { stopReason = 'end_turn' }))
+    vim.wait(500, function()
+      return #prompts == 2
+    end)
+
+    eq('second', prompts[2].text)
+    eq({}, two:queued())
+    eq({ 'third' }, three:queued())
+    eq(1, hub.running())
+
+    spawned[1].fake:push(jsonrpc.result(prompts[2].id, { stopReason = 'end_turn' }))
+    vim.wait(500, function()
+      return #prompts == 3
+    end)
+
+    eq('third', prompts[3].text)
+  end)
+
+  it('starts a held message when a running session closes', function()
+    local prompts = 0
+
+    use_fakes({
+      ['session/prompt'] = function()
+        prompts = prompts + 1
+        return {}
+      end,
+    })
+    hub.config.max_running = 1
+
+    local one = hub.start({ dir = '/w' }):wait()
+    local two = hub.start({ dir = '/w' }):wait()
+
+    hub.send(one, 'first')
+    hub.send(two, 'second')
+    hub.close(one.key)
+    vim.wait(500, function()
+      return prompts == 2
+    end)
+
+    eq(2, prompts)
+    eq(true, two:running())
+  end)
+
+  it('gives a live session the title the agent stored for it when listing', function()
+    local session = hub.start({ dir = '/w' }):wait()
+
+    spawned[1].fake.stored = { { sessionId = session.id, title = 'Counting from 1 to 400' } }
+
+    local listed = hub.list('/w'):wait()
+
+    eq('Counting from 1 to 400', session.title)
+    eq('Counting from 1 to 400', listed[1].title)
+    eq(1, #listed)
+  end)
+
   it('fires User HarnessEvent for every event', function()
     local seen = {}
     local id = vim.api.nvim_create_autocmd('User', {
