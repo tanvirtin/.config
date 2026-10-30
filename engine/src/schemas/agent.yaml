@@ -31,6 +31,17 @@ fields:
   - name: transcripts
     type: string
     required: false
+  - name: permission_rules
+    type: object
+    fields:
+      - name: format
+        type: string
+      - name: paths
+        type: sequence
+        items:
+          type: string
+    additional: forbid
+    required: false
   - name: recipe
     type: string
     required: false
