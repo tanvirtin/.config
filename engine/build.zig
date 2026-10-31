@@ -141,9 +141,20 @@ pub fn build(b: *std.Build) void {
     });
     test_step.dependOn(&b.addRunArtifact(yaml_unit_test).step);
 
+    const yamll_unit_test = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/lib/yamll.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    yamll_unit_test.root_module.addImport("yaml", yaml_mod);
+    test_step.dependOn(&b.addRunArtifact(yamll_unit_test).step);
+
     const unit_step = b.step("test-unit", "Run unit tests only");
     unit_step.dependOn(&b.addRunArtifact(unit_test).step);
     unit_step.dependOn(&b.addRunArtifact(yaml_unit_test).step);
+    unit_step.dependOn(&b.addRunArtifact(yamll_unit_test).step);
 
     const test_yaml_step = b.step("test-yaml", "Run YAML conformance against an explicit corpus: zig build test-yaml -- <corpus-dir>");
     const yaml_run = b.addRunArtifact(yaml_suite_exe);
