@@ -425,6 +425,8 @@ pub const Scanner = struct {
                 if (self.flow_types.items.len > 0) self.flow_types.items.len -= 1;
                 self.flow_level -= 1;
                 self.simple_key_allowed = false;
+                self.flow_just_started = false;
+                self.last_was_flow_entry = false;
                 self.step();
                 try self.emit(.{ .tag = .flow_sequence_end, .start = @intCast(self.pos), .end = @intCast(self.pos) });
                 if (self.flow_level == 0) try self.validateTrailing();
@@ -437,6 +439,8 @@ pub const Scanner = struct {
                 if (self.flow_types.items.len > 0) self.flow_types.items.len -= 1;
                 self.flow_level -= 1;
                 self.simple_key_allowed = false;
+                self.flow_just_started = false;
+                self.last_was_flow_entry = false;
                 self.step();
                 try self.emit(.{ .tag = .flow_mapping_end, .start = @intCast(self.pos), .end = @intCast(self.pos) });
                 if (self.flow_level == 0) try self.validateTrailing();
@@ -1268,6 +1272,16 @@ fn expectScanReject(src: []const u8) !void {
 test "scanner rejects flow sequence key with line break before value indicator" {
     try expectScanReject("[ \"a\"\n: b ]\n");
     try expectScanReject("[ foo\n: bar ]\n");
+}
+
+test "scanner accepts an entry after an empty flow collection" {
+    try scanSource("{a: {}, b: c}\n");
+    try scanSource("{a: [], b: c}\n");
+    try scanSource("[{}, a]\n");
+    try scanSource("[[], [a, ], {}]\n");
+    try scanSource("{p: {e: {}}, t: []}\n");
+    try std.testing.expectError(error.InvalidYaml, scanSource("[, a]\n"));
+    try std.testing.expectError(error.InvalidYaml, scanSource("[{}, , a]\n"));
 }
 
 test "scanner frees owned allocations when scanning fails" {
