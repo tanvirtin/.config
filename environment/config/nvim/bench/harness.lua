@@ -179,13 +179,19 @@ end
 local load = (vim.uv.loadavg())
 local cpus = #vim.uv.cpu_info()
 
-if load > cpus / 2 then
-  log('warning: load average %.1f on %d cpus, timings are noisy', load, cpus)
-end
+if load > cpus / 2 then log('warning: load average %.1f on %d cpus, timings are noisy', load, cpus) end
 
-open_once()
-display.forget(session)
+pcall(function()
+  require('lazy').load({ plugins = { 'vgit.nvim' } })
+end)
 spent = {}
+
+local cold_mount, cold_show = open_once()
+
+log('open cold (first open, every diff patched)')
+log('  mount %.1f ms, show+redraw %.1f ms', cold_mount, cold_show)
+report()
+display.forget(session)
 
 local mounts, shows, totals = {}, {}, {}
 
@@ -202,7 +208,7 @@ end
 
 local view = display.view_of(session)
 
-log('open (%d runs after 1 warmup, median / min)', RUNS)
+log('open warm (%d runs after the cold one, median / min)', RUNS)
 log(
   '  mount %.1f / %.1f ms, show+redraw %.1f / %.1f ms, total %.1f / %.1f ms, %d lines',
   median(mounts),
