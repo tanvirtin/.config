@@ -50,6 +50,71 @@ describe('harness.session.History:', function()
     )
   end)
 
+  describe('after a finished turn, with no new prompt in the replay', function()
+    local function finished()
+      local history = History()
+
+      history:append(user('one'))
+      history:append(reply('first'))
+      history:append({ kind = events.KIND.stop, reason = 'end_turn' })
+
+      return history
+    end
+
+    local function kinds(history)
+      return vim.tbl_map(function(event)
+        return event.kind .. (event.text and (':' .. event.text) or '')
+      end, history.events)
+    end
+
+    it('adopts what the agent wrote after the turn ended, keeping the stop', function()
+      local history = finished()
+
+      history:begin_replay()
+      for _, event in ipairs({ user('one'), reply('first'), { kind = events.KIND.tool_call, id = 't1' }, reply('late') }) do
+        history:append(event)
+      end
+
+      eq(events.NOTICE.appended, history:end_replay(true))
+      eq({ 'user:one', 'message:first', 'stop', 'tool_call', 'message:late' }, kinds(history))
+      eq(#history.events, #history.times)
+    end)
+
+    it('adds only the new text when the last reply grew', function()
+      local history = finished()
+
+      history:begin_replay()
+      history:append(user('one'))
+      history:append(reply('first and more'))
+
+      eq(events.NOTICE.appended, history:end_replay(true))
+      eq({ 'user:one', 'message:first', 'stop', 'message: and more' }, kinds(history))
+    end)
+
+    it('changes nothing when the replay holds nothing new', function()
+      local history = finished()
+
+      history:begin_replay()
+      history:append(user('one'))
+      history:append(reply('first'))
+
+      eq(nil, history:end_replay(true))
+      eq({ 'user:one', 'message:first', 'stop' }, kinds(history))
+    end)
+
+    it('adopts nothing when what it already shows disagrees with the replay', function()
+      local history = finished()
+
+      history:begin_replay()
+      history:append(user('one'))
+      history:append(reply('other'))
+      history:append({ kind = events.KIND.tool_call, id = 't1' })
+
+      eq(nil, history:end_replay(true))
+      eq({ 'user:one', 'message:first', 'stop' }, kinds(history))
+    end)
+  end)
+
   it('changes nothing when the replay is behind, and replaces everything when it disagrees', function()
     local history = History()
 

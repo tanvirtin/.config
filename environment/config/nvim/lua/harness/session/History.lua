@@ -86,6 +86,48 @@ local function refreshable(list, from)
   return true
 end
 
+local function settled(list, from)
+  local out = {}
+
+  for i = from + 1, #list do
+    if not LOCAL[list[i].kind] then out[#out + 1] = list[i] end
+  end
+
+  return out
+end
+
+local function grown(ours, theirs)
+  return events.TEXT[ours.kind]
+    and theirs.kind == ours.kind
+    and theirs.parent == ours.parent
+    and type(theirs.text) == 'string'
+    and #theirs.text > #ours.text
+    and theirs.text:sub(1, #ours.text) == ours.text
+end
+
+local function later(ours, theirs)
+  if #theirs < #ours then return nil end
+
+  local extra = {}
+
+  for i, event in ipairs(ours) do
+    if not vim.deep_equal(event, theirs[i]) then
+      if i < #ours or not grown(event, theirs[i]) then return nil end
+
+      local rest = vim.deepcopy(theirs[i])
+
+      rest.text = theirs[i].text:sub(#event.text + 1)
+      extra[#extra + 1] = rest
+    end
+  end
+
+  for i = #ours + 1, #theirs do
+    extra[#extra + 1] = theirs[i]
+  end
+
+  return #extra > 0 and extra or nil
+end
+
 local function replace(target, source)
   for i = #target, 1, -1 do
     target[i] = nil
@@ -112,7 +154,19 @@ function History:_adopt(shadow)
     elseif #theirs > #ours then
       from, source = #list + 1, theirs[#ours + 1].index
     else
-      return nil
+      local extra =
+        later(settled(list, last and last.index or 0), settled(shadow.events, last and theirs[#ours].index or 0))
+
+      if not extra then return nil end
+
+      local now = Timer.now()
+
+      for _, event in ipairs(extra) do
+        list[#list + 1] = event
+        times[#list] = now
+      end
+
+      return events.NOTICE.appended
     end
 
     local tail = vim.list_slice(shadow.events, source)
