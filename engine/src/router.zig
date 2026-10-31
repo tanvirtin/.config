@@ -52,7 +52,7 @@ pub const command_entries = [_]Entry{
 
 pub fn dispatch(allocator: std.mem.Allocator, args: []const []const u8) u8 {
     var json = false;
-    var filtered: std.ArrayListUnmanaged([]const u8) = .{};
+    var filtered: std.ArrayListUnmanaged([]const u8) = .empty;
     defer filtered.deinit(allocator);
     for (args) |arg| {
         if (std.mem.eql(u8, arg, "--json")) {

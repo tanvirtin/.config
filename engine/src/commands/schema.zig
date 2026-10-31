@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../lib/runtime.zig");
 const fs = @import("../lib/fs.zig");
 const output = @import("../lib/output.zig");
 const Paths = @import("../core/environment/paths.zig").Paths;
@@ -21,20 +22,20 @@ pub fn resolveSchemaRef(allocator: std.mem.Allocator, schemas_dir: []const u8, r
         return ref;
     }
     const candidate = std.fmt.allocPrint(allocator, "{s}/{s}.yaml", .{ schemas_dir, ref }) catch return null;
-    std.fs.cwd().access(candidate, .{}) catch return null;
+    std.Io.Dir.cwd().access(runtime.io(), candidate, .{}) catch return null;
     return candidate;
 }
 
 fn listSchemas(allocator: std.mem.Allocator, dir_path: []const u8) u8 {
-    var dir = std.fs.cwd().openDir(dir_path, .{ .iterate = true }) catch {
+    var dir = std.Io.Dir.cwd().openDir(runtime.io(), dir_path, .{ .iterate = true }) catch {
         output.err("could not open schemas directory: {s}", .{dir_path});
         return 2;
     };
-    defer dir.close();
+    defer dir.close(runtime.io());
 
-    var names = std.ArrayListUnmanaged([]const u8){};
+    var names: std.ArrayListUnmanaged([]const u8) = .empty;
     var it = dir.iterate();
-    while (it.next() catch null) |entry| {
+    while (it.next(runtime.io()) catch null) |entry| {
         if (entry.kind != .file) continue;
         if (!std.mem.endsWith(u8, entry.name, ".yaml")) continue;
         const name = allocator.dupe(u8, entry.name[0 .. entry.name.len - 5]) catch continue;
@@ -74,7 +75,7 @@ pub fn execute(allocator: std.mem.Allocator, args: []const []const u8) u8 {
     };
 
     if (std.mem.eql(u8, sub, "path")) {
-        const abs = std.fs.cwd().realpathAlloc(allocator, resolved) catch {
+        const abs = fs.realPathAlloc(allocator, std.Io.Dir.cwd(), resolved) catch {
             output.err("could not resolve schema file: {s}", .{resolved});
             return 2;
         };

@@ -45,15 +45,15 @@ pub const Validator = struct {
     pub fn init(allocator: std.mem.Allocator, resolver: ?*const Resolver, sublangs: ?*const SublangRegistry, catalog: ?*const Catalog) Validator {
         return .{
             .allocator = allocator,
-            .diagnostics = .{},
+            .diagnostics = .empty,
             .resolver = resolver,
             .sublangs = sublangs,
             .catalog = catalog,
-            .scopes = .{},
-            .all_scopes = .{},
-            .pending_refs = .{},
+            .scopes = .empty,
+            .all_scopes = .empty,
+            .pending_refs = .empty,
             .context = null,
-            .path = .{},
+            .path = .empty,
         };
     }
 
@@ -288,7 +288,7 @@ pub fn validate(
     }
 
     const diags = v.diagnostics.toOwnedSlice(allocator);
-    v.diagnostics = .{};
+    v.diagnostics = .empty;
     v.deinit();
     return diags;
 }

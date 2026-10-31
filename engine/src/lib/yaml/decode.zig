@@ -45,7 +45,7 @@ pub fn decode(comptime T: type, allocator: std.mem.Allocator, val: Value) Decode
         return std.meta.stringToEnum(T, s) orelse return DecodeError.TypeMismatch;
     }
 
-    if (info == .pointer and info.pointer.size == .slice and info.pointer.is_const) {
+    if (info == .pointer and info.pointer.size == .slice and info.pointer.attrs.@"const") {
         const Child = info.pointer.child;
 
         if (Child == u8) {
@@ -54,7 +54,7 @@ pub fn decode(comptime T: type, allocator: std.mem.Allocator, val: Value) Decode
         }
 
         const seq = val.getSequence() orelse return DecodeError.TypeMismatch;
-        var items: std.ArrayListUnmanaged(Child) = .{};
+        var items: std.ArrayListUnmanaged(Child) = .empty;
         defer items.deinit(allocator);
 
         for (seq) |item| {
@@ -67,16 +67,16 @@ pub fn decode(comptime T: type, allocator: std.mem.Allocator, val: Value) Decode
     if (info == .@"struct") {
         var result: T = undefined;
 
-        inline for (info.@"struct".fields) |field| {
-            const field_val = val.getMapping(field.name);
+        const fields = info.@"struct";
+        inline for (fields.field_names, fields.field_types, fields.field_attrs) |name, FieldType, attrs| {
+            const field_val = val.getMapping(name);
 
             if (field_val) |fv| {
-                @field(result, field.name) = try decode(field.type, allocator, fv);
-            } else if (@typeInfo(field.type) == .optional) {
-                @field(result, field.name) = null;
-            } else if (field.default_value_ptr) |ptr| {
-                const default = @as(*const field.type, @ptrCast(@alignCast(ptr)));
-                @field(result, field.name) = default.*;
+                @field(result, name) = try decode(FieldType, allocator, fv);
+            } else if (@typeInfo(FieldType) == .optional) {
+                @field(result, name) = null;
+            } else if (attrs.defaultValue(FieldType)) |default| {
+                @field(result, name) = default;
             } else {
                 return DecodeError.MissingField;
             }

@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("lib/runtime.zig");
 const yaml = @import("yaml");
 const expression = @import("schemalang/sublang/expression/mod.zig");
 const ir = @import("schemalang/ir.zig");
@@ -9,21 +10,15 @@ const Value = expression.Value;
 const EvalEnv = expression.EvalEnv;
 const ContextEnv = context.ContextEnv;
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
-    defer arena.deinit();
-    const allocator = arena.allocator();
+pub fn main(init: std.process.Init) !void {
+    runtime.init(init);
+    const allocator = init.arena.allocator();
 
-    var args = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
+    var args = std.process.Args.Iterator.init(init.minimal.args);
     _ = args.next() orelse return error.MissingCorpusPath;
     const corpus_path = args.next() orelse return error.MissingCorpusPath;
 
-    const file = try std.fs.openFileAbsolute(corpus_path, .{});
-    defer file.close();
-    const content = try file.readToEndAlloc(allocator, 4 * 1024 * 1024);
+    const content = try std.Io.Dir.cwd().readFileAlloc(runtime.io(), corpus_path, allocator, .limited(4 * 1024 * 1024));
 
     const doc = try yaml.parse(allocator, content);
     const seq = doc.value.getSequence() orelse {
@@ -90,7 +85,7 @@ pub fn main() !void {
         }
 
         if (outcome == .pass) {
-            var static_diags = std.ArrayListUnmanaged(diag.Diagnostic){};
+            var static_diags: std.ArrayListUnmanaged(diag.Diagnostic) = .empty;
             const ctx = try buildTypeEnv(allocator, &env);
             try expression.validate(allocator, expr, undefined, ctx, &static_diags, null);
             if (case.get("error")) |err_val| {
@@ -131,7 +126,7 @@ fn yamlToValue(allocator: std.mem.Allocator, v: yaml.Value) !Value {
         .null => .null_t,
         .scalar => scalarValue(allocator, v),
         .sequence => blk: {
-            var items = std.ArrayListUnmanaged(Value){};
+            var items: std.ArrayListUnmanaged(Value) = .empty;
             var child = node.first_child;
             while (child != 0) : (child = v.tree.nodes.items[child].next_sibling) {
                 try items.append(allocator, try yamlToValue(allocator, .{ .tree = v.tree, .idx = child, .arena = v.arena }));

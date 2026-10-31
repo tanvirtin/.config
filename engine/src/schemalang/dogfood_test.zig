@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../lib/runtime.zig");
 const yaml = @import("yaml");
 const Engine = @import("engine.zig").Engine;
 const validate_mod = @import("core.zig");
@@ -11,17 +12,17 @@ fn collectFiles(
     dir_path: []const u8,
     ext: []const u8,
 ) ![]const []const u8 {
-    var dir = try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
-    defer dir.close();
+    var dir = try std.Io.Dir.cwd().openDir(runtime.io(), dir_path, .{ .iterate = true });
+    defer dir.close(runtime.io());
 
-    var names = std.ArrayListUnmanaged([]const u8){};
+    var names: std.ArrayListUnmanaged([]const u8) = .empty;
     errdefer {
         for (names.items) |n| allocator.free(n);
         names.deinit(allocator);
     }
 
     var it = dir.iterate();
-    while (try it.next()) |entry| {
+    while (try it.next(runtime.io())) |entry| {
         if (entry.kind == .directory) continue;
         if (!std.mem.endsWith(u8, entry.name, ext)) continue;
         try names.append(allocator, try allocator.dupe(u8, entry.name));
@@ -60,7 +61,7 @@ test "every schema validates against the meta-schema" {
 
     for (schemas) |name| {
         const path = try std.fs.path.join(allocator, &.{ schemas_dir, name });
-        const content = try std.fs.cwd().readFileAlloc(allocator, path, 1024 * 1024);
+        const content = try std.Io.Dir.cwd().readFileAlloc(runtime.io(), path, allocator, .limited(1024 * 1024));
         defer allocator.free(content);
 
         const diagnostics = try validate_mod.validate(

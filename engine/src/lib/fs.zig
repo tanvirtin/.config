@@ -1,15 +1,17 @@
 const std = @import("std");
+const fs = @import("fs.zig");
+const runtime = @import("runtime.zig");
 
 pub const FsError = error{
     HomeNotSet,
 };
 
 pub fn homeDir() FsError![]const u8 {
-    return std.posix.getenv("HOME") orelse return FsError.HomeNotSet;
+    return runtime.env("HOME") orelse return FsError.HomeNotSet;
 }
 
 pub fn ensureDirectoryExists(path: []const u8) !void {
-    std.fs.makeDirAbsolute(path) catch |e| switch (e) {
+    std.Io.Dir.createDirAbsolute(runtime.io(), path, .default_dir) catch |e| switch (e) {
         error.PathAlreadyExists => return,
         error.FileNotFound => {
             const parent = std.fs.path.dirname(path) orelse return e;
@@ -35,47 +37,52 @@ pub fn ensureParentDirExists(path: []const u8) !void {
     };
 }
 
+pub fn realPathAlloc(allocator: std.mem.Allocator, dir: std.Io.Dir, sub_path: []const u8) ![]u8 {
+    var buffer: [std.fs.max_path_bytes]u8 = undefined;
+    const len = try dir.realPathFile(runtime.io(), sub_path, &buffer);
+    return allocator.dupe(u8, buffer[0..len]);
+}
+
 pub fn pathExists(path: []const u8) bool {
-    std.fs.cwd().access(path, .{}) catch return false;
+    std.Io.Dir.cwd().access(runtime.io(), path, .{}) catch return false;
     return true;
 }
 
 pub fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
-    const file = try std.fs.openFileAbsolute(path, .{});
-    defer file.close();
-    return try file.readToEndAlloc(allocator, 256 * 1024);
+    return std.Io.Dir.cwd().readFileAlloc(runtime.io(), path, allocator, .limited(256 * 1024));
 }
 
 pub fn writeFile(path: []const u8, content: []const u8) !void {
-    const file = try std.fs.createFileAbsolute(path, .{ .truncate = true });
-    defer file.close();
-    try file.writeAll(content);
+    try std.Io.Dir.cwd().writeFile(runtime.io(), .{ .sub_path = path, .data = content });
 }
 
 pub fn copyFile(source: []const u8, target: []const u8) !void {
     try ensureParentDirExists(target);
-    try std.fs.copyFileAbsolute(source, target, .{});
+    try std.Io.Dir.copyFileAbsolute(source, target, runtime.io(), .{});
 }
 
 pub fn filesEqual(source: []const u8, target: []const u8) !bool {
-    const source_file = try std.fs.openFileAbsolute(source, .{});
-    defer source_file.close();
-    const target_file = try std.fs.openFileAbsolute(target, .{});
-    defer target_file.close();
+    const io = runtime.io();
+    const source_file = try std.Io.Dir.openFileAbsolute(io, source, .{});
+    defer source_file.close(io);
+    const target_file = try std.Io.Dir.openFileAbsolute(io, target, .{});
+    defer target_file.close(io);
 
-    const source_stat = try source_file.stat();
-    const target_stat = try target_file.stat();
+    const source_stat = try source_file.stat(io);
+    const target_stat = try target_file.stat(io);
     if (source_stat.kind != .file or target_stat.kind != .file) return error.NotAFile;
     if (source_stat.size != target_stat.size) return false;
 
     var source_buf: [64 * 1024]u8 = undefined;
     var target_buf: [64 * 1024]u8 = undefined;
+    var offset: u64 = 0;
     while (true) {
-        const source_read = try source_file.readAll(&source_buf);
-        const target_read = try target_file.readAll(&target_buf);
+        const source_read = try source_file.readPositionalAll(io, &source_buf, offset);
+        const target_read = try target_file.readPositionalAll(io, &target_buf, offset);
         if (source_read != target_read) return false;
         if (!std.mem.eql(u8, source_buf[0..source_read], target_buf[0..target_read])) return false;
         if (source_read == 0) return true;
+        offset += source_read;
     }
 }
 
@@ -92,7 +99,7 @@ test "pathExists for root directory" {
 fn tmpDirAbs() !struct { dir: []const u8, tmp: std.testing.TmpDir } {
     var tmp = std.testing.tmpDir(.{});
     errdefer tmp.cleanup();
-    const dir = try tmp.parent_dir.realpathAlloc(std.testing.allocator, &tmp.sub_path);
+    const dir = try realPathAlloc(std.testing.allocator, tmp.parent_dir, &tmp.sub_path);
     return .{ .dir = dir, .tmp = tmp };
 }
 

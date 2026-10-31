@@ -111,7 +111,7 @@ test "expression: deep property access validation" {
     const env = try arena.allocator().create(ContextEnv);
     env.* = ContextEnv{ .parent = null, .contributions = .{ .map = map } };
 
-    var diagnostics = std.ArrayListUnmanaged(Diagnostic){};
+    var diagnostics: std.ArrayListUnmanaged(Diagnostic) = .empty;
     defer diagnostics.deinit(arena.allocator());
 
     try validate(arena.allocator(), "${{ github.event }}", undefined, env, &diagnostics, null);
@@ -204,13 +204,13 @@ test "evaluate: nesting depth and token budget guard runaway input" {
     const a = arena.allocator();
     var env = EvalEnv.init(a);
 
-    var deep = std.ArrayListUnmanaged(u8){};
+    var deep: std.ArrayListUnmanaged(u8) = .empty;
     for (0..200) |_| try deep.append(a, '(');
     try deep.appendSlice(a, "a");
     for (0..200) |_| try deep.append(a, ')');
     try std.testing.expectError(error.TooDeep, evaluate(a, try deep.toOwnedSlice(a), &env));
 
-    var wide = std.ArrayListUnmanaged(u8){};
+    var wide: std.ArrayListUnmanaged(u8) = .empty;
     try wide.appendSlice(a, "a");
     for (0..600) |_| try wide.appendSlice(a, " || a");
     try std.testing.expectError(error.TooManyTokens, evaluate(a, try wide.toOwnedSlice(a), &env));
@@ -222,7 +222,7 @@ test "evaluate: deep fromJSON nesting is bounded" {
     const a = arena.allocator();
     var env = EvalEnv.init(a);
 
-    var nested = std.ArrayListUnmanaged(u8){};
+    var nested: std.ArrayListUnmanaged(u8) = .empty;
     for (0..300) |_| try nested.append(a, '[');
     try nested.append(a, '0');
     for (0..300) |_| try nested.append(a, ']');
@@ -236,7 +236,7 @@ test "evaluate: runtime failures surface a readable diagnostic" {
     const a = arena.allocator();
     var env = EvalEnv.init(a);
 
-    var diags = std.ArrayListUnmanaged(Diagnostic){};
+    var diags: std.ArrayListUnmanaged(Diagnostic) = .empty;
     {
         const res = evaluateDetailed(a, "missingKey == 'x'", &env, &diags, undefined);
         try std.testing.expectError(error.UnboundVariable, res);

@@ -151,7 +151,7 @@ pub const Parser = struct {
                 node = .{ .index = .{ .expr = node_ptr, .index = index_node } };
             } else if (try self.match(.lparen)) {
                 if (node != .variable) return error.InvalidCall;
-                var args = std.ArrayListUnmanaged(Node){};
+                var args: std.ArrayListUnmanaged(Node) = .empty;
                 if (self.current_token.tag != .rparen) {
                     while (true) {
                         try args.append(self.allocator, try self.parseExpression());

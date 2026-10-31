@@ -47,10 +47,10 @@ pub const Scanner = struct {
     line: usize = 0,
     col: usize = 0,
     indent: i32 = -1,
-    indents: std.ArrayListUnmanaged(i32) = .{},
+    indents: std.ArrayListUnmanaged(i32) = .empty,
     flow_level: usize = 0,
-    tokens: std.ArrayListUnmanaged(Token) = .{},
-    simple_keys: std.ArrayListUnmanaged(SimpleKey) = .{},
+    tokens: std.ArrayListUnmanaged(Token) = .empty,
+    simple_keys: std.ArrayListUnmanaged(SimpleKey) = .empty,
     simple_key_allowed: bool = true,
     started: bool = false,
     ended: bool = false,
@@ -66,8 +66,8 @@ pub const Scanner = struct {
     value_indicator_on_line: bool = false,
     value_after_explicit_key: bool = false,
     doc_start_line: ?usize = null,
-    flow_types: std.ArrayListUnmanaged(enum { seq, map }) = .{},
-    tag_handles: std.ArrayListUnmanaged([]const u8) = .{},
+    flow_types: std.ArrayListUnmanaged(enum { seq, map }) = .empty,
+    tag_handles: std.ArrayListUnmanaged([]const u8) = .empty,
     total_steps: usize = 0,
 
     fn ch(self: *Scanner) u8 {
@@ -707,10 +707,10 @@ pub const Scanner = struct {
             }
         }
 
-        var result: std.ArrayListUnmanaged(u8) = .{};
+        var result: std.ArrayListUnmanaged(u8) = .empty;
         var trailing_breaks: usize = 0;
 
-        var source_map_entries = std.ArrayListUnmanaged(token.SourceMap.Entry){};
+        var source_map_entries: std.ArrayListUnmanaged(token.SourceMap.Entry) = .empty;
         defer source_map_entries.deinit(self.alloc);
         try source_map_entries.append(self.alloc, .{ .parsed = 0, .source = @intCast(self.pos) });
 
@@ -809,7 +809,7 @@ pub const Scanner = struct {
         const style: ScalarStyle = if (quote == '\'') .single_quoted else .double_quoted;
         var found_closing = false;
 
-        var source_map_entries = std.ArrayListUnmanaged(token.SourceMap.Entry){};
+        var source_map_entries: std.ArrayListUnmanaged(token.SourceMap.Entry) = .empty;
         defer source_map_entries.deinit(self.alloc);
         try source_map_entries.append(self.alloc, .{ .parsed = 0, .source = @intCast(target_start) });
 
@@ -1014,7 +1014,7 @@ pub const Scanner = struct {
         var breaks: usize = 0;
         var spaces_count: usize = 0;
 
-        var source_map_entries = std.ArrayListUnmanaged(token.SourceMap.Entry){};
+        var source_map_entries: std.ArrayListUnmanaged(token.SourceMap.Entry) = .empty;
         defer source_map_entries.deinit(self.alloc);
         try source_map_entries.append(self.alloc, .{ .parsed = 0, .source = @intCast(target_start) });
 

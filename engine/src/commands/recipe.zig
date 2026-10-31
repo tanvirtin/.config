@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../lib/runtime.zig");
 const fs = @import("../lib/fs.zig");
 const output = @import("../lib/output.zig");
 const Recipe = @import("../core/recipe.zig");
@@ -99,11 +100,11 @@ fn listRecipes(allocator: std.mem.Allocator, search: anytype) void {
     }
 
     for (search.layers[0..search.count]) |layer| {
-        var dir = std.fs.openDirAbsolute(layer.dir, .{ .iterate = true }) catch continue;
-        defer dir.close();
+        var dir = std.Io.Dir.openDirAbsolute(runtime.io(), layer.dir, .{ .iterate = true }) catch continue;
+        defer dir.close(runtime.io());
 
         var iter = dir.iterate();
-        while (iter.next() catch null) |entry| {
+        while (iter.next(runtime.io()) catch null) |entry| {
             if (entry.kind != .file) continue;
             if (!std.mem.endsWith(u8, entry.name, ".yml")) continue;
 

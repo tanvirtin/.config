@@ -1,17 +1,16 @@
 const std = @import("std");
 const router = @import("router.zig");
 const output = @import("lib/output.zig");
+const runtime = @import("lib/runtime.zig");
 
-pub fn main() void {
-    const gpa = std.heap.page_allocator;
-    var arena = std.heap.ArenaAllocator.init(gpa);
-    defer arena.deinit();
-    const allocator = arena.allocator();
+pub fn main(init: std.process.Init) void {
+    runtime.init(init);
+    const allocator = init.arena.allocator();
 
-    var args = std.process.args();
+    var args = std.process.Args.Iterator.init(init.minimal.args);
     _ = args.next();
 
-    var arg_list = std.ArrayListUnmanaged([]const u8){};
+    var arg_list: std.ArrayListUnmanaged([]const u8) = .empty;
     while (args.next()) |arg| {
         arg_list.append(allocator, arg) catch {
             output.err("out of memory while reading arguments", .{});
@@ -27,6 +26,7 @@ test {
     _ = @import("router.zig");
     _ = @import("lib/output.zig");
     _ = @import("lib/fs.zig");
+    _ = @import("lib/runtime.zig");
     _ = @import("lib/process.zig");
     _ = @import("lib/template.zig");
     _ = @import("lib/utils.zig");

@@ -20,7 +20,7 @@ jobs:
 
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.2
+          version: 0.17.0
 
       - name: Set up environment
         run: |
@@ -45,7 +45,7 @@ jobs:
 
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.2
+          version: 0.17.0
 
       - name: Cross-compile release targets not covered by native runners
         working-directory: .tin/engine

@@ -25,7 +25,7 @@ jobs:
 
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.2
+          version: 0.17.0
 
       - name: Install tin (install.sh --from-source)
         run: |

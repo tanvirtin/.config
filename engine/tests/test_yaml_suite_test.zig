@@ -20,14 +20,14 @@ fn parsePin(content: []const u8) ?[]const u8 {
 }
 
 fn baseOut(allocator: std.mem.Allocator) ![]const u8 {
-    const raw = std.process.getEnvVarOwned(allocator, "PATH") catch return "/usr/bin:/bin";
+    const raw = std.testing.environ.getAlloc(allocator, "PATH") catch return "/usr/bin:/bin";
     defer allocator.free(raw);
     if (raw.len == 0) return "/usr/bin:/bin";
     return allocator.dupe(u8, raw);
 }
 
-fn makeEnv(allocator: std.mem.Allocator, extras: []const [2][]const u8) !std.process.EnvMap {
-    var env = std.process.EnvMap.init(allocator);
+fn makeEnv(allocator: std.mem.Allocator, extras: []const [2][]const u8) !std.process.Environ.Map {
+    var env = std.process.Environ.Map.init(allocator);
     const path = try baseOut(allocator);
     defer allocator.free(path);
     try env.put("PATH", path);
@@ -39,22 +39,22 @@ fn runSuite(allocator: std.mem.Allocator, args: []const []const u8, extras: []co
     var env = try makeEnv(allocator, extras);
     defer env.deinit();
 
-    var argv = std.ArrayListUnmanaged([]const u8){};
+    var argv: std.ArrayListUnmanaged([]const u8) = .empty;
     defer argv.deinit(allocator);
     try argv.append(allocator, suite_exe);
     for (args) |a| try argv.append(allocator, a);
 
-    const result = try std.process.Child.run(.{
-        .allocator = allocator,
+    const result = try std.process.run(allocator, std.testing.io, .{
         .argv = argv.items,
-        .env_map = &env,
-        .max_output_bytes = 1 << 20,
+        .environ_map = &env,
+        .stdout_limit = .limited(1 << 20),
+        .stderr_limit = .limited(1 << 20),
     });
     const merged = try std.mem.concat(allocator, u8, &.{ result.stdout, result.stderr });
     allocator.free(result.stdout);
     allocator.free(result.stderr);
     const code: u8 = switch (result.term) {
-        .Exited => |c| c,
+        .exited => |c| c,
         else => 255,
     };
     return .{ .code = code, .output = merged };
@@ -78,27 +78,29 @@ fn expectNotContains(needle: []const u8, run: Run) !void {
     }
 }
 
-fn mkCase(allocator: std.mem.Allocator, root: std.fs.Dir, rel: []const u8, reject: bool) !void {
-    try root.makePath(rel);
+fn mkCase(allocator: std.mem.Allocator, root: std.Io.Dir, rel: []const u8, reject: bool) !void {
+    try root.createDirPath(std.testing.io, rel);
     const in_yaml = try std.fs.path.join(allocator, &.{ rel, "in.yaml" });
     defer allocator.free(in_yaml);
-    try root.writeFile(.{ .sub_path = in_yaml, .data = "a: 1\n" });
+    try root.writeFile(std.testing.io, .{ .sub_path = in_yaml, .data = "a: 1\n" });
     if (reject) {
         const err_path = try std.fs.path.join(allocator, &.{ rel, "error" });
         defer allocator.free(err_path);
-        try root.writeFile(.{ .sub_path = err_path, .data = "" });
+        try root.writeFile(std.testing.io, .{ .sub_path = err_path, .data = "" });
     }
 }
 
 fn tmpRoot(allocator: std.mem.Allocator) !struct { tmp: std.testing.TmpDir, base: []const u8 } {
     var tmp = std.testing.tmpDir(.{});
     errdefer tmp.cleanup();
-    const base = try tmp.dir.realpathAlloc(allocator, ".");
+    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+    const path_len = try tmp.dir.realPathFile(std.testing.io, ".", &path_buffer);
+    const base = try allocator.dupe(u8, path_buffer[0..path_len]);
     return .{ .tmp = tmp, .base = base };
 }
 
 fn pinnedRevision(allocator: std.mem.Allocator) ![]const u8 {
-    const raw = try std.fs.cwd().readFileAlloc(allocator, "tests/yaml-suite-revision.txt", 4096);
+    const raw = try std.Io.Dir.cwd().readFileAlloc(std.testing.io, "tests/yaml-suite-revision.txt", allocator, .limited(4096));
     defer allocator.free(raw);
     return allocator.dupe(u8, parsePin(raw) orelse "unpinned");
 }
@@ -216,7 +218,7 @@ test "empty corpus is rejected" {
         root.tmp.cleanup();
         allocator.free(root.base);
     }
-    try root.tmp.dir.makePath("empty");
+    try root.tmp.dir.createDirPath(std.testing.io, "empty");
     const run = try runSuite(allocator, &.{ fixture_exe, root.base }, &.{});
     defer allocator.free(run.output);
     try expectCode(1, run);
@@ -230,8 +232,8 @@ test "wrong-layout corpus is rejected" {
         root.tmp.cleanup();
         allocator.free(root.base);
     }
-    try root.tmp.dir.makePath("wrong/src");
-    try root.tmp.dir.writeFile(.{ .sub_path = "wrong/src/229Q.yaml", .data = "a: 1\n" });
+    try root.tmp.dir.createDirPath(std.testing.io, "wrong/src");
+    try root.tmp.dir.writeFile(std.testing.io, .{ .sub_path = "wrong/src/229Q.yaml", .data = "a: 1\n" });
     const run = try runSuite(allocator, &.{ fixture_exe, root.base }, &.{});
     defer allocator.free(run.output);
     try expectCode(1, run);
@@ -303,34 +305,34 @@ test "corpus revision mismatch is rejected" {
 }
 
 fn gitAvailable(allocator: std.mem.Allocator) bool {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
+    const result = std.process.run(allocator, std.testing.io, .{
         .argv = &.{ "git", "--version" },
-        .max_output_bytes = 4096,
+        .stdout_limit = .limited(4096),
+        .stderr_limit = .limited(4096),
     }) catch return false;
     defer allocator.free(result.stdout);
     defer allocator.free(result.stderr);
     switch (result.term) {
-        .Exited => |c| return c == 0,
+        .exited => |c| return c == 0,
         else => return false,
     }
 }
 
-fn runGit(allocator: std.mem.Allocator, env: *const std.process.EnvMap, args: []const []const u8) !void {
-    var argv = std.ArrayListUnmanaged([]const u8){};
+fn runGit(allocator: std.mem.Allocator, env: *const std.process.Environ.Map, args: []const []const u8) !void {
+    var argv: std.ArrayListUnmanaged([]const u8) = .empty;
     defer argv.deinit(allocator);
     try argv.append(allocator, "git");
     for (args) |a| try argv.append(allocator, a);
-    const result = try std.process.Child.run(.{
-        .allocator = allocator,
+    const result = try std.process.run(allocator, std.testing.io, .{
         .argv = argv.items,
-        .env_map = env,
-        .max_output_bytes = 64 * 1024,
+        .environ_map = env,
+        .stdout_limit = .limited(64 * 1024),
+        .stderr_limit = .limited(64 * 1024),
     });
     defer allocator.free(result.stdout);
     defer allocator.free(result.stderr);
     switch (result.term) {
-        .Exited => |c| if (c != 0) return error.GitFailed,
+        .exited => |c| if (c != 0) return error.GitFailed,
         else => return error.GitFailed,
     }
 }

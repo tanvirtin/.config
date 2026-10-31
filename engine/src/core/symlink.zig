@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../lib/runtime.zig");
 const fs = @import("../lib/fs.zig");
 
 const Symlink = @This();
@@ -22,11 +23,12 @@ pub fn status(self: *const Symlink) Status {
     if (self.copy) return self.copyStatus();
 
     var buf: [std.fs.max_path_bytes]u8 = undefined;
-    const link_target = std.fs.readLinkAbsolute(self.target, &buf) catch |e| switch (e) {
+    const link_len = std.Io.Dir.readLinkAbsolute(runtime.io(), self.target, &buf) catch |e| switch (e) {
         error.FileNotFound => return .missing,
         error.NotLink => return .not_a_symlink,
         else => return .broken,
     };
+    const link_target = buf[0..link_len];
 
     if (std.mem.eql(u8, link_target, self.source)) {
         if (!fs.pathExists(self.source)) return .source_missing;
@@ -38,7 +40,7 @@ pub fn status(self: *const Symlink) Status {
 
 fn copyStatus(self: *const Symlink) Status {
     var buf: [std.fs.max_path_bytes]u8 = undefined;
-    if (std.fs.readLinkAbsolute(self.target, &buf)) |_| {
+    if (std.Io.Dir.readLinkAbsolute(runtime.io(), self.target, &buf)) |_| {
         return .wrong_target;
     } else |e| switch (e) {
         error.FileNotFound => return .missing,
@@ -59,10 +61,10 @@ pub fn link(self: *const Symlink) !void {
     if (self.copy) return self.copyInto();
 
     try fs.ensureParentDirExists(self.target);
-    std.fs.symLinkAbsolute(self.source, self.target, .{}) catch |e| switch (e) {
+    std.Io.Dir.symLinkAbsolute(runtime.io(), self.source, self.target, .{}) catch |e| switch (e) {
         error.PathAlreadyExists => {
             try self.unlink();
-            try std.fs.symLinkAbsolute(self.source, self.target, .{});
+            try std.Io.Dir.symLinkAbsolute(runtime.io(), self.source, self.target, .{});
         },
         else => return e,
     };
@@ -89,10 +91,10 @@ pub fn backupBeforeRepair(self: *const Symlink, current: Status) bool {
 }
 
 pub fn unlink(self: *const Symlink) !void {
-    std.fs.deleteFileAbsolute(self.target) catch |e| switch (e) {
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), self.target) catch |e| switch (e) {
         error.FileNotFound => return,
         error.IsDir => {
-            std.fs.deleteTreeAbsolute(self.target) catch return;
+            std.Io.Dir.cwd().deleteTree(runtime.io(), self.target) catch return;
         },
         else => return e,
     };
@@ -101,7 +103,7 @@ pub fn unlink(self: *const Symlink) !void {
 pub fn backup(self: *const Symlink, allocator: std.mem.Allocator) !void {
     const backup_path = try std.fmt.allocPrint(allocator, "{s}.tin.bak", .{self.target});
     defer allocator.free(backup_path);
-    std.fs.renameAbsolute(self.target, backup_path) catch |e| switch (e) {
+    std.Io.Dir.renameAbsolute(self.target, backup_path, runtime.io()) catch |e| switch (e) {
         error.FileNotFound => return,
         else => return e,
     };
@@ -110,7 +112,7 @@ pub fn backup(self: *const Symlink, allocator: std.mem.Allocator) !void {
 pub fn restore(self: *const Symlink, allocator: std.mem.Allocator) !void {
     const backup_path = try std.fmt.allocPrint(allocator, "{s}.tin.bak", .{self.target});
     defer allocator.free(backup_path);
-    std.fs.renameAbsolute(backup_path, self.target) catch |e| switch (e) {
+    std.Io.Dir.renameAbsolute(backup_path, self.target, runtime.io()) catch |e| switch (e) {
         error.FileNotFound => return,
         else => return e,
     };
@@ -128,42 +130,42 @@ test "status returns missing for nonexistent path" {
 test "link creates symlink and status is linked" {
     const source = "/tmp/tin_test_symlink_source";
     const target = "/tmp/tin_test_symlink_target";
-    std.fs.deleteFileAbsolute(target) catch {};
-    std.fs.deleteFileAbsolute(source) catch {};
-    const f = try std.fs.createFileAbsolute(source, .{});
-    f.close();
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), source) catch {};
+    const f = try std.Io.Dir.createFileAbsolute(runtime.io(), source, .{});
+    f.close(runtime.io());
     const s = Symlink{ .source = source, .target = target, .name = "test" };
     try s.link();
     try std.testing.expectEqual(Status.linked, s.status());
     try s.unlink();
     try std.testing.expectEqual(Status.missing, s.status());
-    std.fs.deleteFileAbsolute(source) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), source) catch {};
 }
 
 test "status returns wrong_target for mismatched symlink" {
     const target = "/tmp/tin_test_wrong_target";
-    std.fs.deleteFileAbsolute(target) catch {};
-    std.fs.symLinkAbsolute("/some/other/path", target, .{}) catch return;
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
+    std.Io.Dir.symLinkAbsolute(runtime.io(), "/some/other/path", target, .{}) catch return;
     const s = Symlink{ .source = "/expected/path", .target = target, .name = "test" };
     try std.testing.expectEqual(Status.wrong_target, s.status());
-    std.fs.deleteFileAbsolute(target) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
 }
 
 test "backup and restore round-trips" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const target = "/tmp/tin_test_backup_target";
-    std.fs.deleteFileAbsolute(target) catch {};
-    std.fs.deleteFileAbsolute("/tmp/tin_test_backup_target.tin.bak") catch {};
-    const f = try std.fs.createFileAbsolute(target, .{});
-    f.close();
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), "/tmp/tin_test_backup_target.tin.bak") catch {};
+    const f = try std.Io.Dir.createFileAbsolute(runtime.io(), target, .{});
+    f.close(runtime.io());
     const s = Symlink{ .source = "/x", .target = target, .name = "test" };
     try s.backup(arena.allocator());
     try std.testing.expect(!fs.pathExists(target));
     try std.testing.expect(fs.pathExists("/tmp/tin_test_backup_target.tin.bak"));
     try s.restore(arena.allocator());
     try std.testing.expect(fs.pathExists(target));
-    std.fs.deleteFileAbsolute(target) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
 }
 
 test "unlink tolerates missing target" {
@@ -173,19 +175,19 @@ test "unlink tolerates missing target" {
 
 test "status returns not_a_symlink for regular file" {
     const target = "/tmp/tin_test_not_symlink";
-    std.fs.deleteFileAbsolute(target) catch {};
-    const f = try std.fs.createFileAbsolute(target, .{});
-    f.close();
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
+    const f = try std.Io.Dir.createFileAbsolute(runtime.io(), target, .{});
+    f.close(runtime.io());
     const s = Symlink{ .source = "/x", .target = target, .name = "test" };
     try std.testing.expectEqual(Status.not_a_symlink, s.status());
-    std.fs.deleteFileAbsolute(target) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
 }
 
 test "copy link installs a real file and status tracks drift" {
     const source = "/tmp/tin_test_copy_link_source";
     const target = "/tmp/tin_test_copy_link_target";
     try fs.writeFile(source, "version one");
-    std.fs.deleteFileAbsolute(target) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
 
     const s = Symlink{ .source = source, .target = target, .name = "test", .copy = true };
     try std.testing.expectEqual(Status.missing, s.status());
@@ -200,15 +202,15 @@ test "copy link installs a real file and status tracks drift" {
 
     try s.unlink();
     try std.testing.expectEqual(Status.missing, s.status());
-    std.fs.deleteFileAbsolute(source) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), source) catch {};
 }
 
 test "copy link replaces a stale symlink" {
     const source = "/tmp/tin_test_copy_replace_source";
     const target = "/tmp/tin_test_copy_replace_target";
     try fs.writeFile(source, "payload");
-    std.fs.deleteFileAbsolute(target) catch {};
-    try std.fs.symLinkAbsolute(source, target, .{});
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
+    try std.Io.Dir.symLinkAbsolute(runtime.io(), source, target, .{});
 
     const s = Symlink{ .source = source, .target = target, .name = "test", .copy = true };
     try std.testing.expectEqual(Status.wrong_target, s.status());
@@ -217,49 +219,49 @@ test "copy link replaces a stale symlink" {
     try std.testing.expect(!isSymlink(target));
 
     try s.unlink();
-    std.fs.deleteFileAbsolute(source) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), source) catch {};
 }
 
 test "status returns source_missing for dangling symlink" {
     const source = "/tmp/tin_test_src_missing_source";
     const target = "/tmp/tin_test_src_missing_target";
-    std.fs.deleteFileAbsolute(target) catch {};
-    std.fs.deleteFileAbsolute(source) catch {};
-    try std.fs.symLinkAbsolute(source, target, .{});
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), source) catch {};
+    try std.Io.Dir.symLinkAbsolute(runtime.io(), source, target, .{});
 
     const s = Symlink{ .source = source, .target = target, .name = "test" };
     try std.testing.expectEqual(Status.source_missing, s.status());
 
-    const f = try std.fs.createFileAbsolute(source, .{});
-    f.close();
+    const f = try std.Io.Dir.createFileAbsolute(runtime.io(), source, .{});
+    f.close(runtime.io());
     try std.testing.expectEqual(Status.linked, s.status());
 
-    std.fs.deleteFileAbsolute(target) catch {};
-    std.fs.deleteFileAbsolute(source) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), source) catch {};
 }
 
 test "copy status returns source_missing when source gone" {
     const source = "/tmp/tin_test_copy_src_missing_source";
     const target = "/tmp/tin_test_copy_src_missing_target";
-    std.fs.deleteFileAbsolute(source) catch {};
-    std.fs.deleteFileAbsolute(target) catch {};
-    const f = try std.fs.createFileAbsolute(target, .{});
-    f.close();
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), source) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
+    const f = try std.Io.Dir.createFileAbsolute(runtime.io(), target, .{});
+    f.close(runtime.io());
 
     const s = Symlink{ .source = source, .target = target, .name = "test", .copy = true };
     try std.testing.expectEqual(Status.source_missing, s.status());
 
-    std.fs.deleteFileAbsolute(target) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
 }
 
 test "repair replaces a wrong-target symlink" {
     const source = "/tmp/tin_test_repair_source";
     const target = "/tmp/tin_test_repair_target";
-    std.fs.deleteFileAbsolute(target) catch {};
-    std.fs.deleteFileAbsolute(source) catch {};
-    const f = try std.fs.createFileAbsolute(source, .{});
-    f.close();
-    try std.fs.symLinkAbsolute("/some/other/path", target, .{});
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), source) catch {};
+    const f = try std.Io.Dir.createFileAbsolute(runtime.io(), source, .{});
+    f.close(runtime.io());
+    try std.Io.Dir.symLinkAbsolute(runtime.io(), "/some/other/path", target, .{});
 
     const s = Symlink{ .source = source, .target = target, .name = "test" };
     try std.testing.expectEqual(Status.wrong_target, s.status());
@@ -267,13 +269,13 @@ test "repair replaces a wrong-target symlink" {
     try std.testing.expect(backed_up);
     try std.testing.expectEqual(Status.linked, s.status());
 
-    std.fs.deleteFileAbsolute(target) catch {};
-    std.fs.deleteFileAbsolute(source) catch {};
-    std.fs.deleteFileAbsolute("/tmp/tin_test_repair_target.tin.bak") catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), target) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), source) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), "/tmp/tin_test_repair_target.tin.bak") catch {};
 }
 
 fn isSymlink(path: []const u8) bool {
     var buf: [std.fs.max_path_bytes]u8 = undefined;
-    _ = std.fs.readLinkAbsolute(path, &buf) catch return false;
+    _ = std.Io.Dir.readLinkAbsolute(runtime.io(), path, &buf) catch return false;
     return true;
 }

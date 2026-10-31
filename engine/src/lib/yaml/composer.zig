@@ -14,7 +14,7 @@ pub const Composer = struct {
     src: []const u8,
     pos: usize = 0,
     tree: *Tree,
-    parent_stack: std.ArrayListUnmanaged(u32) = .{},
+    parent_stack: std.ArrayListUnmanaged(u32) = .empty,
 
     const Error = ParseError || std.mem.Allocator.Error;
 

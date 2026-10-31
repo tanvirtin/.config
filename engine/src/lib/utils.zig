@@ -10,7 +10,7 @@ pub fn escapeJson(allocator: std.mem.Allocator, s: []const u8) ![]const u8 {
     }
     if (!needs_escape) return s;
 
-    var buf = std.ArrayListUnmanaged(u8){};
+    var buf: std.ArrayListUnmanaged(u8) = .empty;
     errdefer buf.deinit(allocator);
     for (s) |c| {
         switch (c) {
@@ -26,7 +26,7 @@ pub fn escapeJson(allocator: std.mem.Allocator, s: []const u8) ![]const u8 {
 }
 
 pub fn slugify(allocator: std.mem.Allocator, id: []const u8) ![]const u8 {
-    var buf = std.ArrayListUnmanaged(u8){};
+    var buf: std.ArrayListUnmanaged(u8) = .empty;
     errdefer buf.deinit(allocator);
     var pending_dash = false;
     for (id) |c| {
@@ -55,7 +55,7 @@ pub fn isValidSlug(slug: []const u8) bool {
 }
 
 pub fn escapeYamlString(allocator: std.mem.Allocator, s: []const u8) ![]const u8 {
-    var buf = std.ArrayListUnmanaged(u8){};
+    var buf: std.ArrayListUnmanaged(u8) = .empty;
     errdefer buf.deinit(allocator);
     try buf.append(allocator, '"');
     for (s) |c| switch (c) {

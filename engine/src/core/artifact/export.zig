@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../../lib/runtime.zig");
 const fs = @import("../../lib/fs.zig");
 const utils = @import("../../lib/utils.zig");
 const template = @import("../../lib/template.zig");
@@ -81,15 +82,16 @@ const Manifest = struct {
 const Kind = enum { absent, symlink, dir, file, other };
 
 fn statKind(path: []const u8) Kind {
-    const st = std.posix.fstatat(std.posix.AT.FDCWD, path, std.posix.AT.SYMLINK_NOFOLLOW) catch |e| switch (e) {
+    const st = std.Io.Dir.cwd().statFile(runtime.io(), path, .{ .follow_symlinks = false }) catch |e| switch (e) {
         error.FileNotFound => return .absent,
         else => return .other,
     };
-    const mode: u32 = @intCast(st.mode);
-    if (std.posix.S.ISLNK(mode)) return .symlink;
-    if (std.posix.S.ISDIR(mode)) return .dir;
-    if (std.posix.S.ISREG(mode)) return .file;
-    return .other;
+    return switch (st.kind) {
+        .sym_link => .symlink,
+        .directory => .dir,
+        .file => .file,
+        else => .other,
+    };
 }
 
 fn sha256Hex(content: []const u8) [64]u8 {
@@ -102,7 +104,7 @@ fn resolveSystem(allocator: std.mem.Allocator, skill: Skill, rules: []const Rule
     const system = skill.system orelse return "";
     if (skill.include.len == 0) return system;
 
-    var vars: std.ArrayListUnmanaged(struct { []const u8, []const u8 }) = .{};
+    var vars: std.ArrayListUnmanaged(struct { []const u8, []const u8 }) = .empty;
     defer vars.deinit(allocator);
     for (skill.include) |rule_id| {
         var found = false;
@@ -119,8 +121,8 @@ fn resolveSystem(allocator: std.mem.Allocator, skill: Skill, rules: []const Rule
 }
 
 pub fn renderSkillMd(allocator: std.mem.Allocator, skill: Skill) ![]const u8 {
-    var buf = std.ArrayListUnmanaged(u8){};
-    const w = buf.writer(allocator);
+    var buf: std.Io.Writer.Allocating = .init(allocator);
+    const w = &buf.writer;
     const name = try utils.slugify(allocator, skill.id);
     try w.print("---\nname: {s}\n", .{name});
     try w.print("description: {s}\n", .{try utils.escapeYamlString(allocator, skill.description)});
@@ -143,7 +145,7 @@ pub fn renderSkillMd(allocator: std.mem.Allocator, skill: Skill) ![]const u8 {
         }
     }
 
-    return buf.toOwnedSlice(allocator);
+    return buf.toOwnedSlice();
 }
 
 fn readManifest(allocator: std.mem.Allocator, base_dir: []const u8) !Manifest {
@@ -161,7 +163,7 @@ fn readManifest(allocator: std.mem.Allocator, base_dir: []const u8) !Manifest {
     };
 
     if (std.mem.eql(u8, first_line, manifest_header)) {
-        var entries = std.ArrayListUnmanaged(ManifestEntry){};
+        var entries: std.ArrayListUnmanaged(ManifestEntry) = .empty;
         var it = std.mem.splitScalar(u8, content, '\n');
         _ = it.next();
         while (it.next()) |line| {
@@ -180,7 +182,7 @@ fn readManifest(allocator: std.mem.Allocator, base_dir: []const u8) !Manifest {
 
     if (std.mem.startsWith(u8, first_line, "tin-skills")) return Error.ManifestMalformed;
 
-    var slugs = std.ArrayListUnmanaged([]const u8){};
+    var slugs: std.ArrayListUnmanaged([]const u8) = .empty;
     var it = std.mem.splitScalar(u8, content, '\n');
     while (it.next()) |line| {
         const trimmed = std.mem.trim(u8, line, " \t\r");
@@ -210,9 +212,9 @@ pub fn prepareWithOptions(
 ) !Prepared {
     const manifest = try readManifest(allocator, base_dir);
 
-    var rendered = std.ArrayListUnmanaged(Rendered){};
-    var catalog_slugs = std.StringHashMapUnmanaged(void){};
-    var colliding = std.StringHashMapUnmanaged(void){};
+    var rendered: std.ArrayListUnmanaged(Rendered) = .empty;
+    var catalog_slugs: std.StringHashMapUnmanaged(void) = .empty;
+    var colliding: std.StringHashMapUnmanaged(void) = .empty;
 
     for (skills) |skill| {
         skill.validate() catch return Error.UnsupportedSkill;
@@ -230,7 +232,7 @@ pub fn prepareWithOptions(
         try rendered.append(allocator, .{ .skill = skill, .slug = slug, .content = content, .hash = sha256Hex(content) });
     }
 
-    var entries = std.ArrayListUnmanaged(Entry){};
+    var entries: std.ArrayListUnmanaged(Entry) = .empty;
 
     for (rendered.items) |r| {
         const skill_dir = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ base_dir, r.slug });
@@ -475,35 +477,35 @@ fn manifestPath(allocator: std.mem.Allocator, base_dir: []const u8) ![]const u8 
 }
 
 fn writeManifest(allocator: std.mem.Allocator, base_dir: []const u8, entries: []const ManifestEntry) !void {
-    var buf = std.ArrayListUnmanaged(u8){};
-    const w = buf.writer(allocator);
+    var buf: std.Io.Writer.Allocating = .init(allocator);
+    const w = &buf.writer;
     try w.print("{s}\n", .{manifest_header});
     for (entries) |e| try w.print("{s}\t{s}\n", .{ e.slug, e.hash });
 
     const tmp = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ base_dir, manifest_tmp });
     const dest = try manifestPath(allocator, base_dir);
-    errdefer std.fs.deleteFileAbsolute(tmp) catch {};
-    try fs.writeFile(tmp, buf.items);
-    try std.fs.renameAbsolute(tmp, dest);
+    errdefer std.Io.Dir.deleteFileAbsolute(runtime.io(), tmp) catch {};
+    try fs.writeFile(tmp, buf.written());
+    try std.Io.Dir.renameAbsolute(tmp, dest, runtime.io());
 }
 
 fn writeAtomic(allocator: std.mem.Allocator, path: []const u8, content: []const u8) !void {
     try fs.ensureParentDirExists(path);
     const tmp = try std.fmt.allocPrint(allocator, "{s}.tin-tmp", .{path});
-    errdefer std.fs.deleteFileAbsolute(tmp) catch {};
-    const file = try std.fs.createFileAbsolute(tmp, .{ .truncate = true });
-    try file.writeAll(content);
-    file.close();
-    try std.fs.renameAbsolute(tmp, path);
+    errdefer std.Io.Dir.deleteFileAbsolute(runtime.io(), tmp) catch {};
+    const file = try std.Io.Dir.createFileAbsolute(runtime.io(), tmp, .{ .truncate = true });
+    try file.writeStreamingAll(runtime.io(), content);
+    file.close(runtime.io());
+    try std.Io.Dir.renameAbsolute(tmp, path, runtime.io());
 }
 
 fn deleteStaleFile(path: []const u8) !void {
-    std.fs.deleteFileAbsolute(path) catch |e| switch (e) {
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), path) catch |e| switch (e) {
         error.FileNotFound => {},
         else => return e,
     };
     const dir = std.fs.path.dirname(path) orelse return;
-    std.fs.deleteDirAbsolute(dir) catch {};
+    std.Io.Dir.deleteDirAbsolute(runtime.io(), dir) catch {};
 }
 
 pub fn apply(allocator: std.mem.Allocator, prepared: Prepared) !void {
@@ -512,14 +514,14 @@ pub fn apply(allocator: std.mem.Allocator, prepared: Prepared) !void {
     fs.ensureDirectoryExists(prepared.base_dir) catch return Error.WriteFailed;
 
     const lock_path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ prepared.base_dir, lock_name });
-    const lock = std.fs.createFileAbsolute(lock_path, .{ .exclusive = true }) catch |e| switch (e) {
+    const lock = std.Io.Dir.createFileAbsolute(runtime.io(), lock_path, .{ .exclusive = true }) catch |e| switch (e) {
         error.PathAlreadyExists => return Error.Locked,
         else => return Error.WriteFailed,
     };
-    lock.close();
-    defer std.fs.deleteFileAbsolute(lock_path) catch {};
+    lock.close(runtime.io());
+    defer std.Io.Dir.deleteFileAbsolute(runtime.io(), lock_path) catch {};
 
-    var owned = std.ArrayListUnmanaged(ManifestEntry){};
+    var owned: std.ArrayListUnmanaged(ManifestEntry) = .empty;
 
     for (prepared.entries) |entry| {
         switch (entry.action) {
@@ -547,7 +549,7 @@ const testing = std.testing;
 fn tmpBase() !struct { dir: []const u8, tmp: std.testing.TmpDir } {
     var tmp = std.testing.tmpDir(.{});
     errdefer tmp.cleanup();
-    const dir = try tmp.parent_dir.realpathAlloc(testing.allocator, &tmp.sub_path);
+    const dir = try fs.realPathAlloc(testing.allocator, tmp.parent_dir, &tmp.sub_path);
     return .{ .dir = dir, .tmp = tmp };
 }
 
@@ -735,7 +737,7 @@ test "malformed and unreadable manifests stop preparation" {
     const skills = [_]Skill{.{ .id = "alpha", .description = "a", .system = "s" }};
     try testing.expectError(Error.ManifestMalformed, prepare(a, t.dir, &skills, &.{}));
 
-    std.fs.deleteFileAbsolute(try std.fs.path.join(a, &.{ t.dir, ".tin-skills" })) catch {};
+    std.Io.Dir.deleteFileAbsolute(runtime.io(), try std.fs.path.join(a, &.{ t.dir, ".tin-skills" })) catch {};
     try fs.ensureDirectoryExists(try std.fs.path.join(a, &.{ t.dir, ".tin-skills" }));
     try testing.expectError(Error.ManifestUnreadable, prepare(a, t.dir, &skills, &.{}));
 }
@@ -767,7 +769,7 @@ test "symlinked output is refused" {
     const outside = try std.fs.path.join(a, &.{ t.dir, "outside" });
     try fs.ensureDirectoryExists(outside);
     const link = try std.fs.path.join(a, &.{ t.dir, "alpha" });
-    try std.fs.cwd().symLink(outside, link, .{ .is_directory = true });
+    try std.Io.Dir.cwd().symLink(runtime.io(), outside, link, .{ .is_directory = true });
 
     const skills = [_]Skill{.{ .id = "alpha", .description = "a", .system = "s" }};
     const prepared = try prepare(a, t.dir, &skills, &.{});

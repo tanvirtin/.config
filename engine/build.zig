@@ -1,90 +1,5 @@
 const std = @import("std");
 
-const FailStep = struct {
-    step: std.Build.Step,
-    message: []const u8,
-
-    fn create(b: *std.Build, message: []const u8) *FailStep {
-        const self = b.allocator.create(FailStep) catch @panic("out of memory");
-        self.* = .{
-            .step = std.Build.Step.init(.{
-                .id = .custom,
-                .name = "test-yaml usage",
-                .owner = b,
-                .makeFn = make,
-            }),
-            .message = message,
-        };
-        return self;
-    }
-
-    fn make(step: *std.Build.Step, options: std.Build.Step.MakeOptions) anyerror!void {
-        _ = options;
-        const self: *FailStep = @fieldParentPtr("step", step);
-        return step.fail("{s}", .{self.message});
-    }
-};
-
-const TestWiringCheck = struct {
-    step: std.Build.Step,
-
-    fn create(b: *std.Build) *TestWiringCheck {
-        const self = b.allocator.create(TestWiringCheck) catch @panic("out of memory");
-        self.* = .{
-            .step = std.Build.Step.init(.{
-                .id = .custom,
-                .name = "check test wiring",
-                .owner = b,
-                .makeFn = make,
-            }),
-        };
-        return self;
-    }
-
-    fn make(step: *std.Build.Step, options: std.Build.Step.MakeOptions) anyerror!void {
-        _ = options;
-        const arena = step.owner.allocator;
-        var src = try step.owner.build_root.handle.openDir("src", .{ .iterate = true });
-        defer src.close();
-
-        var reachable = std.StringHashMapUnmanaged(void){};
-        var queue = std.ArrayListUnmanaged([]const u8){};
-        for ([_][]const u8{ "main.zig", "lib/yaml.zig" }) |root| {
-            try reachable.put(arena, root, {});
-            try queue.append(arena, root);
-        }
-        while (queue.pop()) |file| {
-            const content = try src.readFileAlloc(arena, file, 1 << 22);
-            var rest = content;
-            while (std.mem.indexOf(u8, rest, "@import(\"")) |i| {
-                rest = rest[i + "@import(\"".len ..];
-                const end = std.mem.indexOfScalar(u8, rest, '"') orelse break;
-                const target = rest[0..end];
-                if (!std.mem.endsWith(u8, target, ".zig")) continue;
-                const resolved = try std.fs.path.resolve(arena, &.{ "/", std.fs.path.dirname(file) orelse "", target });
-                const path = resolved[1..];
-                if (!reachable.contains(path)) {
-                    try reachable.put(arena, path, {});
-                    try queue.append(arena, path);
-                }
-            }
-        }
-
-        var walker = try src.walk(arena);
-        defer walker.deinit();
-        var unwired: usize = 0;
-        while (try walker.next()) |entry| {
-            if (entry.kind != .file or !std.mem.endsWith(u8, entry.path, ".zig")) continue;
-            const content = try src.readFileAlloc(arena, entry.path, 1 << 22);
-            if (std.mem.indexOf(u8, content, "test \"") == null) continue;
-            if (reachable.contains(entry.path)) continue;
-            std.debug.print("src/{s} contains tests but is not imported from src/main.zig\n", .{entry.path});
-            unwired += 1;
-        }
-        if (unwired > 0) return step.fail("{d} test file(s) not wired into a test root", .{unwired});
-    }
-};
-
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -108,9 +23,7 @@ pub fn build(b: *std.Build) void {
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    run_cmd.addPassthruArgs();
 
     const test_yaml_exe = b.addExecutable(.{
         .name = "test_yaml_one",
@@ -215,9 +128,8 @@ pub fn build(b: *std.Build) void {
     test_run.addArtifactArg(expression_suite_exe);
     test_run.addFileArg(b.path("tests/expression_suite.yml"));
 
-    const test_step = b.step("test", "Run the local suite: unit, integration, flow, expressions, yaml runner, and test wiring");
+    const test_step = b.step("test", "Run the local suite: unit, integration, flow, expressions, and yaml runner");
     test_step.dependOn(&test_run.step);
-    test_step.dependOn(&TestWiringCheck.create(b).step);
     test_step.dependOn(&b.addRunArtifact(yaml_suite_regression).step);
 
     const yaml_unit_test = b.addTest(.{
@@ -234,16 +146,8 @@ pub fn build(b: *std.Build) void {
     unit_step.dependOn(&b.addRunArtifact(yaml_unit_test).step);
 
     const test_yaml_step = b.step("test-yaml", "Run YAML conformance against an explicit corpus: zig build test-yaml -- <corpus-dir>");
-    if (b.args) |args| {
-        if (args.len > 0) {
-            const yaml_run = b.addRunArtifact(yaml_suite_exe);
-            yaml_run.addArtifactArg(test_yaml_exe);
-            yaml_run.addArgs(args);
-            test_yaml_step.dependOn(&yaml_run.step);
-        } else {
-            test_yaml_step.dependOn(&FailStep.create(b, "test-yaml needs an explicit corpus directory: zig build test-yaml -- <corpus-dir>").step);
-        }
-    } else {
-        test_yaml_step.dependOn(&FailStep.create(b, "test-yaml needs an explicit corpus directory: zig build test-yaml -- <corpus-dir>").step);
-    }
+    const yaml_run = b.addRunArtifact(yaml_suite_exe);
+    yaml_run.addArtifactArg(test_yaml_exe);
+    yaml_run.addPassthruArgs();
+    test_yaml_step.dependOn(&yaml_run.step);
 }

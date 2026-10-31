@@ -29,7 +29,7 @@ pub const Node = struct {
 const Token = @import("token.zig").Token;
 
 pub const Tree = struct {
-    nodes: std.ArrayListUnmanaged(Node) = .{},
+    nodes: std.ArrayListUnmanaged(Node) = .empty,
     source: []const u8,
     tokens: []const Token = &.{},
 

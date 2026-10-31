@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../lib/runtime.zig");
 const fs = @import("../lib/fs.zig");
 const yaml = @import("yaml");
 const output = @import("../lib/output.zig");
@@ -56,7 +57,7 @@ pub fn parse(allocator: std.mem.Allocator, content: []const u8) !Recipe {
     const steps_val = doc.getMapping("steps") orelse return RecipeError.MissingSteps;
     const steps_seq = steps_val.getSequence() orelse return RecipeError.MissingSteps;
 
-    var steps: std.ArrayListUnmanaged(Step) = .{};
+    var steps: std.ArrayListUnmanaged(Step) = .empty;
     defer steps.deinit(allocator);
 
     for (steps_seq) |step_val| {
@@ -239,7 +240,7 @@ fn executeAction(allocator: std.mem.Allocator, action: Action, vars: []const Env
 }
 
 fn checkCondition(cond: []const u8, allocator: std.mem.Allocator, env: *const expression.EvalEnv) bool {
-    var diagnostics = std.ArrayListUnmanaged(diag.Diagnostic){};
+    var diagnostics: std.ArrayListUnmanaged(diag.Diagnostic) = .empty;
     defer diagnostics.deinit(allocator);
     const v = expression.evaluateDetailed(allocator, cond, env, &diagnostics, .{ .file_id = 0, .start = 0, .end = 0 }) catch |err| {
         if (diagnostics.items.len > 0) {
@@ -259,9 +260,8 @@ fn buildConditionEnv(allocator: std.mem.Allocator) !expression.EvalEnv {
     try env.set("os", .{ .string = os_name });
 
     var map = std.StringHashMap(expression.Value).init(allocator);
-    var env_map = try std.process.getEnvMap(allocator);
-    defer env_map.deinit();
-    var it = env_map.hash_map.iterator();
+    const env_map = runtime.envMap();
+    var it = env_map.iterator();
     while (it.next()) |entry| {
         try map.put(try allocator.dupe(u8, entry.key_ptr.*), .{ .string = try allocator.dupe(u8, entry.value_ptr.*) });
     }

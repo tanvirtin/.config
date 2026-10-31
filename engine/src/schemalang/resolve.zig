@@ -58,7 +58,7 @@ pub const PathExpression = struct {
 
     pub fn parse(allocator: std.mem.Allocator, path: []const u8) !PathExpression {
         if (!std.mem.startsWith(u8, path, "#/")) return error.InvalidPath;
-        var segments = std.ArrayListUnmanaged(PathSegment){};
+        var segments: std.ArrayListUnmanaged(PathSegment) = .empty;
         var it = std.mem.splitSequence(u8, path[2..], "/");
         while (it.next()) |s| {
             if (std.mem.eql(u8, s, "*")) {

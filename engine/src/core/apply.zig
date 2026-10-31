@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../lib/runtime.zig");
 const fs = @import("../lib/fs.zig");
 const output = @import("../lib/output.zig");
 const platform = @import("../platform/platform.zig");
@@ -81,11 +82,11 @@ pub fn installFonts(allocator: std.mem.Allocator, paths: Environment.Paths, conf
         return output.ExitCode.failure;
     };
 
-    var source_dir = std.fs.openDirAbsolute(source_dir_path, .{ .iterate = true }) catch {
+    var source_dir = std.Io.Dir.openDirAbsolute(runtime.io(), source_dir_path, .{ .iterate = true }) catch {
         output.err("could not open font source: {s}", .{source_dir_path});
         return output.ExitCode.failure;
     };
-    defer source_dir.close();
+    defer source_dir.close(runtime.io());
 
     output.info("installing fonts...", .{});
 
@@ -94,7 +95,7 @@ pub fn installFonts(allocator: std.mem.Allocator, paths: Environment.Paths, conf
     var failed: usize = 0;
     var iter = source_dir.iterate();
     while (true) {
-        const entry = iter.next() catch |e| {
+        const entry = iter.next(runtime.io()) catch |e| {
             output.record(.err, .{ .action = "fonts", .target = source_dir_path, .status = "failed" }, "failed to read font directory {s}: {s}", .{ source_dir_path, @errorName(e) });
             return output.ExitCode.failure;
         } orelse break;
@@ -117,7 +118,7 @@ pub fn installFonts(allocator: std.mem.Allocator, paths: Environment.Paths, conf
             failed += 1;
             continue;
         };
-        std.fs.copyFileAbsolute(source_path, dest_path, .{}) catch |e| {
+        std.Io.Dir.copyFileAbsolute(source_path, dest_path, runtime.io(), .{}) catch |e| {
             output.record(.err, .{ .action = "copy", .target = entry.name, .status = "failed" }, "failed to copy {s}: {s}", .{ entry.name, @errorName(e) });
             failed += 1;
             continue;

@@ -5,7 +5,7 @@ pub fn render(
     template: []const u8,
     vars: []const struct { []const u8, []const u8 },
 ) ![]const u8 {
-    var result: std.ArrayListUnmanaged(u8) = .{};
+    var result: std.ArrayListUnmanaged(u8) = .empty;
     var pos: usize = 0;
 
     while (pos < template.len) {

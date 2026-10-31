@@ -101,10 +101,10 @@ fn showHelp(allocator: std.mem.Allocator, env: *const Environment) void {
     if (targets.len == 0) {
         output.plain("  Targets: (none — add `exports:` to tinrc.yml)", .{});
     } else {
-        var buf: std.ArrayListUnmanaged(u8) = .{};
-        const w = buf.writer(allocator);
+        var buf: std.Io.Writer.Allocating = .init(allocator);
+        const w = &buf.writer;
         for (targets) |t| w.print(" {s}", .{t.name}) catch {};
-        output.plain("  Targets:{s}", .{buf.items});
+        output.plain("  Targets:{s}", .{buf.written()});
     }
 }
 
@@ -234,8 +234,8 @@ fn findAndRenderSkill(allocator: std.mem.Allocator, engine: *const Artifact, id:
 }
 
 fn renderSkillJson(allocator: std.mem.Allocator, skill: Artifact.Skill) !void {
-    var props_buf: std.ArrayListUnmanaged(u8) = .{};
-    var required_buf: std.ArrayListUnmanaged(u8) = .{};
+    var props_buf: std.ArrayListUnmanaged(u8) = .empty;
+    var required_buf: std.ArrayListUnmanaged(u8) = .empty;
 
     try props_buf.appendSlice(allocator, "{");
     try required_buf.appendSlice(allocator, "[");
@@ -378,11 +378,11 @@ fn exportTarget(allocator: std.mem.Allocator, engine: *const Artifact, env: *con
     }
 
     if (!matched) {
-        var buf: std.ArrayListUnmanaged(u8) = .{};
-        const w = buf.writer(allocator);
+        var buf: std.Io.Writer.Allocating = .init(allocator);
+        const w = &buf.writer;
         for (targets) |target| w.print("{s} ", .{target.name}) catch {};
         for (agent_exports) |target| w.print("{s} ", .{target.name}) catch {};
-        output.err("unknown target: {s} (available: {s})", .{ only.?, buf.items });
+        output.err("unknown target: {s} (available: {s})", .{ only.?, buf.written() });
         return 1;
     }
 

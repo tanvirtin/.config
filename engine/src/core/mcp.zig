@@ -96,7 +96,7 @@ pub fn optStringDup(allocator: std.mem.Allocator, val: yaml.Value, key: []const 
 pub fn stringSeq(allocator: std.mem.Allocator, val: yaml.Value, key: []const u8) ![]const []const u8 {
     const v = val.getMapping(key) orelse return &.{};
     const seq = v.getSequence() orelse return &.{};
-    var list: std.ArrayListUnmanaged([]const u8) = .{};
+    var list: std.ArrayListUnmanaged([]const u8) = .empty;
     for (seq) |item| {
         const s = item.getString() orelse continue;
         try list.append(allocator, try allocator.dupe(u8, s));
@@ -108,7 +108,7 @@ fn valueToFieldValue(allocator: std.mem.Allocator, val: yaml.Value) std.mem.Allo
     if (val.getString()) |s| return FieldValue{ .string = try allocator.dupe(u8, s) };
 
     if (val.getSequence()) |seq| {
-        var items: std.ArrayListUnmanaged([]const u8) = .{};
+        var items: std.ArrayListUnmanaged([]const u8) = .empty;
         for (seq) |item| {
             const s = item.getString() orelse continue;
             try items.append(allocator, try allocator.dupe(u8, s));
@@ -125,7 +125,7 @@ pub fn mappingFields(allocator: std.mem.Allocator, val: yaml.Value) std.mem.Allo
     const node = val.tree.nodes.items[val.idx];
     if (node.tag != .mapping) return &.{};
 
-    var list: std.ArrayListUnmanaged(Field) = .{};
+    var list: std.ArrayListUnmanaged(Field) = .empty;
     var child = node.first_child;
     while (child != 0) {
         const key_node = val.tree.nodes.items[child];
@@ -280,7 +280,7 @@ fn removePath(allocator: std.mem.Allocator, fields: []Field, path: []const u8) s
     const head = if (dot) |d| path[0..d] else path;
     const rest = if (dot) |d| path[d + 1 ..] else null;
 
-    var out: std.ArrayListUnmanaged(Field) = .{};
+    var out: std.ArrayListUnmanaged(Field) = .empty;
     for (fields) |field| {
         if (rest) |tail| {
             if (std.mem.eql(u8, field.key, head)) switch (field.value) {
@@ -302,7 +302,7 @@ fn removePath(allocator: std.mem.Allocator, fields: []Field, path: []const u8) s
 }
 
 fn cloneFields(allocator: std.mem.Allocator, fields: []const Field) std.mem.Allocator.Error![]Field {
-    var list: std.ArrayListUnmanaged(Field) = .{};
+    var list: std.ArrayListUnmanaged(Field) = .empty;
     for (fields) |field| try list.append(allocator, try cloneField(allocator, field));
     return list.toOwnedSlice(allocator);
 }
@@ -315,7 +315,7 @@ fn cloneFieldValue(allocator: std.mem.Allocator, value: FieldValue) std.mem.Allo
     return switch (value) {
         .string => |s| .{ .string = try allocator.dupe(u8, s) },
         .strings => |items| blk: {
-            var list: std.ArrayListUnmanaged([]const u8) = .{};
+            var list: std.ArrayListUnmanaged([]const u8) = .empty;
             for (items) |item| try list.append(allocator, try allocator.dupe(u8, item));
             break :blk .{ .strings = try list.toOwnedSlice(allocator) };
         },
@@ -324,7 +324,7 @@ fn cloneFieldValue(allocator: std.mem.Allocator, value: FieldValue) std.mem.Allo
 }
 
 pub fn buildEntry(allocator: std.mem.Allocator, server: Server, dialect: Dialect) !Entry {
-    var fields: std.ArrayListUnmanaged(Field) = .{};
+    var fields: std.ArrayListUnmanaged(Field) = .empty;
 
     if (dialect.transport == .explicit) {
         try fields.append(allocator, .{ .key = "type", .value = .{ .string = @tagName(server.type) } });
@@ -334,7 +334,7 @@ pub fn buildEntry(allocator: std.mem.Allocator, server: Server, dialect: Dialect
         .stdio => {
             const command = server.command orelse return Error.MissingCommand;
             if (dialect.command_style == .object) {
-                var nested: std.ArrayListUnmanaged(Field) = .{};
+                var nested: std.ArrayListUnmanaged(Field) = .empty;
                 try nested.append(allocator, .{
                     .key = dialect.command_path_key orelse "path",
                     .value = .{ .string = command },
@@ -393,9 +393,9 @@ fn fieldValueToJson(allocator: std.mem.Allocator, value: FieldValue) !std.json.V
             return .{ .array = array };
         },
         .object => |fields| {
-            var object = std.json.ObjectMap.init(allocator);
+            var object = std.json.ObjectMap.empty;
             for (fields) |field| {
-                try object.put(field.key, try fieldValueToJson(allocator, field.value));
+                try object.put(allocator, field.key, try fieldValueToJson(allocator, field.value));
             }
             return .{ .object = object };
         },
@@ -408,7 +408,7 @@ pub fn mergeJson(
     dialect: Dialect,
     entries: []const Entry,
 ) ![]const u8 {
-    var root: std.json.Value = .{ .object = std.json.ObjectMap.init(allocator) };
+    var root: std.json.Value = .{ .object = std.json.ObjectMap.empty };
     if (existing) |text| {
         if (std.mem.trim(u8, text, " \t\r\n").len > 0) {
             const parsed = std.json.parseFromSlice(std.json.Value, allocator, text, .{}) catch
@@ -423,19 +423,19 @@ pub fn mergeJson(
     if (root.object.getPtr(dialect.container)) |container| {
         switch (container.*) {
             .object => {},
-            else => container.* = .{ .object = std.json.ObjectMap.init(allocator) },
+            else => container.* = .{ .object = std.json.ObjectMap.empty },
         }
     } else {
-        try root.object.put(dialect.container, .{ .object = std.json.ObjectMap.init(allocator) });
+        try root.object.put(allocator, dialect.container, .{ .object = std.json.ObjectMap.empty });
     }
     const container = root.object.getPtr(dialect.container).?;
 
     for (entries) |entry| {
-        var object = std.json.ObjectMap.init(allocator);
+        var object = std.json.ObjectMap.empty;
         for (entry.fields) |field| {
-            try object.put(field.key, try fieldValueToJson(allocator, field.value));
+            try object.put(allocator, field.key, try fieldValueToJson(allocator, field.value));
         }
-        try container.object.put(entry.name, .{ .object = object });
+        try container.object.put(allocator, entry.name, .{ .object = object });
     }
 
     var needs_input = false;
@@ -445,19 +445,19 @@ pub fn mergeJson(
             const input_key = secret.input_key orelse "inputs";
             const input_id = secret.input_id orelse "tin";
             if (root.object.getPtr(input_key) == null) {
-                var spec = std.json.ObjectMap.init(allocator);
-                try spec.put("type", .{ .string = "promptString" });
-                try spec.put("id", .{ .string = input_id });
-                try spec.put("description", .{ .string = "tin secret" });
-                try spec.put("password", .{ .bool = true });
+                var spec = std.json.ObjectMap.empty;
+                try spec.put(allocator, "type", .{ .string = "promptString" });
+                try spec.put(allocator, "id", .{ .string = input_id });
+                try spec.put(allocator, "description", .{ .string = "tin secret" });
+                try spec.put(allocator, "password", .{ .bool = true });
                 var array = std.json.Array.init(allocator);
                 try array.append(.{ .object = spec });
-                try root.object.put(input_key, .{ .array = array });
+                try root.object.put(allocator, input_key, .{ .array = array });
             }
         }
     }
 
-    var out = std.io.Writer.Allocating.init(allocator);
+    var out = std.Io.Writer.Allocating.init(allocator);
     try std.json.Stringify.value(root, .{ .whitespace = .indent_2 }, &out.writer);
     try out.writer.writeAll("\n");
     return out.toOwnedSlice();
@@ -465,7 +465,7 @@ pub fn mergeJson(
 
 
 fn tomlString(allocator: std.mem.Allocator, s: []const u8) ![]const u8 {
-    var out: std.ArrayListUnmanaged(u8) = .{};
+    var out: std.ArrayListUnmanaged(u8) = .empty;
     try out.append(allocator, '"');
     for (s) |c| switch (c) {
         '"' => try out.appendSlice(allocator, "\\\""),
@@ -499,7 +499,7 @@ fn renderTomlFields(
     header: []const u8,
     fields: []const Field,
 ) !void {
-    var subtables: std.ArrayListUnmanaged(Field) = .{};
+    var subtables: std.ArrayListUnmanaged(Field) = .empty;
     defer subtables.deinit(allocator);
 
     try writer.print("[{s}]\n", .{header});
@@ -561,7 +561,7 @@ pub fn mergeToml(
     dialect: Dialect,
     entries: []const Entry,
 ) ![]const u8 {
-    var kept = std.io.Writer.Allocating.init(allocator);
+    var kept = std.Io.Writer.Allocating.init(allocator);
     if (existing) |text| {
         var skipping = false;
         var lines = std.mem.splitScalar(u8, text, '\n');
@@ -578,16 +578,16 @@ pub fn mergeToml(
             try kept.writer.writeAll("\n");
         }
     }
-    const kept_text = std.mem.trimRight(u8, kept.written(), "\n");
+    const kept_text = std.mem.trimEnd(u8, kept.written(), "\n");
 
-    var rendered = std.io.Writer.Allocating.init(allocator);
+    var rendered = std.Io.Writer.Allocating.init(allocator);
     for (entries, 0..) |entry, i| {
         if (i > 0) try rendered.writer.writeAll("\n\n");
         try renderTomlEntry(allocator, &rendered.writer, dialect, entry);
     }
-    const rendered_text = std.mem.trimRight(u8, rendered.written(), "\n");
+    const rendered_text = std.mem.trimEnd(u8, rendered.written(), "\n");
 
-    var out = std.io.Writer.Allocating.init(allocator);
+    var out = std.Io.Writer.Allocating.init(allocator);
     if (kept_text.len > 0) {
         try out.writer.writeAll(kept_text);
         if (rendered_text.len > 0) try out.writer.writeAll("\n\n");
@@ -612,17 +612,17 @@ pub fn merge(
 pub fn renderPreview(allocator: std.mem.Allocator, dialect: Dialect, entries: []const Entry) ![]const u8 {
     switch (dialect.format) {
         .json => {
-            var container = std.json.ObjectMap.init(allocator);
+            var container = std.json.ObjectMap.empty;
             for (entries) |entry| {
-                var object = std.json.ObjectMap.init(allocator);
+                var object = std.json.ObjectMap.empty;
                 for (entry.fields) |field| {
-                    try object.put(field.key, try fieldValueToJson(allocator, field.value));
+                    try object.put(allocator, field.key, try fieldValueToJson(allocator, field.value));
                 }
-                try container.put(entry.name, .{ .object = object });
+                try container.put(allocator, entry.name, .{ .object = object });
             }
-            var root = std.json.ObjectMap.init(allocator);
-            try root.put(dialect.container, .{ .object = container });
-            var out = std.io.Writer.Allocating.init(allocator);
+            var root = std.json.ObjectMap.empty;
+            try root.put(allocator, dialect.container, .{ .object = container });
+            var out = std.Io.Writer.Allocating.init(allocator);
             try std.json.Stringify.value(std.json.Value{ .object = root }, .{ .whitespace = .indent_2 }, &out.writer);
             return out.toOwnedSlice();
         },

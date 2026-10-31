@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../lib/runtime.zig");
 const fs = @import("../lib/fs.zig");
 const yaml = @import("yaml");
 const output = @import("../lib/output.zig");
@@ -35,11 +36,11 @@ catalog: Catalog,
 pub fn init(allocator: std.mem.Allocator, tin_dir: []const u8, artifacts_dir: []const u8) !Artifact {
     const owned_dir = try allocator.dupe(u8, artifacts_dir);
 
-    var dir = std.fs.openDirAbsolute(owned_dir, .{}) catch {
+    var dir = std.Io.Dir.openDirAbsolute(runtime.io(), owned_dir, .{}) catch {
         allocator.free(owned_dir);
         return Error.DirectoryNotFound;
     };
-    dir.close();
+    dir.close(runtime.io());
 
     const schemas_dir = try std.fmt.allocPrint(allocator, "{s}/engine/src/schemas", .{tin_dir});
     defer allocator.free(schemas_dir);
@@ -80,12 +81,12 @@ pub fn deinit(self: *Artifact) void {
 }
 
 pub fn validate(self: *Artifact) !void {
-    var all_pending_refs = std.ArrayListUnmanaged(validate_mod.PendingReference){};
+    var all_pending_refs: std.ArrayListUnmanaged(validate_mod.PendingReference) = .empty;
     defer {
         freePendingRefs(self.allocator, all_pending_refs.items);
         all_pending_refs.deinit(self.allocator);
     }
-    var all_diagnostics = std.ArrayListUnmanaged(validate_mod.Diagnostic){};
+    var all_diagnostics: std.ArrayListUnmanaged(validate_mod.Diagnostic) = .empty;
     defer {
         for (all_diagnostics.items) |d| {
             self.allocator.free(d.code);
@@ -134,8 +135,8 @@ fn processArtifacts(
     const base_dir = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ self.artifacts_dir, sub_dir });
     defer self.allocator.free(base_dir);
 
-    var dir = std.fs.openDirAbsolute(base_dir, .{ .iterate = true }) catch return;
-    defer dir.close();
+    var dir = std.Io.Dir.openDirAbsolute(runtime.io(), base_dir, .{ .iterate = true }) catch return;
+    defer dir.close(runtime.io());
 
     var ctx = ValidateCtx{
         .artifact = self,
@@ -175,7 +176,7 @@ fn processArtifactFile(ctx: *ValidateCtx, file_path: []const u8) anyerror!void {
     for (v.pending_refs.items) |pr| {
         try ctx.pending.append(self.allocator, pr);
     }
-    v.pending_refs = .{};
+    v.pending_refs = .empty;
 
     if (!v.hasErrors()) {
         try self.catalog.register(ctx.catalog_kind, id, .{
@@ -187,18 +188,18 @@ fn processArtifactFile(ctx: *ValidateCtx, file_path: []const u8) anyerror!void {
 
 fn walkYmlFiles(
     allocator: std.mem.Allocator,
-    dir: std.fs.Dir,
+    dir: std.Io.Dir,
     current_dir: []const u8,
     ctx: anytype,
     comptime onFile: anytype,
 ) anyerror!void {
     var iter = dir.iterate();
-    while (try iter.next()) |entry| {
+    while (try iter.next(runtime.io())) |entry| {
         if (entry.kind == .directory) {
             const sub_path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ current_dir, entry.name });
             defer allocator.free(sub_path);
-            var sub_dir = dir.openDir(entry.name, .{ .iterate = true }) catch continue;
-            defer sub_dir.close();
+            var sub_dir = dir.openDir(runtime.io(), entry.name, .{ .iterate = true }) catch continue;
+            defer sub_dir.close(runtime.io());
             try walkYmlFiles(allocator, sub_dir, sub_path, ctx, onFile);
         } else if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".yml")) {
             const file_path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ current_dir, entry.name });
@@ -269,10 +270,10 @@ pub fn discoverDialects(self: *const Artifact, allocator: std.mem.Allocator) ![]
 }
 
 fn discover(comptime T: type, allocator: std.mem.Allocator, base_dir: []const u8) ![]T {
-    var items = std.ArrayListUnmanaged(T){};
+    var items: std.ArrayListUnmanaged(T) = .empty;
 
-    var dir = std.fs.openDirAbsolute(base_dir, .{ .iterate = true }) catch return items.toOwnedSlice(allocator);
-    defer dir.close();
+    var dir = std.Io.Dir.openDirAbsolute(runtime.io(), base_dir, .{ .iterate = true }) catch return items.toOwnedSlice(allocator);
+    defer dir.close(runtime.io());
 
     var ctx = ParseCtx(T){ .allocator = allocator, .base_dir = base_dir, .items = &items };
     try walkYmlFiles(allocator, dir, base_dir, &ctx, parseOneFile);
@@ -281,13 +282,13 @@ fn discover(comptime T: type, allocator: std.mem.Allocator, base_dir: []const u8
 }
 
 fn discoverStrict(comptime T: type, allocator: std.mem.Allocator, base_dir: []const u8, require_root: bool) ![]T {
-    var items = std.ArrayListUnmanaged(T){};
+    var items: std.ArrayListUnmanaged(T) = .empty;
 
-    var dir = std.fs.openDirAbsolute(base_dir, .{ .iterate = true }) catch |e| {
+    var dir = std.Io.Dir.openDirAbsolute(runtime.io(), base_dir, .{ .iterate = true }) catch |e| {
         if (!require_root and e == error.FileNotFound) return items.toOwnedSlice(allocator);
         return e;
     };
-    defer dir.close();
+    defer dir.close(runtime.io());
 
     var ctx = ParseCtx(T){ .allocator = allocator, .base_dir = base_dir, .items = &items };
     try walkYmlFiles(allocator, dir, base_dir, &ctx, parseOneFileStrict);
@@ -301,10 +302,10 @@ fn discoverWith(
     base_dir: []const u8,
     comptime parseFn: anytype,
 ) ![]T {
-    var items = std.ArrayListUnmanaged(T){};
+    var items: std.ArrayListUnmanaged(T) = .empty;
 
-    var dir = std.fs.openDirAbsolute(base_dir, .{ .iterate = true }) catch return items.toOwnedSlice(allocator);
-    defer dir.close();
+    var dir = std.Io.Dir.openDirAbsolute(runtime.io(), base_dir, .{ .iterate = true }) catch return items.toOwnedSlice(allocator);
+    defer dir.close(runtime.io());
 
     var ctx = CustomCtx(T, parseFn){ .allocator = allocator, .base_dir = base_dir, .items = &items };
     try walkYmlFiles(allocator, dir, base_dir, &ctx, parseCustomFile);
@@ -430,7 +431,7 @@ test "deriveId rejects too-short relative path" {
 
 test "freePendingRefs releases reference names and paths" {
     const allocator = std.testing.allocator;
-    var refs = std.ArrayListUnmanaged(validate_mod.PendingReference){};
+    var refs: std.ArrayListUnmanaged(validate_mod.PendingReference) = .empty;
     defer refs.deinit(allocator);
     try refs.append(allocator, .{
         .span = .{ .file_id = 0, .start = 0, .end = 0 },
@@ -456,7 +457,7 @@ test "discoverStrict propagates failures and records source_path" {
 
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
-    const base = try tmp.parent_dir.realpathAlloc(std.testing.allocator, &tmp.sub_path);
+    const base = try fs.realPathAlloc(std.testing.allocator, tmp.parent_dir, &tmp.sub_path);
     defer std.testing.allocator.free(base);
 
     const skills_dir = try std.fs.path.join(a, &.{ base, "skills" });

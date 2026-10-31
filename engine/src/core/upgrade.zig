@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../lib/runtime.zig");
 const process = @import("../lib/process.zig");
 
 pub const default_repo_slug = "tanvirtin/.config";
@@ -14,15 +15,15 @@ pub fn classify(installed: ?[]const u8, latest: ?[]const u8) State {
 }
 
 pub fn repoSlug(allocator: std.mem.Allocator) []const u8 {
-    return std.process.getEnvVarOwned(allocator, "TIN_REPO_SLUG") catch default_repo_slug;
+    return runtime.getEnvVarOwned(allocator, "TIN_REPO_SLUG") catch default_repo_slug;
 }
 
 pub fn installerUrl(allocator: std.mem.Allocator) []const u8 {
-    return std.process.getEnvVarOwned(allocator, "TIN_INSTALLER_URL") catch default_installer_url;
+    return runtime.getEnvVarOwned(allocator, "TIN_INSTALLER_URL") catch default_installer_url;
 }
 
 pub fn apiBase(allocator: std.mem.Allocator) []const u8 {
-    return std.process.getEnvVarOwned(allocator, "TIN_API_BASE_URL") catch default_api_base;
+    return runtime.getEnvVarOwned(allocator, "TIN_API_BASE_URL") catch default_api_base;
 }
 
 pub fn parseTagName(json: []const u8) ?[]const u8 {

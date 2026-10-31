@@ -38,12 +38,12 @@ pub fn execute(allocator: std.mem.Allocator, args: []const []const u8) u8 {
         return 2;
     };
 
-    const schema_path_abs = std.fs.cwd().realpathAlloc(allocator, resolved_schema_ref) catch {
+    const schema_path_abs = fs.realPathAlloc(allocator, std.Io.Dir.cwd(), resolved_schema_ref) catch {
         output.err("could not resolve schema file: {s}", .{resolved_schema_ref});
         return 2;
     };
     defer allocator.free(schema_path_abs);
-    const file_path_abs = std.fs.cwd().realpathAlloc(allocator, file_path) catch {
+    const file_path_abs = fs.realPathAlloc(allocator, std.Io.Dir.cwd(), file_path) catch {
         output.err("could not resolve document file: {s}", .{file_path});
         return 2;
     };

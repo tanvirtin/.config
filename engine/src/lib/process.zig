@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("runtime.zig");
 
 pub const ProcessError = error{
     CommandFailed,
@@ -9,15 +10,11 @@ pub fn run(allocator: std.mem.Allocator, argv: []const []const u8) !void {
     if (code != 0) return ProcessError.CommandFailed;
 }
 
-pub fn runCode(allocator: std.mem.Allocator, argv: []const []const u8) !u8 {
-    var child = std.process.Child.init(argv, allocator);
-    child.stdin_behavior = .Inherit;
-    child.stdout_behavior = .Inherit;
-    child.stderr_behavior = .Inherit;
-
-    const term = try child.spawnAndWait();
+pub fn runCode(_: std.mem.Allocator, argv: []const []const u8) !u8 {
+    var child = try std.process.spawn(runtime.io(), .{ .argv = argv });
+    const term = try child.wait(runtime.io());
     return switch (term) {
-        .Exited => |code| code,
+        .exited => |code| code,
         else => 255,
     };
 }
@@ -34,16 +31,16 @@ pub const Capture = struct {
 };
 
 pub fn capture(allocator: std.mem.Allocator, argv: []const []const u8) !Capture {
-    const result = try std.process.Child.run(.{
-        .allocator = allocator,
+    const result = try std.process.run(allocator, runtime.io(), .{
         .argv = argv,
-        .max_output_bytes = 512 * 1024,
+        .stdout_limit = .limited(512 * 1024),
+        .stderr_limit = .limited(512 * 1024),
     });
     return .{
         .stdout = result.stdout,
         .stderr = result.stderr,
         .code = switch (result.term) {
-            .Exited => |code| code,
+            .exited => |code| code,
             else => 255,
         },
     };

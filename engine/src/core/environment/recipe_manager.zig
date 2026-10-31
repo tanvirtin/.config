@@ -1,4 +1,5 @@
 const std = @import("std");
+const fs = @import("../../lib/fs.zig");
 const yaml = @import("yaml");
 const Config = @import("config.zig");
 const Paths = @import("paths.zig");
@@ -14,7 +15,7 @@ pub fn getInstallSteps(allocator: std.mem.Allocator, config: Config) ![]const In
     const install_section = config.getMapping("install") orelse return &.{};
     const steps = install_section.getSequence() orelse return &.{};
 
-    var collected: std.ArrayListUnmanaged(InstallStep) = .{};
+    var collected: std.ArrayListUnmanaged(InstallStep) = .empty;
 
     for (steps) |step_val| {
         if (step_val.getString()) |s| {
@@ -42,7 +43,7 @@ pub fn getRecipeGroup(allocator: std.mem.Allocator, config: Config, group: []con
     const group_val = recipes_section.getMapping(group) orelse return &.{};
     const items = group_val.getSequence() orelse return &.{};
 
-    var names: std.ArrayListUnmanaged([]const u8) = .{};
+    var names: std.ArrayListUnmanaged([]const u8) = .empty;
     for (items) |item| {
         if (item.getString()) |name| {
             try names.append(allocator, try allocator.dupe(u8, name));
@@ -60,7 +61,7 @@ const SymlinkEntry = struct {
 pub fn getManagedSymlinks(allocator: std.mem.Allocator, config: Config, paths: Paths) ![]const Symlink {
     const symlinks_section = config.getMapping("symlinks") orelse return &.{};
 
-    var symlinks: std.ArrayListUnmanaged(Symlink) = .{};
+    var symlinks: std.ArrayListUnmanaged(Symlink) = .empty;
     defer symlinks.deinit(allocator);
 
     const node = symlinks_section.tree.nodes.items[symlinks_section.idx];
@@ -114,7 +115,7 @@ pub fn getExportTargets(allocator: std.mem.Allocator, config: Config, paths: Pat
     const node = exports_section.tree.nodes.items[exports_section.idx];
     if (node.tag != .mapping) return &.{};
 
-    var collected: std.ArrayListUnmanaged(ExportTarget) = .{};
+    var collected: std.ArrayListUnmanaged(ExportTarget) = .empty;
     defer collected.deinit(allocator);
 
     var key_idx = node.first_child;
@@ -153,7 +154,7 @@ pub fn getAgentExports(allocator: std.mem.Allocator, config: Config, paths: Path
     const node = exports_section.tree.nodes.items[exports_section.idx];
     if (node.tag != .mapping) return &.{};
 
-    var collected: std.ArrayListUnmanaged(AgentExport) = .{};
+    var collected: std.ArrayListUnmanaged(AgentExport) = .empty;
     defer collected.deinit(allocator);
 
     var key_idx = node.first_child;
@@ -216,9 +217,9 @@ pub fn getRuntimes(allocator: std.mem.Allocator, config: Config, paths: Paths) !
     const node = section.tree.nodes.items[section.idx];
     if (node.tag != .mapping) return &.{};
 
-    const cwd = std.fs.cwd().realpathAlloc(allocator, ".") catch null;
+    const cwd = fs.realPathAlloc(allocator, std.Io.Dir.cwd(), ".") catch null;
 
-    var list: std.ArrayListUnmanaged(Runtime) = .{};
+    var list: std.ArrayListUnmanaged(Runtime) = .empty;
     var child = node.first_child;
     while (child != 0) {
         const key_node = section.tree.nodes.items[child];

@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../lib/runtime.zig");
 const router = @import("../router.zig");
 const output = @import("../lib/output.zig");
 const fs = @import("../lib/fs.zig");
@@ -48,7 +49,7 @@ pub fn printOverview() void {
 
 fn printIndex() void {
     var buf: [4096]u8 = undefined;
-    var file_writer = std.fs.File.stdout().writerStreaming(&buf);
+    var file_writer = std.Io.File.stdout().writerStreaming(runtime.io(), &buf);
     const writer = &file_writer.interface;
     defer writer.flush() catch {};
     writer.writeAll("{\"version\":1,\"commands\":{") catch return;

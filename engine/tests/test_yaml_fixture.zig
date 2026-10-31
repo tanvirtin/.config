@@ -1,8 +1,8 @@
 const std = @import("std");
 
-pub fn main() !void {
-    const allocator = std.heap.page_allocator;
-    var args = std.process.args();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    var args = std.process.Args.Iterator.init(init.minimal.args);
     _ = args.next();
     const path = args.next() orelse std.process.exit(1);
     const dir = std.fs.path.dirname(path) orelse std.process.exit(1);
@@ -10,7 +10,7 @@ pub fn main() !void {
 
     if (std.mem.endsWith(u8, base, "-crash")) std.process.exit(3);
     if (std.mem.endsWith(u8, base, "-hang")) {
-        std.Thread.sleep(60 * std.time.ns_per_s);
+        init.io.sleep(.fromSeconds(60), .awake) catch {};
         std.process.exit(0);
     }
     if (std.mem.endsWith(u8, base, "-misaccept")) std.process.exit(0);
@@ -18,6 +18,6 @@ pub fn main() !void {
 
     const err = std.fs.path.join(allocator, &.{ dir, "error" }) catch std.process.exit(0);
     defer allocator.free(err);
-    std.fs.cwd().access(err, .{}) catch std.process.exit(0);
+    std.Io.Dir.cwd().access(init.io, err, .{}) catch std.process.exit(0);
     std.process.exit(2);
 }

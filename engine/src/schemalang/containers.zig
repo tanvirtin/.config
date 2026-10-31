@@ -108,14 +108,14 @@ pub fn validateMapping(v: *Validator, map: *MapSchema, value: yaml.Value, span: 
         key_v.scopes = v.scopes;
         key_v.path = v.path;
         defer {
-            key_v.scopes = .{};
-            key_v.path = .{};
+            key_v.scopes = .empty;
+            key_v.path = .empty;
             key_v.deinit();
         }
         try core.validateImpl(&key_v, map.keys, yaml.Value{ .tree = value.tree, .idx = child, .arena = value.arena });
         for (key_v.diagnostics.items) |d| try v.diagnostics.append(v.allocator, try diagnostics.cloneDiagnostic(v.allocator, d));
         for (key_v.pending_refs.items) |pr| try v.pending_refs.append(v.allocator, pr);
-        key_v.pending_refs = .{};
+        key_v.pending_refs = .empty;
 
         try core.validateImpl(v, map.values, val);
 
@@ -202,7 +202,7 @@ pub fn validateObject(v: *Validator, schema: *const Schema, value: yaml.Value, s
 pub fn validateAnyOf(v: *Validator, schemas: []*Schema, value: yaml.Value, span: Span) !void {
     var best_v: ?Validator = null;
     defer if (best_v) |*bv| {
-        bv.scopes = .{};
+        bv.scopes = .empty;
         bv.deinit();
     };
 
@@ -210,26 +210,26 @@ pub fn validateAnyOf(v: *Validator, schemas: []*Schema, value: yaml.Value, span:
         var sub_v = Validator.init(v.allocator, v.resolver, v.sublangs, v.catalog);
         sub_v.scopes = v.scopes;
         errdefer {
-            sub_v.scopes = .{};
+            sub_v.scopes = .empty;
             sub_v.deinit();
         }
         try core.validateImpl(&sub_v, sub, value);
         if (!sub_v.hasErrors()) {
             for (sub_v.pending_refs.items) |pr| try v.pending_refs.append(v.allocator, pr);
-            sub_v.pending_refs = .{};
-            sub_v.scopes = .{};
+            sub_v.pending_refs = .empty;
+            sub_v.scopes = .empty;
             sub_v.deinit();
             return;
         }
 
         if (best_v == null or isBetter(sub_v, best_v.?)) {
             if (best_v) |*bv| {
-                bv.scopes = .{};
+                bv.scopes = .empty;
                 bv.deinit();
             }
             best_v = sub_v;
         } else {
-            sub_v.scopes = .{};
+            sub_v.scopes = .empty;
             sub_v.deinit();
         }
     }

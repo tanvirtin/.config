@@ -92,9 +92,9 @@ fn namedValues(allocator: std.mem.Allocator, server: mcp_mod.Server, section: []
         };
         const value = if (isSecret(server, section, field.key)) try std.fmt.allocPrint(allocator, "${s}", .{raw}) else raw;
 
-        var pair = std.json.ObjectMap.init(allocator);
-        try pair.put("name", .{ .string = field.key });
-        try pair.put("value", .{ .string = value });
+        var pair = std.json.ObjectMap.empty;
+        try pair.put(allocator, "name", .{ .string = field.key });
+        try pair.put(allocator, "value", .{ .string = value });
         try array.append(.{ .object = pair });
     }
     return .{ .array = array };
@@ -107,22 +107,22 @@ fn strings(allocator: std.mem.Allocator, items: []const []const u8) !std.json.Va
 }
 
 fn acpServer(allocator: std.mem.Allocator, server: mcp_mod.Server) !std.json.Value {
-    var object = std.json.ObjectMap.init(allocator);
+    var object = std.json.ObjectMap.empty;
     const name = try allocator.dupe(u8, server.id);
     std.mem.replaceScalar(u8, name, '/', '-');
 
     switch (server.type) {
         .stdio => {
-            try object.put("name", .{ .string = name });
-            try object.put("command", .{ .string = server.command.? });
-            try object.put("args", try strings(allocator, server.args));
-            try object.put("env", try namedValues(allocator, server, "env", server.env));
+            try object.put(allocator, "name", .{ .string = name });
+            try object.put(allocator, "command", .{ .string = server.command.? });
+            try object.put(allocator, "args", try strings(allocator, server.args));
+            try object.put(allocator, "env", try namedValues(allocator, server, "env", server.env));
         },
         .http => {
-            try object.put("type", .{ .string = "http" });
-            try object.put("name", .{ .string = name });
-            try object.put("url", .{ .string = server.url.? });
-            try object.put("headers", try namedValues(allocator, server, "headers", server.headers));
+            try object.put(allocator, "type", .{ .string = "http" });
+            try object.put(allocator, "name", .{ .string = name });
+            try object.put(allocator, "url", .{ .string = server.url.? });
+            try object.put(allocator, "headers", try namedValues(allocator, server, "headers", server.headers));
         },
     }
     return .{ .object = object };
@@ -149,56 +149,56 @@ pub fn renderExport(
     const sorted = try allocator.dupe(Agent, agents);
     std.mem.sort(Agent, sorted, {}, lessThan);
 
-    var by_id = std.json.ObjectMap.init(allocator);
+    var by_id = std.json.ObjectMap.empty;
     for (sorted) |agent| {
-        var object = std.json.ObjectMap.init(allocator);
-        try object.put("description", .{ .string = agent.description });
-        try object.put("command", .{ .string = agent.command });
-        try object.put("args", try strings(allocator, agent.args));
+        var object = std.json.ObjectMap.empty;
+        try object.put(allocator, "description", .{ .string = agent.description });
+        try object.put(allocator, "command", .{ .string = agent.command });
+        try object.put(allocator, "args", try strings(allocator, agent.args));
 
-        var env = std.json.ObjectMap.init(allocator);
+        var env = std.json.ObjectMap.empty;
         for (agent.env) |field| switch (field.value) {
-            .string => |s| try env.put(field.key, .{ .string = s }),
+            .string => |s| try env.put(allocator, field.key, .{ .string = s }),
             else => {},
         };
-        try object.put("env", .{ .object = env });
+        try object.put(allocator, "env", .{ .object = env });
 
         const system = try agent.resolveSystem(allocator, rules);
-        if (system.len > 0) try object.put("system", .{ .string = system });
+        if (system.len > 0) try object.put(allocator, "system", .{ .string = system });
 
         var mcp_servers = std.json.Array.init(allocator);
         for (agent.mcp) |id| {
             const server = findServer(servers, id) orelse return Error.UnknownMcpServer;
             try mcp_servers.append(try acpServer(allocator, server));
         }
-        try object.put("mcp", .{ .array = mcp_servers });
+        try object.put(allocator, "mcp", .{ .array = mcp_servers });
 
-        var policy = std.json.ObjectMap.init(allocator);
-        if (agent.policy.auto_allow) |flag| try policy.put("auto_allow", .{ .bool = flag });
-        try object.put("policy", .{ .object = policy });
+        var policy = std.json.ObjectMap.empty;
+        if (agent.policy.auto_allow) |flag| try policy.put(allocator, "auto_allow", .{ .bool = flag });
+        try object.put(allocator, "policy", .{ .object = policy });
 
-        if (agent.model) |model| try object.put("model", .{ .string = model });
-        if (agent.server) |server| try object.put("server", .{ .string = server });
-        if (agent.login) |login| try object.put("login", .{ .string = login });
-        if (agent.fork_at_message) |flag| try object.put("fork_at_message", .{ .bool = flag });
-        if (agent.transcripts) |transcripts| try object.put("transcripts", .{ .string = transcripts });
+        if (agent.model) |model| try object.put(allocator, "model", .{ .string = model });
+        if (agent.server) |server| try object.put(allocator, "server", .{ .string = server });
+        if (agent.login) |login| try object.put(allocator, "login", .{ .string = login });
+        if (agent.fork_at_message) |flag| try object.put(allocator, "fork_at_message", .{ .bool = flag });
+        if (agent.transcripts) |transcripts| try object.put(allocator, "transcripts", .{ .string = transcripts });
         if (agent.permission_rules) |permission_rules| {
-            var rules_object = std.json.ObjectMap.init(allocator);
-            try rules_object.put("format", .{ .string = permission_rules.format });
-            try rules_object.put("paths", try strings(allocator, permission_rules.paths));
-            try object.put("permission_rules", .{ .object = rules_object });
+            var rules_object = std.json.ObjectMap.empty;
+            try rules_object.put(allocator, "format", .{ .string = permission_rules.format });
+            try rules_object.put(allocator, "paths", try strings(allocator, permission_rules.paths));
+            try object.put(allocator, "permission_rules", .{ .object = rules_object });
         }
-        if (agent.recipe) |recipe| try object.put("recipe", .{ .string = recipe });
+        if (agent.recipe) |recipe| try object.put(allocator, "recipe", .{ .string = recipe });
 
-        try by_id.put(agent.id, .{ .object = object });
+        try by_id.put(allocator, agent.id, .{ .object = object });
     }
 
-    var root = std.json.ObjectMap.init(allocator);
-    try root.put("agents", .{ .object = by_id });
+    var root = std.json.ObjectMap.empty;
+    try root.put(allocator, "agents", .{ .object = by_id });
 
-    if (default_agent) |id| try root.put("default", .{ .string = id });
+    if (default_agent) |id| try root.put(allocator, "default", .{ .string = id });
 
-    var out = std.io.Writer.Allocating.init(allocator);
+    var out = std.Io.Writer.Allocating.init(allocator);
     try std.json.Stringify.value(std.json.Value{ .object = root }, .{ .whitespace = .indent_2 }, &out.writer);
     try out.writer.writeAll("\n");
     return out.toOwnedSlice();

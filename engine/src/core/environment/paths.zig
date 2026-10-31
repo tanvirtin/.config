@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../../lib/runtime.zig");
 const fs = @import("../../lib/fs.zig");
 
 pub const Paths = @This();
@@ -8,7 +9,7 @@ home_dir: []const u8,
 
 pub fn init(allocator: std.mem.Allocator) !Paths {
     const home = try fs.homeDir();
-    const tin_dir = if (std.process.getEnvVarOwned(allocator, "TIN_DIR")) |dir|
+    const tin_dir = if (runtime.getEnvVarOwned(allocator, "TIN_DIR")) |dir|
         dir
     else |_|
         try std.fs.path.join(allocator, &.{ home, ".tin" });
@@ -27,7 +28,7 @@ pub const RecipeLayer = struct {
 const Presence = enum { absent, present };
 
 fn pathPresence(path: []const u8) Presence {
-    _ = std.posix.fstatat(std.posix.AT.FDCWD, path, std.posix.AT.SYMLINK_NOFOLLOW) catch |e| switch (e) {
+    _ = std.Io.Dir.cwd().statFile(runtime.io(), path, .{ .follow_symlinks = false }) catch |e| switch (e) {
         error.FileNotFound => return .absent,
         else => return .present,
     };
@@ -108,7 +109,7 @@ pub fn recipesDir(self: *const Paths, allocator: std.mem.Allocator) ![]const u8 
 }
 
 pub fn personalRecipesDir(self: *const Paths, allocator: std.mem.Allocator) ![]const u8 {
-    const dir = std.process.getEnvVarOwned(allocator, "TIN_RECIPES") catch {
+    const dir = runtime.getEnvVarOwned(allocator, "TIN_RECIPES") catch {
         const config_dir = try self.configDir(allocator);
         defer allocator.free(config_dir);
         return std.fs.path.join(allocator, &.{ config_dir, "recipes" });
@@ -155,7 +156,7 @@ pub fn tinrcPath(self: *const Paths, allocator: std.mem.Allocator) ![]const u8 {
 }
 
 pub fn artifactsDir(self: *const Paths, allocator: std.mem.Allocator) ![]const u8 {
-    const dir = std.process.getEnvVarOwned(allocator, "TIN_ARTIFACTS") catch {
+    const dir = runtime.getEnvVarOwned(allocator, "TIN_ARTIFACTS") catch {
         const config_dir = try self.configDir(allocator);
         defer allocator.free(config_dir);
         return std.fs.path.join(allocator, &.{ config_dir, "artifacts" });
@@ -256,7 +257,7 @@ test "readRevision returns the trimmed revision or null" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
-    const root = try tmp.parent_dir.realpathAlloc(a, &tmp.sub_path);
+    const root = try fs.realPathAlloc(a, tmp.parent_dir, &tmp.sub_path);
     const p = Paths{ .tin_dir = root, .home_dir = root };
 
     try std.testing.expect(p.readRevision(a) == null);
@@ -275,7 +276,7 @@ test "tinrcPath prefers the personal override when present" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
 
-    const root = try tmp.parent_dir.realpathAlloc(std.testing.allocator, &tmp.sub_path);
+    const root = try fs.realPathAlloc(std.testing.allocator, tmp.parent_dir, &tmp.sub_path);
     defer std.testing.allocator.free(root);
 
     const tin_dir = try std.fs.path.join(std.testing.allocator, &.{ root, ".tin" });
@@ -316,7 +317,7 @@ const SelectFixture = struct {
 };
 
 fn selectFixture(a: std.mem.Allocator, tmp: *std.testing.TmpDir) !SelectFixture {
-    const root = try tmp.parent_dir.realpathAlloc(a, &tmp.sub_path);
+    const root = try fs.realPathAlloc(a, tmp.parent_dir, &tmp.sub_path);
     const tin_dir = try std.fs.path.join(a, &.{ root, ".tin" });
     const config_dir = try std.fs.path.join(a, &.{ root, ".config", "tin" });
     const repo_file = try std.fs.path.join(a, &.{ tin_dir, "tinrc.yml" });
@@ -392,7 +393,7 @@ test "selectTinrc treats a dangling personal symlink as present" {
     try fs.writeFile(f.repo_file, "identity:\n  name: repo");
     try fs.ensureDirectoryExists(f.config_dir);
     const missing_target = try std.fs.path.join(a, &.{ f.root, "absent.yml" });
-    try std.fs.symLinkAbsolute(missing_target, f.personal_file, .{});
+    try std.Io.Dir.symLinkAbsolute(runtime.io(), missing_target, f.personal_file, .{});
 
     const selection = try f.paths.selectTinrc(a);
     try std.testing.expectEqual(Origin.personal, selection.origin);
@@ -409,7 +410,7 @@ test "tinrcPath keeps returning the personal path for a dangling symlink" {
 
     try fs.ensureDirectoryExists(f.config_dir);
     const missing_target = try std.fs.path.join(a, &.{ f.root, "absent.yml" });
-    try std.fs.symLinkAbsolute(missing_target, f.personal_file, .{});
+    try std.Io.Dir.symLinkAbsolute(runtime.io(), missing_target, f.personal_file, .{});
 
     const path = try f.paths.tinrcPath(a);
     try std.testing.expectEqualStrings(f.personal_file, path);

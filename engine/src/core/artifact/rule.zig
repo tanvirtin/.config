@@ -11,7 +11,7 @@ content: []const u8,
 pub fn compose(allocator: std.mem.Allocator, text: []const u8, include: []const []const u8, rules: []const Rule) ![]const u8 {
     if (include.len == 0) return text;
 
-    var vars: std.ArrayListUnmanaged(struct { []const u8, []const u8 }) = .{};
+    var vars: std.ArrayListUnmanaged(struct { []const u8, []const u8 }) = .empty;
     defer vars.deinit(allocator);
     for (include) |rule_id| {
         for (rules) |rule| {

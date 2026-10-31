@@ -1,12 +1,12 @@
 const std = @import("std");
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+var process_io: std.Io = undefined;
 
-    var args = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
+pub fn main(init: std.process.Init) !void {
+    process_io = init.io;
+    const allocator = init.gpa;
+
+    var args = std.process.Args.Iterator.init(init.minimal.args);
 
     _ = args.next();
     const tin_path = args.next() orelse return error.MissingTinPath;
@@ -87,14 +87,11 @@ const Reporter = struct {
     }
 };
 
-fn runAndStream(allocator: std.mem.Allocator, argv: []const []const u8) !bool {
-    var proc = std.process.Child.init(argv, allocator);
-    proc.stdout_behavior = .Inherit;
-    proc.stderr_behavior = .Inherit;
-
-    const term = try proc.spawnAndWait();
+fn runAndStream(_: std.mem.Allocator, argv: []const []const u8) !bool {
+    var proc = try std.process.spawn(process_io, .{ .argv = argv });
+    const term = try proc.wait(process_io);
     return switch (term) {
-        .Exited => |code| code == 0,
+        .exited => |code| code == 0,
         else => false,
     };
 }

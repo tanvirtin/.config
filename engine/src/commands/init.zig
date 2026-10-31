@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../lib/runtime.zig");
 const yaml = @import("yaml");
 const output = @import("../lib/output.zig");
 const fs = @import("../lib/fs.zig");
@@ -45,7 +46,7 @@ const Plan = struct {
 };
 
 fn pathPresent(path: []const u8) bool {
-    _ = std.posix.fstatat(std.posix.AT.FDCWD, path, std.posix.AT.SYMLINK_NOFOLLOW) catch |e| switch (e) {
+    _ = std.Io.Dir.cwd().statFile(runtime.io(), path, .{ .follow_symlinks = false }) catch |e| switch (e) {
         error.FileNotFound => return false,
         else => return true,
     };
@@ -111,7 +112,7 @@ fn promptAllowed(tty: bool, flag: bool, env: bool) bool {
 }
 
 fn envNonInteractive() bool {
-    const value = std.posix.getenv("TIN_NONINTERACTIVE") orelse return false;
+    const value = runtime.env("TIN_NONINTERACTIVE") orelse return false;
     return value.len > 0;
 }
 
@@ -121,7 +122,7 @@ fn confirm(plan: Plan) bool {
     if (plan.sample.requested and !plan.sample.exists) output.plain("  {s}", .{plan.sample.path});
     output.plain("Proceed? [Y/n] ", .{});
     var buf: [64]u8 = undefined;
-    const n = std.fs.File.stdin().read(&buf) catch return true;
+    const n = std.Io.File.stdin().readStreaming(runtime.io(), &.{&buf}) catch return true;
     if (n == 0) return true;
     const line = std.mem.trim(u8, buf[0..n], " \t\r\n");
     if (line.len == 0) return true;
@@ -209,7 +210,7 @@ pub fn execute(allocator: std.mem.Allocator, args: []const []const u8) u8 {
         return 1;
     };
 
-    const interactive = promptAllowed(std.posix.isatty(std.posix.STDIN_FILENO), parsed.non_interactive, envNonInteractive());
+    const interactive = promptAllowed((std.Io.File.stdin().isTty(runtime.io()) catch false), parsed.non_interactive, envNonInteractive());
     if (interactive and plan.pending > 0 and !confirm(plan)) {
         output.warn("nothing written", .{});
         return 0;
@@ -236,13 +237,13 @@ fn installRuntime(allocator: std.mem.Allocator, tin_dir: []const u8) !void {
     for (schemas) |name| {
         const src_rel = try std.fs.path.join(allocator, &.{ "src", "schemas", name });
         const dst = try std.fs.path.join(allocator, &.{ tin_dir, "engine", "src", "schemas", name });
-        const content = try std.fs.cwd().readFileAlloc(allocator, src_rel, 1 << 20);
+        const content = try std.Io.Dir.cwd().readFileAlloc(runtime.io(), src_rel, allocator, .limited(1 << 20));
         try fs.ensureParentDirExists(dst);
         try fs.writeFile(dst, content);
     }
     const default_src = try std.fs.path.join(allocator, &.{ "..", "tinrc.yml" });
     const default_dst = try std.fs.path.join(allocator, &.{ tin_dir, "tinrc.yml" });
-    const default_content = try std.fs.cwd().readFileAlloc(allocator, default_src, 1 << 20);
+    const default_content = try std.Io.Dir.cwd().readFileAlloc(runtime.io(), default_src, allocator, .limited(1 << 20));
     try fs.ensureParentDirExists(default_dst);
     try fs.writeFile(default_dst, default_content);
 }
@@ -250,7 +251,7 @@ fn installRuntime(allocator: std.mem.Allocator, tin_dir: []const u8) !void {
 fn setup(allocator: std.mem.Allocator) !TestEnv {
     var tmp = std.testing.tmpDir(.{});
     errdefer tmp.cleanup();
-    const root = try tmp.parent_dir.realpathAlloc(allocator, &tmp.sub_path);
+    const root = try fs.realPathAlloc(allocator, tmp.parent_dir, &tmp.sub_path);
     const tin_dir = try std.fs.path.join(allocator, &.{ root, ".tin" });
     const artifacts_dir = try std.fs.path.join(allocator, &.{ root, ".config", "tin", "artifacts" });
     try installRuntime(allocator, tin_dir);
@@ -395,11 +396,11 @@ test "shipped sample skill validates against the skill schema" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     {
-        var file = try tmp.dir.createFile("sample.yml", .{});
-        defer file.close();
-        try file.writeAll(sample_skill);
+        var file = try tmp.dir.createFile(runtime.io(), "sample.yml", .{});
+        defer file.close(runtime.io());
+        try file.writeStreamingAll(runtime.io(), sample_skill);
     }
-    const path = try tmp.dir.realpathAlloc(a, "sample.yml");
+    const path = try fs.realPathAlloc(a, tmp.dir, "sample.yml");
     const diagnostics = try engine.validateFile(a, schemas_dir, "skill.yaml", path);
     try std.testing.expectEqual(@as(usize, 0), diagnostics.len);
 }
@@ -422,10 +423,10 @@ test "shipped default carries no personal identity and no package-installing def
     defer arena.deinit();
     const a = arena.allocator();
     const path = "../tinrc.yml";
-    const source = try std.fs.cwd().readFileAlloc(a, path, 1 << 20);
+    const source = try std.Io.Dir.cwd().readFileAlloc(runtime.io(), path, a, .limited(1 << 20));
 
-    try std.testing.expect(std.ascii.indexOfIgnoreCase(source, "tanvir") == null);
-    try std.testing.expect(std.ascii.indexOfIgnoreCase(source, "gmail") == null);
+    try std.testing.expect(std.ascii.findIgnoreCase(source, "tanvir") == null);
+    try std.testing.expect(std.ascii.findIgnoreCase(source, "gmail") == null);
 
     const doc = try yaml.parse(a, source);
     const identity = doc.getMapping("identity") orelse return error.MissingIdentity;

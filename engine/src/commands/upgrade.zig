@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../lib/runtime.zig");
 const output = @import("../lib/output.zig");
 const process = @import("../lib/process.zig");
 const Paths = @import("../core/environment/paths.zig").Paths;
@@ -13,7 +14,7 @@ pub fn execute(allocator: std.mem.Allocator, args: []const []const u8) u8 {
     if (managedExternally(allocator)) return output.ExitCode.success;
 
     var check_only = false;
-    var passthrough = std.ArrayListUnmanaged([]const u8){};
+    var passthrough: std.ArrayListUnmanaged([]const u8) = .empty;
 
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
@@ -73,7 +74,7 @@ pub fn execute(allocator: std.mem.Allocator, args: []const []const u8) u8 {
 }
 
 fn managedExternally(allocator: std.mem.Allocator) bool {
-    const marker = std.process.getEnvVarOwned(allocator, "TIN_MANAGED_BY") catch return false;
+    const marker = runtime.getEnvVarOwned(allocator, "TIN_MANAGED_BY") catch return false;
     defer allocator.free(marker);
     if (std.mem.eql(u8, marker, "homebrew")) {
         output.info("tin is managed by Homebrew", .{});
@@ -101,11 +102,11 @@ fn validVersion(version: []const u8) bool {
 
 fn applyInstaller(allocator: std.mem.Allocator, paths: Paths, extra: []const []const u8) u8 {
     const url = upgrade.installerUrl(allocator);
-    const script = std.fmt.allocPrint(allocator, "{s}/.tin-upgrade-{d}.sh", .{ paths.tin_dir, std.time.timestamp() }) catch {
+    const script = std.fmt.allocPrint(allocator, "{s}/.tin-upgrade-{d}.sh", .{ paths.tin_dir, std.Io.Timestamp.now(runtime.io(), .real).toSeconds() }) catch {
         output.err("could not prepare the installer path", .{});
         return 1;
     };
-    defer std.fs.deleteFileAbsolute(script) catch {};
+    defer std.Io.Dir.deleteFileAbsolute(runtime.io(), script) catch {};
 
     output.info("downloading installer from {s}", .{url});
     const download = process.capture(allocator, &.{ "curl", "-fsSL", "--max-time", "60", url, "-o", script }) catch {
@@ -118,7 +119,7 @@ fn applyInstaller(allocator: std.mem.Allocator, paths: Paths, extra: []const []c
         return 1;
     }
 
-    var argv = std.ArrayListUnmanaged([]const u8){};
+    var argv: std.ArrayListUnmanaged([]const u8) = .empty;
     argv.append(allocator, "sh") catch return 1;
     argv.append(allocator, script) catch return 1;
     for (extra) |arg| argv.append(allocator, arg) catch return 1;

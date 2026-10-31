@@ -211,7 +211,7 @@ fn mergedFor(
 }
 
 fn buildEntries(allocator: std.mem.Allocator, servers: []const mcp.Server, dialect: mcp.Dialect) ![]const mcp.Entry {
-    var entries: std.ArrayListUnmanaged(mcp.Entry) = .{};
+    var entries: std.ArrayListUnmanaged(mcp.Entry) = .empty;
     for (servers) |server| {
         try entries.append(allocator, try mcp.buildEntry(allocator, server, dialect));
     }

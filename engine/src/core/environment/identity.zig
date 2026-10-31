@@ -15,7 +15,7 @@ pub fn getIdentity(allocator: std.mem.Allocator, config: Config) ?Identity {
 }
 
 pub fn getTemplateVars(allocator: std.mem.Allocator, config: Config) ![]const TemplateVar {
-    var vars: std.ArrayListUnmanaged(TemplateVar) = .{};
+    var vars: std.ArrayListUnmanaged(TemplateVar) = .empty;
     if (getIdentity(allocator, config)) |id| {
         try vars.append(allocator, .{ try allocator.dupe(u8, "identity.name"), try allocator.dupe(u8, id.name) });
         try vars.append(allocator, .{ try allocator.dupe(u8, "identity.email"), try allocator.dupe(u8, id.email) });

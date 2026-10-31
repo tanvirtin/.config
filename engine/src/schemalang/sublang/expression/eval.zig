@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../../../lib/runtime.zig");
 const ast = @import("ast.zig");
 const env_mod = @import("env.zig");
 const value_mod = @import("value.zig");
@@ -213,7 +214,7 @@ fn builtinPrefix(state: State, args: []const Value, is_start: bool) EvalError!Va
 fn builtinFormat(state: State, args: []const Value) EvalError!Value {
     if (args.len < 1 or args[0] != .string) return error.BadArgCount;
     const format = args[0].string;
-    var out = std.ArrayListUnmanaged(u8){};
+    var out: std.ArrayListUnmanaged(u8) = .empty;
     var i: usize = 0;
     while (i < format.len) {
         if (format[i] == '{') {
@@ -244,7 +245,7 @@ fn builtinJoin(state: State, args: []const Value) EvalError!Value {
     try expectArgs(args, 1, 2);
     if (args[0] != .array) return error.TypeError;
     const sep = if (args.len == 2) try args[1].toString(state.allocator) else ",";
-    var out = std.ArrayListUnmanaged(u8){};
+    var out: std.ArrayListUnmanaged(u8) = .empty;
     const arr = args[0].array;
     for (arr, 0..) |item, k| {
         if (k > 0) try out.appendSlice(state.allocator, sep);
@@ -291,7 +292,7 @@ const StatusCheck = enum { always, success, failure, cancelled };
 fn expandHome(allocator: std.mem.Allocator, path: []const u8) EvalError![]const u8 {
     if (path.len == 0 or path[0] != '~') return path;
     if (path.len > 1 and path[1] != '/') return path;
-    const home = std.posix.getenv("HOME") orelse return path;
+    const home = runtime.env("HOME") orelse return path;
     if (path.len == 1) return home;
     return std.fmt.allocPrint(allocator, "{s}{s}", .{ home, path[1..] }) catch return error.OutOfMemory;
 }
@@ -300,7 +301,7 @@ fn builtinExists(state: State, args: []const Value) EvalError!Value {
     try expectArgs(args, 1, 1);
     if (args[0] != .string) return error.TypeError;
     const path = try expandHome(state.allocator, args[0].string);
-    std.fs.cwd().access(path, .{}) catch return .{ .boolean = false };
+    std.Io.Dir.cwd().access(runtime.io(), path, .{}) catch return .{ .boolean = false };
     return .{ .boolean = true };
 }
 
@@ -310,16 +311,16 @@ fn builtinCommandExists(state: State, args: []const Value) EvalError!Value {
     const name = try expandHome(state.allocator, args[0].string);
     if (name.len == 0) return .{ .boolean = false };
     if (std.mem.indexOfScalar(u8, name, '/') != null) {
-        std.fs.cwd().access(name, .{}) catch return .{ .boolean = false };
+        std.Io.Dir.cwd().access(runtime.io(), name, .{}) catch return .{ .boolean = false };
         return .{ .boolean = true };
     }
-    const path = std.posix.getenv("PATH") orelse return .{ .boolean = false };
+    const path = runtime.env("PATH") orelse return .{ .boolean = false };
     var it = std.mem.splitScalar(u8, path, ':');
     while (it.next()) |dir| {
         if (dir.len == 0) continue;
         const full = std.fs.path.join(state.allocator, &.{ dir, name }) catch continue;
         defer state.allocator.free(full);
-        std.fs.cwd().access(full, .{}) catch continue;
+        std.Io.Dir.cwd().access(runtime.io(), full, .{}) catch continue;
         return .{ .boolean = true };
     }
     return .{ .boolean = false };
@@ -407,7 +408,7 @@ const json = struct {
 
         fn array(self: *Parser) EvalError!Value {
             self.i += 1;
-            var items = std.ArrayListUnmanaged(Value){};
+            var items: std.ArrayListUnmanaged(Value) = .empty;
             self.skipWs();
             if (self.peek(']')) {
                 self.i += 1;
@@ -427,7 +428,7 @@ const json = struct {
 
         fn stringValue(self: *Parser) EvalError![]const u8 {
             self.i += 1;
-            var out = std.ArrayListUnmanaged(u8){};
+            var out: std.ArrayListUnmanaged(u8) = .empty;
             while (self.i < self.s.len) {
                 const c = self.s[self.i];
                 switch (c) {
@@ -512,7 +513,7 @@ const json = struct {
     };
 
     fn stringify(allocator: std.mem.Allocator, value: Value) EvalError![]const u8 {
-        var out = std.ArrayListUnmanaged(u8){};
+        var out: std.ArrayListUnmanaged(u8) = .empty;
         try writeValue(allocator, &out, value);
         return try out.toOwnedSlice(allocator);
     }

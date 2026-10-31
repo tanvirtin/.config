@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../../lib/runtime.zig");
 const diag = @import("../diagnostic.zig");
 const context = @import("../context.zig");
 const yaml = @import("yaml");
@@ -23,23 +24,28 @@ pub fn validate(
 ) !void {
     _ = env;
 
-    var child = std.process.Child.init(&[_][]const u8{ "/bin/sh", "-c", options.command }, allocator);
-    child.stdin_behavior = .Pipe;
-    child.stdout_behavior = .Pipe;
-    child.stderr_behavior = .Pipe;
+    const io = runtime.io();
+    var child = try std.process.spawn(io, .{
+        .argv = &[_][]const u8{ "/bin/sh", "-c", options.command },
+        .stdin = .pipe,
+        .stdout = .pipe,
+        .stderr = .pipe,
+    });
 
-    try child.spawn();
-
-    try child.stdin.?.writeAll(source);
-    child.stdin.?.close();
+    try child.stdin.?.writeStreamingAll(io, source);
+    child.stdin.?.close(io);
     child.stdin = null;
 
-    const stdout = try child.stdout.?.readToEndAlloc(allocator, 1024 * 1024);
+    var stdout_buffer: [4096]u8 = undefined;
+    var stdout_reader = child.stdout.?.reader(io, &stdout_buffer);
+    const stdout = try stdout_reader.interface.allocRemaining(allocator, .limited(1024 * 1024));
     defer allocator.free(stdout);
-    const stderr = try child.stderr.?.readToEndAlloc(allocator, 1024 * 1024);
+    var stderr_buffer: [4096]u8 = undefined;
+    var stderr_reader = child.stderr.?.reader(io, &stderr_buffer);
+    const stderr = try stderr_reader.interface.allocRemaining(allocator, .limited(1024 * 1024));
     defer allocator.free(stderr);
 
-    _ = try child.wait();
+    _ = try child.wait(io);
 
     var it = std.mem.splitScalar(u8, stdout, '\n');
     while (it.next()) |line| {

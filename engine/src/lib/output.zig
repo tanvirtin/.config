@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("runtime.zig");
 
 const Color = enum {
     green,
@@ -39,10 +40,10 @@ fn colorFor(level: Level) ?Color {
     };
 }
 
-fn streamFor(level: Level) std.fs.File {
+fn streamFor(level: Level) std.Io.File {
     return switch (level) {
-        .success, .info, .plain => std.fs.File.stdout(),
-        .warn, .err => std.fs.File.stderr(),
+        .success, .info, .plain => std.Io.File.stdout(),
+        .warn, .err => std.Io.File.stderr(),
     };
 }
 
@@ -67,7 +68,7 @@ fn colorCode(color: Color) []const u8 {
 }
 
 fn isTty() bool {
-    return std.posix.isatty(std.posix.STDOUT_FILENO);
+    return std.Io.File.stdout().isTty(runtime.io()) catch false;
 }
 
 fn printPrefix(writer: anytype, color: Color) void {
@@ -102,10 +103,10 @@ fn writeJsonString(writer: anytype, s: []const u8) !void {
 }
 
 fn writeFields(writer: anytype, fields: anytype) !void {
-    inline for (std.meta.fields(@TypeOf(fields))) |f| {
-        const value = @field(fields, f.name);
+    inline for (comptime std.meta.fieldNames(@TypeOf(fields))) |name| {
+        const value = @field(fields, name);
         try writer.writeAll(",\"");
-        try writer.writeAll(f.name);
+        try writer.writeAll(name);
         try writer.writeAll("\":");
         try writeJsonString(writer, value);
     }
@@ -113,7 +114,7 @@ fn writeFields(writer: anytype, fields: anytype) !void {
 
 fn emitText(level: Level, comptime fmt: []const u8, args: anytype) void {
     var buf: [1024]u8 = undefined;
-    var file_writer = streamFor(level).writerStreaming(&buf);
+    var file_writer = streamFor(level).writerStreaming(runtime.io(), &buf);
     const writer = &file_writer.interface;
     defer writer.flush() catch {};
     if (colorFor(level)) |c| printPrefix(writer, c);
@@ -121,12 +122,12 @@ fn emitText(level: Level, comptime fmt: []const u8, args: anytype) void {
 }
 
 fn emitJson(level: Level, fields: anytype, comptime fmt: []const u8, args: anytype) void {
-    var message: std.ArrayListUnmanaged(u8) = .{};
-    defer message.deinit(std.heap.page_allocator);
-    message.writer(std.heap.page_allocator).print(fmt, args) catch {};
+    var message: std.Io.Writer.Allocating = .init(std.heap.page_allocator);
+    defer message.deinit();
+    message.writer.print(fmt, args) catch {};
 
     var buf: [1024]u8 = undefined;
-    var file_writer = std.fs.File.stdout().writerStreaming(&buf);
+    var file_writer = std.Io.File.stdout().writerStreaming(runtime.io(), &buf);
     const writer = &file_writer.interface;
     defer writer.flush() catch {};
 
@@ -136,7 +137,7 @@ fn emitJson(level: Level, fields: anytype, comptime fmt: []const u8, args: anyty
     writeJsonString(writer, levelString(level)) catch return;
     writeFields(writer, fields) catch return;
     writer.writeAll(",\"message\":") catch return;
-    writeJsonString(writer, message.items) catch return;
+    writeJsonString(writer, message.written()) catch return;
     writer.writeAll("}\n") catch return;
 }
 
@@ -181,14 +182,14 @@ test "isTty returns a boolean" {
 }
 
 test "writeJsonString escapes quotes, backslashes, and control bytes" {
-    var out = std.io.Writer.Allocating.init(std.testing.allocator);
+    var out = std.Io.Writer.Allocating.init(std.testing.allocator);
     defer out.deinit();
     try writeJsonString(&out.writer, "a\"b\\c\nd\te\x01");
     try std.testing.expectEqualStrings("\"a\\\"b\\\\c\\nd\\te\\u0001\"", out.written());
 }
 
 test "writeFields renders comma-prefixed key/value pairs" {
-    var out = std.io.Writer.Allocating.init(std.testing.allocator);
+    var out = std.Io.Writer.Allocating.init(std.testing.allocator);
     defer out.deinit();
     try writeFields(&out.writer, .{ .action = "link", .status = "created" });
     try std.testing.expectEqualStrings(",\"action\":\"link\",\"status\":\"created\"", out.written());

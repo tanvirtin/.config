@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../lib/runtime.zig");
 const fs = @import("../lib/fs.zig");
 const utils = @import("../lib/utils.zig");
 const output = @import("../lib/output.zig");
@@ -70,7 +71,7 @@ const LoadedConfig = struct {
 };
 
 fn pathPresent(path: []const u8) bool {
-    _ = std.posix.fstatat(std.posix.AT.FDCWD, path, std.posix.AT.SYMLINK_NOFOLLOW) catch return false;
+    _ = std.Io.Dir.cwd().statFile(runtime.io(), path, .{ .follow_symlinks = false }) catch return false;
     return true;
 }
 
@@ -128,7 +129,7 @@ pub fn inspectStatus(allocator: std.mem.Allocator, paths: Paths) !StatusReport {
     const artifacts_dir = try paths.artifactsDir(allocator);
     const schemas_dir = try paths.schemasDir(allocator);
 
-    var symlinks = std.ArrayListUnmanaged(SymlinkInfo){};
+    var symlinks: std.ArrayListUnmanaged(SymlinkInfo) = .empty;
     if (loaded.config) |config| {
         const managed = RecipeManager.getManagedSymlinks(allocator, config, paths) catch &.{};
         for (managed) |symlink| {
@@ -196,7 +197,7 @@ pub fn inspectSkill(
 
     const targets = try RecipeManager.getExportTargets(allocator, environment.config, paths);
 
-    var results = std.ArrayListUnmanaged(TargetInspection){};
+    var results: std.ArrayListUnmanaged(TargetInspection) = .empty;
     for (targets) |target| {
         const prepared = try export_mod.prepare(allocator, target.dir, skills, rules);
         const entry = entryForId(prepared.entries, skill.id) orelse return Error.InspectionIncomplete;
@@ -338,7 +339,7 @@ const Fixture = struct {
 };
 
 fn makeFixture(a: std.mem.Allocator, tmp: *std.testing.TmpDir) !Fixture {
-    const root = try tmp.parent_dir.realpathAlloc(a, &tmp.sub_path);
+    const root = try fs.realPathAlloc(a, tmp.parent_dir, &tmp.sub_path);
     const tin_dir = try std.fs.path.join(a, &.{ root, ".tin" });
     const config_dir = try std.fs.path.join(a, &.{ root, ".config", "tin" });
     const artifacts_dir = try std.fs.path.join(a, &.{ config_dir, "artifacts" });
@@ -362,7 +363,7 @@ fn installSchemas(a: std.mem.Allocator, tin_dir: []const u8) !void {
     try fs.ensureDirectoryExists(schemas_dir);
     for (schema_files) |name| {
         const src = try std.fs.path.join(a, &.{ "src", "schemas", name });
-        const content = try std.fs.cwd().readFileAlloc(a, src, 1 << 20);
+        const content = try std.Io.Dir.cwd().readFileAlloc(runtime.io(), src, a, .limited(1 << 20));
         const dst = try std.fs.path.join(a, &.{ schemas_dir, name });
         try fs.writeFile(dst, content);
     }
@@ -403,17 +404,18 @@ const Snapshot = std.StringHashMapUnmanaged([]const u8);
 
 fn snapshotTree(a: std.mem.Allocator, root: []const u8) !Snapshot {
     var map: Snapshot = .{};
-    var dir = std.fs.openDirAbsolute(root, .{ .iterate = true }) catch return map;
-    defer dir.close();
+    var dir = std.Io.Dir.openDirAbsolute(runtime.io(), root, .{ .iterate = true }) catch return map;
+    defer dir.close(runtime.io());
     var walker = try dir.walk(a);
     defer walker.deinit();
-    while (try walker.next()) |entry| {
+    while (try walker.next(runtime.io())) |entry| {
         const abs = try std.fs.path.join(a, &.{ root, entry.path });
         const desc = switch (entry.kind) {
             .directory => try a.dupe(u8, "dir"),
             .sym_link => blk: {
                 var buf: [std.fs.max_path_bytes]u8 = undefined;
-                const target = std.fs.readLinkAbsolute(abs, &buf) catch "?";
+                const len = std.Io.Dir.readLinkAbsolute(runtime.io(), abs, &buf) catch 0;
+                const target: []const u8 = if (len == 0) "?" else buf[0..len];
                 break :blk try std.fmt.allocPrint(a, "link:{s}", .{target});
             },
             .file => blk: {
@@ -537,7 +539,7 @@ test "inspectStatus reports symlink state, presence, and revision without writin
     try fs.writeFile(try std.fs.path.join(a, &.{ f.tin_dir, "environment", "config", ".gitconfig" }), "gitconfig\n");
     try fs.ensureDirectoryExists(f.artifacts_dir);
     const source = try std.fs.path.join(a, &.{ f.tin_dir, "environment", "config", ".zshrc" });
-    try std.fs.symLinkAbsolute(source, try std.fs.path.join(a, &.{ f.root, ".zshrc" }), .{});
+    try std.Io.Dir.symLinkAbsolute(runtime.io(), source, try std.fs.path.join(a, &.{ f.root, ".zshrc" }), .{});
     try fs.writeFile(try std.fs.path.join(a, &.{ f.tin_dir, ".tin-revision" }), "abc123\n");
 
     const before = try snapshotTree(a, f.root);

@@ -23,13 +23,13 @@ const Class = union(enum) {
     crash_signal: u32,
 };
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+var process_io: std.Io = undefined;
 
-    var args = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
+pub fn main(init: std.process.Init) !void {
+    process_io = init.io;
+    const allocator = init.gpa;
+
+    var args = std.process.Args.Iterator.init(init.minimal.args);
     _ = args.next();
 
     const bin = args.next() orelse {
@@ -38,12 +38,7 @@ pub fn main() !void {
         std.process.exit(1);
     };
 
-    var corpus_owned: ?[]u8 = null;
-    defer if (corpus_owned) |c| allocator.free(c);
-    const corpus: []const u8 = args.next() orelse blk: {
-        corpus_owned = std.process.getEnvVarOwned(allocator, "TIN_YAML_CORPUS_DIR") catch break :blk "";
-        break :blk corpus_owned.?;
-    };
+    const corpus: []const u8 = args.next() orelse init.environ_map.get("TIN_YAML_CORPUS_DIR") orelse "";
 
     if (corpus.len == 0) {
         std.debug.print("SKIP: no official YAML corpus provided (pass a corpus-dir or set TIN_YAML_CORPUS_DIR)\n", .{});
@@ -53,14 +48,13 @@ pub fn main() !void {
     const code = try runSuite(allocator, .{
         .bin = bin,
         .corpus = corpus,
-        .timeout_secs = readTimeout(allocator),
+        .timeout_secs = readTimeout(init.environ_map),
     });
     std.process.exit(code);
 }
 
-fn readTimeout(allocator: std.mem.Allocator) f64 {
-    const raw = std.process.getEnvVarOwned(allocator, "TIN_YAML_TIMEOUT") catch return default_timeout_secs;
-    defer allocator.free(raw);
+fn readTimeout(environ: *const std.process.Environ.Map) f64 {
+    const raw = environ.get("TIN_YAML_TIMEOUT") orelse return default_timeout_secs;
     const value = std.fmt.parseFloat(f64, std.mem.trim(u8, raw, " \t\r\n")) catch return default_timeout_secs;
     if (value <= 0) return default_timeout_secs;
     return value;
@@ -77,7 +71,7 @@ fn parsePin(content: []const u8) ?[]const u8 {
 }
 
 fn isExecutable(path: []const u8) bool {
-    std.posix.access(path, std.posix.X_OK) catch return false;
+    std.Io.Dir.cwd().access(process_io, path, .{ .execute = true }) catch return false;
     return true;
 }
 
@@ -96,7 +90,7 @@ fn lessThan(_: void, a: []u8, b: []u8) bool {
 fn exists(allocator: std.mem.Allocator, dir: []const u8, name: []const u8) bool {
     const path = std.fs.path.join(allocator, &.{ dir, name }) catch return false;
     defer allocator.free(path);
-    std.fs.cwd().access(path, .{}) catch return false;
+    std.Io.Dir.cwd().access(process_io, path, .{}) catch return false;
     return true;
 }
 
@@ -112,18 +106,18 @@ fn relativeId(corpus: []const u8, case_dir: []const u8) []const u8 {
 fn gitRevision(allocator: std.mem.Allocator, corpus: []const u8) ?[]u8 {
     const dotgit = std.fs.path.join(allocator, &.{ corpus, ".git" }) catch return null;
     defer allocator.free(dotgit);
-    std.fs.cwd().access(dotgit, .{}) catch return null;
+    std.Io.Dir.cwd().access(process_io, dotgit, .{}) catch return null;
 
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
+    const result = std.process.run(allocator, process_io, .{
         .argv = &.{ "git", "-C", corpus, "rev-parse", "HEAD" },
-        .max_output_bytes = 256,
+        .stdout_limit = .limited(256),
+        .stderr_limit = .limited(256),
     }) catch return null;
     defer allocator.free(result.stdout);
     defer allocator.free(result.stderr);
 
     switch (result.term) {
-        .Exited => |code| {
+        .exited => |code| {
             if (code != 0) return null;
         },
         else => return null,
@@ -132,27 +126,23 @@ fn gitRevision(allocator: std.mem.Allocator, corpus: []const u8) ?[]u8 {
 }
 
 fn runCase(bin: []const u8, file: []const u8, timeout_ns: u64) !Outcome {
-    var child = std.process.Child.init(&.{ bin, file }, std.heap.page_allocator);
-    child.stdin_behavior = .Ignore;
-    child.stdout_behavior = .Ignore;
-    child.stderr_behavior = .Ignore;
-    try child.spawn();
-
-    var timer = try std.time.Timer.start();
-    while (true) {
-        const res = std.posix.waitpid(child.id, std.posix.W.NOHANG);
-        if (res.pid != 0) {
-            if (std.posix.W.IFEXITED(res.status)) return .{ .exited = std.posix.W.EXITSTATUS(res.status) };
-            if (std.posix.W.IFSIGNALED(res.status)) return .{ .signaled = std.posix.W.TERMSIG(res.status) };
-            return .{ .exited = 255 };
-        }
-        if (timer.read() >= timeout_ns) {
-            std.posix.kill(child.id, std.posix.SIG.KILL) catch {};
-            _ = std.posix.waitpid(child.id, 0);
-            return .timed_out;
-        }
-        std.Thread.sleep(2 * std.time.ns_per_ms);
-    }
+    const result = std.process.run(std.heap.page_allocator, process_io, .{
+        .argv = &.{ bin, file },
+        .stdout_limit = .limited(0),
+        .stderr_limit = .limited(0),
+        .timeout = .{ .duration = .{ .raw = .fromNanoseconds(timeout_ns), .clock = .awake } },
+    }) catch |e| switch (e) {
+        error.Timeout => return .timed_out,
+        error.StreamTooLong => return .{ .exited = 255 },
+        else => return e,
+    };
+    std.heap.page_allocator.free(result.stdout);
+    std.heap.page_allocator.free(result.stderr);
+    return switch (result.term) {
+        .exited => |code| .{ .exited = code },
+        .signal => |sig| .{ .signaled = @backingInt(sig) },
+        else => .{ .exited = 255 },
+    };
 }
 
 fn classify(outcome: Outcome) Class {
@@ -192,11 +182,11 @@ fn runSuite(allocator: std.mem.Allocator, params: Params) !u8 {
         return 1;
     }
 
-    var dir = std.fs.cwd().openDir(corpus, .{ .iterate = true }) catch {
+    var dir = std.Io.Dir.cwd().openDir(process_io, corpus, .{ .iterate = true }) catch {
         std.debug.print("ERROR: corpus directory not found: {s}\n", .{corpus});
         return 1;
     };
-    defer dir.close();
+    defer dir.close(process_io);
 
     const actual_owned = gitRevision(allocator, corpus);
     defer if (actual_owned) |a| allocator.free(a);
@@ -209,7 +199,7 @@ fn runSuite(allocator: std.mem.Allocator, params: Params) !u8 {
         }
     }
 
-    var cases = std.ArrayListUnmanaged([]u8){};
+    var cases: std.ArrayListUnmanaged([]u8) = .empty;
     defer {
         for (cases.items) |c| allocator.free(c);
         cases.deinit(allocator);
@@ -217,7 +207,7 @@ fn runSuite(allocator: std.mem.Allocator, params: Params) !u8 {
 
     var walker = try dir.walk(allocator);
     defer walker.deinit();
-    while (try walker.next()) |entry| {
+    while (try walker.next(process_io)) |entry| {
         if (entry.kind != .file) continue;
         if (!std.mem.eql(u8, std.fs.path.basename(entry.path), "in.yaml")) continue;
         if (hasGitComponent(entry.path)) continue;

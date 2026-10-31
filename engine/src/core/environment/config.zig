@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../../lib/runtime.zig");
 const yaml = @import("yaml");
 const Paths = @import("paths.zig");
 const output = @import("../../lib/output.zig");
@@ -29,13 +30,13 @@ pub fn load(allocator: std.mem.Allocator, paths: Paths) !?Config {
     defer selection.deinit(allocator);
     const config_path = selection.path orelse return null;
 
-    const file = std.fs.openFileAbsolute(config_path, .{}) catch |e| {
+    const file = std.Io.Dir.openFileAbsolute(runtime.io(), config_path, .{}) catch |e| {
         output.err("cannot read configuration {s}: {s}", .{ config_path, @errorName(e) });
         return LoadError.ConfigUnreadable;
     };
-    defer file.close();
+    defer file.close(runtime.io());
 
-    const size = file.getEndPos() catch |e| {
+    const size = file.length(runtime.io()) catch |e| {
         output.err("cannot stat configuration {s}: {s}", .{ config_path, @errorName(e) });
         return LoadError.ConfigUnreadable;
     };
@@ -44,7 +45,9 @@ pub fn load(allocator: std.mem.Allocator, paths: Paths) !?Config {
         return LoadError.ConfigTooLarge;
     }
 
-    const content = file.readToEndAlloc(allocator, max_config_bytes) catch |e| {
+    var read_buffer: [4096]u8 = undefined;
+    var file_reader = file.reader(runtime.io(), &read_buffer);
+    const content = file_reader.interface.allocRemaining(allocator, .limited(max_config_bytes)) catch |e| {
         output.err("cannot read configuration {s}: {s}", .{ config_path, @errorName(e) });
         return LoadError.ConfigUnreadable;
     };
@@ -102,7 +105,7 @@ const Fixture = struct {
 };
 
 fn fixture(a: std.mem.Allocator, tmp: *std.testing.TmpDir) !Fixture {
-    const root = try tmp.parent_dir.realpathAlloc(a, &tmp.sub_path);
+    const root = try fs.realPathAlloc(a, tmp.parent_dir, &tmp.sub_path);
     const tin_dir = try std.fs.path.join(a, &.{ root, ".tin" });
     const config_dir = try std.fs.path.join(a, &.{ root, ".config", "tin" });
     const personal = try std.fs.path.join(a, &.{ config_dir, "tinrc.yml" });
@@ -120,8 +123,8 @@ fn fixture(a: std.mem.Allocator, tmp: *std.testing.TmpDir) !Fixture {
 fn installSchemas(a: std.mem.Allocator, tin_dir: []const u8) !void {
     const schemas_dir = try std.fs.path.join(a, &.{ tin_dir, "engine", "src", "schemas" });
     try fs.ensureDirectoryExists(schemas_dir);
-    const meta_src = try std.fs.cwd().readFileAlloc(a, "src/schemas/meta-schema.yaml", 1 << 20);
-    const tinrc_src = try std.fs.cwd().readFileAlloc(a, "src/schemas/tinrc.yaml", 1 << 20);
+    const meta_src = try std.Io.Dir.cwd().readFileAlloc(runtime.io(), "src/schemas/meta-schema.yaml", a, .limited(1 << 20));
+    const tinrc_src = try std.Io.Dir.cwd().readFileAlloc(runtime.io(), "src/schemas/tinrc.yaml", a, .limited(1 << 20));
     const meta_dst = try std.fs.path.join(a, &.{ schemas_dir, "meta-schema.yaml" });
     const tinrc_dst = try std.fs.path.join(a, &.{ schemas_dir, "tinrc.yaml" });
     try fs.writeFile(meta_dst, meta_src);
@@ -271,14 +274,14 @@ test "load reports an unreadable selected configuration" {
 
     try fs.ensureDirectoryExists(f.tin_dir);
     try fs.writeFile(f.repo, "identity:\n  name: repo\n");
-    const file = try std.fs.openFileAbsolute(f.repo, .{});
-    try file.chmod(0o000);
-    file.close();
+    const file = try std.Io.Dir.openFileAbsolute(runtime.io(), f.repo, .{});
+    try file.setPermissions(runtime.io(), @fromBackingInt(@intCast(0o000)));
+    file.close(runtime.io());
     defer {
-        const restore = std.fs.openFileAbsolute(f.repo, .{}) catch null;
+        const restore = std.Io.Dir.openFileAbsolute(runtime.io(), f.repo, .{}) catch null;
         if (restore) |r| {
-            r.chmod(0o600) catch {};
-            r.close();
+            r.setPermissions(runtime.io(), @fromBackingInt(@intCast(0o600))) catch {};
+            r.close(runtime.io());
         }
     }
 
@@ -298,7 +301,7 @@ test "load reports a dangling personal symlink instead of falling back to repo" 
     try fs.writeFile(f.repo, "identity:\n  name: repo\n");
     try fs.ensureDirectoryExists(f.config_dir);
     const absent = try std.fs.path.join(a, &.{ f.root, "absent.yml" });
-    try std.fs.symLinkAbsolute(absent, f.personal, .{});
+    try std.Io.Dir.symLinkAbsolute(runtime.io(), absent, f.personal, .{});
 
     try std.testing.expectError(LoadError.ConfigUnreadable, load(a, f.paths));
 }

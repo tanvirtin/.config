@@ -1,4 +1,5 @@
 const std = @import("std");
+const runtime = @import("../lib/runtime.zig");
 const yaml = @import("yaml");
 const bootstrap = @import("bootstrap.zig");
 const compile = @import("compile_core.zig");
@@ -41,7 +42,7 @@ pub const Engine = struct {
 
         const meta_path = try std.fs.path.join(allocator, &.{ schemas_dir, "meta-schema.yaml" });
         defer allocator.free(meta_path);
-        const meta_content = std.fs.cwd().readFileAlloc(allocator, meta_path, 1024 * 1024) catch |err| {
+        const meta_content = std.Io.Dir.cwd().readFileAlloc(runtime.io(), meta_path, allocator, .limited(1024 * 1024)) catch |err| {
             output.warn("could not load meta-schema.yaml: {s}", .{@errorName(err)});
             return .{
                 .allocator = allocator,
@@ -105,7 +106,7 @@ pub const Engine = struct {
     ) ![]const Diagnostic {
         const schema_path = try std.fs.path.join(allocator, &.{ schemas_dir, schema_name });
         defer allocator.free(schema_path);
-        const schema_content = try std.fs.cwd().readFileAlloc(allocator, schema_path, 1024 * 1024);
+        const schema_content = try std.Io.Dir.cwd().readFileAlloc(runtime.io(), schema_path, allocator, .limited(1024 * 1024));
         defer allocator.free(schema_content);
 
         var schema_doc = try yaml.parse(allocator, schema_content);
@@ -114,7 +115,7 @@ pub const Engine = struct {
         defer resolver.deinit();
 
         const schema = try self.loadSchema(schema_content);
-        const doc_content = try std.fs.cwd().readFileAlloc(allocator, file_path, 1024 * 1024);
+        const doc_content = try std.Io.Dir.cwd().readFileAlloc(runtime.io(), file_path, allocator, .limited(1024 * 1024));
         defer allocator.free(doc_content);
 
         var doc = try yaml.parse(allocator, doc_content);
@@ -129,7 +130,7 @@ test "schema allocations are freed when the engine is deinited" {
     var engine = try Engine.init(allocator);
     defer engine.deinit();
 
-    const content = try std.fs.cwd().readFileAlloc(allocator, "src/schemas/skill.yaml", 1024 * 1024);
+    const content = try std.Io.Dir.cwd().readFileAlloc(runtime.io(), "src/schemas/skill.yaml", allocator, .limited(1024 * 1024));
     defer allocator.free(content);
 
     const schema = try engine.loadSchema(content);
