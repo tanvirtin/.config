@@ -15,7 +15,40 @@ Toast.BLEND_HIDDEN = 100
 
 local animator, current
 
-local function dismiss()
+local function timings()
+  local spec = settings.transcript:get('toast')
+
+  if theme.reduced() then return 0, spec.hold_ms, 0 end
+
+  return spec.in_ms, spec.hold_ms, spec.out_ms
+end
+
+local function open(message, icon)
+  local label = ' ' .. icon .. ' ' .. message:gsub('%s+', ' ') .. ' '
+  local screen = Window.screen_width()
+  local buffer = Buffer():create(false, true)
+
+  buffer:set_lines({ label })
+  buffer:set_option('bufhidden', 'wipe')
+
+  local window = Window.get_current():open(buffer, {
+    relative = 'editor',
+    anchor = 'NE',
+    row = 1,
+    col = screen - 2,
+    width = math.min(text.width(label), math.max(screen - 4, 10)),
+    height = 1,
+    style = 'minimal',
+    focusable = false,
+    zindex = 250,
+  })
+
+  window:set_option('winhl', 'Normal:UiComposer')
+
+  return window, buffer
+end
+
+function Toast.dismiss()
   if animator then animator:cancel('toast') end
 
   if current then
@@ -26,67 +59,34 @@ local function dismiss()
   current = nil
 end
 
-function Toast.dismiss()
-  dismiss()
-end
-
 function Toast.visible()
   return current ~= nil
 end
 
 function Toast.show(message, opts)
-  opts = opts or {}
-  dismiss()
+  Toast.dismiss()
 
-  local spec = vim.tbl_extend('force', settings.transcript:get('toast'), {})
-
-  if theme.reduced() then
-    spec.in_ms, spec.out_ms = 0, 0
-  end
-
-  local label = ' ' .. (opts.icon or '◆') .. ' ' .. message:gsub('%s+', ' ') .. ' '
-  local width = math.min(text.width(label), math.max(Window.screen_width() - 4, 10))
-  local buffer = Buffer():create(false, true)
-
-  buffer:set_lines({ label })
-  buffer:set_option('bufhidden', 'wipe')
-
-  local window = Window.get_current():open(buffer, {
-    relative = 'editor',
-    anchor = 'NE',
-    row = 1,
-    col = Window.screen_width() - 2,
-    width = width,
-    height = 1,
-    style = 'minimal',
-    focusable = false,
-    zindex = 250,
-  })
-
-  window:set_option('winhl', 'Normal:UiComposer')
-  window:set_option('winblend', theme.reduced() and Toast.BLEND_SHOWN or Toast.BLEND_HIDDEN)
-
+  local window, buffer = open(message, opts and opts.icon or '◆')
+  local in_ms, hold_ms, out_ms = timings()
   local started = Timer.now()
-  local fade_in =
-    motion.Tween({ from = Toast.BLEND_HIDDEN, to = Toast.BLEND_SHOWN, ms = spec.in_ms, started = started })
+  local fade_in = motion.Tween({ from = Toast.BLEND_HIDDEN, to = Toast.BLEND_SHOWN, ms = in_ms, started = started })
   local fade_out
 
+  window:set_option('winblend', in_ms == 0 and Toast.BLEND_SHOWN or Toast.BLEND_HIDDEN)
   current = { window = window, buffer = buffer }
 
   animator = animator or Animator()
   animator:add('toast', function(now)
     if not window:is_valid() then return false end
 
-    if not fade_out and now - started >= spec.in_ms + spec.hold_ms then
-      fade_out = motion.Tween({ from = Toast.BLEND_SHOWN, to = Toast.BLEND_HIDDEN, ms = spec.out_ms, started = now })
+    if not fade_out and now - started >= in_ms + hold_ms then
+      fade_out = motion.Tween({ from = Toast.BLEND_SHOWN, to = Toast.BLEND_HIDDEN, ms = out_ms, started = now })
     end
 
-    local tween = fade_out or fade_in
-
-    window:set_option('winblend', math.floor(tween:at(now) + 0.5))
+    window:set_option('winblend', math.floor((fade_out or fade_in):at(now) + 0.5))
 
     if fade_out and fade_out:done(now) then
-      dismiss()
+      Toast.dismiss()
 
       return false
     end

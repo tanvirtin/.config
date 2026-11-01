@@ -86,10 +86,6 @@ function ComposerView:focus(insert)
   return self
 end
 
-function ComposerView:_key(lhs, label)
-  return '%#UiAccent#' .. lhs .. ' %#UiMuted#' .. label .. '  '
-end
-
 function ComposerView:winbar()
   local session, store = self.session, self.store
   local title = (session.title or 'untitled'):gsub('%%', '%%%%')

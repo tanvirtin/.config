@@ -150,31 +150,41 @@ require('harness').setup({
 
 `Ui*` groups are semantic roles. By default they link to colourscheme groups; `highlights` can relink them, give explicit specs, or compute a spec. Overrides reapply on `ColorScheme`.
 
-Card surfaces and rails are derived from the colourscheme, not hardcoded: `UiSurface` and `UiSurfaceRaised` shade `Normal` toward its foreground, `UiSurfaceWarn`/`Error`/`Accent` tint it toward the role colour, and `UiRailAccent`/`Warn`/`Error`/`Info`/`Muted` carry the role colour for a card's left rail. Without a `Normal` background they link to `ColorColumn`. Status icons (`running_icon`, `idle_icon`, `queue_icon`, `waiting_icon`) are each `{ text, group }`.
+### Surfaces
 
-Blocks are cards: prompts, tool heads, diff paths and notes carry a `UiSurface` band (errors `UiSurfaceError`, refusals `UiSurfaceWarn`; commands keep `UiTerminal`), sub-agent rails take `UiRail*` by depth, and the turn rule and artifact borders are as wide as the window (`ctx.width`) instead of a fixed 400 columns. A running tool, the winbar and the statusline spin a braille frame (`motion.loading`) in place of the old static `◆`, and a tool waiting for you pulses through the `UiPulse` steps. A permission or question under the transcript is a card: a `UiRailWarn` rail, `UiSurfaceWarn` behind every chunk and each row padded to the window width, keys on `UiSurfaceRaised`, and multi-select boxes drawn `◉`/`○`. A tool that just finished flashes its head row from an accent tint (error tint when it failed) back to its resting surface over `flash_ms` (250); `harness.ui.Flashes` owns one mark per flashing tool in its own namespace and the view's Animator steps it through the 8 `UiFlashAccent*`/`UiFlashError*` groups, so nothing is re-decorated. Tools seen finishing while a session replays never flash. While a permission or question waits, the card's rail breathes through `UiPulseWarn*`. A folded block reads `⋯ 42 more lines · failed · "first line"`.
+Cards and rails are derived from the colourscheme, not hardcoded. `UiSurface` and `UiSurfaceRaised` shade `Normal` toward its foreground, `UiSurfaceWarn`/`Error`/`Accent` tint it toward the role colour, and `UiRailAccent`/`Warn`/`Error`/`Info`/`Muted` carry the role colour for a left rail; without a `Normal` background they link to `ColorColumn`. `UiComposer` is the composer's own surface and `UiChip` a chip. Status icons (`running_icon`, `idle_icon`, `queue_icon`, `waiting_icon`) are each `{ text, group }`.
 
-A live thought shows a peek of its latest line, dimmed and cut to the window, beside `thinking…`; it goes when the thought finishes. `harness.ui.Toast.show(text, { icon })` floats a one-line notice at the top right that eases its `winblend` in, holds (`settings.transcript.toast`: `in_ms`, `hold_ms`, `out_ms`), eases out and closes; a newer toast replaces the one showing. A session waiting for permission or an answer, out of sight, now raises one in place of a `notify`.
+The six working-word colours (`UiWorking1`..`6`, and `UiWorking` for the pulse) are picked from the colourscheme when the groups are defined: the first accent groups (`Special`, `Directory`, `DiagnosticInfo`, `Constant`, `Function`, `Keyword`, then `String`, `Type`, and more) whose colour is clearly not the text colour and not close to one already picked (`hl.WORKING_FROM_TEXT`, `hl.WORKING_APART`). `highlights` overrides still win. The working line cycles metalworking words in keeping with tin; set `motion.working.words` and `word_ms` for your own.
 
-The plan panel's title carries a progress bar (`Plan  2/5 ▰▰▱▱▱▱▱▱`). While the panel is open the inline plan in the transcript folds to its count and the same bar, and unfolds when the panel closes (`Document:redecorate_kind` re-runs only the plan blocks).
+| Block | Surface |
+| --- | --- |
+| prompt, tool head, diff path | `UiSurface` band (commands keep `UiTerminal`) |
+| note | `UiSurface`, `UiSurfaceWarn` for a refusal, `UiSurfaceError` for an error |
+| sub-agent rail | `UiRail*` by depth |
+| permission or question | `UiSurfaceWarn` card with a `UiRailWarn` rail, keys on `UiSurfaceRaised`, boxes drawn `◉`/`○`, a bar for the form step |
+| turn rule, artifact border | as wide as the window (`ctx.width`), not 400 columns |
 
-Newly streamed rows ease in: `Document` reports the rows a write touched (`document.touched`), and `harness.ui.Fades` dims them one step (`UiFade1`..`6`, the normal foreground blended toward the background, at a priority below markdown and syntax so only plain text dims) and eases them to full over `fade_ms` (150). Only a live turn fades; a rewrite wider than `fade_rows` (40), such as opening or replaying a session, does not, and `reduced` skips it.
+A folded block reads `⋯ 42 more lines · failed · "first line"`; tool output, commands included, folds after `preview_lines` (3). The panels use the same groups: permission headings sit on `UiSurfaceRaised` with aligned columns, the sessions picker spins running sessions and marks ones waiting for you, and the plan panel title carries a bar (`Plan  2/5 ▰▰▱▱▱▱▱▱`) while the inline plan folds to its count and bar for as long as the panel is open (`Document:redecorate_kind`).
 
-Smaller touches: a new working word fades in from the background over `motion.working.fade_ms` (300), a multi-question form shows its step as a six-cell bar, attached selections are `UiChip` chips in the composer winbar beside a character and line count, permission panel headings sit on `UiSurfaceRaised` with aligned tool columns, and the sessions picker shows a spinner on running sessions and the waiting icon on ones that wait for you.
+The composer sits on `UiComposer`, its first line carries the `❯` icon and, when empty, a placeholder. Its winbar holds the chips (session, mode, queue, attachments, answering, a character and line count) and `%<` so a narrow window cuts the hints first; the key hints are a footer of `virt_lines` under the last line, inside the window, so `composer_geometry` and the transcript margin are unchanged.
 
-When a permission or question is answered its card does not vanish: `TranscriptView:close_card` keeps the last card rows in `document.state.closing`, flashes their surface (`UiFlashAccent*` for an allow, `UiFlashError*` for a refusal, read from the newest permission decision) and then collapses it a row at a time over `flash_ms * 2`. The plan panel flashes a step's row when it completes (the last step finishes the plan and closes the panel before the flash shows).
+### Motion
 
-Opening a fold with `<CR>` fades its revealed rows in (`TranscriptView:reveal`, through the same `Fades`). The composer grows to its height over `composer.ease_ms` (120; 0 opens it at once, `reduced` too) on its own Animator, which a close cancels. Its winbar holds the chips (session, mode, queue, attachments, answering, the count) and its key hints sit in a footer drawn as `virt_lines` under the last line, inside the window, so `composer_geometry` and the transcript margin are unchanged; session events refresh it only when the hints change. Closing is not eased: the leave-closes path stays immediate.
+`ui.motion` is pure maths (easing, `lerp`, `steps`, `breath`, `Tween`) and owns no timer. `harness.ui.Animator` is the timer: `animator:add(key, step)` registers a `step(now)` that returns `true` to keep running; it ticks every `animate_ms` (33) only while something is registered, stops itself when the last one finishes, and on an error clears everything and notifies once. Animations update dedicated extmarks by stable id and never re-decorate a block. The 100ms `tick_ms` stays for text (elapsed time, the working word).
 
-The working line cycles metalworking words (smelting, alloying, annealing, tempering, soldering, tinning, forging, casting, rolling, burnishing) in keeping with tin; set `motion.working.words` to use your own, and `motion.working.word_ms` for how long each stays.
+| Effect | Where | Setting |
+| --- | --- | --- |
+| spinner on a running tool, the winbar, the statusline | `theme.spinner` | `motion.loading` |
+| pulse on a waiting tool and the card rail | `UiPulse*`, `UiPulseWarn*` | `motion.pulse_ms` |
+| flash of a finished tool's head row | `Flashes` | `flash_ms` |
+| answered card flashes then collapses | `transcript_motion.close_card`, `status_line.closing_rows` | `flash_ms` |
+| plan step flash | `PlanPanel` | `flash_ms` |
+| new rows ease in; a fold you open eases in | `Fades`, `Document.touched` | `fade_ms`, `fade_rows` |
+| working word fade | `theme.word_fade` | `motion.working.fade_ms` |
+| toast (waiting for you, out of sight) | `Toast` | `toast.in_ms`, `hold_ms`, `out_ms` |
+| composer grows when it opens | `ComposerView:_ease_open` | `composer.ease_ms` |
 
-The six working-word colours (`UiWorking1`..`6`, and `UiWorking` for the pulse) are picked from the colourscheme at definition time: the first accent groups (`Special`, `Directory`, `DiagnosticInfo`, `Constant`, `Function`, `Keyword`, then `String`, `Type`, and more) whose colour is clearly not the text colour and not close to one already picked. `hl.WORKING_FROM_TEXT` and `hl.WORKING_APART` set those distances, and `highlights` overrides still win.
-
-## Motion
-
-`ui.motion` is pure maths: easing curves, `lerp`, `steps`, `breath` and `Tween` (a value that moves between two numbers over a duration, read with `tween:at(now)`). It owns no timer.
-
-`harness.ui.Animator` is the timer. A transcript view owns one; `animator:add(key, step)` registers a `step(now)` that returns `true` to keep running. The timer ticks every `animate_ms` (33) only while something is registered, stops itself when the last animation returns `false`, and on an error clears everything and notifies once. It is separate from the 100ms `tick_ms` that drives elapsed time and the working word, and it should only touch dedicated animation extmarks by stable id, never re-decorate a block. `make bench` reports the cost of a running session's tick under `animate`; `TICK_BUDGET_MS` (default 33) gates it when `BENCH_BUDGET_MS` is set.
+The thought peek (the latest line of a live thought, beside `thinking…`) has no animation of its own. Tools seen finishing while a session replays never flash, and a rewrite wider than `fade_rows` never fades. `motion.reduced = true` holds spinners and pulses still, skips flashes, fades, the collapse and the grow, and shows toasts at full strength at once. `make bench` reports a running session's tick under `animate`; `TICK_BUDGET_MS` (default 33) gates it when `BENCH_BUDGET_MS` is set.
 
 ## Sessions are buffers, scoped to a directory
 

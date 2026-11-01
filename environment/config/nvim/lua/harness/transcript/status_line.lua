@@ -282,8 +282,12 @@ local function retint(group, flash)
   return out
 end
 
+function status_line.closing_ms()
+  return settings:get('flash_ms') * 2
+end
+
 function status_line.closing_rows(closing, now)
-  local ms = settings:get('flash_ms') * 2
+  local ms = status_line.closing_ms()
   local progress = ms > 0 and (now - closing.started) / ms or 1
 
   if progress >= 1 then return {} end

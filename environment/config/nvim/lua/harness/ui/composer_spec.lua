@@ -171,7 +171,8 @@ describe('harness.ui.composer:', function()
 
   it('stops growing when it is closed halfway, and opens at once with no ease', function()
     local settings = require('harness.settings.composer')
-    local element = open_composer(session)
+    open_composer(session)
+
     local view = composer.view()
 
     assert.is_true(view.animator:is_running())
@@ -185,7 +186,6 @@ describe('harness.ui.composer:', function()
 
     eq(settings:get('height'), vim.api.nvim_win_get_height(vim.api.nvim_get_current_win()))
     settings:assign({ ease_ms = 120 })
-    assert.is_truthy(element)
   end)
 
   it('leaves the global window defaults alone', function()

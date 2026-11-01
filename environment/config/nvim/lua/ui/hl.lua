@@ -244,54 +244,68 @@ hl.COMPUTED = {
   end,
 }
 
-for i = 1, hl.PULSE_STEPS do
-  local alpha = 0.3 + 0.7 * motion.breath(hl.PULSE_STEPS, i)
-
-  hl.COMPUTED['UiPulse' .. i] = function()
-    local accent = color('UiWorking', 'fg') or color('UiAccent', 'fg') or color('Special', 'fg')
-    local background = color('Normal', 'bg')
-
-    if not accent or not background then return { link = i <= hl.PULSE_STEPS / 2 and 'UiAccent' or 'UiMuted' } end
-
-    return { fg = hl.blend(accent, background, alpha) }
-  end
+local function along(i, count)
+  return (i - 1) / (count - 1)
 end
 
-for i = 1, hl.PULSE_STEPS do
-  local alpha = 0.35 + 0.65 * motion.breath(hl.PULSE_STEPS, i)
+local function ramp(prefix, count, tint, alpha_at, fallback)
+  for i = 1, count do
+    hl.COMPUTED[prefix .. i] = function()
+      local from, background = tint(), color('Normal', 'bg')
 
-  hl.COMPUTED['UiPulseWarn' .. i] = function()
-    local warn, background = color('UiWarn', 'fg'), color('Normal', 'bg')
+      if not from or not background then return { link = fallback(i) } end
 
-    if not warn or not background then return { link = 'UiWarn' } end
-
-    return { fg = hl.blend(warn, background, alpha) }
-  end
-end
-
-for i = 1, hl.FADE_STEPS do
-  hl.COMPUTED['UiFade' .. i] = function()
-    local foreground, background = color('Normal', 'fg'), color('Normal', 'bg')
-
-    if not foreground or not background then return { link = 'UiMuted' } end
-
-    local alpha = hl.FADE_FLOOR + (1 - hl.FADE_FLOOR) * (i - 1) / (hl.FADE_STEPS - 1)
-
-    return { fg = hl.blend(foreground, background, alpha) }
-  end
-end
-
-for word = 1, 6 do
-  for step = 1, hl.WORD_FADE_STEPS do
-    hl.COMPUTED['UiWorkingFade' .. word .. '_' .. step] = function()
-      local tint = color('UiWorking' .. word, 'fg') or color('UiAccent', 'fg')
-      local background = color('Normal', 'bg')
-
-      if not tint or not background then return { link = 'UiWorking' .. word } end
-
-      return { fg = hl.blend(tint, background, step / (hl.WORD_FADE_STEPS + 1)) }
+      return { fg = hl.blend(from, background, alpha_at(i)) }
     end
   end
+end
+
+local function foreground_of(group, ...)
+  local rest = { ... }
+
+  return function()
+    local found = color(group, 'fg')
+
+    for _, other in ipairs(rest) do
+      found = found or color(other, 'fg')
+    end
+
+    return found
+  end
+end
+
+local function breathing(floor)
+  return function(i)
+    return floor + (1 - floor) * motion.breath(hl.PULSE_STEPS, i)
+  end
+end
+
+ramp('UiPulse', hl.PULSE_STEPS, foreground_of('UiWorking', 'UiAccent', 'Special'), breathing(0.3), function(i)
+  return i <= hl.PULSE_STEPS / 2 and 'UiAccent' or 'UiMuted'
+end)
+
+ramp('UiPulseWarn', hl.PULSE_STEPS, foreground_of('UiWarn'), breathing(0.35), function()
+  return 'UiWarn'
+end)
+
+ramp('UiFade', hl.FADE_STEPS, foreground_of('Normal'), function(i)
+  return hl.FADE_FLOOR + (1 - hl.FADE_FLOOR) * along(i, hl.FADE_STEPS)
+end, function()
+  return 'UiMuted'
+end)
+
+for word = 1, 6 do
+  ramp(
+    'UiWorkingFade' .. word .. '_',
+    hl.WORD_FADE_STEPS,
+    foreground_of('UiWorking' .. word, 'UiAccent'),
+    function(step)
+      return step / (hl.WORD_FADE_STEPS + 1)
+    end,
+    function()
+      return 'UiWorking' .. word
+    end
+  )
 end
 
 for _, tone in ipairs({ 'Accent', 'Error' }) do
@@ -304,7 +318,7 @@ for _, tone in ipairs({ 'Accent', 'Error' }) do
       local peak = hl.blend(tint, background, hl.FLASH_PEAK)
       local rest = hl.blend(foreground, background, hl.SURFACE_BASE)
 
-      return { bg = hl.blend(peak, rest, 1 - (i - 1) / (hl.FLASH_STEPS - 1)) }
+      return { bg = hl.blend(peak, rest, 1 - along(i, hl.FLASH_STEPS)) }
     end
   end
 end

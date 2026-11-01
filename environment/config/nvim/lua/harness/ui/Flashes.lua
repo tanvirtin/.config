@@ -59,9 +59,4 @@ function Flashes:step(now)
   return next(self.active) ~= nil
 end
 
-function Flashes:clear()
-  self.active = {}
-  self.buffer:clear_namespace(Flashes.NAMESPACE)
-end
-
 return Flashes

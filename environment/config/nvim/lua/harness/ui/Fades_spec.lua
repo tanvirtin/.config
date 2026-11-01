@@ -48,12 +48,4 @@ describe('harness.ui.Fades:', function()
 
     eq(2, #marks())
   end)
-
-  it('clears everything on request', function()
-    fades:touch(0, 1, 0)
-    fades:step(0)
-    fades:clear()
-
-    eq({}, marks())
-  end)
 end)

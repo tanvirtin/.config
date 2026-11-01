@@ -65,7 +65,6 @@ describe('harness.transcript.theme:', function()
     eq('UiWorkingFade1_1', theme.word_fade('UiWorking1', 3000, 0))
     eq('UiWorkingFade1_4', theme.word_fade('UiWorking1', 3290, 0))
     eq('UiWorking1', theme.word_fade('UiWorking1', 3500, 0))
-    eq('UiWorking1', theme.word_fade('UiWorking1', 3000, 0) and theme.word_fade('UiWorking1', 4000, 0))
     eq('UiPulse1', theme.word_fade('UiPulse1', 3000, 0))
   end)
 

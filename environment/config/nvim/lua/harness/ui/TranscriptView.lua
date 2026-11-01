@@ -25,11 +25,10 @@ local ASK = require('harness.types.events').ASK
 local PlanPanel = require('harness.ui.PlanPanel')
 local Block = require('harness.transcript.Block')
 local Following = require('harness.ui.Following')
-local permission = require('harness.types.permission')
+local motion = lazy('harness.ui.transcript_motion')
 local commands = lazy('harness.ui.transcript_commands')
 local bindings = lazy('harness.ui.transcript_bindings')
 local sticky_bottom = require('harness.ui.sticky_bottom')
-local status_line = require('harness.transcript.status_line')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 local Layout = require('harness.transcript.calculators.Layout')
 local fold_summary = require('harness.transcript.fold_summary')
@@ -240,7 +239,7 @@ function TranscriptView:render()
 
   local state = self:state()
 
-  self:close_card(state)
+  motion.close_card(self, state)
 
   if not loading or #self.document.blocks == 0 then
     self:write(loading and {} or session.history, state)
@@ -264,10 +263,7 @@ function TranscriptView:render()
     self.following:sync_all(windows, cursors)
   end
 
-  if not loading then
-    self:fade()
-    self:flash()
-  end
+  if not loading then motion.settle(self) end
 
   self:update_plan()
 
@@ -278,66 +274,8 @@ function TranscriptView:render()
   end
 end
 
-function TranscriptView:close_card(state)
-  local previous = self.document.state
-
-  if theme.reduced() or #(previous.asks or {}) == 0 or #state.asks > 0 then return end
-
-  local now = Timer.now()
-  local card = status_line.card_of(status_line.lines(previous, now))
-
-  if #card == 0 then return end
-
-  local decisions = self.session.permissions and self.session.permissions:decisions() or {}
-  local last = decisions[#decisions]
-  local refused = last ~= nil and last.time ~= nil and now - last.time < 2000 and not permission.allows(last.kind)
-  local closing = { lines = card, started = now, tone = refused and 'Error' or 'Accent' }
-  local ms = settings.transcript:get('flash_ms') * 2
-
-  self.document.state.closing = closing
-  self.animator:add('collapse', function(at)
-    local running = self.buffer:is_valid() and at - closing.started < ms
-
-    if not running and self.document.state.closing == closing then self.document.state.closing = nil end
-    if self.buffer:is_valid() then self.document:_status() end
-
-    return running
-  end)
-end
-
-function TranscriptView:fade()
-  local touched = self.document.touched
-
-  if theme.reduced() or not touched or not self.session:running() or self.session:loading() then return end
-  self:ease_in(touched.from, touched.to)
-end
-
-function TranscriptView:ease_in(from, to, any_size)
-  if not self.fades:touch(from, to, Timer.now(), any_size) then return end
-
-  self.animator:add('fade', function(now)
-    return self.buffer:is_valid() and self.fades:step(now)
-  end)
-end
-
 function TranscriptView:reveal(row)
-  if theme.reduced() then return end
-
-  local block = self.document:block_at(row - 1)
-
-  for _, fold in ipairs(block and block.folds or {}) do
-    local from, to = block.start + fold[1], block.start + fold[2]
-
-    if row - 1 >= from and row - 1 <= to then return self:ease_in(from, to, true) end
-  end
-end
-
-function TranscriptView:flash()
-  if not self.flashes:scan(self.document.blocks, Timer.now()) then return end
-
-  self.animator:add('flash', function(now)
-    return self.buffer:is_valid() and self.flashes:step(now)
-  end)
+  return motion.reveal(self, row)
 end
 
 function TranscriptView:diff_layout()

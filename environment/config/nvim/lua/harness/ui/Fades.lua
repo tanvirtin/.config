@@ -55,9 +55,4 @@ function Fades:step(now)
   return #alive > 0
 end
 
-function Fades:clear()
-  self.chunks = {}
-  self.buffer:clear_namespace(Fades.NAMESPACE)
-end
-
 return Fades
