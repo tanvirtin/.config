@@ -143,7 +143,7 @@ describe('ui.hl:', function()
       eq('ColorColumn', vim.api.nvim_get_hl(0, { name = 'UiSurfaceError' }).link)
     end)
 
-    it('blends the pulse in smooth steps from the accent down to a trough and back', function()
+    it('blends the pulse in smooth steps from the text colour down to a trough and back', function()
       hl.define()
 
       local first = vim.api.nvim_get_hl(0, { name = 'UiPulse1' }).fg
@@ -154,7 +154,7 @@ describe('ui.hl:', function()
         seen[vim.api.nvim_get_hl(0, { name = 'UiPulse' .. i }).fg] = true
       end
 
-      eq(vim.api.nvim_get_hl(0, { name = 'UiWorking' }).fg, first)
+      eq(vim.api.nvim_get_hl(0, { name = 'Normal' }).fg, first)
       assert.is_true(trough < first)
       assert.is_true(vim.tbl_count(seen) >= hl.PULSE_STEPS / 2 + 1)
     end)

@@ -280,7 +280,7 @@ local function breathing(floor)
   end
 end
 
-ramp('UiPulse', hl.PULSE_STEPS, foreground_of('UiWorking', 'UiAccent', 'Special'), breathing(0.3), function(i)
+ramp('UiPulse', hl.PULSE_STEPS, foreground_of('Normal'), breathing(0.3), function(i)
   return i <= hl.PULSE_STEPS / 2 and 'UiAccent' or 'UiMuted'
 end)
 

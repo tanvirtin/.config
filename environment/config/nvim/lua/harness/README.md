@@ -154,7 +154,7 @@ require('harness').setup({
 
 Cards and rails are derived from the colourscheme, not hardcoded. `UiSurface` and `UiSurfaceRaised` shade `Normal` toward its foreground, `UiSurfaceWarn`/`Error`/`Accent` tint it toward the role colour, and `UiRailAccent`/`Warn`/`Error`/`Info`/`Muted` carry the role colour for a left rail; without a `Normal` background they link to `ColorColumn`. `UiComposer` is the composer's own surface and `UiChip` a chip. Status icons (`running_icon`, `idle_icon`, `queue_icon`, `waiting_icon`) are each `{ text, group }`.
 
-The six working-word colours (`UiWorking1`..`6`, and `UiWorking` for the pulse) are picked from the colourscheme when the groups are defined: the first accent groups (`Special`, `Directory`, `DiagnosticInfo`, `Constant`, `Function`, `Keyword`, then `String`, `Type`, and more) whose colour is clearly not the text colour and not close to one already picked (`hl.WORKING_FROM_TEXT`, `hl.WORKING_APART`). `highlights` overrides still win. The working line cycles metalworking words in keeping with tin; set `motion.working.words` and `word_ms` for your own.
+The six working-word colours (`UiWorking1`..`6`) are picked from the colourscheme when the groups are defined: the first accent groups (`Special`, `Directory`, `DiagnosticInfo`, `Constant`, `Function`, `Keyword`, then `String`, `Type`, and more) whose colour is clearly not the text colour and not close to one already picked (`hl.WORKING_FROM_TEXT`, `hl.WORKING_APART`). `highlights` overrides still win. The working line cycles metalworking words in keeping with tin; set `motion.working.words` and `word_ms` for your own.
 
 | Block | Surface |
 | --- | --- |
@@ -175,7 +175,7 @@ The composer sits on `UiComposer`, its first line carries the `❯` icon and, wh
 | Effect | Where | Setting |
 | --- | --- | --- |
 | spinner on a running tool, the winbar, the statusline | `theme.spinner` | `motion.loading` |
-| pulse on a waiting tool and the card rail | `UiPulse*`, `UiPulseWarn*` | `motion.pulse_ms` |
+| pulse of the running icon and its label (the text colour), a waiting tool, the card rail (amber) | `UiPulse*`, `UiPulseWarn*` | `motion.pulse_ms` |
 | flash of a finished tool's head row | `Flashes` | `flash_ms` |
 | answered card flashes then collapses | `transcript_motion.close_card`, `status_line.closing_rows` | `flash_ms` |
 | plan step flash | `PlanPanel` | `flash_ms` |
