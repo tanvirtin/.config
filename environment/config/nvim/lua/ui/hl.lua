@@ -17,12 +17,6 @@ hl.GROUPS = {
   UiMuted = 'Comment',
   UiAccent = 'Special',
   UiWorking = 'Special',
-  UiWorking1 = 'Special',
-  UiWorking2 = 'Directory',
-  UiWorking3 = 'DiagnosticInfo',
-  UiWorking4 = 'Constant',
-  UiWorking5 = 'Function',
-  UiWorking6 = 'Keyword',
   UiPath = 'Directory',
   UiLineNr = 'LineNr',
   UiAdded = 'Added',
@@ -82,6 +76,59 @@ local function shade(strength, fallback)
 
     return { bg = hl.blend(0x000000, background, strength) }
   end
+end
+
+hl.WORKING = {
+  'Special',
+  'Directory',
+  'DiagnosticInfo',
+  'Constant',
+  'Function',
+  'Keyword',
+  'String',
+  'Type',
+  'Number',
+  'Identifier',
+  'Statement',
+  'PreProc',
+  'DiagnosticWarn',
+  'DiagnosticOk',
+  'DiagnosticHint',
+}
+
+hl.WORKING_SLOTS = 6
+hl.WORKING_FROM_TEXT = 90
+hl.WORKING_APART = 40
+
+local function distance(a, b)
+  local total = 0
+
+  for _, shift in ipairs({ 16, 8, 0 }) do
+    local delta = math.floor(a / 2 ^ shift) % 256 - math.floor(b / 2 ^ shift) % 256
+
+    total = total + delta * delta
+  end
+
+  return math.sqrt(total)
+end
+
+local function pick_working()
+  local text, picked = color('Normal', 'fg'), {}
+
+  for _, group in ipairs(hl.WORKING) do
+    local fg = color(group, 'fg')
+    local fits = fg ~= nil and (text == nil or distance(fg, text) >= hl.WORKING_FROM_TEXT)
+
+    for _, other in ipairs(picked) do
+      if fits and distance(fg, other) < hl.WORKING_APART then fits = false end
+    end
+
+    if fits then picked[#picked + 1] = fg end
+
+    if #picked == hl.WORKING_SLOTS then break end
+  end
+
+  return picked
 end
 
 hl.ANSI = {
@@ -294,6 +341,16 @@ function hl.define()
   for group, link in pairs(hl.GROUPS) do
     vim.api.nvim_set_hl(0, group, { link = link, default = true })
   end
+
+  local picked = pick_working()
+
+  for slot = 1, hl.WORKING_SLOTS do
+    local fg = #picked > 0 and picked[(slot - 1) % #picked + 1] or nil
+
+    vim.api.nvim_set_hl(0, 'UiWorking' .. slot, fg and { fg = fg } or { link = hl.WORKING[slot], default = true })
+  end
+
+  if #picked > 0 then vim.api.nvim_set_hl(0, 'UiWorking', { fg = picked[1] }) end
 
   for group, compute in pairs(hl.COMPUTED) do
     vim.api.nvim_set_hl(0, group, compute())

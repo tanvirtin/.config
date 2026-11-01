@@ -144,7 +144,6 @@ describe('ui.hl:', function()
     end)
 
     it('blends the pulse in smooth steps from the accent down to a trough and back', function()
-      vim.api.nvim_set_hl(0, 'UiWorking', { fg = 0xffffff })
       hl.define()
 
       local first = vim.api.nvim_get_hl(0, { name = 'UiPulse1' }).fg
@@ -155,9 +154,32 @@ describe('ui.hl:', function()
         seen[vim.api.nvim_get_hl(0, { name = 'UiPulse' .. i }).fg] = true
       end
 
-      eq(0xffffff, first)
+      eq(vim.api.nvim_get_hl(0, { name = 'UiWorking' }).fg, first)
       assert.is_true(trough < first)
       assert.is_true(vim.tbl_count(seen) >= hl.PULSE_STEPS / 2 + 1)
+    end)
+
+    it('never cycles the working word through the text colour, nor through two near-identical colours', function()
+      vim.api.nvim_set_hl(0, 'Normal', { fg = 0xffffff, bg = 0x000000 })
+      vim.api.nvim_set_hl(0, 'Special', { fg = 0xfafafa })
+      vim.api.nvim_set_hl(0, 'Directory', { fg = 0x61afef })
+      vim.api.nvim_set_hl(0, 'DiagnosticInfo', { fg = 0x62b0f0 })
+      vim.api.nvim_set_hl(0, 'Constant', { fg = 0xe5c07b })
+      hl.define()
+
+      local seen = {}
+
+      for slot = 1, hl.WORKING_SLOTS do
+        local fg = vim.api.nvim_get_hl(0, { name = 'UiWorking' .. slot }).fg
+
+        assert.is_true(fg ~= nil)
+        assert.is_true(fg ~= 0xffffff and fg ~= 0xfafafa)
+        seen[fg] = true
+      end
+
+      assert.is_true(seen[0x61afef])
+      assert.is_nil(seen[0x62b0f0])
+      eq(vim.api.nvim_get_hl(0, { name = 'UiWorking1' }).fg, vim.api.nvim_get_hl(0, { name = 'UiWorking' }).fg)
     end)
 
     it('lets overrides win, and keeps them across colour scheme changes', function()

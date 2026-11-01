@@ -168,6 +168,8 @@ Opening a fold with `<CR>` fades its revealed rows in (`TranscriptView:reveal`, 
 
 The working line cycles metalworking words (smelting, alloying, annealing, tempering, soldering, tinning, forging, casting, rolling, burnishing) in keeping with tin; set `motion.working.words` to use your own, and `motion.working.word_ms` for how long each stays.
 
+The six working-word colours (`UiWorking1`..`6`, and `UiWorking` for the pulse) are picked from the colourscheme at definition time: the first accent groups (`Special`, `Directory`, `DiagnosticInfo`, `Constant`, `Function`, `Keyword`, then `String`, `Type`, and more) whose colour is clearly not the text colour and not close to one already picked. `hl.WORKING_FROM_TEXT` and `hl.WORKING_APART` set those distances, and `highlights` overrides still win.
+
 ## Motion
 
 `ui.motion` is pure maths: easing curves, `lerp`, `steps`, `breath` and `Tween` (a value that moves between two numbers over a duration, read with `tween:at(now)`). It owns no timer.
