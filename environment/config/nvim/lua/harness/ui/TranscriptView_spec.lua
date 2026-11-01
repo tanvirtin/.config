@@ -181,6 +181,39 @@ describe('harness.ui.TranscriptView:', function()
         eq(true, at_end())
       end)
 
+      it('keeps tool output folded when more output streams in, and unfolds it all after', function()
+        local function closed()
+          local rows = {}
+
+          for lnum = 1, vim.api.nvim_buf_line_count(view.bufnr) do
+            if vim.fn.foldclosed(lnum) == lnum then rows[#rows + 1] = lnum end
+          end
+
+          return rows
+        end
+
+        _G.test_foldexpr = function()
+          return view.document:fold_level(vim.v.lnum - 1)
+        end
+        vim.wo.foldexpr = 'v:lua.test_foldexpr()'
+        vim.cmd('normal! zR')
+
+        stream(1, 3)
+        eq(true, view:fold_tools(true))
+        local folded = closed()
+        assert.is_true(#folded > 0)
+
+        stream(4, 6)
+
+        local after = closed()
+        for _, row in ipairs(folded) do
+          assert.is_true(vim.tbl_contains(after, row), 'the fold at row ' .. row .. ' was reopened by the stream')
+        end
+
+        eq(true, view:fold_tools(false))
+        eq({}, closed())
+      end)
+
       it('keeps the end in view when the window gets narrower and wider', function()
         vim.cmd('vsplit')
         stream(1, 2)
