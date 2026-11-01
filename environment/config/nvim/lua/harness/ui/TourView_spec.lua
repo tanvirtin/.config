@@ -251,13 +251,13 @@ describe('harness.ui.TourView:', function()
     eq(real(dir .. '/a.lua'), real(vim.api.nvim_buf_get_name(0)))
 
     local code = vim.api.nvim_get_current_win()
-    local spec = require('harness.settings').tour
+    local spec = require('harness.settings').transcript
     local total = vim.api.nvim_win_get_width(code) + vim.api.nvim_win_get_width(harness_win)
 
     eq(0, vim.api.nvim_win_get_position(code)[2])
     assert.is_true(vim.api.nvim_win_get_position(harness_win)[2] > 0)
     eq(
-      math.max(spec:get('transcript_min_width'), math.floor(total * spec:get('transcript_width'))),
+      math.max(spec:get('tile_min_width'), math.floor(total * spec:get('tile_width'))),
       vim.api.nvim_win_get_width(harness_win)
     )
 

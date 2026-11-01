@@ -9,6 +9,7 @@ local tools = lazy('nvim_mcp.tools')
 local tour = lazy('harness.ui.tour')
 local edits = lazy('harness.ui.edits')
 local context = lazy('harness.context')
+local settings = lazy('harness.settings')
 local display = lazy('harness.ui.display')
 local composer = lazy('harness.ui.composer')
 local transcript = lazy('harness.ui.transcript')
@@ -200,6 +201,46 @@ function commands.tour(text)
     false,
     'ask for a tour in your session; :HarnessTour takes next, prev, stop, resume or changes'
   )
+end
+
+local function tab_columns()
+  local total, count = 0, 0
+
+  for _, window in ipairs(Window.list_tab()) do
+    if window:get_config().relative == '' then
+      total = total + window:get_width()
+      count = count + 1
+    end
+  end
+
+  return total + math.max(count - 1, 0)
+end
+
+function commands.transcript(action)
+  action = vim.trim(action or '')
+
+  if not transcript.view() then return transcript.report(false, 'focus a transcript first') end
+
+  local window = Window.get_current()
+  local spec = settings.transcript
+  local columns = tab_columns()
+  local compact = math.max(spec:get('tile_min_width'), math.floor(columns * spec:get('tile_width')))
+  local wide = math.max(compact + 1, math.floor(columns * spec:get('tile_expanded')))
+
+  if action == 'right' then
+    window:move_right()
+    window:set_width(compact)
+
+    return true
+  end
+
+  if action == 'expand' then
+    window:set_width(window:get_width() >= wide and compact or wide)
+
+    return true
+  end
+
+  return transcript.report(false, 'HarnessTranscript takes expand or right')
 end
 
 function commands.permissions()

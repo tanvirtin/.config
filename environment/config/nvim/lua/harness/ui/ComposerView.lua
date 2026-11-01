@@ -354,10 +354,9 @@ function ComposerView:send(opts)
 
   if not sent then return ComposerView.warn(why) end
 
-  local shown = self.display and self.display.reveal(message.session, message.origin, message.source)
+  if self.display then self.display.reveal(message.session, message.origin, message.source) end
 
   self:close(true)
-  ComposerView.focus_window(shown)
 
   return self
 end
@@ -373,10 +372,9 @@ function ComposerView:_send_after_write()
       return ComposerView.warn(why)
     end
 
-    local shown = self.display and self.display.reveal(message.session, message.origin, message.source)
+    if self.display then self.display.reveal(message.session, message.origin, message.source) end
 
     if self:is_open() then self:close(true) end
-    ComposerView.focus_window(shown)
   end)
 
   return self

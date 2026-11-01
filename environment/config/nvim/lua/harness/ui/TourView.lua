@@ -87,10 +87,10 @@ function TourView:_open_beside(buffer)
 
   if not window then return nil end
 
-  local spec = settings.tour
+  local spec = settings.transcript
   local total = window:get_width() + base:get_width()
 
-  base:set_width(math.max(spec:get('transcript_min_width'), math.floor(total * spec:get('transcript_width'))))
+  base:set_width(math.max(spec:get('tile_min_width'), math.floor(total * spec:get('tile_width'))))
 
   return window
 end

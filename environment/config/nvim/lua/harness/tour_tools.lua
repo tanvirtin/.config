@@ -215,7 +215,7 @@ function tour_tools.definitions()
     {
       name = 'tour_update',
       risk = 'read',
-      summary = 'Change the tour the user is following, after they ask about a step. mode "insert" adds steps right after the step they are on and moves them to the first new one; "replace" swaps every step after the current one for new steps; "note" rewrites the current step\'s note with a better explanation and keeps them where they are. Prefer "note" for a quick clarification, "insert" for a deeper look, "replace" when the tour should go somewhere else. Steps are as in tour_start, and the reply lists changed hunks still uncovered when a range is being reviewed.',
+      summary = 'Change the tour the user is following, after they ask about a step. mode "insert" adds steps right after the step they are on and moves them to the first new one; "replace" swaps every step after the current one for new steps; "note" rewrites the current step\'s note with a better explanation and keeps them where they are. When a question opens something the step does not cover, prefer "insert" and give the answer its own steps; use "note" only for a sentence or two, and "replace" when the tour should go somewhere else. Steps are as in tour_start, and the reply lists changed hunks still uncovered when a range is being reviewed.',
       params = {
         { name = 'mode', type = schema.literal({ 'insert', 'replace', 'note' }) },
         { name = 'steps', type = schema.list(STEP), optional = true },

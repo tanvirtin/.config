@@ -151,6 +151,13 @@ function Window:split_above(buffer)
   return Window(0)
 end
 
+function Window:move_right()
+  self:focus()
+  vim.cmd('wincmd L')
+
+  return self
+end
+
 function Window:split_left(buffer)
   self:focus()
   vim.cmd('vertical aboveleft sbuffer ' .. buffer.bufnr)

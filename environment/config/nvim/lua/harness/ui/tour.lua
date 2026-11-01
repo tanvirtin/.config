@@ -220,7 +220,7 @@ function tour.step_draft(view)
 
   vim.list_extend(lines, {
     '',
-    '(Answer in this session. If it helps the tour, change it with tour_update: insert steps after this one, replace the rest, or rewrite this step\'s note.)',
+    '(Answer in this session. If the answer needs more than a sentence or two, give it its own steps with tour_update: insert after this step, or replace the rest. Use note only to clarify this step.)',
     '',
     'Question: ',
   })

@@ -479,6 +479,24 @@ describe('harness.ui.composer:', function()
     end)
   end)
 
+  it('keeps focus where the composer was opened from, not on the transcript', function()
+    vim.cmd('vsplit')
+    vim.api.nvim_win_set_buf(0, code)
+
+    local origin = vim.api.nvim_get_current_win()
+
+    open_composer(session)
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'look here' })
+    press('<CR>')
+
+    vim.wait(1000, function()
+      return #prompts(fake) == 1
+    end)
+
+    eq(origin, vim.api.nvim_get_current_win())
+    eq(code, vim.api.nvim_win_get_buf(origin))
+  end)
+
   it('sends on <CR> in normal mode, then clears and closes', function()
     local origin = vim.api.nvim_get_current_win()
 
