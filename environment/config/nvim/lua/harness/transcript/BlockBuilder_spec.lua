@@ -845,7 +845,7 @@ describe('harness.transcript.BlockBuilder:', function()
     eq(11000, agent.finished)
   end)
 
-  describe('the pass that tightens and frames the list', function()
+  describe('building from cached turns', function()
     local TurnIndex = require('harness.session.TurnIndex')
 
     local function stages()
@@ -907,7 +907,7 @@ describe('harness.transcript.BlockBuilder:', function()
       end, list)
     end
 
-    it('leaves the same blocks whether the turns before were cached or built again', function()
+    it('leaves the same tightening and framing as building every turn again', function()
       local all = stages()
       local history, cache = {}, {}
 
