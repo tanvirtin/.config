@@ -521,27 +521,28 @@ describe('harness.ui.transcript:', function()
     end)
 
     it('tells you a session is waiting for permission only when its transcript is out of sight', function()
-      local messages = {}
-      local notify = vim.notify
-
-      vim.notify = function(message)
-        messages[#messages + 1] = message
-      end
-
+      local Toast = require('harness.ui.Toast')
       local buf = transcript.open(session)
 
       session._pending[{ tool = 'Edit', id = 't1', title = 'Edit a.lua' }] = true
       transcript.announce_waiting(session, buf)
-      vim.wait(50)
-      eq({}, messages)
+      eq(false, Toast.visible())
 
       vim.cmd('enew')
       transcript.announce_waiting(session, buf)
-      vim.wait(50)
-      vim.notify = notify
 
-      eq(1, #messages)
-      assert.is_truthy(messages[1]:find(': waiting for permission: Edit a.lua', 1, true))
+      eq(true, Toast.visible())
+
+      local shown = {}
+
+      for _, win in ipairs(vim.api.nvim_list_wins()) do
+        if vim.api.nvim_win_get_config(win).relative == 'editor' then
+          shown[#shown + 1] = table.concat(vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(win), 0, -1, false))
+        end
+      end
+
+      Toast.dismiss()
+      assert.is_truthy(shown[1]:find(': waiting for permission: Edit a.lua', 1, true))
       session._pending = {}
     end)
 
@@ -657,7 +658,9 @@ describe('harness.ui.transcript:', function()
         local shown = status_text(buf)
 
         assert.is_truthy(shown:find('Allow Edit?', 1, true))
-        assert.is_truthy(shown:find('1 Allow\n   2 Always allow\n   3 Reject\n   <C-c> interrupt', 1, true))
+        for _, choice in ipairs({ '1 Allow', '2 Always allow', '3 Reject', '<C-c> interrupt' }) do
+          assert.is_truthy(shown:find('▎  ' .. choice, 1, true))
+        end
 
         vim.api.nvim_set_current_buf(buf)
         vim.api.nvim_feedkeys('2', 'x', false)
@@ -1094,7 +1097,7 @@ describe('harness.ui.transcript:', function()
         Fold.range = function()
           return 1, 3
         end
-        eq('  ⋯ 3 more lines', text())
+        eq('  ⋯ 3 more lines · "# untitled"', text())
       end
     )
 

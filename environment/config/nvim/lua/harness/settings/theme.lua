@@ -2,7 +2,8 @@ local Config = require('core.Config')
 
 return Config({
   motion = {
-    pulse_ms = 300,
+    reduced = false,
+    pulse_ms = 100,
     working = {
       word_ms = 3000,
       words = { 'working', 'pondering', 'noodling', 'cogitating', 'musing', 'tinkering' },
@@ -20,9 +21,9 @@ return Config({
     failed = { '✗ ', 'UiToolFailed' },
   },
   waiting_icon = { '◆ ', 'UiWarn' },
-  queue_icon = '· ',
-  running_icon = '◆ ',
-  idle_icon = '○ ',
+  queue_icon = { '· ', 'UiMuted' },
+  running_icon = { '◆ ', 'UiAccent' },
+  idle_icon = { '○ ', 'UiMuted' },
   current_icon = '✓ ',
   mode_format = '[%s]',
   plan_icons = {

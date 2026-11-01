@@ -20,6 +20,8 @@ local ComposerView = Object:extend()
 
 ComposerView.NAME = 'harness://composer'
 
+ComposerView.NAMESPACE = Buffer.namespace('harness.composer')
+
 ComposerView.WINBAR = '%!v:lua.require\'harness.ui.composer\'.winbar()'
 
 ComposerView.OMNIFUNC = 'v:lua.require\'harness.ui.composer\'.complete'
@@ -96,7 +98,7 @@ function ComposerView:winbar()
     parts[#parts + 1] = '%#UiAccent#' .. theme.MODE_FORMAT:format(mode.name or mode.id):gsub('%%', '%%%%') .. ' '
   end
   if #session.queue > 0 then
-    parts[#parts + 1] = string.format('%%#UiMuted#%s%d queued ', theme.QUEUE_ICON, #session.queue)
+    parts[#parts + 1] = string.format('%%#UiMuted#%s%d queued ', theme.QUEUE_ICON[1], #session.queue)
   end
   for _, selection in ipairs(store:attachments(session.key)) do
     parts[#parts + 1] = '%#UiPath#+ ' .. selection.label:gsub('%%', '%%%%') .. ' '
@@ -113,7 +115,7 @@ function ComposerView:winbar()
     parts[#parts + 1] = '%#UiWarn#' .. theme.WAITING_ICON[1] .. 'answer in the transcript '
   end
 
-  parts[#parts + 1] = '%='
+  parts[#parts + 1] = '%=%<'
 
   local keys = settings.keymaps:get('composer')
 
@@ -134,6 +136,36 @@ function ComposerView:winbar()
   parts[#parts + 1] = self:_key(keys.close, 'close')
 
   return table.concat(parts)
+end
+
+function ComposerView:placeholder()
+  local keys = settings.keymaps:get('composer')
+
+  if self.answering then return 'write your answer' end
+
+  return 'ask anything · ' .. keys.slash .. ' for commands'
+end
+
+function ComposerView:_decorate()
+  if not self:is_open() then return self end
+
+  local buffer = self.element:get_buffer()
+
+  buffer:clear_namespace(ComposerView.NAMESPACE)
+  buffer:set_extmark(ComposerView.NAMESPACE, 0, 0, {
+    virt_text = { { theme.PROMPT_ICON .. ' ', 'UiPromptBar' } },
+    virt_text_pos = 'inline',
+    right_gravity = false,
+  })
+
+  if not ComposerView.has_text(self.element:get_lines()) then
+    buffer:set_extmark(ComposerView.NAMESPACE, 0, 0, {
+      virt_text = { { self:placeholder(), 'UiMuted' } },
+      virt_text_pos = 'eol',
+    })
+  end
+
+  return self
 end
 
 function ComposerView:attach(buf, range)
@@ -479,7 +511,7 @@ function ComposerView:_listen()
   element:attach_to_changes({
     on_lines = function()
       Timer.schedule(function()
-        self:_keep()
+        self:_keep():_decorate()
       end)
     end,
   })
@@ -550,6 +582,7 @@ function ComposerView:mount(insert)
       number = false,
       relativenumber = false,
       signcolumn = 'no',
+      winhl = 'Normal:UiComposer,EndOfBuffer:UiComposer',
     },
     win_plot = { split = 'below', win = -1, height = settings.composer:get('height') },
   })
@@ -572,7 +605,7 @@ function ComposerView:mount(insert)
   element:focus()
   element:set_cursor({ element:get_line_count(), #(element:get_lines()[element:get_line_count()] or '') })
 
-  self:_bind(settings.keymaps:get('composer')):_listen()
+  self:_bind(settings.keymaps:get('composer')):_listen():_decorate()
 
   if insert then element:start_insert() end
 

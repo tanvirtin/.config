@@ -91,7 +91,7 @@ function PermissionsView.render(model)
 
   heading('Waiting for you', #model.waiting)
   for _, ask in ipairs(model.waiting) do
-    add('  ◆ ' .. cut(ask.title or ask.tool or 'a question'), 'UiWarn')
+    add('  ' .. theme.WAITING_ICON[1] .. cut(ask.title or ask.tool or 'a question'), theme.WAITING_ICON[2])
   end
 
   heading('Allowed for this session', #model.grants)

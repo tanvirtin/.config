@@ -50,7 +50,7 @@ describe('harness.transcript.decorators:', function()
     local marks = decorators.decorate(make(Block.KIND.prompt, { '> a' }, { steered = true }), {})
 
     assert.truthy(find(marks, function(opts)
-      return virt(opts) == '  steered'
+      return virt(opts) == '   steered '
     end))
   end)
 
@@ -89,7 +89,7 @@ describe('harness.transcript.decorators:', function()
     local marks = decorators.decorate(block, ctx)
 
     assert.truthy(find(marks, function(opts)
-      return first_chunk(opts) == theme.TOOL_ICONS.in_progress[1]
+      return first_chunk(opts) == theme.spinner(nil)[1]
     end))
     assert.truthy(find(marks, function(opts)
       return opts.virt_text_pos == 'eol' and virt(opts) == '  3s'
@@ -271,6 +271,44 @@ describe('harness.transcript.decorators:', function()
     eq(' done ──', label({ reason = 'end_turn' }))
   end)
 
+  it('peeks at the last line of a live thought, cut to fit, and drops it once finished', function()
+    local lines = { '◇ Thought', 'first idea', '', 'the latest idea ' .. string.rep('x', 100) }
+    local live =
+      decorators.decorate(make(Block.KIND.thought, lines, { live = true }), { running = true, now = 0, width = 60 })
+    local shown = find(live, function(opts)
+      return opts.virt_text and #opts.virt_text == 2
+    end).opts.virt_text[2][1]
+
+    assert.truthy(shown:find('the latest idea', 1, true))
+    assert.is_true(vim.fn.strchars(shown) <= 40)
+
+    local done = decorators.decorate(make(Block.KIND.thought, lines, { started = 0, finished = 2000 }), {})
+
+    eq(1, #find(done, function(opts)
+      return opts.virt_text
+    end).opts.virt_text)
+  end)
+
+  it('folds an inline plan to its progress while the plan panel shows it', function()
+    local plan = make(
+      Block.KIND.plan,
+      { 'plan', '- [x] read', '- [ ] edit' },
+      { statuses = { 'completed', 'pending' } }
+    )
+    local open = decorators.decorate(plan, { plan_open = true })
+    local closed = decorators.decorate(plan, {})
+
+    eq(2, #vim.tbl_filter(function(mark)
+      return mark.opts.conceal_lines ~= nil
+    end, open))
+    eq(0, #vim.tbl_filter(function(mark)
+      return mark.opts.conceal_lines ~= nil
+    end, closed))
+    assert.truthy(find(open, function(opts)
+      return virt(opts) == '  1/2 ▰▰▰▰▱▱▱▱'
+    end))
+  end)
+
   it('animates a live thought and times a finished one', function()
     local live = decorators.decorate(make(Block.KIND.thought, { 'x' }, { live = true }), { running = true, now = 0 })
     local done = decorators.decorate(make(Block.KIND.thought, { 'x' }, { started = 0, finished = 2000 }), {})
@@ -404,7 +442,7 @@ describe('harness.transcript.decorators:', function()
     local marks = decorators.decorate(block, { running = false, frame = 2, active = { A = true } })
 
     assert.truthy(find(marks, function(opts)
-      return first_chunk(opts) == theme.TOOL_ICONS.in_progress[1]
+      return first_chunk(opts) == theme.spinner(nil)[1]
     end))
     assert.truthy(find(marks, function(opts)
       return opts.virt_text_pos == 'eol' and virt(opts) == '  2 tools'
@@ -478,6 +516,67 @@ describe('harness.transcript.decorators:', function()
       assert.is_nil(find(decorators.decorate(read, {}), function(opts)
         return opts.line_hl_group == 'UiTerminal'
       end))
+    end)
+  end)
+
+  describe('card surfaces', function()
+    local function surfaces(marks)
+      return vim.tbl_map(
+        function(mark)
+          return mark.row .. ':' .. mark.opts.line_hl_group
+        end,
+        vim.tbl_filter(function(mark)
+          return mark.opts.line_hl_group ~= nil
+        end, marks)
+      )
+    end
+
+    it('shades every row of a prompt', function()
+      eq({ '0:UiSurface', '1:UiSurface' }, surfaces(decorators.decorate(make(Block.KIND.prompt, { '> a', '> b' }), {})))
+    end)
+
+    it('shades a tool head, keeping the terminal surface for commands', function()
+      local read = make(Block.KIND.tool, { '-> Read a.lua' }, { name = 'Read', argument = 'a.lua', category = 'read' })
+      local run = make(Block.KIND.tool, { '-> Bash ls' }, { name = 'Bash', argument = 'ls', category = 'execute' })
+
+      eq({ '0:UiSurface' }, surfaces(decorators.decorate(read, {})))
+      eq({ '0:UiTerminal' }, surfaces(decorators.decorate(run, {})))
+    end)
+
+    it('tints an error note red and a refused one amber, and leaves a settled one plain', function()
+      local function note(label)
+        return surfaces(decorators.decorate(make(Block.KIND.note, { label .. ' x', 'more' }, { label = label }), {}))
+      end
+
+      eq({ '0:UiSurfaceError', '1:UiSurfaceError' }, note('error'))
+      eq({ '0:UiSurfaceWarn', '1:UiSurfaceWarn' }, note('refused'))
+    end)
+
+    it('colours nested rails by depth', function()
+      local function rail_hl(depth)
+        local block = make(Block.KIND.tool, { '-> Read a' }, { name = 'Read', depth = depth })
+
+        return find(decorators.nesting(block, {}), function()
+          return true
+        end).opts.virt_text[1][2]
+      end
+
+      eq('UiRailMuted', rail_hl(1))
+      eq('UiRailInfo', rail_hl(2))
+      eq('UiRailAccent', rail_hl(3))
+    end)
+
+    it('draws the turn rule and artifact borders as wide as the window, not a fixed 400 columns', function()
+      local stop = make(Block.KIND.stop, { 'x' }, { reason = 'end_turn' })
+      local rule = find(decorators.decorate(stop, { width = 60 }), function(opts)
+        return opts.virt_text_pos == 'overlay'
+      end)
+      local fixed = find(decorators.decorate(stop, {}), function(opts)
+        return opts.virt_text_pos == 'overlay'
+      end)
+
+      eq(60, vim.fn.strchars(rule.opts.virt_text[1][1]))
+      eq(theme.RULE_WIDTH, vim.fn.strchars(fixed.opts.virt_text[1][1]))
     end)
   end)
 end)

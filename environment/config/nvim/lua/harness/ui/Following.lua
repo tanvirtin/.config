@@ -2,12 +2,50 @@ local Buffer = require('core.Buffer')
 local Object = require('core.Object')
 local sticky_bottom = require('harness.ui.sticky_bottom')
 
+-- A window has one intent, and its viewport is a function of it:
+--
+--   follow  the newest line sits on the edge, `reserve` rows above the bottom
+--   hold    the reader's row sits at the top, where they left it
+--
+-- Nothing is inferred from how far the view moved. `observe` compares the view
+-- against the last one we wrote: a difference is the reader's, because every
+-- change we make (a scroll, a rewrite, a resize) records the view it left. The
+-- intent only changes when the reader does something.
 local Following = Object:extend()
 
 Following.ANCHOR = Buffer.namespace('harness.following')
 
 function Following:constructor(reserve)
-  return { reserve = reserve, windows = {} }
+  return { reserve = reserve, windows = {}, applying = false }
+end
+
+local function clamp(value, low, high)
+  if value < low then return low end
+  if value > high then return high end
+
+  return value
+end
+
+-- a window that came to show another buffer starts clean: the old intent and
+-- its mark belong to the buffer that was there
+local function refresh(state, window)
+  local buffer = window:get_buffer()
+
+  if state.bufnr ~= buffer.bufnr then
+    if state.anchor and state.buffer and state.buffer:is_valid() then
+      state.buffer:del_extmark(Following.ANCHOR, state.anchor)
+    end
+
+    state.bufnr = buffer.bufnr
+    state.buffer = buffer
+    state.mode = nil
+    state.anchor = nil
+    state.anchor_fill = 0
+    state.anchor_skip = 0
+    state.applied = nil
+  end
+
+  return state
 end
 
 function Following:of(window)
@@ -18,201 +56,230 @@ function Following:of(window)
     self.windows[window.win_id] = state
   end
 
-  return state
+  return refresh(state, window)
 end
 
 function Following:follows(window)
-  return self:of(window).away == false
+  return self:of(window).mode == 'follow'
 end
 
-function Following.position(window)
-  local view = window:get_view()
-
-  return view.topline - 1, view.topfill
-end
-
-function Following.rows_moved(window, from, to)
-  if to == from then return 0 end
-  if to > from then return window:get_text_height(from, to - 1) end
-
-  return -window:get_text_height(to, from - 1)
-end
-
-function Following.above(top, fill, other_top, other_fill)
-  return top < other_top or (top == other_top and fill > other_fill)
-end
-
-function Following:edge(window)
-  local state = self:of(window)
-  local row = state.edge and state.buffer:get_extmark_row(Following.ANCHOR, state.edge)
-
-  if not row then return nil end
-
-  local last = state.buffer:get_line_count() - 1
-
-  if row > last then return last, 0, true end
-
-  return row, state.edge_fill, false
-end
-
-function Following:settle(window)
-  local state = self:of(window)
-  local top, fill = Following.position(window)
-
-  state.buffer = window:get_buffer()
-  state.edge = state.buffer:set_extmark(Following.ANCHOR, top, 0, { id = state.edge, right_gravity = true })
-  state.edge_fill = fill
-  state.top, state.fill, state.seen, state.moved = top, fill, { top, fill }, nil
-  state.ready = nil
-end
-
-function Following:track(windows)
-  for _, window in ipairs(windows) do
-    local state, height = self:of(window), window:get_height()
-    local top, fill = Following.position(window)
-    local seen = state.seen
-    local up = seen ~= nil and Following.above(top, fill, seen[1], seen[2])
-    local still = seen ~= nil and top == seen[1] and fill == seen[2]
-    local down = seen ~= nil and not up and not still
-    local at_end = sticky_bottom.at_end(window)
-
-    if state.height ~= nil and state.height ~= height then
-      local change = height - state.height
-      local delta = seen and Following.rows_moved(window, seen[1], top) or 0
-
-      -- a resize can drag the top line with the cursor; a move no larger than
-      -- the resize itself is the resize's, and a longer one (or one the other
-      -- way) is the reader scrolling in the same moment, and stays
-      state.moved = (change < 0 and delta >= 0 and delta <= -change) or (change > 0 and delta <= 0 and delta >= -change)
-    elseif not still then
-      state.moved = nil
-    end
-
-    if not state.moved then
-      local edge, edge_fill, lost = self:edge(window)
-
-      if edge then
-        local above = Following.above(top, fill, edge, edge_fill)
-
-        -- a rewrite can swallow the mark and leave it past the last line, which
-        -- no scroll can reach; that is not where the reader was, so it must not
-        -- stop a window that was following
-        if lost and state.away == false and not up then above = false end
-
-        state.away = above
-      end
-
-      -- remember that the end came back into view while the reader was away, so
-      -- that scrolling down later still catches up
-      if not state.away or up then
-        state.ready = nil
-      elseif at_end and not state.seen_end then
-        state.ready = true
-      end
-
-      if state.away and down and at_end and (state.ready or lost) then
-        state.away = false
-        state.ready = nil
-      end
-
-      state.top, state.fill = top, fill
-    end
-
-    state.seen, state.seen_end, state.height = { top, fill }, at_end, height
-  end
-end
-
-function Following:resync(window)
-  local state, now = self:of(window), self.reserve(window)
-  local before = state.reserved
-
-  state.reserved = now
-
-  if before and now > 0 and now < before and self:follows(window) then
-    sticky_bottom.release(window, before - now, now)
-  end
-end
-
-function Following:glide(window, with_cursor)
-  self:resync(window)
-  sticky_bottom.tail(window, with_cursor, self.reserve(window))
-  self:of(window).away = false
-  self:settle(window)
-end
-
-function Following:land(window, decorate)
-  local reserve = self.reserve(window)
-  local state = self:of(window)
-
-  sticky_bottom.pin(window, reserve)
-  decorate()
-  sticky_bottom.pin(window, reserve)
-  state.height = window:get_height()
-  state.reserved = reserve
-  state.away = false
-  self:settle(window)
-end
-
-function Following:keep_end(windows)
-  self:track(windows)
-
-  for _, window in ipairs(windows) do
-    if self:follows(window) then self:glide(window, false) end
-  end
-
-  self:track(windows)
-end
-
-function Following.restore(window, top, fill)
-  local cursor = window:get_cursor()
-
-  window:set_view({ topline = top + 1, topfill = fill, lnum = top + 1, col = 0 })
-
-  local _, bottom = window:get_visible_range()
-
-  window:set_cursor({ math.max(top + 1, math.min(cursor[1], bottom)), cursor[2] })
-end
-
-function Following:hold_end(windows)
-  self:track(windows)
-
-  for _, window in ipairs(windows) do
-    local state = self:of(window)
-
-    if state.moved then
-      local last = window:get_buffer():get_line_count()
-      local on_last = window:get_cursor()[1] >= last
-
-      state.moved = nil
-      Following.restore(window, state.top, state.fill)
-
-      if self:follows(window) then
-        self:resync(window)
-        sticky_bottom.hold(window, self.reserve(window))
-
-        if on_last then window:set_cursor({ last, 0 }) end
-
-        self:settle(window)
-      end
-    end
-  end
-
-  self:track(windows)
+function Following:holds(window)
+  return self:of(window).mode == 'hold'
 end
 
 function Following:settled(window)
-  return self:of(window).edge ~= nil
+  return self:of(window).applied ~= nil
 end
 
-function Following:arrive(window)
-  return self:of(window).away ~= true
+-- a view difference that comes with a different size is the resize's, not a
+-- scroll the reader made
+function Following:resized(window)
+  local state = self:of(window)
+
+  if state.height == nil then return false end
+
+  return state.height ~= window:get_height() or state.width ~= window:get_width()
+end
+
+local function anchor(state, view)
+  state.anchor = state.buffer:set_extmark(Following.ANCHOR, view.topline - 1, 0, {
+    id = state.anchor,
+    right_gravity = true,
+  })
+  state.anchor_fill = view.topfill
+  state.anchor_skip = view.skipcol or 0
+end
+
+local function unanchor(state)
+  if state.anchor and state.buffer and state.buffer:is_valid() then
+    state.buffer:del_extmark(Following.ANCHOR, state.anchor)
+  end
+
+  state.anchor, state.anchor_fill, state.anchor_skip = nil, 0, 0
+end
+
+-- the reader moved later in the buffer: a lower top line, further into a
+-- smoothscrolled line, or one filler row less above it
+local function later(now, was)
+  if now.topline ~= was.topline then return now.topline > was.topline end
+  if (now.skipcol or 0) ~= (was.skipcol or 0) then return (now.skipcol or 0) > (was.skipcol or 0) end
+
+  return (now.topfill or 0) < (was.topfill or 0)
+end
+
+local function moved(now, was)
+  return now.topline ~= was.topline
+    or (now.skipcol or 0) ~= (was.skipcol or 0)
+    or (now.topfill or 0) ~= (was.topfill or 0)
+end
+
+-- A difference from the view we last wrote is the reader's. Reaching the end
+-- from above turns following back on; anything else holds the new position.
+function Following:observe(window)
+  if not window:is_valid() then return end
+
+  local state = self:of(window)
+  local now = window:get_view()
+
+  if not state.applied then
+    state.applied = now
+
+    if sticky_bottom.at_end(window) then
+      state.mode = 'follow'
+      unanchor(state)
+    else
+      state.mode = 'hold'
+      anchor(state, now)
+    end
+
+    return
+  end
+
+  if not moved(now, state.applied) then return end
+
+  if later(now, state.applied) and sticky_bottom.at_end(window) then
+    state.mode = 'follow'
+    unanchor(state)
+  else
+    state.mode = 'hold'
+    anchor(state, now)
+  end
+
+  state.applied = now
+end
+
+function Following:observe_all(windows)
+  for _, window in ipairs(windows) do
+    self:observe(window)
+  end
+end
+
+local function desired_hold(state, window)
+  local row = state.anchor and state.buffer:get_extmark_row(Following.ANCHOR, state.anchor)
+  local last = state.buffer:get_line_count() - 1
+
+  -- a rewrite can swallow the tail the reader was on; there is no scroll that
+  -- reaches past the last line, so the end is the closest true place
+  if not row or row > last then return nil end
+
+  local fill, skip = state.anchor_fill, state.anchor_skip
+  local view = window:get_view()
+  local height = window:get_height()
+  local line = window:get_text_height(row, row)
+
+  return {
+    topline = row + 1,
+    topfill = clamp(fill, 0, math.max(line - 1, 0)),
+    skipcol = skip,
+    lnum = clamp(view.lnum, row + 1, math.min(last + 1, row + height)),
+    col = view.col,
+    curswant = view.curswant,
+  }
+end
+
+-- A resize moves the text to keep the cursor in view. Put it back where it was
+-- first, so only the edge can move it, not the resize.
+local function restore(state, window)
+  local was = state.applied
+
+  if not was then return end
+
+  local view = window:get_view()
+  local last = state.buffer:get_line_count()
+  local top = math.min(was.topline, last)
+
+  window:set_view({
+    topline = top,
+    topfill = was.topfill,
+    skipcol = was.skipcol,
+    lnum = clamp(view.lnum, top, math.min(last, top + window:get_height() - 1)),
+    col = view.col,
+    curswant = view.curswant,
+  })
+end
+
+local function same(now, wanted)
+  return now.topline == wanted.topline
+    and (now.topfill or 0) == (wanted.topfill or 0)
+    and (now.skipcol or 0) == (wanted.skipcol or 0)
+    and now.lnum == wanted.lnum
+    and now.col == wanted.col
+end
+
+-- Puts the viewport where the intent says it should be. Always records the view
+-- it leaves, so the next observation knows what we did.
+function Following:sync(window, opts)
+  if not window:is_valid() then return end
+
+  opts = opts or {}
+
+  local state = self:of(window)
+  local wanted
+
+  if state.mode == 'hold' then wanted = desired_hold(state, window) end
+
+  self.applying = true
+
+  if wanted then
+    if not same(window:get_view(), wanted) then window:set_view(wanted) end
+  else
+    state.mode = 'follow'
+
+    if self:resized(window) then restore(state, window) end
+
+    sticky_bottom.tail(window, opts.with_cursor, self.reserve(window))
+  end
+
+  state.applied = window:get_view()
+  state.height, state.width = window:get_height(), window:get_width()
+  self.applying = false
+end
+
+function Following:sync_all(windows, cursors)
+  for _, window in ipairs(windows) do
+    self:sync(window, { with_cursor = cursors and cursors[window.win_id] })
+  end
+end
+
+function Following:follow(window)
+  local state = self:of(window)
+
+  state.mode = 'follow'
+  unanchor(state)
+  self:sync(window)
+end
+
+function Following:hold(window)
+  local state = self:of(window)
+
+  state.mode = 'hold'
+  anchor(state, window:get_view())
+  self:sync(window)
+end
+
+function Following:land(window, decorate)
+  local state = self:of(window)
+  local reserve = self.reserve(window)
+
+  state.mode = 'follow'
+  unanchor(state)
+
+  self.applying = true
+  sticky_bottom.pin(window, reserve)
+
+  if decorate then decorate() end
+
+  sticky_bottom.pin(window, reserve)
+  state.applied = window:get_view()
+  state.height, state.width = window:get_height(), window:get_width()
+  self.applying = false
 end
 
 function Following:forget(win_id)
   local state = self.windows[win_id]
 
-  if state and state.edge and state.buffer and state.buffer:is_valid() then
-    state.buffer:del_extmark(Following.ANCHOR, state.edge)
+  if state and state.anchor and state.buffer and state.buffer:is_valid() then
+    state.buffer:del_extmark(Following.ANCHOR, state.anchor)
   end
 
   self.windows[win_id] = nil

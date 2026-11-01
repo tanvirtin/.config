@@ -18,20 +18,20 @@ describe('harness.transcript.status_line:', function()
     local lines = status_line.lines({ running = false, queue = { '  next thing\nmore' } })
 
     eq(2, #lines)
-    eq('  ' .. theme.QUEUE_ICON .. 'queued next thing', text(lines[2]))
+    eq('  ' .. theme.QUEUE_ICON[1] .. 'queued next thing', text(lines[2]))
   end)
 
   it('says a queued message is waiting for a free turn when the session is held', function()
     local lines = status_line.lines({ running = false, held = true, queue = { 'next' } })
 
     eq(theme.WAITING_ICON[1] .. 'waiting for a free turn: other sessions are running (max_running)', text(lines[2]))
-    eq('  ' .. theme.QUEUE_ICON .. 'queued next', text(lines[3]))
+    eq('  ' .. theme.QUEUE_ICON[1] .. 'queued next', text(lines[3]))
   end)
 
   it('shows the running icon, a pulsing label and the elapsed time while working', function()
     local lines = status_line.lines({ running = true, started = 0, label = 'Thinking' }, 5000)
 
-    eq(theme.RUNNING_ICON .. 'Thinking · 5s · <C-c> interrupt', text(lines[2]))
+    eq(theme.RUNNING_ICON[1] .. 'Thinking · 5s · <C-c> interrupt', text(lines[2]))
   end)
 
   it('cycles working words when no label is given', function()
@@ -45,7 +45,7 @@ describe('harness.transcript.status_line:', function()
 
   it('pulses the running icon', function()
     local first = status_line.lines({ running = true, started = 0 }, 0)
-    local second = status_line.lines({ running = true, started = 0 }, 300)
+    local second = status_line.lines({ running = true, started = 0 }, 100)
 
     eq('UiPulse1', first[2][1][2])
     eq('UiPulse2', second[2][1][2])
@@ -56,7 +56,7 @@ describe('harness.transcript.status_line:', function()
 
     eq(3, #lines)
     eq(theme.motion('loading') .. ' loading · the agent is replaying this session', text(lines[2]))
-    eq('  ' .. theme.QUEUE_ICON .. 'queued next', text(lines[3]))
+    eq('  ' .. theme.QUEUE_ICON[1] .. 'queued next', text(lines[3]))
   end)
 
   it('asks about the first permission with its choices, counting the rest', function()
@@ -67,10 +67,25 @@ describe('harness.transcript.status_line:', function()
       queue = { 'later' },
     })
 
-    eq(theme.WAITING_ICON[1] .. 'Allow Bash ls?  (+1 more)', text(lines[2]))
-    eq('   1 Allow once', text(lines[3]))
-    eq('   <C-c> interrupt', text(lines[4]))
+    eq('▎' .. theme.WAITING_ICON[1] .. 'Allow Bash ls?  (+1 more)', text(lines[2]))
+    eq('▎  1 Allow once', text(lines[3]))
+    eq('▎  <C-c> interrupt', text(lines[4]))
     eq(5, #lines)
+  end)
+
+  it('draws a permission as a warn card: a rail, a surface behind every chunk and rows padded to the width', function()
+    local lines = status_line.lines({
+      running = true,
+      width = 30,
+      asks = { { text = 'Bash ls', choices = { { key = '1', label = 'Allow' } } } },
+    })
+
+    eq({ '▎', { 'UiRailWarn', 'UiSurfaceWarn' } }, lines[2][1])
+    eq({ '1', { 'UiAccent', 'UiSurfaceRaised' } }, lines[3][2])
+
+    for i = 2, #lines do
+      eq(30, vim.fn.strdisplaywidth(text(lines[i])))
+    end
   end)
 
   it('keeps every choice of a permission in view in a narrow window, one per line', function()
@@ -93,8 +108,8 @@ describe('harness.transcript.status_line:', function()
       assert.is_true(vim.fn.strdisplaywidth(text(lines[i])) <= 40, text(lines[i]))
     end
 
-    eq('   3 No', text(lines[5]))
-    eq('   <C-c> interrupt', text(lines[6]))
+    eq('▎  3 No', vim.trim(text(lines[5])))
+    eq('▎  <C-c> interrupt', vim.trim(text(lines[6])))
   end)
 
   describe('a question from the agent', function()
@@ -115,13 +130,13 @@ describe('harness.transcript.status_line:', function()
 
       eq({
         '',
-        theme.WAITING_ICON[1] .. 'Which database?  (+1 more)',
-        '   Database',
-        '   1 Postgres  relational',
-        '   2 Redis',
-        '   3 Other…',
-        '   4 Skip',
-        '   0 decline   <C-c> interrupt',
+        '▎' .. theme.WAITING_ICON[1] .. 'Which database?  (+1 more)',
+        '▎  Database',
+        '▎  1 Postgres  relational',
+        '▎  2 Redis',
+        '▎  3 Other…',
+        '▎  4 Skip',
+        '▎  0 decline   <C-c> interrupt',
       }, texts(lines))
     end)
 
@@ -146,9 +161,9 @@ describe('harness.transcript.status_line:', function()
 
       local shown = texts(status_line.lines({ running = true, asks = { prompt } }))
 
-      eq(theme.WAITING_ICON[1] .. 'Please answer the following questions.  1/2', shown[2])
-      eq('   Tools: Which tools?', shown[3])
-      eq({ '   1 [ ] a', '   2 [x] b', '   3 Done' }, { shown[4], shown[5], shown[6] })
+      eq('▎' .. theme.WAITING_ICON[1] .. 'Please answer the following questions.  1/2', shown[2])
+      eq('▎  Tools: Which tools?', shown[3])
+      eq({ '▎  1 ○ a', '▎  2 ◉ b', '▎  3 Done' }, { shown[4], shown[5], shown[6] })
     end)
 
     it('says where to write while an answer is being written, and shows what was wrong', function()
@@ -162,14 +177,14 @@ describe('harness.transcript.status_line:', function()
 
       local writing = texts(status_line.lines({ running = true, asks = { prompt } }))
 
-      eq({ '   Age', '   write Age in the composer, or close it to go back' }, { writing[3], writing[4] })
+      eq({ '▎  Age', '▎  write Age in the composer, or close it to go back' }, { writing[3], writing[4] })
 
       prompt:stop_writing()
       prompt.error = 'write a number'
 
       local shown = texts(status_line.lines({ running = true, asks = { prompt } }))
 
-      eq('   write a number', shown[#shown - 1])
+      eq('▎  write a number', shown[#shown - 1])
     end)
 
     it('asks even when no turn is running, as a sign-in link arrives on its own', function()
@@ -177,11 +192,11 @@ describe('harness.transcript.status_line:', function()
 
       eq({
         '',
-        theme.WAITING_ICON[1] .. 'Sign in to linear',
-        '   https://x',
-        '   1 Open in the browser',
-        '   0 decline   <C-c> interrupt',
-        '  ' .. theme.QUEUE_ICON .. 'queued later',
+        '▎' .. theme.WAITING_ICON[1] .. 'Sign in to linear',
+        '▎  https://x',
+        '▎  1 Open in the browser',
+        '▎  0 decline   <C-c> interrupt',
+        '  ' .. theme.QUEUE_ICON[1] .. 'queued later',
       }, texts(status_line.lines({ running = false, asks = { prompt }, queue = { 'later' } })))
     end)
   end)
@@ -190,5 +205,13 @@ describe('harness.transcript.status_line:', function()
     local lines = status_line.lines({ running = true, waiting = { { title = 'Write a.lua' } } })
 
     assert.truthy(text(lines[2]):find('waiting for you: Write a.lua', 1, true))
+  end)
+
+  it('says subagents are still working after the turn ended', function()
+    local lines = status_line.lines({ running = false, active = { a = true, b = true }, queue = { 'next' } }, 0)
+
+    eq(3, #lines)
+    assert.truthy(text(lines[2]):find('2 subagents still working', 1, true))
+    eq('  ' .. theme.QUEUE_ICON[1] .. 'queued next', text(lines[3]))
   end)
 end)

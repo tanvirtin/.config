@@ -1,5 +1,8 @@
+local lazy = require('core.lazy')
 local text = require('core.text')
 local settings = require('harness.settings.theme')
+
+local hl = lazy('ui.hl')
 
 local theme = {}
 
@@ -60,11 +63,27 @@ function theme.working_word(now, started)
   return spec.words[index], 'UiWorking' .. ((index - 1) % 6 + 1)
 end
 
-function theme.pulse(now)
-  local ms = settings:get('motion').pulse_ms or 180
-  local index = math.floor((now or 0) / ms) % 4 + 1
+function theme.pulse(now, tone)
+  if theme.reduced() then return 'UiPulse' .. (tone or '') .. '1' end
 
-  return 'UiPulse' .. index
+  local ms = settings:get('motion').pulse_ms or 180
+  local index = math.floor((now or 0) / ms) % hl.PULSE_STEPS + 1
+
+  return 'UiPulse' .. (tone or '') .. index
+end
+
+function theme.reduced()
+  return settings:get('motion').reduced == true
+end
+
+function theme.spinner(now)
+  if theme.reduced() then return theme.RUNNING_ICON end
+
+  return { theme.motion('loading', now) .. ' ', theme.RUNNING_ICON[2] }
+end
+
+function theme.rule_width(ctx)
+  return ctx and ctx.width or theme.RULE_WIDTH
 end
 
 function theme.duration(ms)

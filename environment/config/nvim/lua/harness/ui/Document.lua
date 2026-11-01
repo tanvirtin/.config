@@ -4,6 +4,7 @@ local Buffer = require('core.Buffer')
 local Object = require('core.Object')
 local MarkSpec = require('ui.MarkSpec')
 local Renderer = require('ui.markdown.Renderer')
+local Following = require('harness.ui.Following')
 local Block = require('harness.transcript.Block')
 local content = require('harness.transcript.content')
 local settings = require('harness.settings.transcript')
@@ -74,6 +75,7 @@ function Document:_context()
     frame = state.frame,
     waiting = state.waiting,
     active = state.active,
+    plan_open = state.plan_open,
     width = self.width,
     now = Timer.now(),
   }
@@ -137,6 +139,16 @@ function Document:_decorate(block, ctx)
 
   self.buffer:clear_namespace(Document.NAMESPACE, block.start, block.finish)
   MarkSpec.apply(self.buffer, Document.NAMESPACE, marks)
+end
+
+function Document:redecorate_kind(kind)
+  if not self.buffer:is_valid() then return end
+
+  local ctx = self:_context()
+
+  for _, block in ipairs(self.blocks) do
+    if block.kind == kind then self:_decorate(block, ctx) end
+  end
 end
 
 function Document:_links(marks, block)
@@ -214,7 +226,7 @@ function Document:_watched_below(row)
     if window:get_cursor()[1] > row + 1 then return true end
   end
 
-  return false
+  return #self.buffer:get_extmarks(Following.ANCHOR, { row, 0 }, -1, { limit = 1 }) > 0
 end
 
 function Document.edits(old, new, offset, splice)

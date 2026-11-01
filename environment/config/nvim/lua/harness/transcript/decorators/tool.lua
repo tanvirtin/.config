@@ -25,9 +25,9 @@ local SUMMARY = {
   end,
 }
 
-local function icon_of(block, live, waiting)
-  if waiting then return theme.WAITING_ICON end
-  if live then return theme.TOOL_ICONS.in_progress end
+local function icon_of(block, live, waiting, ctx)
+  if waiting then return { theme.WAITING_ICON[1], ctx.now and theme.pulse(ctx.now) or theme.WAITING_ICON[2] } end
+  if live then return theme.spinner(ctx.now) end
   if block.interrupted then return { theme.TOOL_ICONS.failed[1], 'UiMuted' } end
 
   return theme.TOOL_ICONS[block.status] or theme.TOOL_ICONS[Block.STATUS.pending]
@@ -107,11 +107,11 @@ return function(block, ctx)
   local row = block.start
   local live = context.live_tool(block, ctx)
   local waiting = live and context.waiting_for(block, ctx)
-  local icon = icon_of(block, live, waiting)
+  local icon = icon_of(block, live, waiting, ctx)
   local verb = verb_of(block)
   local hidden = 3 + #block.name + (block.argument and 1 or 0)
 
-  if block.category == Block.CATEGORY.execute then MarkSpec.add(out, row, 0, { line_hl_group = 'UiTerminal' }) end
+  local surface = block.category == Block.CATEGORY.execute and 'UiTerminal' or 'UiSurface'
 
   MarkSpec.add(out, row, 0, { end_col = math.min(hidden, #block.lines[1]), conceal = '' })
   MarkSpec.add(out, row, 0, { virt_text = { icon, { verb, 'UiToolName' } }, virt_text_pos = 'inline' })
@@ -151,6 +151,8 @@ return function(block, ctx)
       end
     end
   end
+
+  MarkSpec.add(out, row, 0, { line_hl_group = surface })
 
   return out
 end

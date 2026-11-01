@@ -31,6 +31,10 @@ function Window.redraw_bars()
   vim.cmd('redrawstatus!')
 end
 
+function Window.screen_width()
+  return vim.o.columns
+end
+
 function Window.split_rows()
   local status = vim.o.laststatus
 

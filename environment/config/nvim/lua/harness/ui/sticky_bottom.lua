@@ -16,29 +16,6 @@ function sticky_bottom.at_end(window)
   return select(2, window:get_visible_range()) >= window:get_buffer():get_line_count()
 end
 
-function sticky_bottom.pin(window, reserve)
-  if not window:is_valid() then return end
-
-  local last = window:get_buffer():get_line_count()
-
-  reserve = reserve or sticky_bottom.margin(window)
-  window:set_cursor({ last, 0 })
-
-  if window:get_text_height(0, last - 1) > window:get_height() - reserve then
-    window:scroll_to('bottom'):scroll_down(reserve)
-  end
-end
-
-function sticky_bottom.tail(window, with_cursor, reserve)
-  if not window:is_valid() then return end
-
-  local last = window:get_buffer():get_line_count()
-
-  sticky_bottom.hold(window, reserve or sticky_bottom.margin(window))
-
-  if with_cursor then window:set_cursor({ last, 0 }) end
-end
-
 function sticky_bottom.room(window)
   local last = window:get_buffer():get_line_count()
   local top = window:get_visible_range()
@@ -46,20 +23,34 @@ function sticky_bottom.room(window)
   return window:get_height() - window:get_text_height(top, last - 1)
 end
 
-function sticky_bottom.hold(window, room)
+-- The invariant of following: the newest line leaves at least `reserve` screen
+-- rows free below it. It is a floor, not an exact value: with 'smoothscroll'
+-- off, a scroll moves whole lines, so a wrapped top line cannot land on an
+-- exact room. Scrolling up to chase one would move the text back and forth on
+-- every tick, so the edge only ever scrolls down, and stops once it is clear.
+function sticky_bottom.edge(window, reserve)
   if not window:is_valid() then return end
 
-  local short = room - sticky_bottom.room(window)
+  local room = sticky_bottom.room(window)
 
-  if short > 0 then window:scroll_down(short) end
+  reserve = reserve or sticky_bottom.margin(window)
+
+  if room < reserve then window:scroll_down(reserve - room) end
 end
 
-function sticky_bottom.release(window, rows, keep)
+function sticky_bottom.pin(window, reserve)
   if not window:is_valid() then return end
 
-  local spare = sticky_bottom.room(window) - keep
+  window:set_cursor({ window:get_buffer():get_line_count(), 0 })
+  sticky_bottom.edge(window, reserve)
+end
 
-  if spare > 0 and rows > 0 then window:scroll_up(math.min(rows, spare)) end
+function sticky_bottom.tail(window, with_cursor, reserve)
+  if not window:is_valid() then return end
+
+  sticky_bottom.edge(window, reserve)
+
+  if with_cursor then window:set_cursor({ window:get_buffer():get_line_count(), 0 }) end
 end
 
 return sticky_bottom

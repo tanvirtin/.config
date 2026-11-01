@@ -58,7 +58,7 @@ return {
               local ok, status = pcall(require, 'harness.ui.status')
               if ok then status.jump() end
             end,
-            color = { fg = '#7aa2f7' },
+            color = 'UiAccent',
           },
           {
             function()
@@ -66,7 +66,7 @@ return {
               if reg ~= '' then return '󰑋 @' .. reg end
               return ''
             end,
-            color = { fg = '#ff9e64' },
+            color = 'UiWarn',
           },
           {
             function()

@@ -1,5 +1,6 @@
 local lazy = require('core.lazy')
 local compact = require('compact')
+local Timer = require('core.Timer')
 
 local hub = lazy('harness.hub')
 local theme = lazy('harness.transcript.theme')
@@ -53,13 +54,13 @@ function status.text(list)
   local counts = status.summary(sessions)
   local parts = {}
 
-  if counts.running > 0 then parts[#parts + 1] = theme.RUNNING_ICON .. counts.running .. ' running' end
+  if counts.running > 0 then parts[#parts + 1] = theme.spinner(Timer.now())[1] .. counts.running .. ' running' end
   if counts.agents > 0 then parts[#parts + 1] = theme.plural(counts.agents, 'agent') end
 
   local waiting = status.waiting(sessions)
 
   if #waiting > 0 then
-    local icon = type(theme.WAITING_ICON) == 'table' and theme.WAITING_ICON[1] or theme.WAITING_ICON
+    local icon = theme.WAITING_ICON[1]
 
     if #waiting == 1 then
       parts[#parts + 1] = icon .. 'waiting in ' .. compact.line(waiting[1].title or waiting[1].key or 'a session', 32)

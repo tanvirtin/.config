@@ -1,3 +1,4 @@
+local text = require('core.text')
 local compact = require('compact')
 local ASK = require('harness.types.events').ASK
 local theme = require('harness.transcript.theme')
@@ -13,7 +14,7 @@ local function queue_lines(state)
     local first = vim.split(vim.trim(text), '\n', { plain = true })[1] or ''
 
     lines[#lines + 1] = {
-      { '  ' .. theme.QUEUE_ICON, 'UiMuted' },
+      { '  ' .. theme.QUEUE_ICON[1], 'UiMuted' },
       { 'queued ', 'UiMuted' },
       { compact.line(first, settings:get('queue_preview')), 'UiPromptBar' },
     }
@@ -81,7 +82,7 @@ local function elicitation_lines(state, ask)
   for _, choice in ipairs(view.choices) do
     local line = { { '   ' }, { choice.key, 'UiAccent' }, { ' ' } }
 
-    if choice.checked ~= nil then line[#line + 1] = { choice.checked and '[x] ' or '[ ] ', 'UiAccent' } end
+    if choice.checked ~= nil then line[#line + 1] = { choice.checked and '◉ ' or '○ ', 'UiAccent' } end
     line[#line + 1] = { fit(state, choice.label, 10) }
     if choice.description then
       line[#line + 1] = { '  ' .. fit(state, choice.description, 12 + #choice.label), 'UiMuted' }
@@ -123,7 +124,7 @@ local function working_line(state, now)
   local label_hl = state.label and theme.pulse(now) or word_hl or theme.pulse(now)
 
   return {
-    { theme.RUNNING_ICON, theme.pulse(now) },
+    { theme.RUNNING_ICON[1], theme.pulse(now) },
     { label, label_hl },
     { elapsed and ' · ' .. elapsed or '', 'UiMuted' },
     { ' · ', 'UiMuted' },
@@ -140,10 +141,66 @@ local function loading_line(state, now)
   }
 end
 
-local function ask_body(state, ask)
-  if ask.kind == ASK.elicitation then return elicitation_lines(state, ask) end
+local function subagents_line(state, now)
+  local count = 0
 
-  return ask_lines(state, ask)
+  for _ in pairs(state.active) do
+    count = count + 1
+  end
+
+  return {
+    { theme.RUNNING_ICON[1], theme.pulse(now) },
+    { theme.plural(count, 'subagent') .. ' still working', theme.pulse(now) },
+  }
+end
+
+status_line.RAIL = '▎'
+
+local function shaded(group)
+  if type(group) == 'table' then return vim.list_extend(vim.list_slice(group), { 'UiSurfaceWarn' }) end
+
+  if group == 'UiAccent' then return { group, 'UiSurfaceRaised' } end
+
+  return { group or 'UiMuted', 'UiSurfaceWarn' }
+end
+
+local function card(state, lines, now)
+  local out = {}
+
+  for index = 1, #lines do
+    local line, card_line = lines[index], {}
+    local indent = line[1] and line[1][1] == '   '
+
+    local rail = now and theme.pulse(now, 'Warn') or 'UiRailWarn'
+
+    card_line[1] = { indent and status_line.RAIL .. '  ' or status_line.RAIL, { rail, 'UiSurfaceWarn' } }
+
+    for chunk_index = indent and 2 or 1, #line do
+      local chunk = line[chunk_index]
+
+      if chunk then card_line[#card_line + 1] = { chunk[1], shaded(chunk[2]) } end
+    end
+
+    local used = 0
+
+    for _, chunk in ipairs(card_line) do
+      used = used + text.width(chunk[1])
+    end
+
+    if state.width and used < state.width then
+      card_line[#card_line + 1] = { string.rep(' ', state.width - used), 'UiSurfaceWarn' }
+    end
+
+    out[#out + 1] = card_line
+  end
+
+  return out
+end
+
+local function ask_body(state, ask, now)
+  if ask.kind == ASK.elicitation then return card(state, elicitation_lines(state, ask), now) end
+
+  return card(state, ask_lines(state, ask), now)
 end
 
 function status_line.lines(state, now)
@@ -153,13 +210,19 @@ function status_line.lines(state, now)
   if ask and not state.running then
     local lines = { { { '' } } }
 
-    vim.list_extend(lines, ask_body(state, ask))
+    vim.list_extend(lines, ask_body(state, ask, now))
 
     return vim.list_extend(lines, queued)
   end
 
   if state.loading and not state.running then
     local lines = { { { '' } }, loading_line(state, now) }
+
+    return vim.list_extend(lines, queued)
+  end
+
+  if not state.running and next(state.active or {}) then
+    local lines = { { { '' } }, subagents_line(state, now) }
 
     return vim.list_extend(lines, queued)
   end
@@ -180,7 +243,7 @@ function status_line.lines(state, now)
     return queued
   end
 
-  local body = ask and ask_body(state, ask) or { working_line(state, now) }
+  local body = ask and ask_body(state, ask, now) or { working_line(state, now) }
   local lines = { { { '' } } }
 
   vim.list_extend(lines, body)

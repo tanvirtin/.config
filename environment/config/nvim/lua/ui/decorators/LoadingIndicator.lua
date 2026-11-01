@@ -1,5 +1,6 @@
 local lazy = require('core.lazy')
 
+local Timer = lazy('core.Timer')
 local Object = lazy('core.Object')
 
 local frames = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' }
@@ -21,21 +22,16 @@ function LoadingIndicator:start(targets)
   self._frame = 1
   self._targets = targets or {}
 
-  self._timer = vim.uv.new_timer()
-  self._timer:start(
-    0,
-    150,
-    vim.schedule_wrap(function()
-      if not self._active then
-        self:stop()
-        return
-      end
-      self._frame = (self._frame % #frames) + 1
-      for _, target in ipairs(self._targets) do
-        self:render(target)
-      end
-    end)
-  )
+  self._timer = Timer():every(150, function()
+    if not self._active then
+      self:stop()
+      return
+    end
+    self._frame = (self._frame % #frames) + 1
+    for _, target in ipairs(self._targets) do
+      self:render(target)
+    end
+  end)
 end
 
 function LoadingIndicator:stop()
@@ -43,10 +39,7 @@ function LoadingIndicator:stop()
   self._targets = {}
 
   if self._timer then
-    if not self._timer:is_closing() then
-      self._timer:stop()
-      self._timer:close()
-    end
+    self._timer:close()
     self._timer = nil
   end
 end

@@ -13,18 +13,23 @@ local hints = lazy('harness.ui.hints')
 local console = require('core.console')
 local asks = require('harness.ui.asks')
 local links = require('harness.ui.links')
+local Toast = require('harness.ui.Toast')
 local winbar = require('harness.ui.winbar')
 local settings = require('harness.settings')
+local Flashes = require('harness.ui.Flashes')
 local theme = lazy('harness.transcript.theme')
 local Document = require('harness.ui.Document')
+local Animator = require('harness.ui.Animator')
 local ASK = require('harness.types.events').ASK
 local PlanPanel = require('harness.ui.PlanPanel')
+local Block = require('harness.transcript.Block')
 local Following = require('harness.ui.Following')
 local commands = lazy('harness.ui.transcript_commands')
 local bindings = lazy('harness.ui.transcript_bindings')
 local sticky_bottom = require('harness.ui.sticky_bottom')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 local Layout = require('harness.transcript.calculators.Layout')
+local fold_summary = require('harness.transcript.fold_summary')
 local elicitation_actions = lazy('harness.ui.elicitation_actions')
 local EVENT, NOTICE = require('harness.types.events').KIND, require('harness.types.events').NOTICE
 
@@ -90,6 +95,10 @@ function TranscriptView:constructor(session, opts)
     source_buf = opts.source_buf,
     timer = Timer(),
     pacer = Timer(),
+    flashes = Flashes(buffer),
+    animator = Animator(function(err)
+      console.notify_now('Harness: the transcript stopped animating: ' .. tostring(err), 'warn')
+    end),
     plan = PlanPanel(),
     frame = 1,
     cache = {},
@@ -137,6 +146,13 @@ end
 
 function TranscriptView:update_plan()
   self.plan:update(self.session.history, self:plan_window())
+
+  local open = self.plan:is_shown()
+
+  if self.document.state.plan_open ~= open then
+    self.document.state.plan_open = open
+    self.document:redecorate_kind(Block.KIND.plan)
+  end
 end
 
 function TranscriptView:toggle_plan()
@@ -203,14 +219,18 @@ function TranscriptView:render()
   local before = self.buffer:get_line_count()
   local windows = self:windows()
   local loading = session:loading()
-  local tails = {}
+  local cursors = {}
 
   self:adopt(windows)
 
-  self.following:track(windows)
+  if not loading then
+    for _, window in ipairs(windows) do
+      if not self.following:resized(window) then self.following:observe(window) end
+    end
+  end
 
   for _, window in ipairs(windows) do
-    if not loading then tails[#tails + 1] = { window = window, on_last = window:get_cursor()[1] >= before } end
+    if not loading then cursors[window.win_id] = window:get_cursor()[1] >= before end
   end
 
   local state = self:state()
@@ -227,23 +247,18 @@ function TranscriptView:render()
 
   local landing = self.landing
 
-  -- only text arriving moves a window, and only while the reader is at the edge
-  local grew = self.buffer:get_line_count() > before
-
   if landing ~= nil and not loading then
     self.landing = nil
 
     for _, window in ipairs(windows) do
       if landing == true or landing == window.win_id then self:land(window) end
     end
-  elseif grew then
-    for _, tail in ipairs(tails) do
-      if self.following:follows(tail.window) then self.following:glide(tail.window, tail.on_last) end
-    end
+  elseif not loading then
+    self.following:sync_all(windows, cursors)
   end
 
-  self.following:track(windows)
-  self:settle()
+  if not loading then self:flash() end
+
   self:update_plan()
 
   if (state.running or state.loading or next(state.active)) and not self.timer:is_active() then
@@ -251,6 +266,14 @@ function TranscriptView:render()
       self:tick()
     end)
   end
+end
+
+function TranscriptView:flash()
+  if not self.flashes:scan(self.document.blocks, Timer.now()) then return end
+
+  self.animator:add('flash', function(now)
+    return self.buffer:is_valid() and self.flashes:step(now)
+  end)
 end
 
 function TranscriptView:diff_layout()
@@ -292,24 +315,28 @@ function TranscriptView.reserve(view, window)
   return sticky_bottom.margin(window)
 end
 
+-- The one place a window is put back where its intent says. A difference from
+-- the view we last wrote is the reader's, unless the window's size changed:
+-- then the resize moved it, and the intent is simply re-applied.
+function TranscriptView:sync(windows)
+  if self.session:loading() then return end
+
+  windows = windows or self:windows()
+
+  self:adopt(windows)
+
+  for _, window in ipairs(windows) do
+    if not self.following:resized(window) then self.following:observe(window) end
+    self.following:sync(window)
+  end
+end
+
 function TranscriptView:keep_end()
-  if not self.session:loading() then self.following:keep_end(self:windows()) end
+  self:sync()
 end
 
 function TranscriptView:hold_end()
-  if not self.session:loading() then self.following:hold_end(self:windows()) end
-end
-
-function TranscriptView:settle()
-  if self.settling then return end
-
-  self.settling = true
-
-  Timer.schedule(function()
-    self.settling = false
-
-    if not self.disposed and self.buffer:is_valid() then self:keep_end() end
-  end)
+  self:sync()
 end
 
 function TranscriptView:_step()
@@ -329,6 +356,7 @@ function TranscriptView:_step()
   end
 
   self.document:tick({ frame = self.frame, active = active, loading = self.session:loading() })
+  self:sync()
 end
 
 function TranscriptView:tick()
@@ -353,7 +381,10 @@ function TranscriptView:announce_waiting()
 
   local why = waiting[1].kind == ASK.elicitation and 'waiting for your answer' or 'waiting for permission'
 
-  console.notify(string.format('Harness %s: %s: %s', self.session.key, why, what), 'warn')
+  Toast.show(
+    string.format('Harness %s: %s: %s', self.session.key, why, what),
+    { icon = theme.WAITING_ICON[1]:gsub('%s+$', '') }
+  )
 end
 
 -- a window that came to show the transcript without BufWinEnter (a split of it,
@@ -367,14 +398,11 @@ end
 function TranscriptView:watch()
   local windows = self:windows()
 
-  self:adopt(windows)
-
   for _, window in ipairs(windows) do
     self:set_winbar(window)
   end
 
-  -- note where the reader is, and put back only a top line a resize moved
-  self.following:hold_end(windows)
+  self:sync(windows)
 end
 
 function TranscriptView:on_event(update)
@@ -428,12 +456,17 @@ function TranscriptView:on_show()
 
   local window = Window.get_current()
 
-  if self.following:arrive(window) then
-    self:enter(window)
-  elseif self.dirty then
-    self:render()
+  -- a window the reader left scrolled up keeps their place; anything else
+  -- lands on the end, including one that was following what streamed meanwhile
+  if self.following:holds(window) then
+    if self.dirty then
+      self:render()
+    else
+      self.document:decorate_visible()
+      self:sync()
+    end
   else
-    self.document:decorate_visible()
+    self:enter(window)
   end
 end
 
@@ -452,7 +485,6 @@ function TranscriptView:land(window)
   self.following:land(window, function()
     self.document:decorate_visible()
   end)
-  self:settle()
 end
 
 function TranscriptView:expand()
@@ -557,9 +589,19 @@ function TranscriptView:_rails(row, last)
   return string.rep(theme.GUTTER, depth - 1) .. (closes and theme.BRANCH_END or theme.GUTTER)
 end
 
+function TranscriptView:_line_summary(first, last)
+  local block = self.document:block_at(first - 1)
+
+  return fold_summary.text(
+    core_text.plural(last - first + 1, 'more line'),
+    vim.list_slice(self.document.lines, first, last),
+    block ~= nil and block.status == Block.STATUS.failed
+  )
+end
+
 function TranscriptView:fold_text(first, last)
   local children = self:_children_in(first - 1, last)
-  local text = '⋯ ' .. (children or core_text.plural(last - first + 1, 'more line'))
+  local text = '⋯ ' .. (children or self:_line_summary(first, last))
 
   return { { self:_rails(first - 1, last - 1), 'UiMuted' }, { text, 'UiMuted' } }
 end
@@ -657,7 +699,7 @@ function TranscriptView:mount(callbacks)
     self:on_event(update)
   end)
   self.unwatch = settings.composer:on_change(function()
-    if not self.disposed then self:keep_end() end
+    if not self.disposed then self:sync() end
   end)
 
   local function relayout()
@@ -675,15 +717,20 @@ function TranscriptView:mount(callbacks)
   end)
   self.group.on({ 'WinResized', 'TabEnter' }, function()
     self.document:resize()
-    self:hold_end()
+    self:sync()
     self:update_plan()
     relayout()
+  end)
+  -- a view that differs from the one we last wrote is the reader's. Our own
+  -- scrolls are ignored while they happen; a resize is recognised by its height
+  self.group.on('WinScrolled', function()
+    if not self.disposed and not self.following.applying then self:sync() end
   end)
   self.group.on('CursorMoved', function()
     hints.show(self)
   end, { buffer = self.buffer })
   self.group.on('BufWinLeave', function()
-    self.following:track(self:windows())
+    self.following:observe_all(self:windows())
 
     Timer.schedule(function()
       if not self.disposed then self:update_plan() end
@@ -726,6 +773,7 @@ function TranscriptView:dispose()
   self.plan:hide()
   self.timer:close()
   self.pacer:close()
+  self.animator:close()
   if self.watcher then self.watcher:close() end
 
   if self.group then self.group.dispose() end

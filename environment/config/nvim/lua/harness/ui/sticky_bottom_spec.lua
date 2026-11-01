@@ -148,26 +148,41 @@ describe('harness.ui.sticky_bottom:', function()
     eq(1, vim.api.nvim_win_get_cursor(win)[1])
   end)
 
-  it('scrolls just enough to free the rows asked for, and never back', function()
+  it('scrolls down until the newest line leaves the reserved rows, and never back up', function()
     fill(200)
     sticky_bottom.pin(window(), 0)
 
     local top = vim.fn.line('w0', win)
 
-    sticky_bottom.hold(window(), 4)
+    sticky_bottom.edge(window(), 4)
     eq(4, room())
     eq(top + 4, vim.fn.line('w0', win))
-    sticky_bottom.hold(window(), 1)
+
+    -- a smaller reserve is a smaller floor, not a reason to move the text
+    sticky_bottom.edge(window(), 2)
+    eq(4, room())
     eq(top + 4, vim.fn.line('w0', win))
   end)
 
-  it('gives back only the spare rows when asked to release', function()
+  it('leaves a wrapped top line alone rather than oscillating around the edge', function()
+    vim.wo[win].wrap = true
     fill(200)
-    sticky_bottom.pin(window(), 6)
-    sticky_bottom.release(window(), 4, 2)
-    eq(2, room())
-    sticky_bottom.release(window(), 4, 2)
-    eq(2, room())
+
+    local wide = string.rep('word ', 120)
+
+    vim.api.nvim_buf_set_lines(bufnr, 190, 191, false, { wide })
+    vim.api.nvim_buf_set_lines(bufnr, 191, 192, false, { wide })
+    vim.cmd('normal! G')
+
+    local seen = {}
+
+    for _ = 1, 5 do
+      sticky_bottom.edge(window(), 4)
+      seen[vim.fn.line('w0', win)] = true
+    end
+
+    eq(1, vim.tbl_count(seen))
+    assert.is_true(room() >= 4)
   end)
 
   it('re-reserves when the composer height setting changes, on the next text', function()

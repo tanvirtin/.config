@@ -171,7 +171,7 @@ describe('harness.transcript.BlockBuilder:', function()
     eq({ '-> nvim:buffer_read a.lua' }, list[3].lines)
   end)
 
-  it('shows command output in a fence, without folding it', function()
+  it('shows command output in a fence, folded after its preview', function()
     local output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, 10)), '\n')
     local list = blocks.build({
       { kind = 'tool_call', id = 't1', name = 'Bash', category = 'execute', input = { command = 'seq' }, diffs = {} },
@@ -182,7 +182,7 @@ describe('harness.transcript.BlockBuilder:', function()
     eq('```terminal', tool.lines[2])
     eq('10', tool.lines[12])
     eq('```', tool.lines[13])
-    eq({}, tool.folds)
+    eq({ { 2 + require('harness.settings.transcript'):get('preview_lines'), #tool.lines - 2 } }, tool.folds)
   end)
 
   it('folds a long search result after its preview', function()

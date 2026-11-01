@@ -42,7 +42,10 @@ describe('harness.ui.PlanPanel:', function()
     local config = vim.api.nvim_win_get_config(wins[1])
 
     eq({ 'win', window.win_id, 'NE' }, { config.relative, config.win, config.anchor })
-    eq(' Plan  1/2', vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(wins[1]), 0, 1, false)[1])
+    eq(
+      ' Plan  1/2 ▰▰▰▰▱▱▱▱',
+      vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(wins[1]), 0, 1, false)[1]
+    )
   end)
 
   it('hides once every entry is done, or there is no plan', function()
@@ -76,6 +79,6 @@ describe('harness.ui.PlanPanel:', function()
     panel:update(history({ 'completed', 'pending' }), window)
 
     eq({ win }, floats())
-    eq(' Plan  1/2', vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(win), 0, 1, false)[1])
+    eq(' Plan  1/2 ▰▰▰▰▱▱▱▱', vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(win), 0, 1, false)[1])
   end)
 end)

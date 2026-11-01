@@ -2,10 +2,13 @@ local Config = require('core.Config')
 
 return Config({
   tick_ms = 100,
+  animate_ms = 33,
+  flash_ms = 250,
+  toast = { in_ms = 150, hold_ms = 2500, out_ms = 250 },
   watch_ms = 150,
   frame_ms = 16,
   margin_screens = 2,
-  preview_lines = 5,
+  preview_lines = 3,
   output_max = 200,
   queue_preview = 120,
   request_preview = 80,

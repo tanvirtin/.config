@@ -10,6 +10,8 @@ return function(block)
   local good = Block.SETTLED_NOTES[block.label] == true
   local icon = good and theme.TOOL_ICONS.completed or theme.TOOL_ICONS.failed
 
+  local surface = good and 'UiSurface' or block.label == 'error' and 'UiSurfaceError' or 'UiSurfaceWarn'
+
   for index, line in ipairs(block.lines) do
     local row = block.start + index - 1
 
@@ -29,6 +31,10 @@ return function(block)
     elseif block.label == 'error' then
       MarkSpec.add(out, row, 0, { end_col = #line, hl_group = 'UiError' })
     end
+  end
+
+  for index in ipairs(block.lines) do
+    MarkSpec.add(out, block.start + index - 1, 0, { line_hl_group = surface })
   end
 
   return out

@@ -40,6 +40,9 @@ describe('ui.hl:', function()
         vim.api.nvim_set_hl(0, group, spec)
       end
 
+      vim.api.nvim_set_hl(0, 'UiWorking', { link = 'Special', default = true })
+      vim.api.nvim_set_hl(0, 'DiagnosticWarn', {})
+      vim.api.nvim_set_hl(0, 'DiagnosticError', {})
       hl.clear_overrides()
     end)
 
@@ -106,6 +109,55 @@ describe('ui.hl:', function()
 
       eq('ColorColumn', vim.api.nvim_get_hl(0, { name = 'UiMarkdownCode' }).link)
       eq('ColorColumn', vim.api.nvim_get_hl(0, { name = 'UiTerminal' }).link)
+    end)
+
+    it('derives card surfaces from the scheme, in both a dark and a light one', function()
+      vim.api.nvim_set_hl(0, 'DiagnosticWarn', { fg = 0xff8800 })
+      hl.define()
+
+      local dark = vim.api.nvim_get_hl(0, { name = 'UiSurface' }).bg
+
+      eq(hl.blend(0xffffff, 0x000000, hl.SURFACE_BASE), dark)
+      eq(hl.blend(0xff8800, 0x000000, hl.SURFACE_TINT), vim.api.nvim_get_hl(0, { name = 'UiSurfaceWarn' }).bg)
+      assert.is_true(vim.api.nvim_get_hl(0, { name = 'UiSurfaceRaised' }).bg > dark)
+
+      vim.api.nvim_set_hl(0, 'Normal', { fg = 0x000000, bg = 0xffffff })
+      hl.define()
+
+      assert.is_true(vim.api.nvim_get_hl(0, { name = 'UiSurface' }).bg < 0xffffff)
+      assert.is_true(vim.api.nvim_get_hl(0, { name = 'UiSurface' }).bg > 0xf0f0f0)
+    end)
+
+    it('gives every card kind a rail in its colour', function()
+      vim.api.nvim_set_hl(0, 'DiagnosticError', { fg = 0xee0000 })
+      hl.define()
+
+      eq(0xee0000, vim.api.nvim_get_hl(0, { name = 'UiRailError' }).fg)
+    end)
+
+    it('falls back to links for surfaces and rails when the scheme sets nothing', function()
+      vim.api.nvim_set_hl(0, 'Normal', {})
+      hl.define()
+
+      eq('ColorColumn', vim.api.nvim_get_hl(0, { name = 'UiSurface' }).link)
+      eq('ColorColumn', vim.api.nvim_get_hl(0, { name = 'UiSurfaceError' }).link)
+    end)
+
+    it('blends the pulse in smooth steps from the accent down to a trough and back', function()
+      vim.api.nvim_set_hl(0, 'UiWorking', { fg = 0xffffff })
+      hl.define()
+
+      local first = vim.api.nvim_get_hl(0, { name = 'UiPulse1' }).fg
+      local trough = vim.api.nvim_get_hl(0, { name = 'UiPulse' .. hl.PULSE_STEPS / 2 + 1 }).fg
+      local seen = {}
+
+      for i = 1, hl.PULSE_STEPS do
+        seen[vim.api.nvim_get_hl(0, { name = 'UiPulse' .. i }).fg] = true
+      end
+
+      eq(0xffffff, first)
+      assert.is_true(trough < first)
+      assert.is_true(vim.tbl_count(seen) >= hl.PULSE_STEPS / 2 + 1)
     end)
 
     it('lets overrides win, and keeps them across colour scheme changes', function()

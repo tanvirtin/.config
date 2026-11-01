@@ -953,7 +953,7 @@ describe('harness.ui.TranscriptView:', function()
     view:dispose()
   end)
 
-  it('gives the rows back as soon as the composer height setting shrinks', function()
+  it('does not bounce the text when the composer height setting shrinks', function()
     local composer = require('harness.settings.composer')
     local saved = composer:get('height')
 
@@ -969,14 +969,19 @@ describe('harness.ui.TranscriptView:', function()
 
     view:show_in(Window.get_current())
 
-    local before = sticky_bottom.room(Window(win))
-
     composer:set('height', 1)
+    view:sync()
 
-    local after = sticky_bottom.room(Window(win))
+    local top = vim.fn.line('w0', win)
+
+    for _ = 1, 3 do
+      view:sync()
+      eq(top, vim.fn.line('w0', win))
+    end
+
+    assert.is_true(sticky_bottom.room(Window(win)) >= 1)
 
     composer:set('height', saved)
-    assert.is_true(after < before)
     view:dispose()
   end)
 

@@ -12,6 +12,8 @@ local fake_agent = require('harness.servers.acp.fake_agent')
 local TURNS = tonumber(os.getenv('TURNS') or 30)
 local CHUNKS = tonumber(os.getenv('CHUNKS') or 1500)
 local BUDGET_MS = tonumber(os.getenv('BENCH_BUDGET_MS') or '')
+local TICKS = tonumber(os.getenv('TICKS') or 300)
+local TICK_BUDGET_MS = tonumber(os.getenv('TICK_BUDGET_MS') or 33)
 
 vim.o.columns, vim.o.lines = 160, 50
 
@@ -64,6 +66,8 @@ end
 wrap('harness.transcript.BlockBuilder', 'build', 'BlockBuilder.build')
 wrap('harness.ui.Document', 'write', 'Document.write')
 wrap('harness.ui.Document', 'decorate_visible', 'Document.decorate_visible')
+wrap('harness.ui.Document', 'tick', 'Document.tick')
+wrap('harness.ui.Document', '_status', 'Document._status')
 wrap('ui.markdown.Renderer', 'annotate', 'Renderer.annotate')
 wrap('harness.vgit', 'patch', 'vgit.patch')
 wrap('harness.vgit', 'stat', 'vgit.stat')
@@ -336,6 +340,34 @@ log(
   'buffer matches the document: %s',
   tostring(vim.deep_equal(vim.api.nvim_buf_get_lines(view.bufnr, 0, -1, false), view.document.lines))
 )
+
+local function animate()
+  local total, worst = 0, 0
+
+  for _ = 1, TICKS do
+    local start = now()
+
+    view:tick()
+    vim.cmd('redraw')
+
+    local took = now() - start
+
+    worst = math.max(worst, took)
+    total = total + took
+  end
+
+  log('animate (%d ticks of a running session)', TICKS)
+  log('  per tick avg %.2f ms, worst %.2f ms', total / TICKS, worst)
+
+  if BUDGET_MS and total / TICKS > TICK_BUDGET_MS then
+    failed = true
+    log('  tick budget %.1f ms exceeded by %.2f ms', TICK_BUDGET_MS, total / TICKS - TICK_BUDGET_MS)
+  end
+
+  report()
+end
+
+animate()
 
 session.state = 'idle'
 view:dispose()

@@ -39,7 +39,8 @@ function sessions.rows(listed)
 
   for _, item in ipairs(listed) do
     local live = item.session
-    local mark = live and ((live:running() or #live:waiting() > 0) and theme.RUNNING_ICON or theme.IDLE_ICON) or '  '
+    local mark = live and ((live:running() or #live:waiting() > 0) and theme.RUNNING_ICON[1] or theme.IDLE_ICON[1])
+      or '  '
     local status = status_of(live, item.updated_at)
 
     rows[#rows + 1] = {

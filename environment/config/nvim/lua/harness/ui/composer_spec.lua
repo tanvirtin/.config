@@ -66,6 +66,55 @@ describe('harness.ui.composer:', function()
     hub.config = vim.deepcopy(defaults)
   end)
 
+  describe('dressing', function()
+    local function chunks(buf)
+      local out = {}
+
+      for _, mark in
+        ipairs(
+          vim.api.nvim_buf_get_extmarks(buf, require('harness.ui.ComposerView').NAMESPACE, 0, -1, { details = true })
+        )
+      do
+        out[#out + 1] = { mark[4].virt_text[1][1], mark[4].virt_text_pos }
+      end
+
+      return out
+    end
+
+    it('marks the first line with the prompt icon and says what to type while it is empty', function()
+      open_composer(session)
+
+      local buf = vim.api.nvim_get_current_buf()
+      local shown = chunks(buf)
+
+      eq({ require('harness.transcript.theme').PROMPT_ICON .. ' ', 'inline' }, shown[1])
+      assert.is_truthy(shown[2][1]:find('ask anything', 1, true))
+      eq('eol', shown[2][2])
+    end)
+
+    it('drops the placeholder once there is text, keeping the icon', function()
+      open_composer(session)
+
+      local buf = vim.api.nvim_get_current_buf()
+
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'hello' })
+      vim.wait(200, function()
+        return #chunks(buf) == 1
+      end)
+
+      eq(1, #chunks(buf))
+    end)
+
+    it('sits on its own surface and truncates the hints before the chips', function()
+      open_composer(session)
+
+      local win = vim.api.nvim_get_current_win()
+
+      assert.is_truthy(vim.wo[win].winhl:find('Normal:UiComposer', 1, true))
+      assert.is_truthy(composer.winbar():find('%=%<', 1, true))
+    end)
+  end)
+
   it('opens as a fileless split along the bottom, naming its session', function()
     local above = vim.api.nvim_get_current_win()
     local element = open_composer(session)

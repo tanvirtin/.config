@@ -36,8 +36,18 @@ function plan_summary.unfinished(entries)
   return entries ~= nil and #entries > 0 and plan_summary.done(entries) < #entries
 end
 
+plan_summary.BAR = { full = '▰', empty = '▱', width = 8 }
+
+function plan_summary.bar(done, total)
+  local filled = total > 0 and math.floor(done / total * plan_summary.BAR.width + 0.5) or 0
+
+  return string.rep(plan_summary.BAR.full, filled)
+    .. string.rep(plan_summary.BAR.empty, plan_summary.BAR.width - filled)
+end
+
 function plan_summary.render(entries)
-  local title = string.format(' Plan  %d/%d', plan_summary.done(entries), #entries)
+  local done = plan_summary.done(entries)
+  local title = string.format(' Plan  %d/%d %s', done, #entries, plan_summary.bar(done, #entries))
   local lines = { title }
   local highlights = { { row = 0, from = 0, to = #title, hl = 'UiTitle' } }
   local width = text.width(title)

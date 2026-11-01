@@ -60,7 +60,7 @@ describe('harness.ui.display:', function()
     eq(vim.api.nvim_buf_line_count(buf), vim.api.nvim_win_get_cursor(win)[1])
 
     vim.cmd('normal! gg')
-    view.following:track(view:windows())
+    view.following:observe_all(view:windows())
 
     eq(1, vim.fn.line('w0', win))
 

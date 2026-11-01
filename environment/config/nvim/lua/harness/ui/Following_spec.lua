@@ -16,6 +16,14 @@ describe('harness.ui.Following:', function()
     return Window(win)
   end
 
+  local function top()
+    return vim.fn.line('w0', win)
+  end
+
+  local function cursor()
+    return vim.api.nvim_win_get_cursor(win)
+  end
+
   local function append(count)
     local lines = {}
 
@@ -24,6 +32,32 @@ describe('harness.ui.Following:', function()
     end
 
     vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, lines)
+  end
+
+  local function rewrite_tail(from, count)
+    local lines = {}
+
+    for i = 1, count do
+      lines[i] = 'rewritten ' .. i
+    end
+
+    vim.api.nvim_buf_set_lines(bufnr, from, -1, false, lines)
+  end
+
+  local function land()
+    following:land(window(), function() end)
+  end
+
+  -- the reader moved, or the window was resized: read the view, then apply it
+  local function settle()
+    if not following:resized(window()) then following:observe(window()) end
+
+    following:sync(window())
+  end
+
+  -- the stream rewrote the buffer: only put the view back, and record it
+  local function redraw()
+    following:sync(window())
   end
 
   before_each(function()
@@ -55,308 +89,317 @@ describe('harness.ui.Following:', function()
     end)
 
     eq(true, decorated)
-    eq(200, vim.api.nvim_win_get_cursor(win)[1])
+    eq(200, cursor()[1])
     eq(reserve, sticky_bottom.room(window()))
+    eq(true, following:follows(window()))
   end)
 
   it('follows a window whose end is in view, and one whose rows grew without it scrolling', function()
-    following:land(window(), function() end)
+    land()
     eq(true, following:follows(window()))
 
     append(20)
     eq(false, sticky_bottom.at_end(window()))
+
+    redraw()
     eq(true, following:follows(window()))
+    assert.is_true(sticky_bottom.at_end(window()))
   end)
 
   it('stops following once the window scrolls away from the end', function()
-    following:land(window(), function() end)
+    land()
     vim.cmd('normal! gg')
-    following:track({ window() })
-    append(1)
+    settle()
     eq(false, following:follows(window()))
+
+    local before = top()
+
+    append(1)
+    settle()
+
+    eq(before, top())
   end)
 
   it('stops following as soon as the window is scrolled up, before the end leaves view', function()
-    following:land(window(), function() end)
+    land()
     vim.cmd('normal! 3\25')
-    following:track({ window() })
+    settle()
 
-    local top = vim.fn.line('w0', win)
+    local before = top()
 
     eq(true, sticky_bottom.at_end(window()))
     eq(false, following:follows(window()))
 
     append(2)
-    following:keep_end({ window() })
+    settle()
 
-    eq(top, vim.fn.line('w0', win))
+    eq(before, top())
   end)
 
   it('follows again once the window is scrolled back down to the edge', function()
-    following:land(window(), function() end)
+    land()
     vim.cmd('normal! gg')
-    following:track({ window() })
+    settle()
     eq(false, following:follows(window()))
 
     vim.cmd('normal! G')
     vim.cmd('normal! ' .. (reserve + 1) .. '\5')
-    following:track({ window() })
+    settle()
 
     eq(true, following:follows(window()))
   end)
 
   it('follows again when scrolled back down to the bottom, short of the reserved edge', function()
-    following:land(window(), function() end)
+    land()
     vim.cmd('normal! gg')
-    following:track({ window() })
+    settle()
     eq(false, following:follows(window()))
 
     append(1)
     vim.cmd('normal! G')
-    following:track({ window() })
+    settle()
 
     eq(true, sticky_bottom.at_end(window()))
     eq(true, following:follows(window()))
   end)
 
-  local function rewrite_tail(from, count)
-    local lines = {}
-
-    for i = 1, count do
-      lines[i] = 'rewritten ' .. i
-    end
-
-    vim.api.nvim_buf_set_lines(bufnr, from, -1, false, lines)
-  end
-
-  it('follows again when a tail rewrite swallowed the edge, once scrolled as far as the window goes', function()
-    following:land(window(), function() end)
-    vim.cmd('normal! gg')
-    following:track({ window() })
+  it('follows the end when a rewrite swallows the row the reader was on', function()
+    land()
+    vim.cmd('normal! 100G')
+    settle()
     eq(false, following:follows(window()))
 
-    rewrite_tail(100, 120)
-
-    local state = following:of(window())
-
-    eq(vim.api.nvim_buf_line_count(bufnr), state.buffer:get_extmark_row(Following.ANCHOR, state.edge))
-
-    vim.fn.winrestview({ topline = vim.api.nvim_buf_line_count(bufnr) })
-    following:track({ window() })
+    -- the rewrite ends the buffer above the row the reader was on
+    rewrite_tail(50, 20)
+    redraw()
 
     eq(true, following:follows(window()))
+    assert.is_true(sticky_bottom.at_end(window()))
   end)
 
-  it(
-    'follows again when scrolled back down to the end after a rewrite swallowed the edge, though the end never left view',
-    function()
-      following:land(window(), function() end)
-      vim.cmd('normal! 2\25')
-      following:track({ window() })
-      eq(true, sticky_bottom.at_end(window()))
-      eq(false, following:follows(window()))
+  it('keeps following when a rewrite leaves the edge past the last line', function()
+    land()
+    redraw()
 
-      rewrite_tail(150, 50)
-      following:track({ window() })
-      eq(false, following:follows(window()))
-
-      vim.cmd('normal! 1\5')
-      following:track({ window() })
-
-      eq(true, sticky_bottom.at_end(window()))
-      eq(true, following:follows(window()))
-    end
-  )
-
-  it('keeps following when a rewrite leaves the edge mark past the last line', function()
-    following:land(window(), function() end)
-    following:track({ window() })
-    eq(true, following:follows(window()))
-
-    local state = following:of(window())
-    local edge = state.buffer:get_extmark_row(Following.ANCHOR, state.edge)
+    local edge = top()
 
     rewrite_tail(edge - 20, 60)
+    redraw()
 
-    eq(vim.api.nvim_buf_line_count(bufnr), state.buffer:get_extmark_row(Following.ANCHOR, state.edge))
-
-    following:track({ window() })
     eq(true, following:follows(window()))
+    assert.is_true(sticky_bottom.at_end(window()))
   end)
 
   it('follows again when a shrinking tail brought the end back into view, after scrolling down', function()
-    following:land(window(), function() end)
+    land()
     vim.cmd('normal! 5\25')
-    following:track({ window() })
+    settle()
     eq(false, sticky_bottom.at_end(window()))
     eq(false, following:follows(window()))
 
-    -- the stream rewrites the tail shorter below the edge: the edge survives,
-    -- but the end comes back into view
+    -- the stream rewrites the tail shorter below the reader: the anchor
+    -- survives, but the end comes back into view
     vim.api.nvim_buf_set_lines(bufnr, -3, -1, false, {})
-    following:track({ window() })
+    redraw()
+
     eq(true, sticky_bottom.at_end(window()))
     eq(false, following:follows(window()))
 
     vim.cmd('normal! 1\5')
-    following:track({ window() })
+    settle()
 
     eq(true, following:follows(window()))
   end)
 
   it('stops following when the window is scrolled with the cursor on the last row', function()
     reserve = 0
-    following:land(window(), function() end)
-    following:track({ window() })
+    land()
+    redraw()
 
     eq(vim.api.nvim_win_get_height(win), vim.fn.winline())
 
-    local top = vim.fn.line('w0', win)
+    local before = top()
 
     vim.cmd('normal! 3\25')
-    following:track({ window() })
+    settle()
 
-    assert.is_true(vim.fn.line('w0', win) < top)
+    assert.is_true(top() < before)
     eq(false, following:follows(window()))
   end)
 
   it('keeps following when rows above the window go away', function()
-    following:land(window(), function() end)
-    following:track({ window() })
+    land()
+    redraw()
 
-    local top = vim.fn.line('w0', win)
+    local before = top()
 
     vim.api.nvim_buf_set_lines(bufnr, 0, 20, false, {})
-    following:track({ window() })
+    redraw()
 
-    assert.is_true(vim.fn.line('w0', win) < top)
+    assert.is_true(top() < before)
     eq(true, following:follows(window()))
+    assert.is_true(sticky_bottom.at_end(window()))
   end)
 
   it('keeps following when a stream drops rows above the window and adds rows below', function()
-    following:land(window(), function() end)
-    following:track({ window() })
+    land()
+    redraw()
 
-    local top = vim.fn.line('w0', win)
+    local before = top()
 
     vim.api.nvim_buf_set_lines(bufnr, 0, 3, false, {})
     vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, { 'later', 'later' })
-    following:track({ window() })
+    redraw()
 
-    assert.is_true(vim.fn.line('w0', win) < top)
+    assert.is_true(top() < before)
     eq(true, following:follows(window()))
   end)
 
   it('glides the newest line onto the edge of the reserved rows', function()
-    following:land(window(), function() end)
+    land()
     append(3)
-    following:glide(window(), true)
+    following:sync(window(), { with_cursor = true })
+
     eq(reserve, sticky_bottom.room(window()))
-    eq(203, vim.api.nvim_win_get_cursor(win)[1])
+    eq(203, cursor()[1])
   end)
 
-  it('gives back rows when the reserve shrinks, but not when it drops to nothing', function()
-    following:land(window(), function() end)
+  it('keeps at least the reserved rows free as the reserve grows, and leaves the text alone as it shrinks', function()
+    land()
+
+    reserve = 6
+    following:sync(window())
+    eq(6, sticky_bottom.room(window()))
+
     reserve = 2
-    following:glide(window(), false)
-    eq(2, sticky_bottom.room(window()))
-
-    reserve = 0
-    following:glide(window(), false)
-    eq(2, sticky_bottom.room(window()))
+    following:sync(window())
+    eq(6, sticky_bottom.room(window()))
   end)
 
-  it('asks to land a window it has not settled yet, and one left at the end', function()
-    eq(true, following:arrive(window()))
+  it('settles a window it has not seen yet', function()
+    eq(false, following:settled(window()))
 
-    following:land(window(), function() end)
-    eq(true, following:arrive(window()))
+    land()
+    eq(true, following:settled(window()))
+    eq(true, following:follows(window()))
 
     vim.cmd('normal! gg')
-    following:track({ window() })
-    eq(false, following:arrive(window()))
+    settle()
+    eq(false, following:follows(window()))
   end)
 
-  it('does not land a window that was scrolled up since it was last seen', function()
-    following:land(window(), function() end)
+  it('does not land a window scrolled up since it was last seen', function()
+    land()
     vim.cmd('normal! 6\25')
-    following:track({ window() })
+    settle()
 
-    eq(false, following:arrive(window()))
+    eq(true, following:holds(window()))
+
+    local before = top()
+
+    following:sync(window())
+    eq(before, top())
   end)
 
   it('keeps a scrolled window where it is when the composer takes its rows', function()
-    following:land(window(), function() end)
+    land()
     vim.cmd('normal! 6\25')
-    following:track({ window() })
+    settle()
 
-    local top = vim.fn.line('w0', win)
+    local before = top()
 
     -- a shrinking window drags the cursor's line, parked on the bottom row, into view
     vim.api.nvim_win_set_height(win, vim.api.nvim_win_get_height(win) - 6)
-    assert.is_true(vim.fn.line('w0', win) > top)
-    following:hold_end({ window() })
+    settle()
 
-    local cursor = vim.api.nvim_win_get_cursor(win)[1]
+    local line = cursor()[1]
 
-    eq(top, vim.fn.line('w0', win))
-    assert.is_true(cursor >= top and cursor <= vim.fn.line('w$', win))
+    eq(before, top())
+    assert.is_true(line >= top() and line <= vim.fn.line('w$', win))
     eq(false, following:follows(window()))
   end)
 
   it('stops following when a scroll only reveals the rows drawn above the top line', function()
-    following:land(window(), function() end)
+    land()
 
-    local top = vim.fn.line('w0', win)
+    local before = top()
     local ns = vim.api.nvim_create_namespace('harness.ui.Following_spec')
 
-    vim.api.nvim_buf_set_extmark(bufnr, ns, top - 1, 0, { virt_lines = { { { 'rule' } } }, virt_lines_above = true })
-    following:settle(window())
+    vim.api.nvim_buf_set_extmark(bufnr, ns, before - 1, 0, {
+      virt_lines = { { { 'rule' } } },
+      virt_lines_above = true,
+    })
+    redraw()
 
     vim.cmd('normal! 1\25')
-    eq(top, vim.fn.line('w0', win))
-    eq(1, vim.fn.winsaveview().topfill)
-
-    following:hold_end({ window() })
+    settle()
 
     eq(false, following:follows(window()))
-    eq(top, vim.fn.line('w0', win))
-    eq(1, vim.fn.winsaveview().topfill)
+    assert.is_true(top() <= before)
   end)
 
   it('keeps a scroll made in the same moment the window is resized', function()
-    following:land(window(), function() end)
-    following:track({ window() })
+    land()
+    redraw()
 
-    local edge = vim.fn.line('w0', win)
+    local edge = top()
 
     vim.cmd('normal! 20\25')
+    settle()
+
+    local scrolled = top()
+
     vim.api.nvim_win_set_height(win, vim.api.nvim_win_get_height(win) - 1)
+    settle()
 
-    -- the shrink shifts the view a little to keep the cursor in it, but never back to the end
-    local top = vim.fn.line('w0', win)
-
-    following:hold_end({ window() })
-
-    eq(top, vim.fn.line('w0', win))
-    assert.is_true(top < edge)
+    eq(scrolled, top())
+    assert.is_true(scrolled < edge)
     eq(false, following:follows(window()))
   end)
 
   it('keeps a scroll down made in the same moment the window is resized', function()
-    following:land(window(), function() end)
+    land()
     vim.cmd('normal! 40\25')
-    following:track({ window() })
+    settle()
     eq(false, following:follows(window()))
 
     vim.cmd('normal! 5\5')
+    settle()
+
+    local scrolled = top()
+
     vim.api.nvim_win_set_height(win, vim.api.nvim_win_get_height(win) - 1)
+    settle()
 
-    local top = vim.fn.line('w0', win)
+    eq(scrolled, top())
+  end)
 
-    following:hold_end({ window() })
+  it('keeps following when the window is narrowed and the text reflows', function()
+    vim.wo[win].wrap = true
+    land()
+    redraw()
+    eq(true, following:follows(window()))
 
-    eq(top, vim.fn.line('w0', win))
+    vim.api.nvim_win_set_width(win, vim.api.nvim_win_get_width(win) - 20)
+    settle()
+
+    eq(true, following:follows(window()))
+    assert.is_true(sticky_bottom.at_end(window()))
+  end)
+
+  it('starts clean when the window comes to show another buffer', function()
+    land()
+    eq(true, following:settled(window()))
+
+    local other = vim.api.nvim_create_buf(true, false)
+
+    vim.api.nvim_buf_set_lines(other, 0, -1, false, { 'a', 'b', 'c' })
+    vim.api.nvim_win_set_buf(win, other)
+
+    eq(false, following:settled(window()))
+    eq(nil, following:of(window()).mode)
+
+    vim.api.nvim_buf_delete(other, { force = true })
   end)
 
   describe('over folded rows', function()
@@ -366,24 +409,14 @@ describe('harness.ui.Following:', function()
       vim.cmd('184,192fold')
     end)
 
-    it('counts screen rows between two lines, a closed fold being one row', function()
-      eq(0, Following.rows_moved(window(), 10, 10))
-      eq(9, Following.rows_moved(window(), 174, 183))
-      eq(12, Following.rows_moved(window(), 174, 194))
-      eq(-12, Following.rows_moved(window(), 194, 174))
-    end)
-
     it('keeps following when the window grows and the top line jumps across a closed fold', function()
       vim.api.nvim_win_set_height(win, 11)
-      following:land(window(), function() end)
-      following:track({ window() })
+      land()
+      redraw()
       eq(true, following:follows(window()))
 
-      local top = vim.fn.line('w0', win)
-
       vim.api.nvim_win_set_height(win, 22)
-      assert.is_true(top - vim.fn.line('w0', win) > 11)
-      following:hold_end({ window() })
+      settle()
 
       eq(true, following:follows(window()))
       eq(true, sticky_bottom.at_end(window()))
@@ -391,10 +424,10 @@ describe('harness.ui.Following:', function()
 
     it('keeps following when the window shrinks and the top line jumps across a closed fold', function()
       vim.api.nvim_win_set_height(win, 22)
-      following:land(window(), function() end)
-      following:track({ window() })
+      land()
+      redraw()
       vim.api.nvim_win_set_height(win, 11)
-      following:hold_end({ window() })
+      settle()
 
       eq(true, following:follows(window()))
       eq(true, sticky_bottom.at_end(window()))
@@ -402,50 +435,119 @@ describe('harness.ui.Following:', function()
 
     it('still stops following when the reader scrolls up across the fold as the window grows', function()
       vim.api.nvim_win_set_height(win, 11)
-      following:land(window(), function() end)
-      following:track({ window() })
+      land()
+      redraw()
       vim.cmd('normal! 30\25')
+      settle()
       vim.api.nvim_win_set_height(win, 22)
-      following:hold_end({ window() })
+      settle()
 
       eq(false, following:follows(window()))
     end)
   end)
 
   it('never moves a window that nothing moved', function()
-    following:land(window(), function() end)
+    land()
 
     local view = vim.fn.winsaveview()
 
     for _ = 1, 3 do
-      following:hold_end({ window() })
+      settle()
     end
 
     eq(view, vim.fn.winsaveview())
     eq(true, following:follows(window()))
   end)
 
-  it('keeps a settled top line through a resize made under the window', function()
-    following:land(window(), function() end)
-    following:track({ window() })
-
-    local top = following:of(window()).top
-
-    vim.api.nvim_win_set_height(win, vim.api.nvim_win_get_height(win) - 6)
-    following:track({ window() })
-
-    eq(top, following:of(window()).top)
-    eq(true, following:follows(window()))
-  end)
-
   it('forgets a closed window and its mark', function()
-    following:land(window(), function() end)
+    land()
+    vim.cmd('normal! 6\25')
+    settle()
 
     local state = following:of(window())
+
+    assert.is_not_nil(state.anchor)
 
     following:forget(win)
 
     assert.is_nil(following.windows[win])
     assert.is_nil(state.buffer:get_extmark_row(Following.ANCHOR, state.anchor))
+  end)
+
+  -- a subagent writes under its tool call, in the middle of the transcript
+  local function insert_at(row, count)
+    local lines = {}
+
+    for i = 1, count do
+      lines[i] = 'child ' .. i
+    end
+
+    vim.api.nvim_buf_set_lines(bufnr, row, row, false, lines)
+  end
+
+  local function top_text()
+    return vim.api.nvim_buf_get_lines(bufnr, top() - 1, top(), false)[1]
+  end
+
+  it('holds the reader\'s row when a subagent writes above it', function()
+    land()
+    vim.cmd('normal! 100G')
+    vim.cmd('normal! zt')
+    settle()
+    eq(true, following:holds(window()))
+
+    local before = top_text()
+
+    insert_at(20, 15)
+    redraw()
+
+    eq(before, top_text())
+    eq(true, following:holds(window()))
+  end)
+
+  it('holds the reader\'s row when a subagent writes on screen below it', function()
+    land()
+    vim.cmd('normal! 100G')
+    vim.cmd('normal! zt')
+    settle()
+
+    local before = top()
+
+    insert_at(before + 2, 5)
+    redraw()
+
+    eq(before, top())
+    eq(true, following:holds(window()))
+  end)
+
+  it('keeps following the end while subagents write in the middle', function()
+    land()
+    redraw()
+
+    for _ = 1, 5 do
+      insert_at(50, 3)
+      insert_at(80, 2)
+      redraw()
+    end
+
+    eq(true, following:follows(window()))
+    assert.is_true(sticky_bottom.at_end(window()))
+    assert.is_true(sticky_bottom.room(window()) >= reserve)
+  end)
+
+  it('keeps the edge clear of status rows drawn under the last line', function()
+    land()
+    redraw()
+
+    local ns = vim.api.nvim_create_namespace('harness.following.spec.status')
+
+    vim.api.nvim_buf_set_extmark(bufnr, ns, vim.api.nvim_buf_line_count(bufnr) - 1, 0, {
+      virt_lines = { { { '' } }, { { 'working' } } },
+    })
+    redraw()
+
+    eq(true, following:follows(window()))
+    assert.is_true(sticky_bottom.room(window()) >= reserve)
+    vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
   end)
 end)

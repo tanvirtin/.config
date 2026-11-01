@@ -1,4 +1,10 @@
+local motion = require('ui.motion')
+
 local hl = {}
+
+hl.PULSE_STEPS = 12
+hl.FLASH_STEPS = 8
+hl.FLASH_PEAK = 0.24
 
 hl.GROUPS = {
   UiNormal = 'NormalFloat',
@@ -112,7 +118,48 @@ local function number(group, fallback)
   end
 end
 
+local function surface(strength, tint, fallback)
+  return function()
+    local background, foreground = color('Normal', 'bg'), color(tint, 'fg') or color('Normal', 'fg')
+
+    if not background or not foreground then return { link = fallback } end
+
+    return { bg = hl.blend(foreground, background, strength) }
+  end
+end
+
+local function rail(tint, fallback)
+  return function()
+    local foreground = color(tint, 'fg')
+
+    if not foreground then return { link = fallback } end
+
+    return { fg = foreground }
+  end
+end
+
+hl.SURFACE_BASE = 0.05
+hl.SURFACE_RAISED = 0.09
+hl.SURFACE_TINT = 0.1
+
 hl.COMPUTED = {
+  UiSurface = surface(hl.SURFACE_BASE, 'Normal', 'ColorColumn'),
+  UiSurfaceRaised = surface(hl.SURFACE_RAISED, 'Normal', 'CursorLine'),
+  UiSurfaceWarn = surface(hl.SURFACE_TINT, 'UiWarn', 'ColorColumn'),
+  UiSurfaceError = surface(hl.SURFACE_TINT, 'UiError', 'ColorColumn'),
+  UiSurfaceAccent = surface(hl.SURFACE_TINT, 'UiAccent', 'ColorColumn'),
+  UiComposer = function()
+    local foreground, background = color('Normal', 'fg'), color('Normal', 'bg')
+
+    if not foreground or not background then return { link = 'Normal' } end
+
+    return { fg = foreground, bg = hl.blend(foreground, background, hl.SURFACE_BASE) }
+  end,
+  UiRailAccent = rail('UiAccent', 'Special'),
+  UiRailWarn = rail('UiWarn', 'DiagnosticWarn'),
+  UiRailError = rail('UiError', 'DiagnosticError'),
+  UiRailInfo = rail('UiInfo', 'DiagnosticInfo'),
+  UiRailMuted = rail('UiMuted', 'Comment'),
   UiMarkdownCode = shade(SURFACE, 'ColorColumn'),
   UiToolOutput = function()
     return { bg = color('Normal', 'bg') }
@@ -139,14 +186,43 @@ hl.COMPUTED = {
   end,
 }
 
-for i, alpha in ipairs({ 1, 0.65, 0.3, 0.65 }) do
+for i = 1, hl.PULSE_STEPS do
+  local alpha = 0.3 + 0.7 * motion.breath(hl.PULSE_STEPS, i)
+
   hl.COMPUTED['UiPulse' .. i] = function()
     local accent = color('UiWorking', 'fg') or color('UiAccent', 'fg') or color('Special', 'fg')
     local background = color('Normal', 'bg')
 
-    if not accent or not background then return { link = i % 2 == 1 and 'UiAccent' or 'UiMuted' } end
+    if not accent or not background then return { link = i <= hl.PULSE_STEPS / 2 and 'UiAccent' or 'UiMuted' } end
 
     return { fg = hl.blend(accent, background, alpha) }
+  end
+end
+
+for i = 1, hl.PULSE_STEPS do
+  local alpha = 0.35 + 0.65 * motion.breath(hl.PULSE_STEPS, i)
+
+  hl.COMPUTED['UiPulseWarn' .. i] = function()
+    local warn, background = color('UiWarn', 'fg'), color('Normal', 'bg')
+
+    if not warn or not background then return { link = 'UiWarn' } end
+
+    return { fg = hl.blend(warn, background, alpha) }
+  end
+end
+
+for _, tone in ipairs({ 'Accent', 'Error' }) do
+  for i = 1, hl.FLASH_STEPS do
+    hl.COMPUTED['UiFlash' .. tone .. i] = function()
+      local tint, foreground, background = color('Ui' .. tone, 'fg'), color('Normal', 'fg'), color('Normal', 'bg')
+
+      if not tint or not foreground or not background then return { link = 'UiSurface' .. tone } end
+
+      local peak = hl.blend(tint, background, hl.FLASH_PEAK)
+      local rest = hl.blend(foreground, background, hl.SURFACE_BASE)
+
+      return { bg = hl.blend(peak, rest, 1 - (i - 1) / (hl.FLASH_STEPS - 1)) }
+    end
   end
 end
 

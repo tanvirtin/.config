@@ -650,4 +650,29 @@ describe('harness.ui.Document:', function()
     eq('1', document:fold_level(report.start))
     eq('0', document:fold_level(document.blocks[#document.blocks].start))
   end)
+
+  it('keeps a held row in place when a subagent writes above it in a short transcript', function()
+    local Following = require('harness.ui.Following')
+
+    emit(events.prompt('go'))
+    emit({ kind = 'tool_call', id = 'task', title = 'Task', status = 'in_progress' })
+    emit({ kind = 'message', text = 'line a\n\nline b\n\nline c\n\nline d' })
+
+    local row
+
+    for i, line in ipairs(lines(buf)) do
+      if line:find('line c', 1, true) then row = i - 1 end
+    end
+
+    local held = lines(buf)[row + 1]
+    local id = vim.api.nvim_buf_set_extmark(buf, Following.ANCHOR, row, 0, {})
+
+    emit({ kind = 'message', text = 'from the child', parent = 'task' })
+
+    local now = vim.api.nvim_buf_get_extmark_by_id(buf, Following.ANCHOR, id, {})[1]
+
+    eq(held, lines(buf)[now + 1])
+    assert.is_true(now > row)
+    vim.api.nvim_buf_del_extmark(buf, Following.ANCHOR, id)
+  end)
 end)

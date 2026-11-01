@@ -257,9 +257,7 @@ function TurnBuilder:on_tool_call(event)
 
       vim.list_extend(lines, fences.wrap(body, output_style.label(lang, TurnBuilder.SURFACE[category])))
 
-      if category ~= Block.CATEGORY.execute and #body > settings:get('preview_lines') + 1 then
-        folds[1] = { 2 + settings:get('preview_lines'), #lines - 2 }
-      end
+      if #body > settings:get('preview_lines') + 1 then folds[1] = { 2 + settings:get('preview_lines'), #lines - 2 } end
     end
   end
 

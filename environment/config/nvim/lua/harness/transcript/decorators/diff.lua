@@ -19,9 +19,21 @@ local function path_row(out, block)
   if split then MarkSpec.add(out, row, 0, { line_hl_group = 'UiMarkdownCode' }) end
   if block.attached then return MarkSpec.add(out, row, 0, { conceal_lines = '' }) end
 
+  if not split then MarkSpec.add(out, row, 0, { line_hl_group = 'UiSurface' }) end
+
   MarkSpec.add(out, row, 0, { end_col = 4, conceal = '' })
   MarkSpec.add(out, row, 0, { virt_text = { { theme.PATH_ICON, 'UiPath' } }, virt_text_pos = 'inline' })
   MarkSpec.add(out, row, 4, { end_col = #block.lines[2], hl_group = 'UiPath' })
+
+  if block.added or block.removed then
+    MarkSpec.add(out, row, 0, {
+      virt_text = {
+        { ' +' .. (block.added or 0), 'UiAdded' },
+        { ' −' .. (block.removed or 0) .. ' ', 'UiRemoved' },
+      },
+      virt_text_pos = 'eol',
+    })
+  end
 end
 
 local function rows(out, block, first)
