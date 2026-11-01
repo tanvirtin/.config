@@ -70,4 +70,15 @@ describe('harness.ui.Flashes:', function()
     eq(2, marks()[1][1])
     eq(1, #marks())
   end)
+
+  it('only looks at the newest blocks, so a long transcript costs a render no more', function()
+    local list = { tool({ id = 'old', finished = 1000 }) }
+
+    for index = 1, Flashes.LOOKBACK do
+      list[#list + 1] = { kind = Block.KIND.message, start = index + 1 }
+    end
+
+    eq(false, flashes:scan(list, 1000))
+    eq(true, flashes:scan({ tool({ id = 'recent', finished = 1000 }) }, 1000))
+  end)
 end)

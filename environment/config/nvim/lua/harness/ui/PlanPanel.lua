@@ -8,6 +8,7 @@ local settings = lazy('harness.settings')
 local Element = lazy('ui.elements.Element')
 local Block = lazy('harness.transcript.Block')
 local theme = lazy('harness.transcript.theme')
+local EVENT = require('harness.types.events').KIND
 local plan_summary = lazy('harness.transcript.plan_summary')
 
 local PlanPanel = Object:extend()
@@ -26,7 +27,28 @@ function PlanPanel:constructor(animator)
     statuses = nil,
     flashes = {},
     summary = nil,
+    history = nil,
+    scanned = 0,
+    tail = nil,
+    entries = nil,
   }
+end
+
+function PlanPanel:_latest(history)
+  if history ~= self.history or #history < self.scanned or history[self.scanned] ~= self.tail then
+    self.history, self.scanned, self.entries, self.tail = history, 0, nil, nil
+  end
+
+  for i = #history, self.scanned + 1, -1 do
+    if history[i].kind == EVENT.plan then
+      self.entries = history[i].entries or {}
+      break
+    end
+  end
+
+  self.scanned, self.tail = #history, history[#history]
+
+  return self.entries
 end
 
 function PlanPanel:is_shown()
@@ -141,7 +163,7 @@ function PlanPanel:_step(now)
 end
 
 function PlanPanel:update(history, window)
-  local entries = plan_summary.latest(history)
+  local entries = self:_latest(history)
 
   if not window or not window:is_valid() or not self:wanted(entries) then return self:hide() end
 

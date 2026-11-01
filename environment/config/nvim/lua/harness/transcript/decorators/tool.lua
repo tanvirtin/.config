@@ -113,7 +113,7 @@ return function(block, ctx)
 
   local surface = block.category == Block.CATEGORY.execute and 'UiTerminal' or 'UiSurface'
 
-  MarkSpec.add(out, row, 0, { end_col = math.min(hidden, #block.lines[1]), conceal = '' })
+  MarkSpec.add(out, row, 0, { end_col = math.min(hidden, #block.lines[1]), conceal = '', line_hl_group = surface })
   MarkSpec.add(out, row, 0, { virt_text = { icon, { verb, 'UiToolName' } }, virt_text_pos = 'inline' })
 
   local tail = tail_of(block, ctx, live, waiting)
@@ -151,8 +151,6 @@ return function(block, ctx)
       end
     end
   end
-
-  MarkSpec.add(out, row, 0, { line_hl_group = surface })
 
   return out
 end

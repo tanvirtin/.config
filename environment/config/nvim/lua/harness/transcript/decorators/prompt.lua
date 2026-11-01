@@ -7,9 +7,8 @@ return function(block)
   for row = block.start, block.finish - 2 do
     local line = block.lines[row - block.start + 1] or ''
 
-    MarkSpec.add(out, row, 0, { line_hl_group = 'UiSurface' })
-
     MarkSpec.add(out, row, 0, {
+      line_hl_group = 'UiSurface',
       end_col = math.min(1, #line),
       virt_text = { { row == block.start and theme.PROMPT_ICON or ' ', 'UiPromptBar' } },
       virt_text_pos = 'overlay',

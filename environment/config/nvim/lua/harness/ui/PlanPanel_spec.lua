@@ -123,4 +123,27 @@ describe('harness.ui.PlanPanel:', function()
       eq(0, animator:count())
     end)
   end)
+
+  describe('finding the latest plan', function()
+    it('scans only the events it has not seen, and starts over when the history is replaced', function()
+      local events = { { kind = 'message' }, { kind = 'plan', entries = { { content = 'a', status = 'pending' } } } }
+
+      eq(1, #panel:_latest(events))
+
+      events[3] = { kind = 'message' }
+      eq(1, #panel:_latest(events))
+
+      events[4] = { kind = 'plan', entries = { { content = 'a' }, { content = 'b' } } }
+      eq(2, #panel:_latest(events))
+
+      eq(nil, panel:_latest({ { kind = 'message' } }))
+
+      local rewritten = { { kind = 'plan', entries = { { content = 'z' } } } }
+
+      eq(1, #panel:_latest(rewritten))
+      rewritten[1] = { kind = 'message' }
+      rewritten[2] = { kind = 'message' }
+      eq(nil, panel:_latest(rewritten))
+    end)
+  end)
 end)

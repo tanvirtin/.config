@@ -18,6 +18,7 @@ return function(block)
     MarkSpec.add(out, row, 0, {
       virt_text = { { index == 1 and icon[1] or '  ', icon[2] } },
       virt_text_pos = 'inline',
+      line_hl_group = surface,
     })
 
     if index == 1 then
@@ -31,10 +32,6 @@ return function(block)
     elseif block.label == 'error' then
       MarkSpec.add(out, row, 0, { end_col = #line, hl_group = 'UiError' })
     end
-  end
-
-  for index in ipairs(block.lines) do
-    MarkSpec.add(out, block.start + index - 1, 0, { line_hl_group = surface })
   end
 
   return out

@@ -11,6 +11,7 @@ local Flashes = Object:extend()
 
 Flashes.NAMESPACE = Buffer.namespace('harness.flash')
 Flashes.PRIORITY = MarkSpec.PRIORITY + 50
+Flashes.LOOKBACK = 48
 
 function Flashes:constructor(buffer)
   return { buffer = buffer, active = {} }
@@ -21,7 +22,9 @@ function Flashes:scan(blocks, now)
 
   local ms = settings.transcript:get('flash_ms')
 
-  for _, block in ipairs(blocks) do
+  for index = #blocks, math.max(#blocks - Flashes.LOOKBACK + 1, 1), -1 do
+    local block = blocks[index]
+
     if block.kind == Block.KIND.tool and block.id and block.finished and now - block.finished < ms then
       local flash = self.active[block.id] or {}
 
