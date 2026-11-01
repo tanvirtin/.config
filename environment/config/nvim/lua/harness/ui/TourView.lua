@@ -1,8 +1,10 @@
+local fs = require('core.fs')
 local Buffer = require('core.Buffer')
 local Object = require('core.Object')
 local Window = require('core.Window')
 local buffers = require('core.buffers')
 local settings = require('harness.settings')
+local tour_scope = require('harness.tour_scope')
 
 local TourView = Object:extend()
 
@@ -25,6 +27,7 @@ function TourView:constructor(tour, opts)
     bound = {},
     shown = {},
     session = opts.session,
+    snapshots = {},
     on_stop = opts.on_stop,
     on_ask = opts.on_ask,
     stopped = false,
@@ -74,6 +77,34 @@ function TourView:_open_above(buffer)
   return base and base:split_above(buffer) or nil
 end
 
+function TourView:_buffer(step)
+  local tour = self.tour
+
+  if not tour.rev then return buffers.load(step.path) end
+
+  local cached = self.snapshots[step.path]
+
+  if cached and cached:is_valid() then return cached end
+
+  local relative = fs.make_relative(tour.root, step.path)
+  local lines = tour_scope.show(tour.root, tour.rev, relative)
+    or { string.format('(%s is not in %s)', relative, tour.rev:sub(1, 7)) }
+
+  if lines[#lines] == '' then lines[#lines] = nil end
+
+  local buffer = Buffer():create(false, true)
+
+  buffer:set_name(string.format('rev://%s/%s', tour.rev:sub(1, 7), relative))
+  buffer:set_lines(lines)
+  buffer:set_option('filetype', fs.detect_filetype(step.path) or '')
+  buffer:set_option('modifiable', false)
+  buffer:set_option('bufhidden', 'hide')
+
+  self.snapshots[step.path] = buffer
+
+  return buffer
+end
+
 function TourView:_range(index, buffer)
   local step = self.tour.steps[index]
   local last = buffer:get_line_count()
@@ -113,7 +144,13 @@ end
 
 function TourView:_mark(index, buffer, first, finish)
   local step = self.tour.steps[index]
-  local label = string.format(' %d/%d%s ', index, #self.tour.steps, step.title and (' · ' .. step.title) or '')
+  local label = string.format(
+    ' %d/%d%s%s ',
+    index,
+    #self.tour.steps,
+    step.title and (' · ' .. step.title) or '',
+    self.tour.rev and (' @' .. self.tour.rev:sub(1, 7)) or ''
+  )
 
   buffer:set_extmark(TourView.SHOW, first, 0, {
     end_row = finish + 1,
@@ -234,7 +271,7 @@ function TourView:show(index)
 
   if not step then return false end
 
-  local buffer = buffers.load(step.path)
+  local buffer = self:_buffer(step)
   local window = self:_code_window() or self:_open_above(buffer)
 
   if not window then return false, 'no window to show the code in' end
@@ -349,7 +386,11 @@ function TourView:stop()
 
   self:_forget(1)
 
-  self.anchors, self.index = {}, 0
+  for _, snapshot in pairs(self.snapshots) do
+    if snapshot:is_valid() then snapshot:delete() end
+  end
+
+  self.snapshots, self.anchors, self.index = {}, {}, 0
 
   if self.on_stop then self.on_stop(self) end
 

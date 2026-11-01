@@ -14,13 +14,6 @@ local tour = {}
 
 local current, dispose
 
-tour.PROMPT = table.concat({
-  'Give me a guided tour of the code to answer this: %s',
-  '',
-  'Read the code first. Then call the tour_start tool with 3 to 15 steps in reading order: each step is a file, a line range and a short markdown note on what the code does and why it matters here.',
-  'Keep your reply to a sentence or two; the tour is the answer.',
-}, '\n')
-
 local function warn(message)
   console.notify('Harness: ' .. message, 'warn')
 end
@@ -127,18 +120,6 @@ function tour.changes(view, scope)
   if not data then return false, err end
 
   tour_store.start(data, { session = view.session.key })
-
-  return true
-end
-
-function tour.ask(view, question)
-  if not view then return false, 'open a session first' end
-
-  local sent, err = hub.send(view.session, string.format(tour.PROMPT, question))
-
-  if err then return false, tostring(err) end
-
-  if sent.task then sent.task:on_complete(function() end) end
 
   return true
 end

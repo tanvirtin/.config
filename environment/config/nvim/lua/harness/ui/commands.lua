@@ -158,7 +158,7 @@ function commands.tour(text)
     return transcript.report(tour.changes(here or display.last(), scope))
   end
 
-  return transcript.report(tour.ask(current_view(), text))
+  return transcript.report(false, 'ask for a tour in your session; :HarnessTour takes next, prev, stop or changes')
 end
 
 function commands.permissions()

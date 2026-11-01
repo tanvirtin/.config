@@ -18,6 +18,8 @@ tour.Tour = dataclass.define('Tour', {
   summary = { type = 'string' },
   steps = { type = 'table', required = true },
   source = { type = 'string' },
+  rev = { type = 'string' },
+  root = { type = 'string' },
 })
 
 local function absolute(path, dir)
@@ -30,13 +32,15 @@ local function absolute(path, dir)
   return fs.normalize(fs.joinpath(dir or fs.cwd(), path))
 end
 
-function tour.step(fields, dir)
+function tour.step(fields, dir, check)
   if type(fields.path) ~= 'string' or fields.path == '' then return nil, 'a step needs a path' end
 
   local line = math.max(math.floor(tonumber(fields.line) or 1), 1)
   local path = absolute(fields.path, dir)
 
-  if not fs.exists(path) or fs.is_dir(path) then return nil, 'no file ' .. fields.path end
+  local found = check and check(path) or (not check and fs.exists(path) and not fs.is_dir(path))
+
+  if not found then return nil, 'no file ' .. fields.path end
 
   return tour.Step({
     path = path,
@@ -47,7 +51,7 @@ function tour.step(fields, dir)
   })
 end
 
-function tour.parse(args, dir)
+function tour.parse(args, dir, opts)
   if type(args) ~= 'table' or type(args.steps) ~= 'table' or #args.steps == 0 then
     return nil, 'a tour needs at least one step'
   end
@@ -59,7 +63,7 @@ function tour.parse(args, dir)
   local steps = {}
 
   for index, fields in ipairs(args.steps) do
-    local step, err = tour.step(fields, dir)
+    local step, err = tour.step(fields, dir, opts and opts.check)
 
     if not step then return nil, string.format('step %d: %s', index, err) end
 
@@ -71,6 +75,8 @@ function tour.parse(args, dir)
     summary = type(args.summary) == 'string' and args.summary ~= '' and args.summary or nil,
     steps = steps,
     source = type(args.source) == 'string' and args.source or nil,
+    rev = opts and opts.rev or nil,
+    root = opts and opts.root or nil,
   })
 end
 

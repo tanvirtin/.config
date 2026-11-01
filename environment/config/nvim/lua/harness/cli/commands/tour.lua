@@ -5,11 +5,11 @@ local commands = lazy('harness.ui.commands')
 return {
   name = 'HarnessTour',
   opts = {
-    nargs = '*',
+    nargs = '?',
     complete = function()
       return { 'changes', 'turn', 'session', 'next', 'prev', 'stop' }
     end,
-    desc = 'Walk through the agent\'s changes, or ask for a guided tour of the code (`:HarnessTour how does login work`)',
+    desc = 'Drive a tour (next, prev, stop), or walk through the agent\'s own changes; ask your session for any other tour',
   },
   execute = function(args)
     return commands.tour(args.args)

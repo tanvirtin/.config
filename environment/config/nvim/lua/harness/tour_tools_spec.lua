@@ -103,4 +103,115 @@ describe('harness.tour_tools:', function()
       )
     end)
   end)
+
+  describe('reviewing a range of commits', function()
+    local repo, base, middle, saved
+
+    local function sh(...)
+      local result = vim.system({ 'git', '-C', repo, ... }, { text = true }):wait()
+
+      assert(result.code == 0, result.stderr)
+
+      return vim.trim(result.stdout)
+    end
+
+    before_each(function()
+      saved = vim.fn.getcwd()
+      repo = vim.fn.tempname()
+      vim.fn.mkdir(repo, 'p')
+      repo = vim.uv.fs_realpath(repo)
+      sh('init', '-q', '-b', 'main')
+      sh('config', 'user.email', 't@example.com')
+      sh('config', 'user.name', 'T')
+      sh('config', 'commit.gpgsign', 'false')
+      vim.fn.writefile({ 'a1', 'a2', 'a3', 'a4', 'a5', 'a6' }, repo .. '/a.lua')
+      sh('add', '.')
+      sh('commit', '-q', '-m', 'start')
+      base = sh('rev-parse', 'HEAD')
+      sh('checkout', '-q', '-b', 'feature')
+      vim.fn.writefile({ 'a1', 'A2', 'a3', 'a4', 'a5', 'A6' }, repo .. '/a.lua')
+      vim.fn.writefile({ 'b1', 'b2' }, repo .. '/b.lua')
+      sh('add', '.')
+      sh('commit', '-q', '-m', 'change a, add b')
+      middle = sh('rev-parse', 'HEAD')
+      vim.fn.writefile({ 'a1', 'A2', 'a3', 'a4', 'a5', 'A6', 'a7' }, repo .. '/a.lua')
+      sh('add', '.')
+      sh('commit', '-q', '-m', 'extend a')
+      vim.cmd('cd ' .. vim.fn.fnameescape(repo))
+    end)
+
+    after_each(function()
+      vim.cmd('cd ' .. vim.fn.fnameescape(saved))
+      vim.fn.delete(repo, 'rf')
+    end)
+
+    it('works the range out from git and hands back the rev to tour', function()
+      local scope = tools.run('tour_scope', { base = base, head = middle })
+
+      eq({ base:sub(1, 7), middle:sub(1, 7), middle, false }, { scope.base, scope.head, scope.rev, scope.checked_out })
+      eq(
+        { 'a.lua', 'b.lua' },
+        vim.tbl_map(function(file)
+          return file.path
+        end, scope.files)
+      )
+      eq(1, scope.commit_count)
+      assert.truthy(scope.next:find('tour_start', 1, true))
+    end)
+
+    it('names a commit that is not here, instead of reviewing nothing', function()
+      local ok, err = pcall(tools.run, 'tour_scope', { base = 'nope1234', head = middle })
+
+      eq(false, ok)
+      assert.truthy(tostring(err):find('no commit "nope1234"', 1, true))
+    end)
+
+    it('tours a commit that is not checked out from git, and says what the steps leave out', function()
+      tools.run('tour_scope', { base = base, head = middle })
+
+      local reply = tools.run('tour_start', {
+        title = 'Review',
+        rev = middle,
+        steps = { { path = 'a.lua', line = 2, note = 'a2 changed.' } },
+      })
+      local tour = tour_store.current()
+
+      eq(middle, tour.rev)
+      eq(vim.fs.normalize(repo), tour.root)
+      eq(2, reply.uncovered_count)
+      eq({ 'a.lua', 6, 6 }, { reply.uncovered[1].path, reply.uncovered[1].first, reply.uncovered[1].last })
+      assert.truthy(reply.note:find('tour_update', 1, true))
+    end)
+
+    it('says it is complete once every hunk has a step, and checks added steps against the commit', function()
+      tools.run('tour_scope', { base = base, head = middle })
+      tools.run('tour_start', { title = 'Review', rev = middle, steps = { { path = 'a.lua', line = 2 } } })
+      tour_store.on(function(kind, tour, update)
+        if kind == 'update' then vim.list_extend(tour.steps, update.steps) end
+      end)
+
+      local reply = tools.run('tour_update', {
+        mode = 'insert',
+        steps = { { path = 'a.lua', line = 6 }, { path = 'b.lua', line = 1, end_line = 2 } },
+      })
+
+      eq(3, reply.steps)
+      eq(nil, reply.uncovered)
+      assert.truthy(reply.note:find('Every changed hunk', 1, true))
+
+      local ok, err = pcall(tools.run, 'tour_update', { mode = 'insert', steps = { { path = 'c.lua', line = 1 } } })
+
+      eq(false, ok)
+      assert.truthy(tostring(err):find('step 1: no file c.lua', 1, true))
+    end)
+
+    it('does not claim coverage for files on disk when the range ends somewhere else', function()
+      tools.run('tour_scope', { base = base, head = middle })
+
+      local reply = tools.run('tour_start', { title = 'Disk', steps = { { path = 'a.lua', line = 1 } } })
+
+      eq(nil, reply.uncovered)
+      eq(nil, reply.note)
+    end)
+  end)
 end)

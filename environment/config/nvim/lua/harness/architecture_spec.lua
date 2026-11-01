@@ -71,6 +71,7 @@ local LAYERS = {
   { 'harness.Workspace', 4 },
   { 'harness.session_store', 4 },
   { 'harness.tour_store', 4 },
+  { 'harness.tour_scope', 4 },
   { 'harness.hub', 5 },
   { 'harness.tools', 6 },
   { 'harness.tour_tools', 6 },

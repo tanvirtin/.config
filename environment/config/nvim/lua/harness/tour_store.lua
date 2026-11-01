@@ -4,7 +4,7 @@ tour_store.EVENT = { start = 'start', stop = 'stop', update = 'update' }
 
 tour_store.RECENT = 20
 
-local current, recent, listeners = nil, {}, {}
+local current, recent, listeners, scope = nil, {}, {}, nil
 
 local function emit(kind, tour, opts)
   for _, listener in ipairs(vim.list_slice(listeners)) do
@@ -26,7 +26,7 @@ end
 function tour_store.stop()
   local stopped = current
 
-  current = nil
+  current, scope = nil, nil
 
   if stopped then emit(tour_store.EVENT.stop, stopped, {}) end
 
@@ -39,6 +39,14 @@ function tour_store.update(update)
   emit(tour_store.EVENT.update, current, update)
 
   return true
+end
+
+function tour_store.set_scope(value)
+  scope = value
+end
+
+function tour_store.scope()
+  return scope
 end
 
 function tour_store.current()
@@ -63,7 +71,7 @@ function tour_store.on(listener)
 end
 
 function tour_store.reset()
-  current, recent, listeners = nil, {}, {}
+  current, recent, listeners, scope = nil, {}, {}, nil
 end
 
 return tour_store

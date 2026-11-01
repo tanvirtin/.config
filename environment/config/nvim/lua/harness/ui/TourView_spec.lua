@@ -291,4 +291,62 @@ describe('harness.ui.TourView:', function()
       eq(2, asked)
     end)
   end)
+
+  describe('a tour of a commit that is not checked out', function()
+    local repo, old
+
+    local function sh(...)
+      local result = vim.system({ 'git', '-C', repo, ... }, { text = true }):wait()
+
+      assert(result.code == 0, result.stderr)
+
+      return vim.trim(result.stdout)
+    end
+
+    before_each(function()
+      repo = vim.fn.tempname()
+      vim.fn.mkdir(repo, 'p')
+      repo = vim.uv.fs_realpath(repo)
+      sh('init', '-q', '-b', 'main')
+      sh('config', 'user.email', 't@example.com')
+      sh('config', 'user.name', 'T')
+      sh('config', 'commit.gpgsign', 'false')
+      vim.fn.writefile({ 'old 1', 'old 2', 'old 3' }, repo .. '/a.lua')
+      sh('add', '.')
+      sh('commit', '-q', '-m', 'old')
+      old = sh('rev-parse', 'HEAD')
+      vim.fn.writefile({ 'new 1', 'new 2', 'new 3', 'new 4' }, repo .. '/a.lua')
+      sh('commit', '-q', '-am', 'new')
+    end)
+
+    after_each(function()
+      vim.fn.delete(repo, 'rf')
+    end)
+
+    it('shows the file as it was at that commit, read-only, and says which commit', function()
+      local parsed = assert(tour_type.parse({ steps = { { path = 'a.lua', line = 2, title = 'Then' } } }, repo, {
+        rev = old,
+        root = repo,
+        check = function()
+          return true
+        end,
+      }))
+
+      view = TourView(parsed)
+      assert.is_true(view:start())
+
+      local buf = vim.api.nvim_get_current_buf()
+
+      eq('rev://' .. old:sub(1, 7) .. '/a.lua', vim.api.nvim_buf_get_name(buf):match('rev://.*$'))
+      eq({ 'old 1', 'old 2', 'old 3' }, vim.api.nvim_buf_get_lines(buf, 0, -1, false))
+      eq(false, vim.bo[buf].modifiable)
+      eq('lua', vim.bo[buf].filetype)
+      eq(2, vim.api.nvim_win_get_cursor(0)[1])
+      assert.truthy(marks(buf, TourView.SHOW)[2][4].virt_text[1][1]:find('@' .. old:sub(1, 7), 1, true))
+
+      view:stop()
+
+      eq(false, vim.api.nvim_buf_is_valid(buf))
+    end)
+  end)
 end)
