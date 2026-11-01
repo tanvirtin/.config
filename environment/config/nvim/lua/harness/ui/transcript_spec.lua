@@ -1047,6 +1047,68 @@ describe('harness.ui.transcript:', function()
     end)
   end)
 
+  describe('activate on a tool head', function()
+    it('opens and closes the tool\'s folded output, also inside a sub-agent', function()
+      vim.cmd('enew!')
+
+      local session = Session({ key = 'h' .. math.random(1e6), id = 's1', connection = Connection(fake_agent.new()) })
+      local output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, 12)), '\n')
+
+      session:_emit(events.prompt('go'))
+      session:_emit({ kind = 'tool_call', id = 'task', name = 'Task', category = 'other', diffs = {} })
+      session:_emit({
+        kind = 'tool_call',
+        id = 'kid',
+        parent = 'task',
+        name = 'Bash',
+        category = 'execute',
+        input = { command = 'ls' },
+        diffs = {},
+      })
+      session:_emit({
+        kind = 'tool_update',
+        id = 'kid',
+        parent = 'task',
+        status = 'completed',
+        output = output,
+        diffs = {},
+      })
+      session:_emit({ kind = 'tool_update', id = 'task', status = 'completed', diffs = {} })
+
+      transcript.open(session)
+      vim.cmd('redraw')
+
+      local rows = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+      local head
+
+      for i, line in ipairs(rows) do
+        if line:find('-> Bash', 1, true) then head = i end
+      end
+
+      local function closed()
+        local n = 0
+
+        for i = head, #rows do
+          if vim.fn.foldclosed(i) ~= -1 then n = n + 1 end
+        end
+
+        return n
+      end
+
+      local function press()
+        vim.api.nvim_win_set_cursor(0, { head, 0 })
+        transcript.view():activate()
+      end
+
+      assert.is_true(closed() > 0)
+      press()
+      press()
+      eq(0, closed())
+      press()
+      assert.is_true(closed() > 0)
+    end)
+  end)
+
   describe('foldtext', function()
     local Fold = require('core.Fold')
     local original

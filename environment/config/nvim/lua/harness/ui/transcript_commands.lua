@@ -99,6 +99,13 @@ function commands.activate(view)
 
   if links.open(view:_target_at(window)) then return true end
 
+  local head = view.document:block_at(row - 1)
+
+  if head and head.folds and head.folds[1] and row == head.start + 1 then
+    view:_toggle_at(window, head.start + head.folds[1][1] + 1, row)
+    return true
+  end
+
   if window:fold_level(row) > 0 then
     window:normal('zc')
     return true
