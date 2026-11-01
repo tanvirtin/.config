@@ -74,6 +74,24 @@ describe('Window:', function()
     end)
   end)
 
+  describe('open_screen', function()
+    it('sets window options locally, without changing the global defaults', function()
+      local number, cursorline = vim.go.number, vim.go.cursorline
+
+      vim.go.number, vim.go.cursorline = true, true
+      vim.cmd('botright 5split')
+      win = Window.open_screen(buffer, { win_options = { number = false, cursorline = false } })
+
+      local after_number, after_cursorline = vim.go.number, vim.go.cursorline
+
+      vim.go.number, vim.go.cursorline = number, cursorline
+
+      eq(false, win:get_option('number'))
+      eq(true, after_number)
+      eq(true, after_cursorline)
+    end)
+  end)
+
   describe('get_cursor', function()
     it('should return cursor position', function()
       win = Window:open(buffer, default_float_opts)
@@ -88,6 +106,22 @@ describe('Window:', function()
 
       local cursor = win:get_cursor()
       eq({ 1, 0 }, cursor)
+    end)
+  end)
+
+  describe('jump_to', function()
+    it('records where it left so <C-o> returns', function()
+      vim.cmd('enew!')
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'a', 'b', 'c', 'd' })
+
+      local window = Window.get_current()
+
+      window:set_cursor({ 1, 0 })
+      window:jump_to({ 4, 0 })
+      eq(4, window:get_cursor()[1])
+
+      window:normal('\15')
+      eq(1, window:get_cursor()[1])
     end)
   end)
 

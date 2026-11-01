@@ -65,13 +65,43 @@ describe('harness.ui.sessions:', function()
     eq('not a date', sessions.when('not a date', now))
   end)
 
+  it('previews the last prompt of a live session and says when it waits for you', function()
+    local live = hub.start({ dir = '/w' }):wait()
+
+    live.title = 'Today'
+    live:_emit(require('harness.types.events').prompt('rename the thing\nand more'))
+
+    local rows = sessions.rows(hub.list('/w'):wait())
+
+    eq('idle · rename the thing', rows[2].description)
+
+    live.waiting = function()
+      return { { tool = 'Bash' } }
+    end
+
+    eq('waiting for you · rename the thing', sessions.rows(hub.list('/w'):wait())[2].description)
+  end)
+
+  it('only forks a live session', function()
+    local opened = {}
+    local view = require('harness.ui.SessionsView')({
+      dir = '/w',
+      on_open = function(s)
+        opened[#opened + 1] = s
+      end,
+    })
+
+    view:fork({ key = nil, id = 'old' })
+    eq({}, opened)
+  end)
+
   it('tells the user its keys', function()
     local picker = sessions.open({ dir = '/w' }):wait()
     local hints = vim.tbl_map(function(hint)
       return hint[1] .. ' ' .. hint[2]
     end, picker:hints())
 
-    eq({ '<CR> open / new', '<C-x> delete (press twice)', '<C-n>/<C-p> move', '<Esc> close' }, hints)
+    eq({ '<CR> open / new', '<C-f> fork', '<C-x> delete (press twice)', '<C-n>/<C-p> move', '<Esc> close' }, hints)
   end)
 
   it('opens a stored session, loading it', function()

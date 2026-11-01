@@ -14,6 +14,7 @@ SessionsView.TITLE = 'Sessions'
 
 SessionsView.HINTS = {
   { '<CR>', 'open / new' },
+  { '<C-f>', 'fork' },
   { '<C-x>', 'delete (press twice)' },
   { '<C-n>/<C-p>', 'move' },
   { '<Esc>', 'close' },
@@ -87,6 +88,23 @@ function SessionsView:delete(row)
   return self
 end
 
+function SessionsView:fork(row)
+  local live = row and row.key and hub.session(row.key)
+
+  if not live then return SessionsView.warn('open this session first; only a live session can be forked') end
+  if not live:can('fork') then return SessionsView.warn('this agent cannot fork sessions') end
+
+  hub.fork(live):on_complete(function(err, forked)
+    Timer.schedule(function()
+      if err then return SessionsView.warn('could not fork: ' .. tostring(err)) end
+      if self.opts.on_open then self.opts.on_open(forked) end
+    end)
+  end)
+  async.drain()
+
+  return self
+end
+
 function SessionsView:_load(row)
   local on_open = self.opts.on_open
   local shown
@@ -141,6 +159,13 @@ function SessionsView:_show(listed)
       self:select(row)
     end,
     actions = {
+      {
+        key = '<C-f>',
+        desc = 'Fork the session',
+        run = function(row)
+          self:fork(row)
+        end,
+      },
       {
         key = '<C-x>',
         desc = 'Delete the session (press twice)',

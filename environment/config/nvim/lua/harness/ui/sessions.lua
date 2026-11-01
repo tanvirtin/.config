@@ -2,6 +2,7 @@ local lazy = require('core.lazy')
 
 local date = lazy('core.utils.date')
 local theme = lazy('harness.transcript.theme')
+local EVENT = require('harness.types.events').KIND
 local SessionsView = lazy('harness.ui.SessionsView')
 
 local sessions = {}
@@ -14,10 +15,23 @@ function sessions.when(updated_at, now)
   return at and date.age(at, now).display or updated_at
 end
 
-local function status_of(live, updated_at)
-  if live then return live:running() and 'running' or 'idle' end
+function sessions.last_prompt(live)
+  for i = #live.history, 1, -1 do
+    local event = live.history[i]
 
-  return sessions.when(updated_at)
+    if event.kind == EVENT.prompt and not event.steered then
+      return (vim.split(event.text, '\n', { plain = true })[1] or ''):sub(1, 60)
+    end
+  end
+end
+
+local function status_of(live, updated_at)
+  if not live then return sessions.when(updated_at) end
+
+  local state = #live:waiting() > 0 and 'waiting for you' or live:running() and 'running' or 'idle'
+  local prompt = sessions.last_prompt(live)
+
+  return prompt and (state .. ' · ' .. prompt) or state
 end
 
 function sessions.rows(listed)
@@ -25,7 +39,7 @@ function sessions.rows(listed)
 
   for _, item in ipairs(listed) do
     local live = item.session
-    local mark = live and (live:running() and theme.RUNNING_ICON or theme.IDLE_ICON) or '  '
+    local mark = live and ((live:running() or #live:waiting() > 0) and theme.RUNNING_ICON or theme.IDLE_ICON) or '  '
     local status = status_of(live, item.updated_at)
 
     rows[#rows + 1] = {

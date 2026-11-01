@@ -3,6 +3,7 @@ local Fold = require('core.Fold')
 describe('Fold:', function()
   local bufnr
   local win_id
+  local globals
 
   before_each(function()
     bufnr = vim.api.nvim_create_buf(false, true)
@@ -10,6 +11,12 @@ describe('Fold:', function()
     vim.cmd('split')
     win_id = vim.api.nvim_get_current_win()
     vim.api.nvim_win_set_buf(win_id, bufnr)
+    globals = {
+      foldmethod = vim.go.foldmethod,
+      foldlevel = vim.go.foldlevel,
+      foldenable = vim.go.foldenable,
+      foldtext = vim.go.foldtext,
+    }
     Fold.setup_window(win_id)
   end)
 
@@ -23,6 +30,13 @@ describe('Fold:', function()
       assert.are.equal('manual', vim.api.nvim_get_option_value('foldmethod', { win = win_id }))
       assert.are.equal(0, vim.api.nvim_get_option_value('foldlevel', { win = win_id }))
       assert.is_true(vim.api.nvim_get_option_value('foldenable', { win = win_id }))
+    end)
+
+    it('keeps the fold options local to the window', function()
+      assert.are.equal(globals.foldmethod, vim.go.foldmethod)
+      assert.are.equal(globals.foldlevel, vim.go.foldlevel)
+      assert.are.equal(globals.foldenable, vim.go.foldenable)
+      assert.are.equal(globals.foldtext, vim.go.foldtext)
     end)
   end)
 

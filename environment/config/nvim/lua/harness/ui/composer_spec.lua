@@ -84,6 +84,20 @@ describe('harness.ui.composer:', function()
     eq(true, element:is_valid())
   end)
 
+  it('leaves the global window defaults alone', function()
+    local number, cursorline = vim.go.number, vim.go.cursorline
+
+    vim.go.number, vim.go.cursorline = true, true
+    open_composer(session)
+
+    local after_number, after_cursorline = vim.go.number, vim.go.cursorline
+
+    vim.go.number, vim.go.cursorline = number, cursorline
+
+    eq(true, after_number)
+    eq(true, after_cursorline)
+  end)
+
   it('opens without moving a transcript that was scrolled up', function()
     local events = require('harness.types.events')
 
@@ -110,6 +124,279 @@ describe('harness.ui.composer:', function()
     vim.wait(100)
 
     assert.is_true(math.abs(vim.fn.line('w0', win) - top) <= 1)
+  end)
+
+  for _, hint in ipairs({ false, true }) do
+    it('anchors the transcript on send, hints ' .. tostring(hint), function()
+      local events = require('harness.types.events')
+      local settings = require('harness.settings.transcript')
+      local saved = settings:get('hints')
+
+      settings:assign({ hints = hint })
+      for i = 1, 60 do
+        session:_emit(events.prompt('turn ' .. i))
+        session:_emit(events.new({ kind = events.KIND.message, text = 'reply ' .. i }))
+      end
+
+      local view = transcript.view_of(session)
+      local win = vim.api.nvim_get_current_win()
+
+      view:render()
+      vim.cmd('normal! G')
+      vim.wait(100)
+      vim.cmd('normal! 20\25')
+      vim.wait(300)
+
+      open_composer(session)
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'new prompt' })
+      press('<CR>')
+      vim.wait(1000, function()
+        return #prompts(fake) == 1
+      end)
+      vim.wait(300)
+
+      for i = 1, 40 do
+        session:_emit(events.new({ kind = events.KIND.message, text = 'streamed line ' .. i .. '\n\n' }))
+        vim.wait(40)
+      end
+      vim.wait(300)
+
+      local last = vim.api.nvim_buf_line_count(view.bufnr)
+      local bottom = vim.fn.line('w$', win)
+
+      settings:assign({ hints = saved })
+      assert.is_true(last - bottom <= 1)
+    end)
+  end
+
+  it('anchors a hidden transcript when sending from code', function()
+    local events = require('harness.types.events')
+
+    for i = 1, 60 do
+      session:_emit(events.prompt('turn ' .. i))
+      session:_emit(events.new({ kind = events.KIND.message, text = 'reply ' .. i }))
+    end
+
+    local view = transcript.view_of(session)
+
+    view:render()
+    vim.cmd('normal! G')
+    vim.cmd('normal! 20\25')
+    vim.wait(300)
+    vim.cmd('buffer ' .. code)
+
+    open_composer(session)
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'new prompt' })
+    press('<CR>')
+    vim.wait(1000, function()
+      return #prompts(fake) == 1
+    end)
+    vim.wait(300)
+
+    for i = 1, 40 do
+      session:_emit(events.new({ kind = events.KIND.message, text = 'streamed line ' .. i .. '\n\n' }))
+      vim.wait(40)
+    end
+    vim.wait(300)
+
+    local win = vim.fn.bufwinid(view.bufnr)
+    local last = vim.api.nvim_buf_line_count(view.bufnr)
+
+    assert.is_true(last - vim.fn.line('w$', win) <= 1)
+  end)
+
+  it('keeps following when the composer closes over folded output', function()
+    local events = require('harness.types.events')
+
+    for i = 1, 60 do
+      session:_emit(events.prompt('turn ' .. i))
+      session:_emit(events.new({ kind = events.KIND.message, text = 'reply ' .. i }))
+    end
+
+    local view = transcript.view_of(session)
+    local win = vim.api.nvim_get_current_win()
+
+    view:render()
+    vim.cmd('normal! G')
+    vim.wait(100)
+
+    local function tool(i)
+      session:_emit(events.new({
+        kind = events.KIND.tool_call,
+        id = 't' .. i,
+        name = 'Bash',
+        status = 'completed',
+        output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, 30)), '\n'),
+      }))
+      vim.wait(60)
+    end
+
+    tool(1)
+    tool(2)
+    open_composer(session)
+    vim.wait(100)
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'send' })
+    press('<CR>')
+    vim.wait(300)
+
+    for i = 3, 6 do
+      tool(i)
+    end
+
+    vim.wait(300)
+    eq(vim.api.nvim_buf_line_count(view.bufnr), vim.fn.line('w$', win))
+  end)
+
+  describe('anchoring a send', function()
+    local events = require('harness.types.events')
+
+    local function reply_lines()
+      for i = 1, 60 do
+        session:_emit(events.prompt('turn ' .. i))
+        session:_emit(events.new({ kind = events.KIND.message, text = 'reply ' .. i }))
+      end
+    end
+
+    local function stream(from, to)
+      for i = from, to do
+        session:_emit(events.new({ kind = events.KIND.message, text = 'streamed ' .. i .. '\n\n' }))
+        vim.wait(30)
+      end
+    end
+
+    local function send(text, count)
+      open_composer(session)
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { text })
+      press('<CR>')
+      vim.wait(1000, function()
+        return #prompts(fake) == count
+      end)
+      vim.wait(150)
+    end
+
+    local function gap(view)
+      local win = vim.fn.bufwinid(view.bufnr)
+
+      return vim.api.nvim_buf_line_count(view.bufnr) - vim.fn.line('w$', win)
+    end
+
+    local SCROLLS = {
+      { 'a single row up', '1\25' },
+      { 'a page up', '\21' },
+      { 'to the top', 'gg' },
+    }
+
+    for _, scroll in ipairs(SCROLLS) do
+      it('lands and follows after scrolling ' .. scroll[1] .. ' before the composer opened', function()
+        reply_lines()
+
+        local view = transcript.view_of(session)
+
+        view:render()
+        vim.cmd('normal! G')
+        vim.wait(100)
+        vim.cmd('normal! ' .. scroll[2])
+        vim.wait(250)
+        send('go', 1)
+        stream(1, 20)
+        vim.wait(250)
+
+        assert.is_true(gap(view) <= 1)
+      end)
+
+      it('lands and follows after scrolling ' .. scroll[1] .. ' while the composer was open', function()
+        reply_lines()
+
+        local view = transcript.view_of(session)
+        local win = vim.api.nvim_get_current_win()
+
+        view:render()
+        vim.cmd('normal! G')
+        vim.wait(100)
+        open_composer(session)
+        vim.wait(150)
+
+        local writing = vim.api.nvim_get_current_win()
+
+        vim.api.nvim_set_current_win(win)
+        vim.cmd('normal! ' .. scroll[2])
+        vim.wait(250)
+        vim.api.nvim_set_current_win(writing)
+        send('go', 1)
+        stream(1, 20)
+        vim.wait(250)
+
+        assert.is_true(gap(view) <= 1)
+      end)
+    end
+
+    it('lands and follows after a wheel scroll', function()
+      reply_lines()
+
+      local view = transcript.view_of(session)
+
+      view:render()
+      vim.cmd('normal! G')
+      vim.wait(100)
+      vim.api.nvim_input_mouse('wheel', 'up', '', 0, 3, 3)
+      vim.wait(250)
+      send('go', 1)
+      stream(1, 20)
+      vim.wait(250)
+
+      assert.is_true(gap(view) <= 1)
+    end)
+
+    it('lands a second send made while the first reply streams, after the reader scrolled up', function()
+      reply_lines()
+
+      local view = transcript.view_of(session)
+      local win = vim.api.nvim_get_current_win()
+
+      view:render()
+      vim.cmd('normal! G')
+      vim.wait(100)
+      send('first', 1)
+      stream(1, 15)
+      vim.api.nvim_win_call(win, function()
+        vim.cmd('normal! 10\25')
+      end)
+      vim.wait(250)
+      stream(16, 25)
+      send('second', 2)
+      stream(26, 45)
+      vim.wait(250)
+
+      assert.is_true(gap(view) <= 1)
+    end)
+
+    it('keeps following the reply when the composer closes over a wrapped, folded transcript', function()
+      for i = 1, 40 do
+        session:_emit(events.prompt('turn ' .. i))
+        session:_emit(events.new({ kind = events.KIND.message, text = string.rep('word ', 60) }))
+      end
+
+      local view = transcript.view_of(session)
+
+      view:render()
+      vim.cmd('normal! G')
+      vim.wait(100)
+      send('go', 1)
+
+      for i = 1, 6 do
+        session:_emit(events.new({
+          kind = events.KIND.tool_call,
+          id = 'w' .. i,
+          name = 'Bash',
+          status = 'completed',
+          output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, 45)), '\n'),
+        }))
+        vim.wait(60)
+      end
+
+      vim.wait(250)
+      assert.is_true(gap(view) <= 1)
+    end)
   end)
 
   it('sends on <CR> in normal mode, then clears and closes', function()
@@ -210,6 +497,37 @@ describe('harness.ui.composer:', function()
       eq('V', vim.api.nvim_get_mode().mode)
       press('<Esc>')
     end)
+  end)
+
+  it('recalls earlier prompts with <Up> and <Down> at the edges, handing the draft back', function()
+    for _, text in ipairs({ 'first', 'second' }) do
+      open_composer(session)
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { text })
+      press('<CR>')
+      vim.wait(1000, function()
+        return #prompts(fake) == (text == 'first' and 1 or 2)
+      end)
+      vim.wait(200)
+    end
+
+    open_composer(session)
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'draft' })
+    press('<Up>')
+    eq({ 'second' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    press('<C-p>')
+    eq({ 'first' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    press('<C-n>')
+    press('<Down>')
+    eq({ 'draft' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+  end)
+
+  it('moves by line, not by prompt, inside a multi-line draft', function()
+    open_composer(session)
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'a', 'b', 'c' })
+    vim.api.nvim_win_set_cursor(0, { 3, 0 })
+    press('<Up>')
+    eq(2, vim.api.nvim_win_get_cursor(0)[1])
+    eq({ 'a', 'b', 'c' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   end)
 
   it('treats <CR> in insert mode as a newline', function()

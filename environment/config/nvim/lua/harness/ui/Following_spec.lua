@@ -168,6 +168,42 @@ describe('harness.ui.Following:', function()
     end
   )
 
+  it('keeps following when a rewrite leaves the edge mark past the last line', function()
+    following:land(window(), function() end)
+    following:track({ window() })
+    eq(true, following:follows(window()))
+
+    local state = following:of(window())
+    local edge = state.buffer:get_extmark_row(Following.ANCHOR, state.edge)
+
+    rewrite_tail(edge - 20, 60)
+
+    eq(vim.api.nvim_buf_line_count(bufnr), state.buffer:get_extmark_row(Following.ANCHOR, state.edge))
+
+    following:track({ window() })
+    eq(true, following:follows(window()))
+  end)
+
+  it('follows again when a shrinking tail brought the end back into view, after scrolling down', function()
+    following:land(window(), function() end)
+    vim.cmd('normal! 5\25')
+    following:track({ window() })
+    eq(false, sticky_bottom.at_end(window()))
+    eq(false, following:follows(window()))
+
+    -- the stream rewrites the tail shorter below the edge: the edge survives,
+    -- but the end comes back into view
+    vim.api.nvim_buf_set_lines(bufnr, -3, -1, false, {})
+    following:track({ window() })
+    eq(true, sticky_bottom.at_end(window()))
+    eq(false, following:follows(window()))
+
+    vim.cmd('normal! 1\5')
+    following:track({ window() })
+
+    eq(true, following:follows(window()))
+  end)
+
   it('stops following when the window is scrolled with the cursor on the last row', function()
     reserve = 0
     following:land(window(), function() end)
@@ -305,6 +341,75 @@ describe('harness.ui.Following:', function()
     eq(top, vim.fn.line('w0', win))
     assert.is_true(top < edge)
     eq(false, following:follows(window()))
+  end)
+
+  it('keeps a scroll down made in the same moment the window is resized', function()
+    following:land(window(), function() end)
+    vim.cmd('normal! 40\25')
+    following:track({ window() })
+    eq(false, following:follows(window()))
+
+    vim.cmd('normal! 5\5')
+    vim.api.nvim_win_set_height(win, vim.api.nvim_win_get_height(win) - 1)
+
+    local top = vim.fn.line('w0', win)
+
+    following:hold_end({ window() })
+
+    eq(top, vim.fn.line('w0', win))
+  end)
+
+  describe('over folded rows', function()
+    before_each(function()
+      vim.wo[win].foldmethod = 'manual'
+      vim.wo[win].foldenable = true
+      vim.cmd('184,192fold')
+    end)
+
+    it('counts screen rows between two lines, a closed fold being one row', function()
+      eq(0, Following.rows_moved(window(), 10, 10))
+      eq(9, Following.rows_moved(window(), 174, 183))
+      eq(12, Following.rows_moved(window(), 174, 194))
+      eq(-12, Following.rows_moved(window(), 194, 174))
+    end)
+
+    it('keeps following when the window grows and the top line jumps across a closed fold', function()
+      vim.api.nvim_win_set_height(win, 11)
+      following:land(window(), function() end)
+      following:track({ window() })
+      eq(true, following:follows(window()))
+
+      local top = vim.fn.line('w0', win)
+
+      vim.api.nvim_win_set_height(win, 22)
+      assert.is_true(top - vim.fn.line('w0', win) > 11)
+      following:hold_end({ window() })
+
+      eq(true, following:follows(window()))
+      eq(true, sticky_bottom.at_end(window()))
+    end)
+
+    it('keeps following when the window shrinks and the top line jumps across a closed fold', function()
+      vim.api.nvim_win_set_height(win, 22)
+      following:land(window(), function() end)
+      following:track({ window() })
+      vim.api.nvim_win_set_height(win, 11)
+      following:hold_end({ window() })
+
+      eq(true, following:follows(window()))
+      eq(true, sticky_bottom.at_end(window()))
+    end)
+
+    it('still stops following when the reader scrolls up across the fold as the window grows', function()
+      vim.api.nvim_win_set_height(win, 11)
+      following:land(window(), function() end)
+      following:track({ window() })
+      vim.cmd('normal! 30\25')
+      vim.api.nvim_win_set_height(win, 22)
+      following:hold_end({ window() })
+
+      eq(false, following:follows(window()))
+    end)
   end)
 
   it('never moves a window that nothing moved', function()

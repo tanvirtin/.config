@@ -12,9 +12,12 @@ local winbar = {}
 function winbar.hints()
   local write = keymaps:get('transcript').write
 
+  local help = keymaps:get('transcript').help
+
   return string.format(
-    '%%#UiAccent# %s %%#UiMuted#write to this session   %%#UiAccent#<leader>. %%#UiMuted#sessions',
-    type(write) == 'table' and write[1] or write
+    '%%#UiAccent# %s %%#UiMuted#write to this session   %%#UiAccent#<leader>. %%#UiMuted#sessions   %%#UiAccent#%s %%#UiMuted#keys',
+    type(write) == 'table' and write[1] or write,
+    help
   )
 end
 winbar.STICKY_WIDTH = 80
@@ -42,7 +45,23 @@ function winbar.sticky(prompt, width)
   return head .. escape(compact.line(first, room))
 end
 
-local function status(session)
+function winbar.turns(session, prompt)
+  local total, at = 0, 0
+
+  for i, event in ipairs(session.history) do
+    if event.kind == EVENT.prompt and not event.steered then
+      total = total + 1
+      if prompt and prompt.first_event and i <= prompt.first_event then at = total end
+    end
+  end
+
+  if total == 0 then return nil end
+
+  return at > 0 and string.format('turn %d/%d', at, total)
+    or string.format('%d turn%s', total, total == 1 and '' or 's')
+end
+
+local function status(session, prompt)
   local parts = {}
 
   if session.external and follow.is_following(session) then parts[#parts + 1] = '%#UiWarn#⇄ external  ' end
@@ -70,6 +89,10 @@ local function status(session)
 
   if #session:waiting() > 0 then parts[#parts + 1] = '%#UiWarn#  waiting for you' end
 
+  local turns = winbar.turns(session, prompt)
+
+  if turns then parts[#parts + 1] = '%#UiMuted#  ' .. turns end
+
   local mode = session:mode()
   local model = session:choice('model')
 
@@ -88,7 +111,7 @@ local function status(session)
 end
 
 function winbar.transcript(session, prompt, width)
-  local right = status(session)
+  local right = status(session, prompt)
   local left = winbar.hints()
 
   if prompt then left = winbar.sticky(prompt, width and width - winbar.visible_width(right) - 2) end

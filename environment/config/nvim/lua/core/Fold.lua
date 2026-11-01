@@ -9,7 +9,7 @@ function Fold.setup_window(win_id)
   }
 
   for key, value in pairs(options) do
-    pcall(vim.api.nvim_set_option_value, key, value, { win = win_id })
+    pcall(vim.api.nvim_set_option_value, key, value, { scope = 'local', win = win_id })
   end
 
   return Fold

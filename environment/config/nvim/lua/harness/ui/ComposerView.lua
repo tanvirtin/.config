@@ -2,9 +2,11 @@ local lazy = require('core.lazy')
 
 local hub = lazy('harness.hub')
 local Timer = lazy('core.Timer')
+local surfaces = lazy('surfaces')
 local Buffer = lazy('core.Buffer')
 local Object = lazy('core.Object')
 local Window = lazy('core.Window')
+local keymap = lazy('core.keymap')
 local console = lazy('core.console')
 local tools = lazy('nvim_mcp.tools')
 local asks = lazy('harness.ui.asks')
@@ -12,6 +14,7 @@ local context = lazy('harness.context')
 local settings = lazy('harness.settings')
 local Element = lazy('ui.elements.Element')
 local theme = lazy('harness.transcript.theme')
+local PromptHistory = lazy('harness.ui.PromptHistory')
 
 local ComposerView = Object:extend()
 
@@ -52,6 +55,8 @@ function ComposerView:constructor(session, store, callbacks)
     on_close = callbacks.on_close,
     on_wipe = callbacks.on_wipe,
     answering = callbacks.answering,
+    recall = nil,
+    shown = nil,
   }
 end
 
@@ -123,9 +128,9 @@ function ComposerView:winbar()
   end
 
   if #session.commands > 0 then parts[#parts + 1] = self:_key(keys.slash, 'commands') end
-  if session:mode() then parts[#parts + 1] = self:_key(keys.cycle_mode, 'mode') end
-  if session:option('model') then parts[#parts + 1] = self:_key(keys.model, 'model') end
   if store:has_attachments(session.key) then parts[#parts + 1] = self:_key(keys.detach, 'drop selection') end
+  if not answering then parts[#parts + 1] = self:_key(keys.history, 'history') end
+  parts[#parts + 1] = self:_key(keys.help, 'keys')
   parts[#parts + 1] = self:_key(keys.close, 'close')
 
   return table.concat(parts)
@@ -226,6 +231,7 @@ function ComposerView:_deliver(message, opts)
   if err then return false, tostring(err) end
 
   store:clear(session.key)
+  store:remember(text)
 
   if source.buf then tools.set_focus(source.win, source.buf) end
 
@@ -293,6 +299,129 @@ function ComposerView:restore(texts)
   return self
 end
 
+function ComposerView:_history()
+  if not self.recall then self.recall = PromptHistory(PromptHistory.collect(self.session, self.store.sent)) end
+
+  return self.recall
+end
+
+function ComposerView:_replace(text)
+  local lines = vim.split(text, '\n', { plain = true })
+
+  self.shown = text
+  self.element:set_lines(lines)
+  self.element:set_cursor({ #lines, #lines[#lines] })
+end
+
+function ComposerView:recall_step(direction)
+  if self.answering then return false end
+
+  local history = self:_history()
+  local current = table.concat(self:lines(), '\n')
+
+  if history:browsing() and current ~= self.shown then history:reset() end
+
+  local text = direction < 0 and history:older(current) or history:newer()
+
+  if not text then return false end
+
+  self:_replace(text)
+
+  return true
+end
+
+function ComposerView:pick_history()
+  local entries = self:_history().entries
+
+  if self.answering or #entries == 0 then return ComposerView.warn('no earlier prompts to recall') end
+
+  local items = {}
+
+  for i = #entries, 1, -1 do
+    local lines = vim.split(entries[i], '\n', { plain = true })
+
+    items[#items + 1] = {
+      label = lines[1],
+      description = #lines > 1 and string.format('+%d lines', #lines - 1) or nil,
+      text = entries[i],
+    }
+  end
+
+  surfaces.pick({
+    title = 'Earlier prompts',
+    items = items,
+    width = '60vw',
+    max_height = 15,
+    on_select = function(item)
+      Timer.schedule(function()
+        if not self:is_open() then return end
+
+        self:_replace(item.text)
+        self:focus(true)
+      end)
+    end,
+  })
+end
+
+function ComposerView:_edge(direction, passthrough)
+  return function()
+    local row = self.element:get_cursor()[1]
+    local edge = direction < 0 and 1 or self.element:get_line_count()
+
+    if row == edge and self:recall_step(direction) then return end
+
+    keymap.feed(passthrough)
+  end
+end
+
+function ComposerView:_bind_history(keys)
+  local element = self.element
+
+  for _, mode in ipairs({ 'n', 'i' }) do
+    element:set_keymap(mode, '<Up>', self:_edge(-1, '<Up>'), 'Earlier prompt on the first line')
+    element:set_keymap(mode, '<Down>', self:_edge(1, '<Down>'), 'Later prompt on the last line')
+    element:set_keymap(mode, keys.history, function()
+      self:pick_history()
+    end, 'Pick an earlier prompt')
+    element:set_keymap(mode, keys.help, function()
+      self:show_help()
+    end, 'List the composer keys')
+  end
+
+  element:set_keymap('n', keys.older, function()
+    self:recall_step(-1)
+  end, 'Earlier prompt')
+  element:set_keymap('n', keys.newer, function()
+    self:recall_step(1)
+  end, 'Later prompt')
+
+  return self
+end
+
+function ComposerView:show_help()
+  local keys = settings.keymaps:get('composer')
+  local rows = {
+    { keys.send, 'Send, or queue while the agent works (normal mode)' },
+    { keys.steer, 'Steer the running turn' },
+    { keys.interrupt, 'Interrupt the running turn' },
+    { keys.slash, 'Slash commands (insert mode)' },
+    { keys.cycle_mode, 'Next session mode' },
+    { keys.model, 'Session model (normal mode)' },
+    { keys.detach, 'Drop the last attached selection' },
+    { '<Up> / ' .. keys.older, 'Earlier prompt (<Up> on the first line)' },
+    { '<Down> / ' .. keys.newer, 'Later prompt (<Down> on the last line)' },
+    { keys.history, 'Pick an earlier prompt' },
+    { keys.close, 'Close, keeping the draft (normal mode)' },
+  }
+  local lines = { '| Key | Does |', '| --- | --- |' }
+
+  for _, row in ipairs(rows) do
+    lines[#lines + 1] = string.format('| `%s` | %s |', row[1], row[2])
+  end
+
+  return surfaces.panel({ title = 'Composer keys', markdown = table.concat(lines, '\n') })
+end
+
 function ComposerView:_bind(keys)
   local element, session = self.element, self.session
 
@@ -335,7 +464,7 @@ function ComposerView:_bind(keys)
     Window.redraw_bars()
   end, 'Drop the last attached selection')
 
-  return self
+  return self:_bind_history(keys)
 end
 
 function ComposerView:_listen()

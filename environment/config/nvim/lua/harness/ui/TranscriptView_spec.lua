@@ -73,6 +73,215 @@ describe('harness.ui.TranscriptView:', function()
     eq(true, split)
   end)
 
+  describe('navigating', function()
+    local view
+
+    local function tool(id, name, status)
+      session:_emit(events.new({ kind = events.KIND.tool_call, id = id, name = name, status = status }))
+    end
+
+    before_each(function()
+      session:_emit(events.prompt('first'))
+      tool('a', 'Read', 'completed')
+      session:_emit(events.new({
+        kind = events.KIND.tool_call,
+        id = 'b',
+        name = 'Bash',
+        status = 'failed',
+        output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, 80)), '\n'),
+      }))
+      session:_emit(events.stop('end_turn'))
+      session:_emit(events.prompt('second'))
+      tool('c', 'Read', 'completed')
+      session:_emit(events.stop('end_turn'))
+
+      view = TranscriptView(session):mount()
+      view:show_in(require('core.Window').get_current())
+      view:bind(view:bindings())
+      vim.wait(100, function()
+        return not view.scheduled
+      end)
+      vim.cmd('normal! gg')
+    end)
+
+    after_each(function()
+      view:dispose()
+    end)
+
+    local function row()
+      return vim.api.nvim_win_get_cursor(0)[1]
+    end
+
+    local function text()
+      return vim.api.nvim_get_current_line()
+    end
+
+    it('walks tool calls, and <C-o> comes back', function()
+      local start = row()
+
+      vim.cmd('normal ]t')
+      local first = row()
+      vim.cmd('normal 2]t')
+      assert.is_true(first > start)
+      assert.is_true(row() > first)
+
+      vim.cmd('execute "normal \\<C-o>"')
+      eq(first, row())
+    end)
+
+    it('lands on failed tool calls only', function()
+      vim.cmd('normal ]x')
+      assert.is_truthy(text():find('Bash', 1, true))
+      local at = row()
+      vim.cmd('normal ]x')
+      eq(at, row())
+    end)
+
+    it('selects a whole turn with at', function()
+      vim.cmd('normal! 3G')
+      vim.cmd('normal yat')
+      local yanked = vim.fn.getreg('"')
+      assert.is_truthy(yanked:find('first', 1, true))
+      assert.is_nil(yanked:find('second', 1, true))
+    end)
+
+    describe('while following the stream', function()
+      local function stream(from, to, lines)
+        for i = from, to do
+          session:_emit(events.new({
+            kind = events.KIND.tool_call,
+            id = 's' .. i,
+            name = 'Bash',
+            status = 'completed',
+            output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, lines or 90)), '\n'),
+          }))
+          vim.wait(40)
+        end
+
+        vim.wait(250)
+      end
+
+      local function at_end()
+        return vim.fn.line('w$', vim.fn.bufwinid(view.bufnr)) >= vim.api.nvim_buf_line_count(view.bufnr)
+      end
+
+      before_each(function()
+        vim.cmd('normal G')
+        vim.wait(200)
+      end)
+
+      it('keeps the end in view across tool output folded and unfolded', function()
+        stream(1, 3)
+        vim.cmd('normal zT')
+        stream(4, 6)
+        eq(true, at_end())
+        vim.cmd('normal zU')
+        vim.cmd('normal G')
+        stream(7, 9)
+        eq(true, at_end())
+      end)
+
+      it('keeps the end in view when the window gets narrower and wider', function()
+        vim.cmd('vsplit')
+        stream(1, 2)
+        vim.cmd('vertical resize 30')
+        stream(3, 4)
+        eq(true, at_end())
+        vim.cmd('vertical resize 100')
+        stream(5, 6)
+        eq(true, at_end())
+        vim.cmd('only')
+      end)
+
+      it('keeps the end in view when the plan panel is shown and hidden', function()
+        session:_emit(events.new({
+          kind = events.KIND.plan,
+          entries = { { content = 'one', status = 'pending' }, { content = 'two', status = 'pending' } },
+        }))
+        vim.wait(150)
+        vim.cmd('normal gp')
+        stream(1, 3)
+        eq(true, at_end())
+        vim.cmd('normal gp')
+        stream(4, 6)
+        eq(true, at_end())
+      end)
+
+      it('is scrolled away by a jump, and lands again on G', function()
+        stream(1, 4)
+        vim.cmd('normal [[')
+        vim.wait(250)
+        assert.is_false(at_end())
+        vim.cmd('normal G')
+        stream(5, 8)
+        eq(true, at_end())
+      end)
+
+      it('follows a stream that ran while the transcript was hidden, then shown again', function()
+        stream(1, 2)
+        vim.cmd('enew')
+        stream(3, 6)
+        vim.cmd('buffer ' .. view.bufnr)
+        vim.wait(250)
+        stream(7, 8)
+        eq(true, at_end())
+      end)
+    end)
+
+    it('hints the keys of the block under the cursor', function()
+      local hints = require('harness.ui.hints')
+
+      vim.cmd('normal! 3G')
+      vim.api.nvim_exec_autocmds('CursorMoved', { buffer = view.bufnr })
+
+      local marks = vim.api.nvim_buf_get_extmarks(view.bufnr, hints.NAMESPACE, 0, -1, { details = true })
+
+      eq(1, #marks)
+      assert.is_truthy(marks[1][4].virt_text[1][1]:find('fork', 1, true))
+
+      vim.cmd('normal! 1G')
+      vim.api.nvim_exec_autocmds('CursorMoved', { buffer = view.bufnr })
+      eq(0, #vim.api.nvim_buf_get_extmarks(view.bufnr, hints.NAMESPACE, 0, -1, {}))
+    end)
+
+    it('lists every key on g?', function()
+      vim.cmd('normal g?')
+
+      local surfaces = require('surfaces')
+      local found = false
+
+      for _, surface in ipairs(surfaces.all()) do
+        if surface.title == 'Harness keys' then found = true end
+      end
+
+      surfaces.close_all()
+      eq(true, found)
+    end)
+
+    it('folds every tool output and opens it again', function()
+      local function closed()
+        local count = 0
+
+        for lnum = 1, vim.api.nvim_buf_line_count(view.bufnr) do
+          if vim.fn.foldclosed(lnum) == lnum then count = count + 1 end
+        end
+
+        return count
+      end
+
+      _G.test_foldexpr = function()
+        return view.document:fold_level(vim.v.lnum - 1)
+      end
+      vim.wo.foldexpr = 'v:lua.test_foldexpr()'
+      vim.cmd('normal! zR')
+      eq(0, closed())
+      vim.cmd('normal zT')
+      assert.is_true(closed() > 0)
+      vim.cmd('normal zU')
+      eq(0, closed())
+    end)
+  end)
+
   it('names the buffer after the session', function()
     eq('harness://h1 untitled', TranscriptView.buffer_name({ key = 'h1' }))
   end)

@@ -28,6 +28,21 @@ local function session(fields)
 end
 
 describe('harness.ui.winbar:', function()
+  it('counts the turns, and says which one the sticky prompt opens', function()
+    local events = require('harness.types.events')
+    local history = {
+      events.prompt('one'),
+      events.new({ kind = events.KIND.message, text = 'hi' }),
+      events.prompt('two'),
+      events.prompt('steer', { steered = true }),
+    }
+
+    eq('2 turns', winbar.turns({ history = history }))
+    eq('turn 2/2', winbar.turns({ history = history }, { first_event = 3, lines = { '> two' } }))
+    eq('turn 1/2', winbar.turns({ history = history }, { first_event = 1, lines = { '> one' } }))
+    assert.is_nil(winbar.turns({ history = {} }))
+  end)
+
   it('counts running agents, and says how long the quietest has been silent', function()
     local summary = { active = 2, quiet = 125000 }
     local text = winbar.transcript(session({

@@ -90,6 +90,18 @@ function Window:normal(keys)
   end)
 end
 
+function Window:push_jump()
+  return self:call(function()
+    vim.cmd('normal! m\'')
+  end)
+end
+
+function Window:jump_to(cursor)
+  self:push_jump()
+
+  return self:set_cursor(cursor)
+end
+
 function Window:visual_lines()
   if not vim.api.nvim_get_mode().mode:match('^[vV\22]') then return nil end
 
@@ -110,6 +122,12 @@ function Window:fold_closed(lnum)
   end)
 
   return closed ~= nil and closed ~= -1
+end
+
+function Window:set_fold(lnum, closed)
+  return self:call(function()
+    vim.cmd(string.format('silent! %d%s', lnum, closed and 'foldclose' or 'foldopen'))
+  end)
 end
 
 function Window:fold_level(lnum)
@@ -151,7 +169,7 @@ function Window.open_screen(buffer, config)
 
   if config.win_options then
     for key, value in pairs(config.win_options) do
-      pcall(vim.api.nvim_set_option_value, key, value, { win = win_id })
+      pcall(vim.api.nvim_set_option_value, key, value, { scope = 'local', win = win_id })
     end
   end
 

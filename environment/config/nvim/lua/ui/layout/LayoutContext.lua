@@ -31,6 +31,7 @@ function LayoutContext:constructor(config)
     ['$zindex'] = config.zindex or 2,
     ['$original_win_options'] = captured and captured.options,
     ['$original_win_id'] = captured and captured.win_id,
+    ['$original_bufnr'] = captured and captured.bufnr,
   }
 end
 
@@ -44,7 +45,11 @@ function LayoutContext.capture_window_options()
     if value ~= nil then win_options[option_name] = value end
   end
 
-  return { options = win_options, win_id = win.win_id }
+  return {
+    options = win_options,
+    win_id = win.win_id,
+    bufnr = vim.api.nvim_win_get_buf(win.win_id),
+  }
 end
 
 function LayoutContext:is_screen_mode()
@@ -137,6 +142,8 @@ function LayoutContext:restore_window_options()
     win = Window.get_current()
   end
   if not win or not win:is_valid() then return end
+
+  if self.original_bufnr and vim.api.nvim_win_get_buf(win.win_id) ~= self.original_bufnr then return self end
 
   pcall(function()
     win:assign_options(self.original_win_options)

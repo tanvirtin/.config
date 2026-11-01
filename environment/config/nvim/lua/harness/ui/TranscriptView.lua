@@ -9,6 +9,7 @@ local Object = require('core.Object')
 local Window = require('core.Window')
 local follow = lazy('harness.follow')
 local keymap = require('core.keymap')
+local hints = lazy('harness.ui.hints')
 local console = require('core.console')
 local asks = require('harness.ui.asks')
 local links = require('harness.ui.links')
@@ -623,6 +624,14 @@ function TranscriptView:pick_model()
   return commands.pick_model(self)
 end
 
+function TranscriptView:fold_tools(close)
+  return commands.fold_tools(self, close)
+end
+
+function TranscriptView:show_help()
+  return commands.show_help(self)
+end
+
 function TranscriptView:show_permissions()
   return commands.show_permissions(self)
 end
@@ -670,6 +679,9 @@ function TranscriptView:mount(callbacks)
     self:update_plan()
     relayout()
   end)
+  self.group.on('CursorMoved', function()
+    hints.show(self)
+  end, { buffer = self.buffer })
   self.group.on('BufWinLeave', function()
     self.following:track(self:windows())
 

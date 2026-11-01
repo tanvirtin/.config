@@ -158,10 +158,14 @@ A session is a buffer: `harness://h3 <title>`, listed like any other buffer. Ses
 - **The selector** (`<leader>.`, or `:HarnessSessions`) is a dropdown like vgit's log, listing the directory's sessions. It starts with `+ New session`, then live sessions (`◆` running, `○` idle, stored ones with how long ago they were used), then the ones Claude Code has stored for the directory.
   - A footer along its bottom border names its keys, as on every picker.
   - `<CR>` opens the selected session, loading and replaying a stored one (its transcript opens at once, says it is loading, and is written in one go once the replay is done), or starts a new one.
+  - Each live session shows its state (`running`, `idle`, or `waiting for you`) and the first line of its last prompt, so typing `waiting` in the selector finds the ones that need you.
+  - `<C-f>` forks the selected live session and opens the fork.
   - `<C-x>` deletes the selected session. Press it twice: deleting removes the stored transcript for good, including from `claude --resume`.
   - Agents can drive the selector with `ui_command`, but deleting is left to people.
 - **New sessions.** `<leader>an` or `:HarnessNew` starts a new session, which is simply a new buffer.
 - **Prompting.** `:Harness <prompt>` asks the session you're in, or the one you were in last, and opens it in the current window. The editor tools keep acting on the buffer you came from, even while the session buffer covers it.
+
+**Jumps.** `]]`, `[[`, `]b`, `[b`, `]t`, `]e`, `]x`, `]w` and their reverses record where you were, so `<C-o>` takes you back, and `<C-i>` forward again. Counts work: `3]t` is the third tool call below. The cursor's block shows the keys that act on it at the end of its first line (`gd diff · gf open · gR revert`); `hints = false` in the transcript settings turns that off. The transcript's winbar counts turns (`turn 3/9` while a prompt is stuck at the top).
 
 ## Sub-agents
 
@@ -195,6 +199,7 @@ You write to a session in the composer, much like a commit message window.
 - **Only one.** Opening it again focuses the open one, and opening it from another session's buffer moves it there.
 - **Context.** Each message says where you were, from the buffer the session was opened from.
 - **Reading the reply.** Asking a question behaves like pressing `G`: the window lands on the newest line with the room below it, and the reply fills that screen while it streams; a window scrolled up is left where it is. Only text arriving moves a window. A window follows the stream until you scroll it up, by any amount, even a single row or a border row drawn above the top line: from then on nothing but `G`, a send or scrolling back down to the edge it was left on moves it, however much text arrives. When the stream has not yet added enough rows to reach that edge, scrolling back down until the newest line is on the bottom row counts as reaching it, so the window catches up instead of leaving you to chase the stream. A window that was left alone, or scrolled back down to that edge, glides just enough on each chunk to keep its newest line on the edge. The rows the composer takes on screen (`composer.height` plus its winbar and the separator, a third of the window at most) are kept free under the newest line, as if the composer were always open: the stream glides, scrolling just enough to keep its newest line on that edge, and the composer opens into those rows without moving the text. While the composer is open the edge is its top. The windows are watched every `watch_ms` rather than waiting on `WinScrolled`, which not every host delivers, so a scroll with the mouse counts as soon as it happens. The watcher never scrolls a window for its own sake: it only puts back a top line that a resize moved (opening or closing the composer), with the cursor moved into view, never dragging the text and never undoing a scroll made in the same moment. A fresh open, a window showing the transcript for the first time, and a stored session finishing its load all land on the last line with that room under it; sending a prompt does too, so the reply starts in view. Coming back to a window that was left at the end follows what streamed meanwhile; one left scrolled up stays where it was. A following window keeps its end in view when rows change height under it (folds, decorations), when rows above it go away, and when it is resized it keeps its text where it was, moving it only as far as the edge needs; a window the user scrolled is never moved.
+- **Earlier prompts.** `<Up>` on the first line and `<Down>` on the last step through the prompts you sent, the way a shell does; `<C-p>` and `<C-n>` do the same in normal mode. Your unsent text comes back when you step past the newest one, and editing a recalled prompt starts a new walk. `<C-f>` opens a picker of earlier prompts, newest first. They come from the session and from everything sent in this editor; steering messages and duplicates are left out. `<F1>` lists the composer's keys.
 - **Selections.** While the composer is open, select lines in any file and press `<leader>aa` (visual mode) to attach them. Each shows in the winbar as `+ path:from-to`, and they go with the next message, as embedded resources when the agent takes them and fenced code otherwise. The sent prompt lists them under its text (`+ math.lua:3-5`). `<C-x>` in normal mode drops the last one; sending, or closing with the draft discarded, clears them. With no composer open the key does nothing and the selection stays.
 
 It belongs to the session, not to the session's buffer:
@@ -382,6 +387,15 @@ Keys in a transcript:
 | `gy` | yank the code block under the cursor without its fences, or else the whole block (a prompt without its `>`); on an edit, its change as a patch; on a JSON token or table cell, that token or cell |
 | `za`, `zR`, `zM` | folds, as anywhere |
 | `]]`, `[[` | next and previous turn |
+| `]t`, `[t` | next and previous tool call |
+| `]e`, `[e` | next and previous edit |
+| `]x`, `[x` | next and previous failed tool call |
+| `]w`, `[w` | next and previous request waiting for you: a tool asking permission, or the open question at the end |
+| `it`, `at` | text objects: the replies of the turn, or the whole turn with your prompt (`yat`, `vit`) |
+| `im`, `am` | text objects: a reply message, with or without its marker |
+| `io`, `ao` | text objects: the output of a tool call, or the call with its header |
+| `zT`, `zU` | fold or unfold the output of every tool call |
+| `g?` | list every key of the transcript, generated from the bindings themselves |
 | `gP` | this session's permissions: mode, grants, saved rules and decisions; `d` takes one back |
 | `<C-c>` | interrupt the running turn |
 | `1` `2` `3` | while the agent asks permission: allow once, allow always (this session), reject. Otherwise they are counts |

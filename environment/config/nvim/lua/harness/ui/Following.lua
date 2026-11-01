@@ -31,6 +31,13 @@ function Following.position(window)
   return view.topline - 1, view.topfill
 end
 
+function Following.rows_moved(window, from, to)
+  if to == from then return 0 end
+  if to > from then return window:get_text_height(from, to - 1) end
+
+  return -window:get_text_height(to, from - 1)
+end
+
 function Following.above(top, fill, other_top, other_fill)
   return top < other_top or (top == other_top and fill > other_fill)
 end
@@ -56,6 +63,7 @@ function Following:settle(window)
   state.edge = state.buffer:set_extmark(Following.ANCHOR, top, 0, { id = state.edge, right_gravity = true })
   state.edge_fill = fill
   state.top, state.fill, state.seen, state.moved = top, fill, { top, fill }, nil
+  state.ready = nil
 end
 
 function Following:track(windows)
@@ -69,7 +77,13 @@ function Following:track(windows)
     local at_end = sticky_bottom.at_end(window)
 
     if state.height ~= nil and state.height ~= height then
-      state.moved = (height < state.height) ~= up
+      local change = height - state.height
+      local delta = seen and Following.rows_moved(window, seen[1], top) or 0
+
+      -- a resize can drag the top line with the cursor; a move no larger than
+      -- the resize itself is the resize's, and a longer one (or one the other
+      -- way) is the reader scrolling in the same moment, and stays
+      state.moved = (change < 0 and delta >= 0 and delta <= -change) or (change > 0 and delta <= 0 and delta >= -change)
     elseif not still then
       state.moved = nil
     end
@@ -77,9 +91,29 @@ function Following:track(windows)
     if not state.moved then
       local edge, edge_fill, lost = self:edge(window)
 
-      if edge then state.away = Following.above(top, fill, edge, edge_fill) end
+      if edge then
+        local above = Following.above(top, fill, edge, edge_fill)
 
-      if state.away and down and at_end and (lost or not state.seen_end) then state.away = false end
+        -- a rewrite can swallow the mark and leave it past the last line, which
+        -- no scroll can reach; that is not where the reader was, so it must not
+        -- stop a window that was following
+        if lost and state.away == false and not up then above = false end
+
+        state.away = above
+      end
+
+      -- remember that the end came back into view while the reader was away, so
+      -- that scrolling down later still catches up
+      if not state.away or up then
+        state.ready = nil
+      elseif at_end and not state.seen_end then
+        state.ready = true
+      end
+
+      if state.away and down and at_end and (state.ready or lost) then
+        state.away = false
+        state.ready = nil
+      end
 
       state.top, state.fill = top, fill
     end

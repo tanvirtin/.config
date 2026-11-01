@@ -3,16 +3,101 @@ local Window = require('core.Window')
 local keymap = require('core.keymap')
 local edits = lazy('harness.ui.edits')
 local console = require('core.console')
+local objects = lazy('harness.ui.objects')
+local motions = lazy('harness.ui.motions')
 local settings = require('harness.settings')
 local code_blocks = lazy('harness.ui.code_blocks')
 
 local bindings = {}
 
+local MOTIONS = {
+  { 'tool', 'tool call' },
+  { 'edit', 'edit' },
+  { 'waiting', 'request waiting for you' },
+  { 'failed', 'failed tool call' },
+}
+
+local OBJECTS = {
+  { 'turn', 'turn', 'The turn: your prompt and everything after it', 'The replies of the turn' },
+  { 'message', 'message', 'The message with its marker', 'The message' },
+  { 'tool', 'tool', 'The tool call with its header', 'The output of the tool call' },
+}
+
+local function motion_bindings(view, keys)
+  local out = {}
+
+  for _, entry in ipairs(MOTIONS) do
+    for _, direction in ipairs({ { 'next', 1, 'Next' }, { 'previous', -1, 'Previous' } }) do
+      out[#out + 1] = {
+        keys[entry[1] .. '_' .. direction[1]],
+        function()
+          view.report(motions.jump(view, entry[1], direction[2]))
+        end,
+        direction[3] .. ' ' .. entry[2],
+        { mode = { 'n', 'x' } },
+      }
+    end
+  end
+
+  return out
+end
+
+local function object_bindings(view, keys)
+  local out = {}
+
+  for _, entry in ipairs(OBJECTS) do
+    out[#out + 1] = {
+      keys[entry[1] .. '_inner'],
+      function()
+        view.report(objects.select(view, entry[2], false))
+      end,
+      entry[4],
+      { mode = { 'o', 'x' } },
+    }
+    out[#out + 1] = {
+      keys[entry[1] .. '_around'],
+      function()
+        view.report(objects.select(view, entry[2], true))
+      end,
+      entry[3],
+      { mode = { 'o', 'x' } },
+    }
+  end
+
+  return out
+end
+
+local function fold_bindings(view, keys)
+  return {
+    {
+      keys.fold_tools,
+      function()
+        view.report(view:fold_tools(true))
+      end,
+      'Fold the output of every tool call',
+    },
+    {
+      keys.unfold_tools,
+      function()
+        view.report(view:fold_tools(false))
+      end,
+      'Unfold the output of every tool call',
+    },
+    {
+      keys.help,
+      function()
+        view:show_help()
+      end,
+      'List every key of this session',
+    },
+  }
+end
+
 function bindings.bindings(view)
   local session, report = view.session, view.report
   local keys = settings.keymaps:get('transcript')
 
-  return {
+  local list = {
     {
       keys.interrupt,
       function()
@@ -203,6 +288,12 @@ function bindings.bindings(view)
       'Session model',
     },
   }
+
+  vim.list_extend(list, motion_bindings(view, keys))
+  vim.list_extend(list, object_bindings(view, keys))
+  vim.list_extend(list, fold_bindings(view, keys))
+
+  return list
 end
 
 return bindings

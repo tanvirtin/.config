@@ -9,8 +9,10 @@ local console = lazy('core.console')
 local Window = require('core.Window')
 local register = lazy('core.register')
 local edits = lazy('harness.ui.edits')
+local help = require('harness.ui.help')
 local links = require('harness.ui.links')
 local Renderer = lazy('ui.markdown.Renderer')
+local motions = require('harness.ui.motions')
 local theme = lazy('harness.transcript.theme')
 local hit_test = require('harness.ui.hit_test')
 local Block = require('harness.transcript.Block')
@@ -75,23 +77,7 @@ function commands.target_at(view, window)
 end
 
 function commands.jump(view, direction)
-  local window = Window.get_current()
-  local row = window:get_cursor()[1] - 1
-  local rows = {}
-
-  for _, block in ipairs(view.document.blocks) do
-    if block.kind == Block.KIND.prompt then rows[#rows + 1] = block.start end
-  end
-
-  if direction < 0 then
-    for i = #rows, 1, -1 do
-      if rows[i] < row then return window:set_cursor({ rows[i] + 1, 0 }) end
-    end
-  else
-    for _, candidate in ipairs(rows) do
-      if candidate > row then return window:set_cursor({ candidate + 1, 0 }) end
-    end
-  end
+  return motions.jump(view, motions.KIND.turn, direction)
 end
 
 function commands.toggle_at(view, window, fold_row, row)
@@ -280,6 +266,33 @@ function commands.pick_model(view)
   }, function(choice)
     if choice then session:set_option(option.id, choice.value) end
   end)
+end
+
+function commands.fold_tools(view, close)
+  local window = Window.get_current()
+  local following = view.following:follows(window)
+  local changed = 0
+
+  for _, block in ipairs(view.document.blocks) do
+    local fold = block.kind == Block.KIND.tool and block.folds and block.folds[1]
+
+    if fold then
+      local row = block.start + fold[1] + 1
+
+      if window:fold_closed(row) ~= close then
+        window:set_fold(row, close)
+        changed = changed + 1
+      end
+    end
+  end
+
+  if following and changed > 0 then view:land(window) end
+
+  return changed > 0, close and 'no open tool output' or 'no folded tool output'
+end
+
+function commands.show_help(view)
+  return surfaces.panel({ title = 'Harness keys', markdown = help.markdown(view:bindings()) })
 end
 
 function commands.show_permissions(view)

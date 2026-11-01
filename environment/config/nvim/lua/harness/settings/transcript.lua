@@ -15,4 +15,5 @@ return Config({
   diff_layout = 'auto',
   diff_overflow = 'truncate',
   argument_max = 120,
+  hints = true,
 })
