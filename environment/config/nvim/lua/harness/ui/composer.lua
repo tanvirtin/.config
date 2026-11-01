@@ -29,6 +29,15 @@ function composer.is_open()
   return current ~= nil and current:is_open()
 end
 
+-- True when this buffer is the open composer's. Nothing else may take over the
+-- window it lives in: the buffer is bufhidden=wipe, so replacing it would wipe
+-- the composer and leave its split behind.
+function composer.owns(bufnr)
+  if not current or not current:is_open() then return false end
+
+  return current.element:get_buffer().bufnr == bufnr
+end
+
 function composer.attached(session)
   return store:attachments(session.key)
 end

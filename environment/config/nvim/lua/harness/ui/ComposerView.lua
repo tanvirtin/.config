@@ -182,6 +182,10 @@ function ComposerView:close(discard, opts)
     self.element:unmount()
 
     if view then view:hold_end() end
+  elseif self.element and self.element:is_mounted() then
+    -- the buffer went first (it is bufhidden=wipe), and the split it lived in
+    -- did not: close that too
+    self.element:unmount()
   end
 
   if discard then self.store:clear(key) end

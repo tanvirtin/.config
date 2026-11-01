@@ -622,6 +622,36 @@ describe('harness.ui.composer:', function()
     vim.wait(100)
   end)
 
+  it('keeps its window when the transcript is opened while it has focus', function()
+    open_composer(session)
+
+    local composer_win = vim.api.nvim_get_current_win()
+    local view = transcript.view_of(session)
+
+    display.open(session)
+    vim.wait(100)
+
+    eq(true, composer.is_open())
+    eq(composer_win, vim.api.nvim_get_current_win())
+    eq(2, #vim.api.nvim_list_wins())
+
+    local showing = vim.tbl_filter(function(win)
+      return vim.api.nvim_win_get_buf(win) == view.bufnr
+    end, vim.api.nvim_list_wins())
+
+    eq(1, #showing)
+  end)
+
+  it('closes the split when its buffer was wiped first', function()
+    local element = open_composer(session)
+
+    vim.api.nvim_buf_delete(element:get_buffer().bufnr, { force = true })
+    composer.close()
+
+    eq(false, composer.is_open())
+    eq(1, #vim.api.nvim_list_wins())
+  end)
+
   it('keeps the draft when its window is closed some other way', function()
     open_composer(session)
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'closed with <C-w>c' })

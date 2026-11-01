@@ -80,7 +80,15 @@ function display.open(session, opts)
   end
 
   if not opts.background then
-    view:show_in(Window.get_current())
+    local window = Window.get_current()
+
+    if composer.owns(window:get_buffer().bufnr) then
+      -- the transcript never takes the composer's window: it goes to a window
+      -- already showing it, or into a split of its own
+      window = view:windows()[1] or Window.split_top()
+    end
+
+    view:show_in(window)
     last_buf = view.bufnr
   end
 
