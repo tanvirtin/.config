@@ -165,6 +165,24 @@ describe('harness.ui.TourView:', function()
     eq(0, #floats())
   end)
 
+  it('ends itself, note and all, when its code window is closed', function()
+    vim.cmd('split')
+
+    view = TourView(data)
+    view:start()
+
+    eq(1, #floats())
+
+    vim.api.nvim_win_close(vim.api.nvim_get_current_win(), true)
+
+    vim.wait(200, function()
+      return not view:is_open()
+    end)
+
+    eq(false, view:is_open())
+    eq(0, #floats())
+  end)
+
   it('binds next, previous and stop on the code it shows, and unbinds them when it ends', function()
     view = TourView(data)
     view:start()

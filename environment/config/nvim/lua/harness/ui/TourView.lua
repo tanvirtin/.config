@@ -304,6 +304,13 @@ function TourView:show(index)
 
   self.window = window
   self.index = index
+
+  self.group.on('WinClosed', function()
+    Timer.defer(0, function()
+      if not self.stopped and self:is_open() then self:stop() end
+    end)
+  end, { pattern = tostring(window.win_id), once = true })
+
   self:_show_note(window, index, first)
 
   return true
