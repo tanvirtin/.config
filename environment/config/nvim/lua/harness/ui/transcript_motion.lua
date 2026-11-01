@@ -1,3 +1,4 @@
+local tone = require('ui.tone')
 local Timer = require('core.Timer')
 local theme = require('harness.transcript.theme')
 local permission = require('harness.types.permission')
@@ -38,7 +39,7 @@ function transcript_motion.close_card(view, state)
 
   if #card == 0 then return end
 
-  local closing = { lines = card, started = now, tone = refused(view, now) and 'Error' or 'Accent' }
+  local closing = { lines = card, started = now, tone = refused(view, now) and tone.ERROR or tone.ACCENT }
   local ms = status_line.closing_ms()
 
   document.state.closing = closing

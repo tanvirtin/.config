@@ -1,6 +1,7 @@
 local lazy = require('core.lazy')
 
 local hl = lazy('ui.hl')
+local tone = lazy('ui.tone')
 local Timer = lazy('core.Timer')
 local motion = lazy('ui.motion')
 local Object = lazy('core.Object')
@@ -149,7 +150,7 @@ function PlanPanel:_step(now)
       local line = self.summary.lines[index + 1] or ''
 
       self.element:place_extmark_highlight({
-        hl = 'UiFlashAccent' .. motion.steps(hl.FLASH_STEPS, motion.ease.out_cubic(progress)),
+        hl = tone.flash(tone.ACCENT, motion.steps(hl.FLASH_STEPS, motion.ease.out_cubic(progress))),
         row = index,
         col_range = { from = 0, to = #line },
       })

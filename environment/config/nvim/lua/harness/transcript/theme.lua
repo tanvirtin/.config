@@ -1,4 +1,6 @@
 local lazy = require('core.lazy')
+
+local tone = require('ui.tone')
 local text = require('core.text')
 local motion = require('ui.motion')
 local settings = require('harness.settings.theme')
@@ -81,13 +83,13 @@ function theme.word_fade(group, now, started)
   return 'UiWorkingFade' .. word .. '_' .. motion.steps(hl.WORD_FADE_STEPS, into / ms)
 end
 
-function theme.pulse(now, tone)
-  if theme.reduced() then return 'UiPulse' .. (tone or '') .. '1' end
+function theme.pulse(now, name)
+  if theme.reduced() then return tone.pulse(name, 1) end
 
   local ms = settings:get('motion').pulse_ms or 180
   local index = math.floor((now or 0) / ms) % hl.PULSE_STEPS + 1
 
-  return 'UiPulse' .. (tone or '') .. index
+  return tone.pulse(name, index)
 end
 
 function theme.reduced()

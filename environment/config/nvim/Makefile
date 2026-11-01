@@ -1,4 +1,4 @@
-.PHONY: test test-filter test-file bench bench-check coverage lint format format-check check ci install-deps clean
+.PHONY: test test-filter test-file bench bench-check coverage lint format format-check fix-requires check ci install-deps clean
 
 LUA_VERSION ?= 5.1
 
@@ -61,6 +61,9 @@ format-check:
 	else \
 		echo "stylua not installed. Skipping..."; \
 	fi
+
+fix-requires:
+	nvim -l scripts/sort_requires.lua
 
 check: lint format-check
 

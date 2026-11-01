@@ -1,3 +1,4 @@
+local tone = require('ui.tone')
 local motion = require('ui.motion')
 
 local hl = {}
@@ -195,9 +196,6 @@ hl.SURFACE_TINT = 0.1
 hl.COMPUTED = {
   UiSurface = surface(hl.SURFACE_BASE, 'Normal', 'ColorColumn'),
   UiSurfaceRaised = surface(hl.SURFACE_RAISED, 'Normal', 'CursorLine'),
-  UiSurfaceWarn = surface(hl.SURFACE_TINT, 'UiWarn', 'ColorColumn'),
-  UiSurfaceError = surface(hl.SURFACE_TINT, 'UiError', 'ColorColumn'),
-  UiSurfaceAccent = surface(hl.SURFACE_TINT, 'UiAccent', 'ColorColumn'),
   UiComposer = function()
     local foreground, background = color('Normal', 'fg'), color('Normal', 'bg')
 
@@ -213,10 +211,6 @@ hl.COMPUTED = {
 
     return { fg = foreground, bg = hl.blend(text, background, hl.SURFACE_RAISED) }
   end,
-  UiRailAccent = rail('UiAccent', 'Special'),
-  UiRailWarn = rail('UiWarn', 'DiagnosticWarn'),
-  UiRailError = rail('UiError', 'DiagnosticError'),
-  UiRailInfo = rail('UiInfo', 'DiagnosticInfo'),
   UiRailMuted = rail('UiMuted', 'Comment'),
   UiMarkdownCode = shade(SURFACE, 'ColorColumn'),
   UiToolOutput = function()
@@ -284,10 +278,6 @@ ramp('UiPulse', hl.PULSE_STEPS, foreground_of('Normal'), breathing(0.3), functio
   return i <= hl.PULSE_STEPS / 2 and 'UiAccent' or 'UiMuted'
 end)
 
-ramp('UiPulseWarn', hl.PULSE_STEPS, foreground_of('UiWarn'), breathing(0.35), function()
-  return 'UiWarn'
-end)
-
 ramp('UiFade', hl.FADE_STEPS, foreground_of('Normal'), function(i)
   return hl.FADE_FLOOR + (1 - hl.FADE_FLOOR) * along(i, hl.FADE_STEPS)
 end, function()
@@ -308,12 +298,21 @@ for word = 1, 6 do
   )
 end
 
-for _, tone in ipairs({ 'Accent', 'Error' }) do
-  for i = 1, hl.FLASH_STEPS do
-    hl.COMPUTED['UiFlash' .. tone .. i] = function()
-      local tint, foreground, background = color('Ui' .. tone, 'fg'), color('Normal', 'fg'), color('Normal', 'bg')
+for _, name in ipairs(tone.ALL) do
+  local source = tone.SOURCE[name]
 
-      if not tint or not foreground or not background then return { link = 'UiSurface' .. tone } end
+  hl.COMPUTED[tone.surface(name)] = surface(hl.SURFACE_TINT, source, 'ColorColumn')
+  hl.COMPUTED[tone.rail(name)] = rail(source, source)
+
+  ramp('UiPulse' .. name, hl.PULSE_STEPS, foreground_of(source), breathing(0.35), function()
+    return source
+  end)
+
+  for i = 1, hl.FLASH_STEPS do
+    hl.COMPUTED[tone.flash(name, i)] = function()
+      local tint, foreground, background = color(source, 'fg'), color('Normal', 'fg'), color('Normal', 'bg')
+
+      if not tint or not foreground or not background then return { link = tone.surface(name) } end
 
       local peak = hl.blend(tint, background, hl.FLASH_PEAK)
       local rest = hl.blend(foreground, background, hl.SURFACE_BASE)

@@ -1,3 +1,4 @@
+local tone = require('ui.tone')
 local MarkSpec = require('ui.MarkSpec')
 local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
@@ -10,7 +11,7 @@ return function(block)
   local good = Block.SETTLED_NOTES[block.label] == true
   local icon = good and theme.TOOL_ICONS.completed or theme.TOOL_ICONS.failed
 
-  local surface = good and 'UiSurface' or block.label == 'error' and 'UiSurfaceError' or 'UiSurfaceWarn'
+  local surface = good and 'UiSurface' or tone.surface(block.label == 'error' and tone.ERROR or tone.WARN)
 
   for index, line in ipairs(block.lines) do
     local row = block.start + index - 1

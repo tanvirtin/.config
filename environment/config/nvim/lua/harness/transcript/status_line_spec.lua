@@ -88,6 +88,72 @@ describe('harness.transcript.status_line:', function()
     end
   end)
 
+  describe('sections', function()
+    local function ids()
+      return vim.tbl_map(function(section)
+        return section.id
+      end, status_line.sections())
+    end
+
+    after_each(function()
+      status_line.unregister('background')
+    end)
+
+    it('runs in order: closing, ask, replay, sub-agents, held, working, queue', function()
+      eq({ 'closing', 'ask', 'loading', 'subagents', 'held', 'working', 'queue' }, ids())
+    end)
+
+    it('takes a new line from one registered section, without touching the others', function()
+      status_line.register({
+        id = 'background',
+        order = 60,
+        exclusive = false,
+        applies = function(state)
+          return state.background == true
+        end,
+        lines = function()
+          return { { { 'background task', 'UiMuted' } } }
+        end,
+      })
+
+      local lines = status_line.lines({ running = true, background = true, started = 0 }, 0)
+
+      eq(
+        { '', theme.working_word(0, 0), 'background task' },
+        { text(lines[1]), text(lines[2]):match('^%S+ (%a+)'), text(lines[3]) }
+      )
+      eq(nil, status_line.lines({ running = false, background = false }))
+    end)
+
+    it('lets an exclusive section keep the ones after it from drawing', function()
+      local lines = status_line.lines({ running = true, started = 0, asks = { { text = 'Bash ls' } } }, 0)
+
+      assert.is_nil(text(lines[2]):find('working', 1, true))
+      assert.truthy(text(lines[2]):find('Allow Bash ls?', 1, true))
+    end)
+
+    it('replaces a section registered again under the same id', function()
+      local before = #status_line.sections()
+
+      status_line.register({
+        id = 'ask',
+        order = 20,
+        exclusive = true,
+        applies = function()
+          return false
+        end,
+        lines = function()
+          return {}
+        end,
+      })
+
+      eq(before, #status_line.sections())
+      eq(nil, status_line.lines({ running = false, asks = { { text = 'x' } } }))
+
+      status_line.register(require('harness.transcript.status_line.ask'))
+    end)
+  end)
+
   describe('an answered card', function()
     local function card()
       return status_line.card_of(status_line.lines({

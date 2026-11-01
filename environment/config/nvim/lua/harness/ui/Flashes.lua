@@ -1,4 +1,5 @@
 local hl = require('ui.hl')
+local tone = require('ui.tone')
 local motion = require('ui.motion')
 local Buffer = require('core.Buffer')
 local Object = require('core.Object')
@@ -29,7 +30,7 @@ function Flashes:scan(blocks, now)
       local flash = self.active[block.id] or {}
 
       flash.row, flash.started = block.start, block.finished
-      flash.tone = block.status == Block.STATUS.failed and 'Error' or 'Accent'
+      flash.tone = block.status == Block.STATUS.failed and tone.ERROR or tone.ACCENT
       self.active[block.id] = flash
     end
   end
@@ -50,7 +51,7 @@ function Flashes:step(now)
     else
       local index = motion.steps(hl.FLASH_STEPS, motion.ease.out_cubic(progress))
 
-      flash.group = 'UiFlash' .. flash.tone .. index
+      flash.group = tone.flash(flash.tone, index)
       flash.mark = self.buffer:set_extmark(Flashes.NAMESPACE, flash.row, 0, {
         id = flash.mark,
         line_hl_group = flash.group,
