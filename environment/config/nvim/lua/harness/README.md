@@ -170,7 +170,7 @@ The composer sits on `UiComposer`, its first line carries the `❯` icon and, wh
 
 ### Motion
 
-`ui.motion` is pure maths (easing, `lerp`, `steps`, `breath`, `Tween`) and owns no timer. `harness.ui.Animator` is the timer: `animator:add(key, step)` registers a `step(now)` that returns `true` to keep running; it ticks every `animate_ms` (33) only while something is registered, stops itself when the last one finishes, and on an error clears everything and notifies once. Animations update dedicated extmarks by stable id and never re-decorate a block. The 100ms `tick_ms` stays for text (elapsed time, the working word). While a turn runs the one indicator for "the agent is working" is the line under the transcript (pulsing `◆`, the word, elapsed time, the interrupt key); the winbar only states the state with a still `◆ running` / `○ idle`.
+`ui.motion` is pure maths (easing, `lerp`, `steps`, `breath`, `Tween`) and owns no timer. `harness.ui.Animator` is the timer: `animator:add(key, step)` registers a `step(now)` that returns `true` to keep running; it ticks every `animate_ms` (33) only while something is registered, stops itself when the last one finishes, and on an error clears everything and notifies once. Animations update dedicated extmarks by stable id and never re-decorate a block. The 100ms `tick_ms` stays for text (elapsed time, the working word). While a turn runs the one indicator for "the agent is working" is the line under the transcript (pulsing `◆`, the word, elapsed time, the interrupt key); the winbar states the state: `◆ running` with the diamond pulsing in step with the bottom one, or a still `○ idle`.
 
 | Effect | Where | Setting |
 | --- | --- | --- |

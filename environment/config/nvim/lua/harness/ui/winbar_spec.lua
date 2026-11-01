@@ -84,7 +84,10 @@ describe('harness.ui.winbar:', function()
   end)
 
   it('shows running and closed states', function()
-    assert.truthy(winbar.transcript(session({ state = 'running' })):find('◆ running', 1, true))
+    local running = winbar.transcript(session({ state = 'running' }))
+
+    assert.truthy(running:find('◆ %#UiAccent#running', 1, true))
+    assert.truthy(running:match('%%#UiPulse%d+#◆ '))
     assert.truthy(winbar.transcript(session({ state = 'closed' })):find('○ closed', 1, true))
   end)
 

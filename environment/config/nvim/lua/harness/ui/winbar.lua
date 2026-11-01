@@ -1,4 +1,5 @@
 local lazy = require('core.lazy')
+local Timer = require('core.Timer')
 
 local compact = lazy('compact')
 local core_text = lazy('core.text')
@@ -67,7 +68,13 @@ local function status(session, prompt)
   if session.external and follow.is_following(session) then parts[#parts + 1] = '%#UiWarn#⇄ external  ' end
 
   if session:running() then
-    parts[#parts + 1] = '%#' .. theme.RUNNING_ICON[2] .. '#' .. theme.RUNNING_ICON[1] .. 'running'
+    parts[#parts + 1] = '%#'
+      .. theme.pulse(Timer.now())
+      .. '#'
+      .. theme.RUNNING_ICON[1]
+      .. '%#'
+      .. theme.RUNNING_ICON[2]
+      .. '#running'
   elseif session.state == 'closed' then
     parts[#parts + 1] = '%#' .. theme.IDLE_ICON[2] .. '#' .. theme.IDLE_ICON[1] .. 'closed'
   else
