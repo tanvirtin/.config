@@ -746,6 +746,45 @@ describe('harness.Session:', function()
       }, session.children.c1)
     end)
 
+    it('wakes with a new turn when a child finishes after the turn ended', function()
+      local session, agent = session_with({
+        ['session/prompt'] = function(message)
+          return {
+            fake_agent.update('s1', {
+              sessionUpdate = 'subagent_update',
+              sessionId = 'c1',
+              title = 'Explore',
+              state = { state = 'running' },
+            }),
+            jsonrpc.result(message.id, { stopReason = 'end_turn' }),
+          }
+        end,
+      })
+
+      session:prompt('go'):wait()
+
+      eq(1, agent:count('session/prompt'))
+
+      agent:push(fake_agent.update('s1', {
+        sessionUpdate = 'subagent_update',
+        sessionId = 'c1',
+        state = { state = 'idle', stopReason = 'end_turn' },
+      }))
+
+      vim.wait(1500, function()
+        return agent:count('session/prompt') == 2
+      end)
+
+      eq(2, agent:count('session/prompt'))
+
+      local last = agent.sent[#agent.sent]
+      local text = last.params.prompt[1].text
+
+      assert.is_truthy(text:find('[harness]', 1, true))
+      assert.is_truthy(text:find('Explore', 1, true))
+      assert.is_truthy(text:find('end_turn', 1, true))
+    end)
+
     it('takes the tool call from the child\'s own updates when it has no delegation message', function()
       local session, agent = session_with()
 
