@@ -304,6 +304,47 @@ function TourView:step()
   return self.tour.steps[self.index], self.index
 end
 
+function TourView:_step_for(path)
+  if type(path) ~= 'string' or path == '' then return nil end
+
+  local root = self.tour.root
+  local relative
+
+  if root and path:sub(1, 6) == 'rev://' then relative = path:match('^rev://[^/]+/(.+)$') end
+
+  local found
+
+  for index, step in ipairs(self.tour.steps) do
+    local matches = relative and fs.make_relative(root, step.path) == relative
+      or (not relative and fs.normalize(step.path) == fs.normalize(path))
+
+    if matches then
+      if index == self.index then return index end
+
+      found = found or index
+    end
+  end
+
+  return found
+end
+
+function TourView:select(path, first, last)
+  if not self:is_open() then return false end
+
+  local index = self:_step_for(path)
+
+  if not index then return false end
+
+  local step = self.tour.steps[index]
+
+  step.line = math.max(math.floor(first or step.line), 1)
+  step.end_line = math.max(math.floor(last or step.line), step.line)
+
+  self:_forget(index)
+
+  return self:show(index)
+end
+
 function TourView:_forget(from)
   for index = #self.tour.steps, from, -1 do
     local anchor = self.anchors[index]

@@ -576,6 +576,23 @@ describe('harness.ui.composer:', function()
       eq('V', vim.api.nvim_get_mode().mode)
       press('<Esc>')
     end)
+
+    it('moves the session\'s running tour to the selection', function()
+      local tour_store = require('harness.tour_store')
+      local seen
+
+      open_composer(session)
+      tour_store.start(session.key, { title = 'Walk', steps = {} })
+      tour_store.on(function(kind, _, _, update)
+        if kind == 'select' then seen = update end
+      end)
+
+      composer.attach(file, { 1, 3 })
+
+      eq({ path = '/w/a.lua', first = 1, last = 3 }, seen)
+
+      tour_store.reset()
+    end)
   end)
 
   it('recalls earlier prompts with <Up> and <Down> at the edges, handing the draft back', function()
@@ -679,7 +696,7 @@ describe('harness.ui.composer:', function()
     eq({ 'for the first' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   end)
 
-  it('closes when focus leaves it, keeping the draft and leaving focus where it went', function()
+  it('stays open when focus leaves, keeping the draft, so a selection can be attached', function()
     open_composer(session)
 
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'later' })
@@ -687,43 +704,14 @@ describe('harness.ui.composer:', function()
 
     local moved = vim.api.nvim_get_current_win()
 
-    vim.wait(300, function()
-      return not composer.is_open()
-    end)
+    vim.wait(300)
 
-    eq(false, composer.is_open())
-    eq(0, #composers())
+    eq(true, composer.is_open())
+    eq(1, #composers())
     eq(moved, vim.api.nvim_get_current_win())
 
-    open_composer(session)
+    composer.view():focus()
     eq({ 'later' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
-  end)
-
-  it('stays open when focus comes back before it settles', function()
-    open_composer(session)
-
-    local writing = vim.api.nvim_get_current_win()
-
-    vim.cmd('wincmd p')
-    vim.api.nvim_set_current_win(writing)
-
-    vim.wait(200)
-
-    eq(true, composer.is_open())
-  end)
-
-  it('stays open while a surface holds focus', function()
-    local surfaces = require('surfaces')
-
-    open_composer(session)
-    surfaces.panel({ title = 'Demo', markdown = 'a panel' })
-
-    vim.wait(200)
-
-    eq(true, composer.is_open())
-
-    surfaces.close_all()
-    vim.wait(100)
   end)
 
   it('keeps its window when the transcript is opened while it has focus', function()

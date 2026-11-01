@@ -225,6 +225,10 @@ function tour.register_events()
 
         if not ok and why then warn(why) end
       end
+    elseif kind == tour_store.EVENT.select then
+      local view = views[session]
+
+      if view then view:select(opts.path, opts.first, opts.last) end
     end
   end)
 

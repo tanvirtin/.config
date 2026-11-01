@@ -15,6 +15,7 @@ local context = lazy('harness.context')
 local settings = lazy('harness.settings')
 local Element = lazy('ui.elements.Element')
 local Animator = lazy('harness.ui.Animator')
+local tour_store = lazy('harness.tour_store')
 local theme = lazy('harness.transcript.theme')
 local PromptHistory = lazy('harness.ui.PromptHistory')
 
@@ -232,6 +233,7 @@ function ComposerView:attach(buf, range)
   if buf == self.element:get_buffer().bufnr or not Buffer.exists(buf) then return false end
 
   self.store:attach(self.session.key, context.selection(Buffer(buf), range))
+  tour_store.select(self.session.key, Buffer(buf):get_name(), range[1], range[2])
   Window.redraw_bars()
 
   return true
@@ -580,23 +582,6 @@ function ComposerView:_listen()
 
   element:on('QuitPre', function()
     self:_keep()
-  end)
-
-  -- Like a vgit float: leaving the composer closes it, and the draft is kept.
-  -- A surface (a picker, a panel) takes focus on purpose and gives it back, so
-  -- it does not count as leaving, and focus stays where the reader put it.
-  element:on('WinLeave', function()
-    Timer.defer(settings.composer:get('leave_ms'), function()
-      if not self:is_open() then return end
-      if #surfaces.all() > 0 then return end
-
-      local window = Window.get_current()
-
-      if not window:is_valid() then return end
-      if window:get_buffer().bufnr == element:get_buffer().bufnr then return end
-
-      self:close(nil, { keep_focus = true })
-    end)
   end)
 
   element:on('BufWriteCmd', function()

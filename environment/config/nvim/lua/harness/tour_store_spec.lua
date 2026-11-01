@@ -86,6 +86,21 @@ describe('harness.tour_store:', function()
     eq({ { 'start', 's1', 'a', nil }, { 'update', 's1', 'a', 'note' } }, seen)
   end)
 
+  it('tells a running tour about a selection, and says nothing without one', function()
+    local seen = {}
+
+    tour_store.on(function(kind, session, tour, update)
+      if kind == 'select' then seen[#seen + 1] = { session, update.path, update.first, update.last, tour.title } end
+    end)
+
+    eq(false, tour_store.select('s1', '/w/a.lua', 1, 2))
+    eq({}, seen)
+
+    tour_store.start('s1', { title = 'a', steps = {} })
+    eq(true, tour_store.select('s1', '/w/a.lua', 1, 2))
+    eq({ { 's1', '/w/a.lua', 1, 2, 'a' } }, seen)
+  end)
+
   it('remembers the range being reviewed for one session only', function()
     tour_store.set_scope('s1', { head = 'abc' })
 

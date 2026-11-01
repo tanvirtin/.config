@@ -166,6 +166,20 @@ describe('harness.ui.TourView:', function()
     assert.is_false(vim.tbl_contains(mapped(), ']]'))
   end)
 
+  it('moves its current step to a selection attached to the composer', function()
+    view = TourView(data)
+
+    view:start()
+
+    eq(true, view:select(dir .. '/a.lua', 14, 16))
+    eq({ 14, 16 }, { view.tour.steps[1].line, view.tour.steps[1].end_line })
+
+    local shown = marks(vim.api.nvim_get_current_buf(), TourView.SHOW)
+
+    eq({ 13, 16 }, { shown[1][2], shown[1][4].end_row })
+    eq(false, view:select(dir .. '/elsewhere.lua', 1, 1))
+  end)
+
   it('follows the code when lines are added above it, so coming back lands on the same place', function()
     view = TourView(data)
     view:start()

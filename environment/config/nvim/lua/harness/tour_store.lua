@@ -1,6 +1,6 @@
 local tour_store = {}
 
-tour_store.EVENT = { start = 'start', stop = 'stop', update = 'update' }
+tour_store.EVENT = { start = 'start', stop = 'stop', update = 'update', select = 'select' }
 
 tour_store.RECENT = 20
 
@@ -54,6 +54,16 @@ function tour_store.update(session, update)
   if not tour then return false, 'no tour is running; start one with tour_start' end
 
   emit(tour_store.EVENT.update, session, tour, update)
+
+  return true
+end
+
+function tour_store.select(session, path, first, last)
+  session = slot(session)
+
+  if not current[session] then return false end
+
+  emit(tour_store.EVENT.select, session, current[session], { path = path, first = first, last = last })
 
   return true
 end
