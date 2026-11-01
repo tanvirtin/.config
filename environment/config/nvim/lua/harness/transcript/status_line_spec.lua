@@ -88,6 +88,46 @@ describe('harness.transcript.status_line:', function()
     end
   end)
 
+  describe('an answered card', function()
+    local function card()
+      return status_line.card_of(status_line.lines({
+        running = true,
+        asks = { { text = 'Bash ls', choices = { { key = '1', label = 'Allow' }, { key = '2', label = 'Deny' } } } },
+      }, 0))
+    end
+
+    local function closing(tone)
+      return { lines = card(), started = 1000, tone = tone or 'Accent' }
+    end
+
+    it('is the rows with the rail, without the spacer or the queue', function()
+      eq(4, #card())
+      eq('▎', card()[1][1][1])
+    end)
+
+    it('flashes its surface in the tone of the answer first, then collapses a row at a time', function()
+      local flashing = status_line.closing_rows(closing('Error'), 1010)
+
+      eq(4, #flashing)
+      eq({ 'UiPulseWarn1', 'UiFlashError1' }, flashing[1][1][2])
+
+      local early = #status_line.closing_rows(closing(), 1300)
+      local late = #status_line.closing_rows(closing(), 1450)
+
+      assert.is_true(early <= 4)
+      assert.is_true(late < early)
+      eq(0, #status_line.closing_rows(closing(), 1500))
+    end)
+
+    it('sits under the spacer while no ask is open, and goes once an ask returns', function()
+      local lines = status_line.lines({ running = true, asks = {}, closing = closing() }, 1010)
+
+      eq('', text(lines[1]))
+      eq('▎', text(lines[2]):sub(1, 3))
+      eq(nil, status_line.lines({ running = false, asks = {}, closing = closing() }, 5000))
+    end)
+  end)
+
   it('keeps every choice of a permission in view in a narrow window, one per line', function()
     local lines = status_line.lines({
       running = true,

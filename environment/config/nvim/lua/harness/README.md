@@ -162,6 +162,8 @@ Newly streamed rows ease in: `Document` reports the rows a write touched (`docum
 
 Smaller touches: a new working word fades in from the background over `motion.working.fade_ms` (300), a multi-question form shows its step as a six-cell bar, attached selections are `UiChip` chips in the composer winbar beside a character and line count, permission panel headings sit on `UiSurfaceRaised` with aligned tool columns, and the sessions picker shows a spinner on running sessions and the waiting icon on ones that wait for you.
 
+When a permission or question is answered its card does not vanish: `TranscriptView:close_card` keeps the last card rows in `document.state.closing`, flashes their surface (`UiFlashAccent*` for an allow, `UiFlashError*` for a refusal, read from the newest permission decision) and then collapses it a row at a time over `flash_ms * 2`. The plan panel flashes a step's row when it completes (the last step finishes the plan and closes the panel before the flash shows).
+
 ## Motion
 
 `ui.motion` is pure maths: easing curves, `lerp`, `steps`, `breath` and `Tween` (a value that moves between two numbers over a duration, read with `tween:at(now)`). It owns no timer.

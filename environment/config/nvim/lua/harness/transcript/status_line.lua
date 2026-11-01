@@ -1,5 +1,7 @@
+local hl = require('ui.hl')
 local text = require('core.text')
 local compact = require('compact')
+local motion = require('ui.motion')
 local ASK = require('harness.types.events').ASK
 local theme = require('harness.transcript.theme')
 local keymaps = require('harness.settings.keymaps')
@@ -7,6 +9,8 @@ local settings = require('harness.settings.transcript')
 local plan_summary = require('harness.transcript.plan_summary')
 
 local status_line = {}
+
+status_line.RAIL = '▎'
 
 local function queue_lines(state)
   local lines = {}
@@ -158,8 +162,6 @@ local function subagents_line(state, now)
   }
 end
 
-status_line.RAIL = '▎'
-
 local function shaded(group)
   if type(group) == 'table' then return vim.list_extend(vim.list_slice(group), { 'UiSurfaceWarn' }) end
 
@@ -207,7 +209,7 @@ local function ask_body(state, ask, now)
   return card(state, ask_lines(state, ask), now)
 end
 
-function status_line.lines(state, now)
+local function compose(state, now)
   local queued = queue_lines(state)
   local ask = (state.asks or {})[1]
 
@@ -253,6 +255,79 @@ function status_line.lines(state, now)
   vim.list_extend(lines, body)
 
   return vim.list_extend(lines, queued)
+end
+
+function status_line.card_of(lines)
+  local card = {}
+
+  for _, line in ipairs(lines or {}) do
+    local first = line[1] and line[1][1]
+
+    if type(first) == 'string' and first:sub(1, #status_line.RAIL) == status_line.RAIL then card[#card + 1] = line end
+  end
+
+  return card
+end
+
+local function retint(group, flash)
+  if group == 'UiSurfaceWarn' then return flash end
+  if type(group) ~= 'table' then return group end
+
+  local out = {}
+
+  for _, name in ipairs(group) do
+    out[#out + 1] = name == 'UiSurfaceWarn' and flash or name
+  end
+
+  return out
+end
+
+function status_line.closing_rows(closing, now)
+  local ms = settings:get('flash_ms') * 2
+  local progress = ms > 0 and (now - closing.started) / ms or 1
+
+  if progress >= 1 then return {} end
+
+  local step, count = hl.FLASH_STEPS, #closing.lines
+
+  if progress < 0.5 then
+    step = motion.steps(hl.FLASH_STEPS, motion.ease.out_cubic(progress * 2))
+  else
+    count = math.ceil(count * (1 - motion.ease.in_out((progress - 0.5) * 2)))
+  end
+
+  local flash = 'UiFlash' .. closing.tone .. step
+  local rows = {}
+
+  for index = 1, count do
+    local row = {}
+
+    for _, chunk in ipairs(closing.lines[index]) do
+      row[#row + 1] = { chunk[1], retint(chunk[2], flash) }
+    end
+
+    rows[#rows + 1] = row
+  end
+
+  return rows
+end
+
+function status_line.lines(state, now)
+  local lines = compose(state, now)
+
+  if not state.closing or #(state.asks or {}) > 0 then return lines end
+
+  local rows = status_line.closing_rows(state.closing, now or 0)
+
+  if #rows == 0 then return lines end
+
+  lines = lines or { { { '' } } }
+
+  for index, row in ipairs(rows) do
+    table.insert(lines, 1 + index, row)
+  end
+
+  return lines
 end
 
 return status_line

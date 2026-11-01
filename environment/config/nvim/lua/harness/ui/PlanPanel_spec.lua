@@ -81,4 +81,46 @@ describe('harness.ui.PlanPanel:', function()
     eq({ win }, floats())
     eq(' Plan  1/2 ▰▰▰▰▱▱▱▱', vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(win), 0, 1, false)[1])
   end)
+
+  describe('flashing a finished step', function()
+    local Animator = require('harness.ui.Animator')
+    local animator
+
+    before_each(function()
+      animator = Animator()
+      panel = PlanPanel(animator)
+    end)
+
+    after_each(function()
+      animator:close()
+    end)
+
+    it('flashes the step that just completed, and nothing on the first showing', function()
+      panel:update(history({ 'completed', 'in_progress', 'pending' }), window)
+      eq(0, animator:count())
+
+      panel:update(history({ 'completed', 'completed', 'in_progress' }), window)
+      eq(1, animator:count())
+
+      local float = vim.api.nvim_win_get_buf(floats()[1])
+
+      animator:step(require('core.Timer').now())
+
+      local rows = {}
+
+      for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(float, -1, 0, -1, { details = true })) do
+        if mark[4].hl_group and mark[4].hl_group:find('^UiFlashAccent') then rows[#rows + 1] = mark[2] end
+      end
+
+      eq({ 2 }, rows)
+    end)
+
+    it('lets the flash finish and leaves the panel painted as before', function()
+      panel:update(history({ 'in_progress', 'pending' }), window)
+      panel:update(history({ 'completed', 'in_progress' }), window)
+      animator:step(require('core.Timer').now() + 10000)
+
+      eq(0, animator:count())
+    end)
+  end)
 end)

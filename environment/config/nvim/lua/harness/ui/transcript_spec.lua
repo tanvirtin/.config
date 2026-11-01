@@ -975,7 +975,7 @@ describe('harness.ui.transcript:', function()
           asked:cancel()
 
           eq({ action = 'cancel' }, agent:reply_to('ask-1').result)
-          vim.wait(500, function()
+          vim.wait(1500, function()
             return not status_text(buf):find('Which database?', 1, true)
           end)
           assert.is_falsy(status_text(buf):find('Which database?', 1, true))

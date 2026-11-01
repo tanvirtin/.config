@@ -1,15 +1,32 @@
 local lazy = require('core.lazy')
 
+local hl = lazy('ui.hl')
+local Timer = lazy('core.Timer')
+local motion = lazy('ui.motion')
 local Object = lazy('core.Object')
+local settings = lazy('harness.settings')
 local Element = lazy('ui.elements.Element')
+local Block = lazy('harness.transcript.Block')
+local theme = lazy('harness.transcript.theme')
 local plan_summary = lazy('harness.transcript.plan_summary')
 
 local PlanPanel = Object:extend()
 
 PlanPanel.ZINDEX = 40
 
-function PlanPanel:constructor()
-  return { element = nil, anchor = nil, lines = nil, painted = false, pinned = false, dismissed = false }
+function PlanPanel:constructor(animator)
+  return {
+    element = nil,
+    anchor = nil,
+    lines = nil,
+    painted = false,
+    pinned = false,
+    dismissed = false,
+    animator = animator,
+    statuses = nil,
+    flashes = {},
+    summary = nil,
+  }
 end
 
 function PlanPanel:is_shown()
@@ -66,6 +83,61 @@ function PlanPanel:_paint(summary)
   end
 
   self.lines = summary.lines
+  self.summary = summary
+end
+
+function PlanPanel:_watch(entries)
+  local previous = self.statuses
+
+  self.statuses = {}
+
+  for i, entry in ipairs(entries) do
+    self.statuses[i] = entry.status
+  end
+
+  if not previous or not self.animator or theme.reduced() then return end
+
+  local now = Timer.now()
+
+  for i, status in ipairs(self.statuses) do
+    if status == Block.STATUS.completed and previous[i] and previous[i] ~= status then self.flashes[i] = now end
+  end
+
+  if next(self.flashes) then self.animator:add('plan_flash', function(at)
+    return self:_step(at)
+  end) end
+end
+
+function PlanPanel:_step(now)
+  if not self:is_shown() or not self.summary then
+    self.flashes = {}
+
+    return false
+  end
+
+  local ms = settings.transcript:get('flash_ms')
+  local alive = {}
+
+  self:_paint(self.summary)
+
+  for index, started in pairs(self.flashes) do
+    local progress = (now - started) / ms
+
+    if progress < 1 then
+      local line = self.summary.lines[index + 1] or ''
+
+      self.element:place_extmark_highlight({
+        hl = 'UiFlashAccent' .. motion.steps(hl.FLASH_STEPS, motion.ease.out_cubic(progress)),
+        row = index,
+        col_range = { from = 0, to = #line },
+      })
+      alive[index] = started
+    end
+  end
+
+  self.flashes = alive
+
+  return next(alive) ~= nil
 end
 
 function PlanPanel:update(history, window)
@@ -74,6 +146,8 @@ function PlanPanel:update(history, window)
   if not window or not window:is_valid() or not self:wanted(entries) then return self:hide() end
 
   local summary = plan_summary.render(entries)
+
+  self:_watch(entries)
 
   if self:is_shown() and self.anchor ~= window.win_id then self:hide() end
 
@@ -92,7 +166,8 @@ end
 function PlanPanel:hide()
   if self.element then self.element:unmount() end
 
-  self.element, self.anchor, self.lines, self.painted = nil, nil, nil, false
+  self.element, self.anchor, self.lines, self.painted, self.summary = nil, nil, nil, false, nil
+  self.statuses, self.flashes = nil, {}
 end
 
 function PlanPanel:toggle(history, window)

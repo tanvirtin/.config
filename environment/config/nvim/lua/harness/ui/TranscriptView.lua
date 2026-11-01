@@ -25,9 +25,11 @@ local ASK = require('harness.types.events').ASK
 local PlanPanel = require('harness.ui.PlanPanel')
 local Block = require('harness.transcript.Block')
 local Following = require('harness.ui.Following')
+local permission = require('harness.types.permission')
 local commands = lazy('harness.ui.transcript_commands')
 local bindings = lazy('harness.ui.transcript_bindings')
 local sticky_bottom = require('harness.ui.sticky_bottom')
+local status_line = require('harness.transcript.status_line')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 local Layout = require('harness.transcript.calculators.Layout')
 local fold_summary = require('harness.transcript.fold_summary')
@@ -84,6 +86,9 @@ function TranscriptView:constructor(session, opts)
   pcall(buffer.set_name, buffer, TranscriptView.buffer_name(session))
 
   local document = Document(buffer.bufnr):attach()
+  local animator = Animator(function(err)
+    console.notify_now('Harness: the transcript stopped animating: ' .. tostring(err), 'warn')
+  end)
 
   local view = {
     session = session,
@@ -98,10 +103,8 @@ function TranscriptView:constructor(session, opts)
     pacer = Timer(),
     flashes = Flashes(buffer),
     fades = Fades(buffer),
-    animator = Animator(function(err)
-      console.notify_now('Harness: the transcript stopped animating: ' .. tostring(err), 'warn')
-    end),
-    plan = PlanPanel(),
+    animator = animator,
+    plan = PlanPanel(animator),
     frame = 1,
     cache = {},
     layout = nil,
@@ -237,6 +240,8 @@ function TranscriptView:render()
 
   local state = self:state()
 
+  self:close_card(state)
+
   if not loading or #self.document.blocks == 0 then
     self:write(loading and {} or session.history, state)
   else
@@ -271,6 +276,33 @@ function TranscriptView:render()
       self:tick()
     end)
   end
+end
+
+function TranscriptView:close_card(state)
+  local previous = self.document.state
+
+  if theme.reduced() or #(previous.asks or {}) == 0 or #state.asks > 0 then return end
+
+  local now = Timer.now()
+  local card = status_line.card_of(status_line.lines(previous, now))
+
+  if #card == 0 then return end
+
+  local decisions = self.session.permissions and self.session.permissions:decisions() or {}
+  local last = decisions[#decisions]
+  local refused = last ~= nil and last.time ~= nil and now - last.time < 2000 and not permission.allows(last.kind)
+  local closing = { lines = card, started = now, tone = refused and 'Error' or 'Accent' }
+  local ms = settings.transcript:get('flash_ms') * 2
+
+  self.document.state.closing = closing
+  self.animator:add('collapse', function(at)
+    local running = self.buffer:is_valid() and at - closing.started < ms
+
+    if not running and self.document.state.closing == closing then self.document.state.closing = nil end
+    if self.buffer:is_valid() then self.document:_status() end
+
+    return running
+  end)
 end
 
 function TranscriptView:fade()
