@@ -156,10 +156,11 @@ function BlockBuilder.group(list, live)
   return out
 end
 
-function BlockBuilder.tighten(list)
+function BlockBuilder.tighten(list, from)
   local ROW = BlockBuilder.ROW
 
-  for i, block in ipairs(list) do
+  for i = from or 1, #list do
+    local block = list[i]
     local after = list[i + 1]
     local spaced = (ROW[block.kind] and #block.lines > 1) or block.last_child
     local tight = after ~= nil
@@ -178,10 +179,11 @@ function BlockBuilder.artifact(block)
   return block.kind == Block.KIND.tool and #block.lines > 1
 end
 
-function BlockBuilder.frame(list)
+function BlockBuilder.frame(list, from)
   local open
 
-  for i, block in ipairs(list) do
+  for i = from or 1, #list do
+    local block = list[i]
     local after = list[i + 1]
     local heads_diff = block.kind == Block.KIND.tool
       and after ~= nil
@@ -273,7 +275,10 @@ function BlockBuilder:run(history, title)
     list[#list + 1] = self:_collapsed(first - 1)
   end
 
+  local settled, previous = nil, nil
+
   for n = first, #starts do
+    local at = #list + 1
     local from = starts[n]
     local to = (starts[n + 1] or #history + 1) - 1
     local last_turn = n == #starts
@@ -283,6 +288,7 @@ function BlockBuilder:run(history, title)
     if cached and cached.to == to and not last_turn then
       turn = cached.blocks
     else
+      settled = settled or previous or at
       local range = { from = from, to = to, last_turn = last_turn, updates = updates }
 
       turn = BlockBuilder.nest(TurnBuilder(history, range, opts):build(), opts.times or {})
@@ -291,10 +297,11 @@ function BlockBuilder:run(history, title)
       if cache and not last_turn then cache[from] = { to = to, blocks = turn } end
     end
 
+    previous = at
     vim.list_extend(list, turn)
   end
 
-  return BlockBuilder.frame(BlockBuilder.tighten(list))
+  return BlockBuilder.frame(BlockBuilder.tighten(list, settled), settled)
 end
 
 function BlockBuilder.build(history, title, opts)

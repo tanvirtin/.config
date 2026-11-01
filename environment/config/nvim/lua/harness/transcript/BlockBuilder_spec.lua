@@ -844,4 +844,95 @@ describe('harness.transcript.BlockBuilder:', function()
     eq(100, agent.started)
     eq(11000, agent.finished)
   end)
+
+  describe('the pass that tightens and frames the list', function()
+    local TurnIndex = require('harness.session.TurnIndex')
+
+    local function stages()
+      local tool = 0
+      local out = {}
+
+      local function prompt(text)
+        out[#out + 1] = events.prompt(text)
+      end
+
+      local function call(name, category, fields)
+        tool = tool + 1
+
+        local id = 't' .. tool
+
+        out[#out + 1] = vim.tbl_extend(
+          'force',
+          { kind = 'tool_call', id = id, name = name, category = category, status = 'completed', diffs = {} },
+          fields or {}
+        )
+
+        return id
+      end
+
+      for turn = 1, 5 do
+        prompt('turn ' .. turn)
+        out[#out + 1] = { kind = 'message', text = 'reply ' .. turn }
+        call('Read', 'read')
+        call('Read', 'read')
+        call('Edit', 'edit', { diffs = { { path = 'a.txt', old = 'x', new = 'y' } } })
+        call('Bash', 'execute', { output = 'one\ntwo\nthree' })
+
+        local parent = call('Agent', 'other')
+
+        call('Read', 'read', { parent = parent })
+        call('Bash', 'execute', { parent = parent, output = 'one\ntwo' })
+        out[#out + 1] = { kind = 'message', text = 'done ' .. turn }
+        out[#out + 1] = events.stop('end_turn')
+      end
+
+      return out
+    end
+
+    local function shape(list)
+      return vim.tbl_map(function(block)
+        return {
+          block.kind,
+          block.lines,
+          block.tight,
+          block.frame_top,
+          block.frame_bottom,
+          block.first_child,
+          block.last_child,
+          block.depth,
+          block.parent,
+          block.attached,
+          block.grouped,
+        }
+      end, list)
+    end
+
+    it('leaves the same blocks whether the turns before were cached or built again', function()
+      local all = stages()
+      local history, cache = {}, {}
+
+      for count, event in ipairs(all) do
+        history[count] = event
+        local index = TurnIndex():rebuild(history)
+
+        for _, live in ipairs({ 5, 100 }) do
+          local fresh = blocks.build(history, nil, { groups = true, live_turns = live })
+          local cached = blocks.build(history, nil, { groups = true, live_turns = live, cache = cache, index = index })
+
+          if count == #all then
+            local n_tight, n_frame = 0, 0
+
+            for _, b in ipairs(fresh) do
+              if b.tight then n_tight = n_tight + 1 end
+              if b.frame_top then n_frame = n_frame + 1 end
+            end
+
+            assert(n_tight > 0 and n_frame > 0, 'the fixture must tighten and frame something')
+          end
+
+          eq(shape(fresh), shape(cached))
+        end
+      end
+    end)
+  end)
 end)
