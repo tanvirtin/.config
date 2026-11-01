@@ -55,6 +55,14 @@ function keymap.buffer_set(buffer, opts, callback)
   return keymap
 end
 
+function keymap.buffer_del(buffer, opts)
+  local key, mode = resolve_opts(opts)
+
+  pcall(vim.keymap.del, mode, key, { buffer = buffer.bufnr })
+
+  return keymap
+end
+
 function keymap.define(keymaps)
   for commands, callback in pairs(keymaps) do
     if type(callback) == 'table' then

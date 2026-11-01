@@ -6,6 +6,7 @@ local Window = lazy('core.Window')
 local async = lazy('harness.async')
 local console = lazy('core.console')
 local tools = lazy('nvim_mcp.tools')
+local tour = lazy('harness.ui.tour')
 local edits = lazy('harness.ui.edits')
 local context = lazy('harness.context')
 local display = lazy('harness.ui.display')
@@ -136,6 +137,28 @@ end
 
 function commands.quickfix(scope)
   return transcript.report(scoped('quickfix', scope))
+end
+
+function commands.tour(text)
+  text = vim.trim(text or '')
+
+  local word, rest = text:match('^(%S+)%s*(.*)$')
+
+  if word == 'next' then return transcript.report(tour.next()) end
+  if word == 'prev' or word == 'previous' or word == 'back' then return transcript.report(tour.previous()) end
+  if word == 'stop' then return transcript.report(tour.stop()) end
+
+  local here = transcript.view()
+
+  if not word or word == 'changes' or edits.SCOPE[word] then
+    local scope = edits.SCOPE[word] or (word == 'changes' and edits.SCOPE[rest]) or nil
+
+    if not scope then scope = here and edits.SCOPE.turn or edits.SCOPE.session end
+
+    return transcript.report(tour.changes(here or display.last(), scope))
+  end
+
+  return transcript.report(tour.ask(current_view(), text))
 end
 
 function commands.permissions()

@@ -222,6 +222,9 @@ function EditLog:locations(history, tools)
         items[#items + 1] = {
           path = diff.path,
           line = hunk.line,
+          added = hunk.added,
+          removed = hunk.removed,
+          prompt = prompt,
           text = string.format('+%d −%d', hunk.added, hunk.removed) .. (prompt and ('  · ' .. prompt) or ''),
         }
       end

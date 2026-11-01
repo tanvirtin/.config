@@ -59,6 +59,14 @@ To add a server, implement the interface, register it in `servers/init.lua`, and
 
 **Quickfix.** `gl`, `gL` and `:HarnessQuickfix` put edits in the quickfix list, one entry per changed hunk at its file line, as `+2 −1  · <the turn's prompt>`. Everything Neovim does with quickfix (`:cnext`, `:cdo`, `]q`, quickfix plugins) then works on what the agent changed.
 
+**Tours.** A tour is an ordered walk through code: steps of a file, a line range, a title and a markdown note. `types/tour.lua` parses and checks one (paths resolve against the session's directory, a missing file names the step), `tour_store` holds the one being followed and tells listeners, and `ui/TourView` shows it: each step opens its file in a code window (the transcript's source window, never a harness window), centres and tints the range, shows the note in a floating window beside it (summary first on step one), and binds `]T` next, `[T` back and `<C-q>` end on the code buffers, taking them away when it ends. Each step is tracked by an extmark, so a tour follows the code through edits. Three ways to start one:
+
+- the agent calls the `tour_start` MCP tool (`tour_tools`) with a title and steps, after reading the code;
+- `:HarnessTour <question>` asks the agent for a tour of the code that answers it (the prompt tells it to call `tour_start`);
+- `:HarnessTour changes` (or `turn`, `session`) walks the agent's own edits, one step per changed hunk, from the edit log with no agent round trip.
+
+`:HarnessTour next`, `prev` and `stop` drive it from anywhere.
+
 **Forking.** Replies keep their ACP `messageId`. `gF` sends `session/fork` (when the agent advertises `sessionCapabilities.fork`) with the fork point in `_meta.jetbrains.air.fork` (`{ version = 1, messageId }`), the extension the Claude adapter reads to fork at a given message; without a point it forks at the latest message. The fork is then loaded like any stored session, so its history replays into a new transcript titled `<title> (fork)`.
 
 What the agent sends that is not text is shown, not dropped: resource links as links, embedded resources as fenced blocks, images and audio as `⟨image: image/png⟩`, and a tool call that arrives already finished with its output (a JSON `rawOutput` is shown as JSON). The client introduces itself (`clientInfo`), warns when the agent speaks another ACP version, explains a sign-in error with what to do (the agent's `authMethods` descriptions, else its `login` hint, as in `run `claude auth login` in a terminal`; signing in and out happens in the agent's own CLI), checks `loadSession` before loading, and falls back to `session/set_model` (then a warning, not a failed start) when the agent has no model option.

@@ -47,6 +47,11 @@ return Config({
     quickfix = 'gl',
     quickfix_session = 'gL',
   },
+  tour = {
+    next = ']T',
+    previous = '[T',
+    stop = '<C-q>',
+  },
   composer = {
     send = '<CR>',
     steer = '<C-s>',

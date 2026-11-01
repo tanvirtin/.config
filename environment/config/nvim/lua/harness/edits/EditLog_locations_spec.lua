@@ -34,8 +34,22 @@ describe('harness.edits.EditLog locations:', function()
     }
 
     eq({
-      { path = '/a.txt', line = 5, text = '+1 −1  · rename the lines' },
-      { path = '/a.txt', line = 25, text = '+1 −1  · rename the lines' },
+      {
+        path = '/a.txt',
+        line = 5,
+        added = 1,
+        removed = 1,
+        prompt = 'rename the lines',
+        text = '+1 −1  · rename the lines',
+      },
+      {
+        path = '/a.txt',
+        line = 25,
+        added = 1,
+        removed = 1,
+        prompt = 'rename the lines',
+        text = '+1 −1  · rename the lines',
+      },
     }, patches:locations(history, edits))
   end)
 
@@ -45,6 +59,6 @@ describe('harness.edits.EditLog locations:', function()
     end)
     local items = patches:locations({}, { { id = 'e1', index = 1, diffs = { { path = '/b', old = 'x', new = 'y' } } } })
 
-    eq({ { path = '/b', line = 1, text = '+1 −1' } }, items)
+    eq({ { path = '/b', line = 1, added = 1, removed = 1, text = '+1 −1' } }, items)
   end)
 end)

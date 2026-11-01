@@ -345,6 +345,19 @@ function Buffer:set_keymap(opts, callback)
   return self
 end
 
+function Buffer:del_keymap(opts)
+  keymap.buffer_del(self, opts)
+  return self
+end
+
+function Buffer:get_extmark_range(namespace, id)
+  local ok, mark = pcall(vim.api.nvim_buf_get_extmark_by_id, self.bufnr, namespace, id, { details = true })
+
+  if not ok or #mark == 0 then return nil end
+
+  return mark[1], mark[3] and mark[3].end_row or mark[1]
+end
+
 function Buffer:set_var(name, value)
   vim.api.nvim_buf_set_var(self.bufnr, name, value)
   return self
