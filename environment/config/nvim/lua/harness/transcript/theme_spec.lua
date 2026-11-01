@@ -18,9 +18,11 @@ describe('harness.transcript.theme:', function()
     local word, word_hl = theme.working_word(0, 0)
     local next_word, next_hl = theme.working_word(3000, 0)
 
-    eq({ 'working', 'UiWorking1' }, { word, word_hl })
-    eq({ 'pondering', 'UiWorking2' }, { next_word, next_hl })
-    eq('working', theme.working_word(5000, 5000))
+    local words = require('harness.settings.theme'):get('motion').working.words
+
+    eq({ words[1], 'UiWorking1' }, { word, word_hl })
+    eq({ words[2], 'UiWorking2' }, { next_word, next_hl })
+    eq(words[1], theme.working_word(5000, 5000))
     eq('UiPulse1', theme.pulse(0))
     eq('UiPulse2', theme.pulse(100))
   end)

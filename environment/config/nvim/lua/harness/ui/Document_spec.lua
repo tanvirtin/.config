@@ -570,7 +570,7 @@ describe('harness.ui.Document:', function()
 
     history = { events.prompt('go') }
     document:write(blocks.build(history), { running = true, started = vim.uv.now() })
-    eq('working', status())
+    eq(require('harness.settings.theme'):get('motion').working.words[1], status())
 
     document:write(blocks.build(history), { running = false })
     eq(nil, status())

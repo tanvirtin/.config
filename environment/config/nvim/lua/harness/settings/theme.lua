@@ -7,7 +7,18 @@ return Config({
     working = {
       word_ms = 3000,
       fade_ms = 300,
-      words = { 'working', 'pondering', 'noodling', 'cogitating', 'musing', 'tinkering' },
+      words = {
+        'smelting',
+        'alloying',
+        'annealing',
+        'tempering',
+        'soldering',
+        'tinning',
+        'forging',
+        'casting',
+        'rolling',
+        'burnishing',
+      },
     },
     thinking = { ms = 300, frames = { 'thinking.', 'thinking..', 'thinking...' } },
     loading = {

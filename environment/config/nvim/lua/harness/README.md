@@ -133,7 +133,7 @@ require('harness').setup({
     motion = {
       reduced = false, -- true holds spinners and pulses still, skips flashes and shows toasts at once
       pulse_ms = 100, -- one of the 12 UiPulse steps
-      working = { word_ms = 3000, words = { 'working', 'pondering', 'noodling' } },
+      working = { word_ms = 3000, words = { 'smelting', 'alloying', 'annealing' } },
       thinking = { ms = 300, frames = { 'thinking.', 'thinking..', 'thinking...' } },
       loading = { ms = 100, frames = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' } },
     },
@@ -165,6 +165,8 @@ Smaller touches: a new working word fades in from the background over `motion.wo
 When a permission or question is answered its card does not vanish: `TranscriptView:close_card` keeps the last card rows in `document.state.closing`, flashes their surface (`UiFlashAccent*` for an allow, `UiFlashError*` for a refusal, read from the newest permission decision) and then collapses it a row at a time over `flash_ms * 2`. The plan panel flashes a step's row when it completes (the last step finishes the plan and closes the panel before the flash shows).
 
 Opening a fold with `<CR>` fades its revealed rows in (`TranscriptView:reveal`, through the same `Fades`). The composer grows to its height over `composer.ease_ms` (120; 0 opens it at once, `reduced` too) on its own Animator, which a close cancels. Its winbar holds the chips (session, mode, queue, attachments, answering, the count) and its key hints sit in a footer drawn as `virt_lines` under the last line, inside the window, so `composer_geometry` and the transcript margin are unchanged; session events refresh it only when the hints change. Closing is not eased: the leave-closes path stays immediate.
+
+The working line cycles metalworking words (smelting, alloying, annealing, tempering, soldering, tinning, forging, casting, rolling, burnishing) in keeping with tin; set `motion.working.words` to use your own, and `motion.working.word_ms` for how long each stays.
 
 ## Motion
 
