@@ -12,10 +12,11 @@ PromptQueue.BUSY = 'no free turn slot; queued until a running turn ends'
 
 local queued = 0
 
-local function item(text, context, shown)
+local function item(text, context, opts)
   queued = queued + 1
+  opts = opts or {}
 
-  return { text = text, context = context, shown = shown, order = queued }
+  return { text = text, context = context, shown = opts.shown, wake = opts.wake, order = queued }
 end
 
 function PromptQueue:constructor(session)
@@ -61,7 +62,7 @@ function PromptQueue:drain()
 
   self:_changed()
 
-  local _, err = session:prompt(next.text, next.context, { shown = next.shown })
+  local _, err = session:prompt(next.text, next.context, { shown = next.shown, wake = next.wake })
 
   if err then
     table.insert(self.items, 1, next)
@@ -71,8 +72,8 @@ function PromptQueue:drain()
   end
 end
 
-function PromptQueue:enqueue(text, context, shown)
-  self.items[#self.items + 1] = item(text, context, shown)
+function PromptQueue:enqueue(text, context, opts)
+  self.items[#self.items + 1] = item(text, context, opts)
   self:_changed()
 
   if self.session:idle() then self:drain() end

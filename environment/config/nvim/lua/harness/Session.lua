@@ -7,6 +7,7 @@ local async = require('harness.async')
 local buffers = require('core.buffers')
 local dataclass = require('core.dataclass')
 local events = require('harness.types.events')
+local Watch = require('harness.session.Watch')
 local EditLog = require('harness.edits.EditLog')
 local content = require('harness.types.content')
 local editor_context = require('harness.context')
@@ -69,6 +70,7 @@ function Session:constructor(opts)
   session.elicitations = ElicitationGate(session)
   session.prompts = PromptQueue(session)
   session.queue = session.prompts.items
+  session.watch = Watch(session)
   session.config = SessionConfig(session)
   session.subagents = Subagents(session)
   session.children = session.subagents.children
@@ -141,8 +143,14 @@ end
 function Session:_handle(event)
   if event.kind == K.tool_call then
     self._tools[event.id] = event.name
+
+    if not event.parent then self.watch:open(Watch.KIND.tool, event.id, { name = event.name, title = event.title }) end
   elseif event.kind == K.tool_update then
     event.name = event.name or self._tools[event.id]
+
+    if not event.parent and (event.status == 'completed' or event.status == 'failed') then
+      self.watch:settle(Watch.KIND.tool, event.id, { status = event.status, output = event.output })
+    end
   elseif event.kind == K.title then
     self.title = event.title
   elseif event.kind == K.message and self._turn and not event.parent then
@@ -171,6 +179,8 @@ function Session:prompt(text, context, opts)
   if self.state == Session.STATE.closed then return nil, 'this session is closed' end
   if self.admit and not self.admit(self) then return nil, PromptQueue.BUSY end
 
+  self.watch:prompted(opts)
+
   self:_to(Session.STATE.running)
   self._turn = { text = {}, permissions = {} }
   if not (opts and opts.shown) then self:_emit(events.prompt(text, { selections = content.labels(context) })) end
@@ -194,6 +204,7 @@ function Session:prompt(text, context, opts)
       self.turn_ended = Timer.now()
       self:_emit(events.error(tostring(err)))
       self:_emit(events.stop('error'))
+      self.watch:turn_ended('error')
       self:_return_queued(Session.RETURNED.failed)
 
       return nil, err
@@ -201,6 +212,7 @@ function Session:prompt(text, context, opts)
 
     self.turn_ended = Timer.now()
     self:_emit(events.stop(reason))
+    self.watch:turn_ended(reason)
     self:_look_up_title()
 
     if reason ~= events.STOP_REASON.cancelled and self.prompts:size() > 0 then
@@ -293,10 +305,10 @@ function Session:running()
   return self.state == Session.STATE.running
 end
 
-function Session:enqueue(text, context)
+function Session:enqueue(text, context, opts)
   if self.state == Session.STATE.closed then return nil, 'this session is closed' end
 
-  self.prompts:enqueue(text, context)
+  self.prompts:enqueue(text, context, opts)
 
   return self
 end
@@ -403,6 +415,7 @@ function Session:shutdown()
   if self.state == Session.STATE.closed then return self end
 
   self.subagents:detach_all()
+  self.watch:clear()
   self:cancel()
   self:_to(Session.STATE.closed)
 

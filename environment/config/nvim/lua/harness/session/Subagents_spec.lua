@@ -45,6 +45,47 @@ describe('harness.session.Subagents:', function()
     eq({ events.KIND.subagent }, session.notified)
   end)
 
+  it('wakes the parent when a child finishes after the turn ended', function()
+    local Watch = require('harness.session.Watch')
+    local wake = require('harness.settings.wake')
+    local settle_ms = wake:get('settle_ms')
+
+    wake:assign({ settle_ms = 1 })
+    session.watch = Watch(session)
+
+    subagents:apply(events.new({ kind = events.KIND.subagent, child = 'c1', title = 'Explore', state = 'running' }))
+    session.watch:turn_ended('end_turn')
+    subagents:apply(events.new({ kind = events.KIND.subagent, child = 'c1', state = 'idle', stop = 'end_turn' }))
+
+    vim.wait(80, function()
+      return (session.queued or {})[1] ~= nil
+    end)
+
+    eq(1, #(session.queued or {}))
+    assert.is_truthy(session.queued[1].text:find('Explore', 1, true))
+
+    wake:assign({ settle_ms = settle_ms })
+  end)
+
+  it('stays quiet when the child finished inside the turn', function()
+    local Watch = require('harness.session.Watch')
+    local wake = require('harness.settings.wake')
+    local settle_ms = wake:get('settle_ms')
+
+    wake:assign({ settle_ms = 1 })
+    session.watch = Watch(session)
+
+    subagents:apply(events.new({ kind = events.KIND.subagent, child = 'c1', title = 'Explore', state = 'running' }))
+    subagents:apply(events.new({ kind = events.KIND.subagent, child = 'c1', state = 'idle', stop = 'end_turn' }))
+    session.watch:turn_ended('end_turn')
+
+    vim.wait(40)
+
+    eq(nil, (session.queued or {})[1])
+
+    wake:assign({ settle_ms = settle_ms })
+  end)
+
   it('stops listening to every child', function()
     subagents:apply(events.new({ kind = events.KIND.subagent, child = 'c1' }))
     subagents:apply(events.new({ kind = events.KIND.subagent, child = 'c2' }))

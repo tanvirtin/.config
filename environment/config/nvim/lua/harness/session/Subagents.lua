@@ -28,6 +28,31 @@ function Subagents:apply(event)
   for _, key in ipairs(Subagents.FIELDS) do
     if event[key] ~= nil then child[key] = event[key] end
   end
+
+  if event.state and not Subagents.ACTIVE[event.state] then
+    self:_settle(child, child.stop)
+  else
+    self:_watch(child)
+  end
+end
+
+-- The parent's turn watches a child from the moment it appears, so a child that
+-- is still running when the turn ends can wake the parent when it finishes.
+function Subagents:_watch(child)
+  local watch = self.session.watch
+
+  if not watch or child.done then return end
+
+  watch:open('subagent', child.id, { title = child.title, description = child.description })
+end
+
+function Subagents:_settle(child, stop)
+  local watch = self.session.watch
+
+  if not watch or child.done then return end
+
+  child.done = true
+  watch:settle('subagent', child.id, { stop = stop, summary = child.summary })
 end
 
 function Subagents:_follow(child)
@@ -62,6 +87,10 @@ function Subagents:_on_event(child, event)
     child.tool = event.message or child.tool
     return session:_notify({ kind = events.KIND.subagent })
   end
+
+  if event.kind == events.KIND.message then child.summary = event.text end
+
+  if event.kind == events.KIND.stop then self:_settle(child, event.reason) end
 
   event.parent = event.parent or child.tool
   child.tool = child.tool or event.parent

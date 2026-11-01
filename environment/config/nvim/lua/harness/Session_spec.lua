@@ -735,7 +735,15 @@ describe('harness.Session:', function()
       }))
 
       eq({ { kind = 'message', text = 'two files', parent = 'task1' } }, session.history)
-      eq({ id = 'c1', tool = 'task1', title = 'Explore', state = 'idle', stop = 'end_turn' }, session.children.c1)
+      eq({
+        id = 'c1',
+        tool = 'task1',
+        title = 'Explore',
+        state = 'idle',
+        stop = 'end_turn',
+        summary = 'two files',
+        done = true,
+      }, session.children.c1)
     end)
 
     it('takes the tool call from the child\'s own updates when it has no delegation message', function()

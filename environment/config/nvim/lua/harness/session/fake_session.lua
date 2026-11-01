@@ -55,6 +55,12 @@ function fake.session(opts)
     return done
   end
 
+  function session:enqueue(text, context, extra)
+    self.queued = self.queued or {}
+    self.queued[#self.queued + 1] = { text = text, context = context, opts = extra }
+    return self
+  end
+
   return session
 end
 
