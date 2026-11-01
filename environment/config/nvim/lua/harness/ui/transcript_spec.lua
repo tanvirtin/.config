@@ -1137,7 +1137,7 @@ describe('harness.ui.transcript:', function()
       vim.api.nvim_win_set_cursor(0, { head, 0 })
       view:activate()
 
-      eq(1, #view.fades.chunks)
+      eq(1, #view.effects.fade.chunks)
       eq(false, view.animator:count() == 0)
     end)
   end)

@@ -1,6 +1,7 @@
 local hl = require('ui.hl')
 local tone = require('ui.tone')
 local motion = require('ui.motion')
+local Timer = require('core.Timer')
 local Buffer = require('core.Buffer')
 local Object = require('core.Object')
 local MarkSpec = require('ui.MarkSpec')
@@ -14,8 +15,12 @@ Flashes.NAMESPACE = Buffer.namespace('harness.flash')
 Flashes.PRIORITY = MarkSpec.PRIORITY + 50
 Flashes.LOOKBACK = 48
 
-function Flashes:constructor(buffer)
-  return { buffer = buffer, active = {} }
+function Flashes:constructor(buffer, view)
+  return { buffer = buffer, view = view, active = {} }
+end
+
+function Flashes:observe()
+  return self:scan(self.view.document.blocks, Timer.now())
 end
 
 function Flashes:scan(blocks, now)

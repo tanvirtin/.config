@@ -1,78 +1,90 @@
-local tone = require('ui.tone')
-local Timer = require('core.Timer')
-local theme = require('harness.transcript.theme')
-local permission = require('harness.types.permission')
-local status_line = require('harness.transcript.status_line')
+local Fades = require('harness.ui.Fades')
+local Flashes = require('harness.ui.Flashes')
+local Collapse = require('harness.ui.Collapse')
 
 local transcript_motion = {}
 
-transcript_motion.REFUSAL_WINDOW_MS = 2000
+local effects = {}
 
-local function run(view, key, target)
-  view.animator:add(key, function(now)
-    return view.buffer:is_valid() and target:step(now)
+function transcript_motion.unregister(id)
+  for index, existing in ipairs(effects) do
+    if existing.id == id then
+      table.remove(effects, index)
+      break
+    end
+  end
+
+  return transcript_motion
+end
+
+function transcript_motion.register(effect)
+  transcript_motion.unregister(effect.id)
+  effects[#effects + 1] = effect
+
+  return transcript_motion
+end
+
+function transcript_motion.effects()
+  return vim.list_slice(effects)
+end
+
+local function run(view, id)
+  view.animator:add(id, function(now)
+    return view.buffer:is_valid() and view.effects[id]:step(now)
   end)
 end
 
-local function ease_in(view, from, to, any_size)
-  if view.fades:touch(from, to, Timer.now(), any_size) then run(view, 'fade', view.fades) end
+function transcript_motion.attach(view)
+  view.effects = {}
+
+  for _, effect in ipairs(effects) do
+    view.effects[effect.id] = effect.create(view)
+  end
+
+  return view
 end
 
-local function refused(view, now)
-  local decisions = view.session.permissions and view.session.permissions:decisions() or {}
-  local last = decisions[#decisions]
+function transcript_motion.before(view, state)
+  for _, effect in ipairs(effects) do
+    local instance = view.effects[effect.id]
 
-  return last ~= nil
-    and last.time ~= nil
-    and now - last.time < transcript_motion.REFUSAL_WINDOW_MS
-    and not permission.allows(last.kind)
-end
-
-function transcript_motion.close_card(view, state)
-  local document = view.document
-  local previous = document.state
-
-  if theme.reduced() or #(previous.asks or {}) == 0 or #state.asks > 0 then return end
-
-  local now = Timer.now()
-  local card = status_line.card_of(status_line.lines(previous, now))
-
-  if #card == 0 then return end
-
-  local closing = { lines = card, started = now, tone = refused(view, now) and tone.ERROR or tone.ACCENT }
-  local ms = status_line.closing_ms()
-
-  document.state.closing = closing
-  view.animator:add('collapse', function(at)
-    local running = view.buffer:is_valid() and at - closing.started < ms
-
-    if not running and document.state.closing == closing then document.state.closing = nil end
-    if view.buffer:is_valid() then document:_status() end
-
-    return running
-  end)
+    if instance.before and instance:before(state) then run(view, effect.id) end
+  end
 end
 
 function transcript_motion.settle(view)
-  local touched = view.document.touched
+  for _, effect in ipairs(effects) do
+    local instance = view.effects[effect.id]
 
-  if not theme.reduced() and touched and view.session:running() and not view.session:loading() then
-    ease_in(view, touched.from, touched.to)
+    if instance.observe and instance:observe() then run(view, effect.id) end
   end
-
-  if view.flashes:scan(view.document.blocks, Timer.now()) then run(view, 'flash', view.flashes) end
 end
 
 function transcript_motion.reveal(view, row)
-  if theme.reduced() then return end
+  if view.effects.fade:reveal(row) then run(view, 'fade') end
+end
 
-  local block = view.document:block_at(row - 1)
-
-  for _, fold in ipairs(block and block.folds or {}) do
-    local from, to = block.start + fold[1], block.start + fold[2]
-
-    if row - 1 >= from and row - 1 <= to then return ease_in(view, from, to, true) end
-  end
+for _, effect in ipairs({
+  {
+    id = 'collapse',
+    create = function(view)
+      return Collapse(view)
+    end,
+  },
+  {
+    id = 'fade',
+    create = function(view)
+      return Fades(view.buffer, view)
+    end,
+  },
+  {
+    id = 'flash',
+    create = function(view)
+      return Flashes(view.buffer, view)
+    end,
+  },
+}) do
+  transcript_motion.register(effect)
 end
 
 return transcript_motion

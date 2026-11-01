@@ -14,10 +14,8 @@ local Toast = lazy('harness.ui.Toast')
 local console = require('core.console')
 local asks = require('harness.ui.asks')
 local links = require('harness.ui.links')
-local Fades = require('harness.ui.Fades')
 local winbar = require('harness.ui.winbar')
 local settings = require('harness.settings')
-local Flashes = require('harness.ui.Flashes')
 local theme = lazy('harness.transcript.theme')
 local Document = require('harness.ui.Document')
 local Animator = require('harness.ui.Animator')
@@ -100,8 +98,6 @@ function TranscriptView:constructor(session, opts)
     source_buf = opts.source_buf,
     timer = Timer(),
     pacer = Timer(),
-    flashes = Flashes(buffer),
-    fades = Fades(buffer),
     animator = animator,
     plan = PlanPanel(animator),
     frame = 1,
@@ -114,6 +110,8 @@ function TranscriptView:constructor(session, opts)
     scheduled = false,
     disposed = false,
   }
+
+  motion.attach(view)
 
   view.following = Following(function(window)
     return TranscriptView.reserve(view, window)
@@ -239,7 +237,7 @@ function TranscriptView:render()
 
   local state = self:state()
 
-  motion.close_card(self, state)
+  motion.before(self, state)
 
   if not loading or #self.document.blocks == 0 then
     self:write(loading and {} or session.history, state)
