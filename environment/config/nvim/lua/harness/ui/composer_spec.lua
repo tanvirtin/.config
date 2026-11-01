@@ -303,31 +303,6 @@ describe('harness.ui.composer:', function()
 
         assert.is_true(gap(view) <= 1)
       end)
-
-      it('lands and follows after scrolling ' .. scroll[1] .. ' while the composer was open', function()
-        reply_lines()
-
-        local view = transcript.view_of(session)
-        local win = vim.api.nvim_get_current_win()
-
-        view:render()
-        vim.cmd('normal! G')
-        vim.wait(100)
-        open_composer(session)
-        vim.wait(150)
-
-        local writing = vim.api.nvim_get_current_win()
-
-        vim.api.nvim_set_current_win(win)
-        vim.cmd('normal! ' .. scroll[2])
-        vim.wait(250)
-        vim.api.nvim_set_current_win(writing)
-        send('go', 1)
-        stream(1, 20)
-        vim.wait(250)
-
-        assert.is_true(gap(view) <= 1)
-      end)
     end
 
     it('lands and follows after a wheel scroll', function()
@@ -600,16 +575,51 @@ describe('harness.ui.composer:', function()
     eq({ 'for the first' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   end)
 
-  it('stays open when the user leaves it, like any window', function()
-    local element = open_composer(session)
+  it('closes when focus leaves it, keeping the draft and leaving focus where it went', function()
+    open_composer(session)
 
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'later' })
     vim.cmd('wincmd p')
-    vim.wait(50)
+
+    local moved = vim.api.nvim_get_current_win()
+
+    vim.wait(300, function()
+      return not composer.is_open()
+    end)
+
+    eq(false, composer.is_open())
+    eq(0, #composers())
+    eq(moved, vim.api.nvim_get_current_win())
+
+    open_composer(session)
+    eq({ 'later' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+  end)
+
+  it('stays open when focus comes back before it settles', function()
+    open_composer(session)
+
+    local writing = vim.api.nvim_get_current_win()
+
+    vim.cmd('wincmd p')
+    vim.api.nvim_set_current_win(writing)
+
+    vim.wait(200)
 
     eq(true, composer.is_open())
-    eq(element, open_composer(session))
-    eq({ 'later' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+  end)
+
+  it('stays open while a surface holds focus', function()
+    local surfaces = require('surfaces')
+
+    open_composer(session)
+    surfaces.panel({ title = 'Demo', markdown = 'a panel' })
+
+    vim.wait(200)
+
+    eq(true, composer.is_open())
+
+    surfaces.close_all()
+    vim.wait(100)
   end)
 
   it('keeps the draft when its window is closed some other way', function()

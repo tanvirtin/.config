@@ -156,7 +156,7 @@ function ComposerView:_keep()
   return self
 end
 
-function ComposerView:close(discard)
+function ComposerView:close(discard, opts)
   local key = self.session.key
 
   if self.answering then
@@ -188,7 +188,7 @@ function ComposerView:close(discard)
 
   if self.on_close then self.on_close(self) end
 
-  ComposerView.focus_window(self.origin)
+  if not (opts and opts.keep_focus) then ComposerView.focus_window(self.origin) end
 
   return self
 end
@@ -480,6 +480,23 @@ function ComposerView:_listen()
 
   element:on('QuitPre', function()
     self:_keep()
+  end)
+
+  -- Like a vgit float: leaving the composer closes it, and the draft is kept.
+  -- A surface (a picker, a panel) takes focus on purpose and gives it back, so
+  -- it does not count as leaving, and focus stays where the reader put it.
+  element:on('WinLeave', function()
+    Timer.defer(settings.composer:get('leave_ms'), function()
+      if not self:is_open() then return end
+      if #surfaces.all() > 0 then return end
+
+      local window = Window.get_current()
+
+      if not window:is_valid() then return end
+      if window:get_buffer().bufnr == element:get_buffer().bufnr then return end
+
+      self:close(nil, { keep_focus = true })
+    end)
   end)
 
   element:on('BufWriteCmd', function()
