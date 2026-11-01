@@ -1,5 +1,6 @@
 local lazy = require('core.lazy')
 
+local Timer = lazy('core.Timer')
 local date = lazy('core.utils.date')
 local theme = lazy('harness.transcript.theme')
 local EVENT = require('harness.types.events').KIND
@@ -39,8 +40,16 @@ function sessions.rows(listed)
 
   for _, item in ipairs(listed) do
     local live = item.session
-    local mark = live and ((live:running() or #live:waiting() > 0) and theme.RUNNING_ICON[1] or theme.IDLE_ICON[1])
-      or '  '
+    local mark = '  '
+
+    if live and #live:waiting() > 0 then
+      mark = theme.WAITING_ICON[1]
+    elseif live and live:running() then
+      mark = theme.spinner(Timer.now())[1]
+    elseif live then
+      mark = theme.IDLE_ICON[1]
+    end
+
     local status = status_of(live, item.updated_at)
 
     rows[#rows + 1] = {

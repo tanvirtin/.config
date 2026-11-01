@@ -38,11 +38,12 @@ end
 
 plan_summary.BAR = { full = '▰', empty = '▱', width = 8 }
 
-function plan_summary.bar(done, total)
-  local filled = total > 0 and math.floor(done / total * plan_summary.BAR.width + 0.5) or 0
+function plan_summary.bar(done, total, width)
+  width = width or plan_summary.BAR.width
 
-  return string.rep(plan_summary.BAR.full, filled)
-    .. string.rep(plan_summary.BAR.empty, plan_summary.BAR.width - filled)
+  local filled = total > 0 and math.floor(done / total * width + 0.5) or 0
+
+  return string.rep(plan_summary.BAR.full, filled) .. string.rep(plan_summary.BAR.empty, width - filled)
 end
 
 function plan_summary.render(entries)

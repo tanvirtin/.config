@@ -36,10 +36,10 @@ describe('harness.transcript.status_line:', function()
 
   it('cycles working words when no label is given', function()
     local first = status_line.lines({ running = true, started = 0 }, 0)
-    local second = status_line.lines({ running = true, started = 0 }, 3000)
+    local second = status_line.lines({ running = true, started = 0 }, 3400)
 
     assert.truthy(text(first[2]):find(theme.working_word(0, 0), 1, true))
-    assert.truthy(text(second[2]):find(theme.working_word(3000, 0), 1, true))
+    assert.truthy(text(second[2]):find(theme.working_word(3400, 0), 1, true))
     eq('UiWorking2', second[2][2][2])
   end)
 
@@ -161,7 +161,7 @@ describe('harness.transcript.status_line:', function()
 
       local shown = texts(status_line.lines({ running = true, asks = { prompt } }))
 
-      eq('▎' .. theme.WAITING_ICON[1] .. 'Please answer the following questions.  1/2', shown[2])
+      eq('▎' .. theme.WAITING_ICON[1] .. 'Please answer the following questions.  1/2 ▰▰▰▱▱▱', shown[2])
       eq('▎  Tools: Which tools?', shown[3])
       eq({ '▎  1 ○ a', '▎  2 ◉ b', '▎  3 Done' }, { shown[4], shown[5], shown[6] })
     end)

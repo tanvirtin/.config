@@ -160,6 +160,8 @@ The plan panel's title carries a progress bar (`Plan  2/5 ▰▰▱▱▱▱▱�
 
 Newly streamed rows ease in: `Document` reports the rows a write touched (`document.touched`), and `harness.ui.Fades` dims them one step (`UiFade1`..`6`, the normal foreground blended toward the background, at a priority below markdown and syntax so only plain text dims) and eases them to full over `fade_ms` (150). Only a live turn fades; a rewrite wider than `fade_rows` (40), such as opening or replaying a session, does not, and `reduced` skips it.
 
+Smaller touches: a new working word fades in from the background over `motion.working.fade_ms` (300), a multi-question form shows its step as a six-cell bar, attached selections are `UiChip` chips in the composer winbar beside a character and line count, permission panel headings sit on `UiSurfaceRaised` with aligned tool columns, and the sessions picker shows a spinner on running sessions and the waiting icon on ones that wait for you.
+
 ## Motion
 
 `ui.motion` is pure maths: easing curves, `lerp`, `steps`, `breath` and `Tween` (a value that moves between two numbers over a duration, read with `tween:at(now)`). It owns no timer.

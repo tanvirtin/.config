@@ -5,6 +5,7 @@ local hl = {}
 hl.PULSE_STEPS = 12
 hl.FLASH_STEPS = 8
 hl.FADE_STEPS = 6
+hl.WORD_FADE_STEPS = 4
 hl.FADE_FLOOR = 0.45
 hl.FLASH_PEAK = 0.24
 
@@ -157,6 +158,14 @@ hl.COMPUTED = {
 
     return { fg = foreground, bg = hl.blend(foreground, background, hl.SURFACE_BASE) }
   end,
+  UiChip = function()
+    local foreground, background = color('UiPath', 'fg') or color('Directory', 'fg'), color('Normal', 'bg')
+    local text = color('Normal', 'fg')
+
+    if not foreground or not background or not text then return { link = 'UiPath' } end
+
+    return { fg = foreground, bg = hl.blend(text, background, hl.SURFACE_RAISED) }
+  end,
   UiRailAccent = rail('UiAccent', 'Special'),
   UiRailWarn = rail('UiWarn', 'DiagnosticWarn'),
   UiRailError = rail('UiError', 'DiagnosticError'),
@@ -222,6 +231,19 @@ for i = 1, hl.FADE_STEPS do
     local alpha = hl.FADE_FLOOR + (1 - hl.FADE_FLOOR) * (i - 1) / (hl.FADE_STEPS - 1)
 
     return { fg = hl.blend(foreground, background, alpha) }
+  end
+end
+
+for word = 1, 6 do
+  for step = 1, hl.WORD_FADE_STEPS do
+    hl.COMPUTED['UiWorkingFade' .. word .. '_' .. step] = function()
+      local tint = color('UiWorking' .. word, 'fg') or color('UiAccent', 'fg')
+      local background = color('Normal', 'bg')
+
+      if not tint or not background then return { link = 'UiWorking' .. word } end
+
+      return { fg = hl.blend(tint, background, step / (hl.WORD_FADE_STEPS + 1)) }
+    end
   end
 end
 

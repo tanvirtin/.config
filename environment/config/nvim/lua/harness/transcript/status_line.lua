@@ -4,6 +4,7 @@ local ASK = require('harness.types.events').ASK
 local theme = require('harness.transcript.theme')
 local keymaps = require('harness.settings.keymaps')
 local settings = require('harness.settings.transcript')
+local plan_summary = require('harness.transcript.plan_summary')
 
 local status_line = {}
 
@@ -59,7 +60,10 @@ local function elicitation_lines(state, ask)
   local keys = keymaps:get('transcript')
   local question = { theme.WAITING_ICON, { fit(state, view.message, 12), 'UiPromptBar' } }
 
-  if view.count > 1 then question[#question + 1] = { string.format('  %d/%d', view.step, view.count), 'UiMuted' } end
+  if view.count > 1 then
+    question[#question + 1] = { string.format('  %d/%d', view.step, view.count), 'UiMuted' }
+    question[#question + 1] = { ' ' .. plan_summary.bar(view.step, view.count, 6), 'UiAccent' }
+  end
   question[#question + 1] = more(state)
 
   local lines = { question }
@@ -121,7 +125,7 @@ local function working_line(state, now)
   local elapsed = state.started and now and theme.duration(now - state.started)
   local word, word_hl = theme.working_word(now, state.started)
   local label = state.label or word or 'working'
-  local label_hl = state.label and theme.pulse(now) or word_hl or theme.pulse(now)
+  local label_hl = state.label and theme.pulse(now) or theme.word_fade(word_hl, now, state.started) or theme.pulse(now)
 
   return {
     { theme.RUNNING_ICON[1], theme.pulse(now) },

@@ -1,5 +1,6 @@
 local lazy = require('core.lazy')
 local text = require('core.text')
+local motion = require('ui.motion')
 local settings = require('harness.settings.theme')
 
 local hl = lazy('ui.hl')
@@ -61,6 +62,23 @@ function theme.working_word(now, started)
   local index = math.floor(elapsed / ms) % #spec.words + 1
 
   return spec.words[index], 'UiWorking' .. ((index - 1) % 6 + 1)
+end
+
+function theme.word_fade(group, now, started)
+  local ms = settings:get('motion').working.fade_ms
+
+  if theme.reduced() or not ms or ms <= 0 or not group then return group end
+
+  local spec = settings:get('motion').working
+  local into = math.max(0, (now or 0) - (started or now or 0)) % (spec.word_ms or 3000)
+
+  if into >= ms then return group end
+
+  local word = group:match('^UiWorking(%d)$')
+
+  if not word then return group end
+
+  return 'UiWorkingFade' .. word .. '_' .. motion.steps(hl.WORD_FADE_STEPS, into / ms)
 end
 
 function theme.pulse(now, tone)

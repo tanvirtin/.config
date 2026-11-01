@@ -105,6 +105,19 @@ describe('harness.ui.composer:', function()
       eq(1, #chunks(buf))
     end)
 
+    it('counts the characters and lines written in the winbar', function()
+      open_composer(session)
+
+      local buf = vim.api.nvim_get_current_buf()
+
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'héllo', 'x' })
+      vim.wait(100)
+
+      local bar = composer.winbar()
+
+      assert.is_truthy(bar:find('7c 2l', 1, true))
+    end)
+
     it('sits on its own surface and truncates the hints before the chips', function()
       open_composer(session)
 

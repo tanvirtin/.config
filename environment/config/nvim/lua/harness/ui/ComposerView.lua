@@ -101,7 +101,7 @@ function ComposerView:winbar()
     parts[#parts + 1] = string.format('%%#UiMuted#%s%d queued ', theme.QUEUE_ICON[1], #session.queue)
   end
   for _, selection in ipairs(store:attachments(session.key)) do
-    parts[#parts + 1] = '%#UiPath#+ ' .. selection.label:gsub('%%', '%%%%') .. ' '
+    parts[#parts + 1] = '%#UiChip# + ' .. selection.label:gsub('%%', '%%%%') .. ' %#UiMuted# '
   end
 
   if session.external then parts[#parts + 1] = '%#UiWarn#⇄ also driven elsewhere: sending forks it ' end
@@ -116,6 +116,14 @@ function ComposerView:winbar()
   end
 
   parts[#parts + 1] = '%=%<'
+
+  local written = self:lines()
+
+  if ComposerView.has_text(written) then
+    local chars = select(2, table.concat(written, '\n'):gsub('[^\128-\191]', ''))
+
+    parts[#parts + 1] = string.format('%%#UiMuted#%dc %dl  ', chars, #written)
+  end
 
   local keys = settings.keymaps:get('composer')
 

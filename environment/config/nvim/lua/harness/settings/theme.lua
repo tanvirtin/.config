@@ -6,6 +6,7 @@ return Config({
     pulse_ms = 100,
     working = {
       word_ms = 3000,
+      fade_ms = 300,
       words = { 'working', 'pondering', 'noodling', 'cogitating', 'musing', 'tinkering' },
     },
     thinking = { ms = 300, frames = { 'thinking.', 'thinking..', 'thinking...' } },

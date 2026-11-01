@@ -85,6 +85,7 @@ function PermissionsView.render(model)
   local function heading(text, count)
     if #lines > 0 then add('') end
     add(string.format('%s (%d)', text, count), 'UiTitle')
+    highlights[#highlights + 1] = { row = #lines - 1, from = 0, to = #lines[#lines], hl = 'UiSurfaceRaised' }
   end
 
   add('Mode: ' .. (model.mode or 'the agent has none'), 'UiAccent')
@@ -94,10 +95,16 @@ function PermissionsView.render(model)
     add('  ' .. theme.WAITING_ICON[1] .. cut(ask.title or ask.tool or 'a question'), theme.WAITING_ICON[2])
   end
 
+  local tool_width = 0
+
+  for _, grant in ipairs(model.grants) do
+    tool_width = math.max(tool_width, #grant.tool)
+  end
+
   heading('Allowed for this session', #model.grants)
   for _, grant in ipairs(model.grants) do
     add(
-      string.format('  ✓ %s  · %s', grant.tool, ago(grant.time)),
+      string.format('  ✓ %-' .. tool_width .. 's  · %s', grant.tool, ago(grant.time)),
       nil,
       { kind = PermissionsView.ROW.grant, grant = grant }
     )
