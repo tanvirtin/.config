@@ -139,14 +139,21 @@ function commands.quickfix(scope)
   return transcript.report(scoped('quickfix', scope))
 end
 
+local function tour_session()
+  local view = transcript.view() or display.last()
+
+  return view and view.session.key or nil
+end
+
 function commands.tour(text)
   text = vim.trim(text or '')
 
   local word, rest = text:match('^(%S+)%s*(.*)$')
+  local session = tour_session()
 
-  if word == 'next' then return transcript.report(tour.next()) end
-  if word == 'prev' or word == 'previous' or word == 'back' then return transcript.report(tour.previous()) end
-  if word == 'stop' then return transcript.report(tour.stop()) end
+  if word == 'next' then return transcript.report(tour.next(session)) end
+  if word == 'prev' or word == 'previous' or word == 'back' then return transcript.report(tour.previous(session)) end
+  if word == 'stop' then return transcript.report(tour.stop(session)) end
 
   local here = transcript.view()
 

@@ -4,7 +4,13 @@ local tour_tools = require('harness.tour_tools')
 
 local eq = assert.are.same
 
+local SESSION = 's1'
+
 describe('harness.tour_tools:', function()
+  local function run(name, args)
+    return tools.run(name, args, SESSION)
+  end
+
   before_each(function()
     tour_store.reset()
     tour_tools.register()
@@ -27,44 +33,65 @@ describe('harness.tour_tools:', function()
   it('hands a valid tour to the store and says how many steps it holds', function()
     local seen
 
-    tour_store.on(function(kind, tour)
-      seen = { kind, tour.title, #tour.steps }
+    tour_store.on(function(kind, session, tour)
+      seen = { kind, session, tour.title, #tour.steps }
     end)
 
-    local result = tools.run('tour_start', {
+    local result = run('tour_start', {
       title = 'Config',
       steps = { { path = 'init.lua', line = 1, note = 'Start here.' } },
     })
 
-    eq({ 'start', 'Config', 1 }, seen)
+    eq({ 'start', SESSION, 'Config', 1 }, seen)
     eq({ title = 'Config', steps = 1 }, result)
   end)
 
   it('tells the agent which step has a path that does not exist', function()
-    local ok, err = pcall(tools.run, 'tour_start', {
+    local ok, err = pcall(run, 'tour_start', {
       title = 'Bad',
       steps = { { path = 'init.lua', line = 1 }, { path = 'no/such/file.lua', line = 3 } },
     })
 
     eq(false, ok)
     assert.truthy(tostring(err):find('step 2: no file no/such/file.lua', 1, true))
-    eq(nil, tour_store.current())
+    eq(nil, tour_store.current(SESSION))
+  end)
+
+  it('ties a tour to the session that asked for it, and keeps sessions apart', function()
+    local ok, err = pcall(tools.run, 'tour_start', {
+      title = 'Loose',
+      steps = { { path = 'init.lua', line = 1 } },
+    })
+
+    eq(false, ok)
+    assert.truthy(tostring(err):find('a tour belongs to a session', 1, true))
+
+    run('tour_start', { title = 'One', steps = { { path = 'init.lua', line = 1 } } })
+    tools.run('tour_start', { title = 'Two', steps = { { path = 'init.lua', line = 1 } } }, 's2')
+
+    eq('One', tour_store.current(SESSION).title)
+    eq('Two', tour_store.current('s2').title)
+
+    tour_store.stop(SESSION)
+
+    eq(nil, tour_store.current(SESSION))
+    eq('Two', tour_store.current('s2').title)
   end)
 
   describe('tour_update', function()
     local function start()
-      tour_store.start({ title = 'Config', steps = { { title = 'one' } } })
+      tour_store.start(SESSION, { title = 'Config', steps = { { title = 'one' } } })
     end
 
     it('passes parsed steps to whoever follows the tour', function()
       local seen
 
       start()
-      tour_store.on(function(kind, _, update)
+      tour_store.on(function(kind, _, _, update)
         if kind == 'update' then seen = update end
       end)
 
-      local result = tools.run('tour_update', {
+      local result = run('tour_update', {
         mode = 'insert',
         steps = { { path = 'init.lua', line = 2, note = 'More.' } },
       })
@@ -79,17 +106,17 @@ describe('harness.tour_tools:', function()
       local seen
 
       start()
-      tour_store.on(function(kind, _, update)
+      tour_store.on(function(kind, _, _, update)
         if kind == 'update' then seen = update end
       end)
-      tools.run('tour_update', { mode = 'note', note = 'Clearer.' })
+      run('tour_update', { mode = 'note', note = 'Clearer.' })
 
       eq({ 'note', 'Clearer.' }, { seen.mode, seen.note })
     end)
 
     it('says what is missing, and that there is no tour to change', function()
       local function message(args)
-        return tostring(select(2, pcall(tools.run, 'tour_update', args)))
+        return tostring(select(2, pcall(run, 'tour_update', args)))
       end
 
       assert.truthy(message({ mode = 'note', note = 'x' }):find('no tour is running', 1, true))
@@ -146,7 +173,7 @@ describe('harness.tour_tools:', function()
     end)
 
     it('works the range out from git and hands back the rev to tour', function()
-      local scope = tools.run('tour_scope', { base = base, head = middle })
+      local scope = run('tour_scope', { base = base, head = middle })
 
       eq({ base:sub(1, 7), middle:sub(1, 7), middle, false }, { scope.base, scope.head, scope.rev, scope.checked_out })
       eq(
@@ -160,21 +187,21 @@ describe('harness.tour_tools:', function()
     end)
 
     it('names a commit that is not here, instead of reviewing nothing', function()
-      local ok, err = pcall(tools.run, 'tour_scope', { base = 'nope1234', head = middle })
+      local ok, err = pcall(run, 'tour_scope', { base = 'nope1234', head = middle })
 
       eq(false, ok)
       assert.truthy(tostring(err):find('no commit "nope1234"', 1, true))
     end)
 
     it('tours a commit that is not checked out from git, and says what the steps leave out', function()
-      tools.run('tour_scope', { base = base, head = middle })
+      run('tour_scope', { base = base, head = middle })
 
-      local reply = tools.run('tour_start', {
+      local reply = run('tour_start', {
         title = 'Review',
         rev = middle,
         steps = { { path = 'a.lua', line = 2, note = 'a2 changed.' } },
       })
-      local tour = tour_store.current()
+      local tour = tour_store.current(SESSION)
 
       eq(middle, tour.rev)
       eq(vim.fs.normalize(repo), tour.root)
@@ -184,13 +211,13 @@ describe('harness.tour_tools:', function()
     end)
 
     it('says it is complete once every hunk has a step, and checks added steps against the commit', function()
-      tools.run('tour_scope', { base = base, head = middle })
-      tools.run('tour_start', { title = 'Review', rev = middle, steps = { { path = 'a.lua', line = 2 } } })
-      tour_store.on(function(kind, tour, update)
+      run('tour_scope', { base = base, head = middle })
+      run('tour_start', { title = 'Review', rev = middle, steps = { { path = 'a.lua', line = 2 } } })
+      tour_store.on(function(kind, _, tour, update)
         if kind == 'update' then vim.list_extend(tour.steps, update.steps) end
       end)
 
-      local reply = tools.run('tour_update', {
+      local reply = run('tour_update', {
         mode = 'insert',
         steps = { { path = 'a.lua', line = 6 }, { path = 'b.lua', line = 1, end_line = 2 } },
       })
@@ -199,16 +226,29 @@ describe('harness.tour_tools:', function()
       eq(nil, reply.uncovered)
       assert.truthy(reply.note:find('Every changed hunk', 1, true))
 
-      local ok, err = pcall(tools.run, 'tour_update', { mode = 'insert', steps = { { path = 'c.lua', line = 1 } } })
+      local ok, err = pcall(run, 'tour_update', { mode = 'insert', steps = { { path = 'c.lua', line = 1 } } })
 
       eq(false, ok)
       assert.truthy(tostring(err):find('step 1: no file c.lua', 1, true))
     end)
 
-    it('does not claim coverage for files on disk when the range ends somewhere else', function()
-      tools.run('tour_scope', { base = base, head = middle })
+    it('keeps a review range to the session that worked it out', function()
+      run('tour_scope', { base = base, head = middle })
 
-      local reply = tools.run('tour_start', { title = 'Disk', steps = { { path = 'a.lua', line = 1 } } })
+      local reply = tools.run('tour_start', {
+        title = 'Elsewhere',
+        rev = middle,
+        steps = { { path = 'a.lua', line = 2 } },
+      }, 's2')
+
+      eq(nil, reply.uncovered)
+      eq(nil, reply.note)
+    end)
+
+    it('does not claim coverage for files on disk when the range ends somewhere else', function()
+      run('tour_scope', { base = base, head = middle })
+
+      local reply = run('tour_start', { title = 'Disk', steps = { { path = 'a.lua', line = 1 } } })
 
       eq(nil, reply.uncovered)
       eq(nil, reply.note)

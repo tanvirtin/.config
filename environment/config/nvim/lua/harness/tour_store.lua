@@ -4,57 +4,74 @@ tour_store.EVENT = { start = 'start', stop = 'stop', update = 'update' }
 
 tour_store.RECENT = 20
 
-local current, recent, listeners, scope = nil, {}, {}, nil
+local current, recent, scopes, listeners = {}, {}, {}, {}
 
-local function emit(kind, tour, opts)
+local function slot(session)
+  if type(session) ~= 'string' or session == '' then error('a tour belongs to a session', 2) end
+
+  return session
+end
+
+local function emit(kind, session, tour, opts)
   for _, listener in ipairs(vim.list_slice(listeners)) do
-    listener(kind, tour, opts)
+    listener(kind, session, tour, opts)
   end
 end
 
-function tour_store.start(tour, opts)
-  current = tour
+function tour_store.start(session, tour, opts)
+  session = slot(session)
 
-  table.insert(recent, 1, tour)
-  recent[tour_store.RECENT + 1] = nil
+  current[session] = tour
 
-  emit(tour_store.EVENT.start, tour, opts or {})
+  local kept = recent[session] or {}
+
+  recent[session] = kept
+  table.insert(kept, 1, tour)
+  kept[tour_store.RECENT + 1] = nil
+
+  emit(tour_store.EVENT.start, session, tour, opts or {})
 
   return tour
 end
 
-function tour_store.stop()
-  local stopped = current
+function tour_store.stop(session)
+  session = slot(session)
 
-  current, scope = nil, nil
+  local stopped = current[session]
 
-  if stopped then emit(tour_store.EVENT.stop, stopped, {}) end
+  current[session], scopes[session] = nil, nil
+
+  if stopped then emit(tour_store.EVENT.stop, session, stopped, {}) end
 
   return stopped
 end
 
-function tour_store.update(update)
-  if not current then return false, 'no tour is running; start one with tour_start' end
+function tour_store.update(session, update)
+  session = slot(session)
 
-  emit(tour_store.EVENT.update, current, update)
+  local tour = current[session]
+
+  if not tour then return false, 'no tour is running; start one with tour_start' end
+
+  emit(tour_store.EVENT.update, session, tour, update)
 
   return true
 end
 
-function tour_store.set_scope(value)
-  scope = value
+function tour_store.set_scope(session, value)
+  scopes[slot(session)] = value
 end
 
-function tour_store.scope()
-  return scope
+function tour_store.scope(session)
+  return scopes[slot(session)]
 end
 
-function tour_store.current()
-  return current
+function tour_store.current(session)
+  return current[slot(session)]
 end
 
-function tour_store.recent()
-  return vim.list_slice(recent)
+function tour_store.recent(session)
+  return vim.list_slice(recent[slot(session)] or {})
 end
 
 function tour_store.on(listener)
@@ -71,7 +88,7 @@ function tour_store.on(listener)
 end
 
 function tour_store.reset()
-  current, recent, listeners, scope = nil, {}, {}, nil
+  current, recent, scopes, listeners = {}, {}, {}, {}
 end
 
 return tour_store

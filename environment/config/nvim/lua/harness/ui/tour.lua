@@ -9,71 +9,111 @@ local composer = lazy('harness.ui.composer')
 local TourView = lazy('harness.ui.TourView')
 local tour_type = lazy('harness.types.tour')
 local tour_store = lazy('harness.tour_store')
+local session_store = lazy('harness.session_store')
 
 local tour = {}
 
-local current, dispose
+local views, dispose, dispose_sessions = {}, nil, nil
 
 local function warn(message)
   console.notify('Harness: ' .. message, 'warn')
 end
 
-function tour.is_active()
-  return current ~= nil and current:is_open()
+local function key_of(session)
+  return type(session) == 'table' and session.key or session
 end
 
-function tour.close()
-  local view = current
+local function running(session)
+  local key = key_of(session)
+  local view = key and views[key]
 
-  current = nil
+  return view ~= nil and view:is_open() and key or nil
+end
+
+local function only_running()
+  local found
+
+  for key, view in pairs(views) do
+    if view:is_open() then
+      if found then return nil end
+
+      found = key
+    end
+  end
+
+  return found
+end
+
+local function target(session)
+  return running(session) or only_running()
+end
+
+function tour.close(session)
+  local key = key_of(session)
+
+  if not key then return end
+
+  local view = views[key]
+
+  views[key] = nil
 
   if view then view:stop() end
 end
 
 function tour.start(data, opts)
-  tour.close()
+  local key = opts and opts.session
 
-  local session = opts and opts.session and hub.session(opts.session)
+  if type(key) ~= 'string' or key == '' then return false, 'a tour belongs to a session' end
+
+  tour.close(key)
+
+  local session = hub.session(key)
   local view = session and display.view_of(session)
 
-  current = TourView(data, {
+  views[key] = TourView(data, {
     source_win = view and view.source_win,
-    session = opts and opts.session,
-    on_ask = tour.ask_step,
+    session = key,
+    on_ask = function(shown)
+      return tour.ask_step(shown.session)
+    end,
     on_stop = function(stopped)
-      if current == stopped then current = nil end
-      if tour_store.current() == data then tour_store.stop() end
+      if views[key] == stopped then views[key] = nil end
+      if tour_store.current(key) == data then tour_store.stop(key) end
     end,
   })
 
-  local ok, why = current:start()
+  local ok, why = views[key]:start()
 
   if not ok then
-    current = nil
+    views[key] = nil
     warn(why or 'the tour could not start')
   end
 
   return ok
 end
 
-local function active(method)
-  if not tour.is_active() then return false, 'no tour is running' end
+local function active(session, method)
+  local key = target(session)
 
-  return current[method](current)
+  if not key then return false, 'no tour is running' end
+
+  return views[key][method](views[key])
 end
 
-function tour.next()
-  return active('next')
+function tour.next(session)
+  return active(session, 'next')
 end
 
-function tour.previous()
-  return active('previous')
+function tour.previous(session)
+  return active(session, 'previous')
 end
 
-function tour.stop()
-  if not tour.is_active() then return false, 'no tour is running' end
+function tour.stop(session)
+  local key = target(session)
 
-  tour.close()
+  if not key then return false, 'no tour is running' end
+
+  tour.close(key)
 
   return true
 end
@@ -119,7 +159,7 @@ function tour.changes(view, scope)
 
   if not data then return false, err end
 
-  tour_store.start(data, { session = view.session.key })
+  tour_store.start(view.session.key, data)
 
   return true
 end
@@ -151,32 +191,45 @@ function tour.step_draft(view)
   return table.concat(lines, '\n')
 end
 
-function tour.ask_step()
-  if not tour.is_active() then return false, 'no tour is running' end
+function tour.ask_step(session)
+  local key = target(session)
 
-  local session = current.session and hub.session(current.session)
+  if not key then return false, 'no tour is running' end
 
-  if not session then return false, 'the session that started this tour is gone' end
+  local current = hub.session(key)
 
-  composer.restore(session, { tour.step_draft(current) })
-  composer.open(session, { display = display, insert = true })
+  if not current then return false, 'the session that started this tour is gone' end
+
+  local view = views[key]
+
+  composer.restore(current, { tour.step_draft(view) })
+  composer.open(current, { display = display, insert = true })
 
   return true
 end
 
 function tour.register_events()
   if dispose then dispose() end
+  if dispose_sessions then dispose_sessions() end
 
-  dispose = tour_store.on(function(kind, data, opts)
+  dispose = tour_store.on(function(kind, session, data, opts)
     if kind == tour_store.EVENT.start then
-      tour.start(data, opts)
-    elseif current and kind == tour_store.EVENT.stop then
-      tour.close()
-    elseif current and kind == tour_store.EVENT.update then
-      local ok, why = current:apply(opts)
+      tour.start(data, vim.tbl_extend('force', opts or {}, { session = session }))
+    elseif kind == tour_store.EVENT.stop then
+      tour.close(session)
+    elseif kind == tour_store.EVENT.update then
+      local view = views[session]
 
-      if not ok and why then warn(why) end
+      if view then
+        local ok, why = view:apply(opts)
+
+        if not ok and why then warn(why) end
+      end
     end
+  end)
+
+  dispose_sessions = session_store.on('close', function(session)
+    tour_store.stop(session.key)
   end)
 
   return tour

@@ -41,4 +41,10 @@ describe('harness.ui.tour:', function()
   it('has nothing to ask about without a tour', function()
     eq({ false, 'no tour is running' }, { tour.ask_step() })
   end)
+
+  it('will not start a tour that is not tied to a session', function()
+    local data = assert(tour_type.parse({ title = 'Walk', steps = { { path = 'a.lua', line = 1 } } }, dir))
+
+    eq({ false, 'a tour belongs to a session' }, { tour.start(data) })
+  end)
 end)

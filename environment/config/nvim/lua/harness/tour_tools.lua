@@ -24,6 +24,14 @@ local function fail(message)
   error(message, 0)
 end
 
+local function session_of(ctx)
+  local caller = ctx and ctx.caller
+
+  if type(caller) ~= 'string' or caller == '' then fail('a tour belongs to a session; ask for one in your session') end
+
+  return caller
+end
+
 local function snapshot(dir, rev)
   if not rev then return {} end
 
@@ -48,8 +56,8 @@ local function snapshot(dir, rev)
   }
 end
 
-local function uncovered(steps, sha)
-  local scope = tour_store.scope()
+local function uncovered(session, steps, sha)
+  local scope = tour_store.scope(session)
 
   if not scope or (sha or (scope.checked_out and scope.head)) ~= scope.head then return nil end
 
@@ -80,7 +88,7 @@ local function tour_scope_tool(args, ctx)
 
   if not scope then fail(err) end
 
-  tour_store.set_scope(scope)
+  tour_store.set_scope(session_of(ctx), scope)
 
   local files = {}
 
@@ -108,21 +116,23 @@ local function tour_scope_tool(args, ctx)
 end
 
 local function tour_start(args, ctx)
+  local session = session_of(ctx)
   local dir = dir_of(ctx)
   local opts = snapshot(dir, args.rev)
   local tour, err = tour_type.parse(args, dir, opts)
 
   if not tour then fail(err) end
 
-  tour_store.start(tour, { session = ctx.caller })
+  tour_store.start(session, tour)
 
   local sha = args.rev and tour_scope.resolve(dir, args.rev) or nil
 
-  return with({ title = tour.title, steps = #tour.steps }, uncovered(tour.steps, sha))
+  return with({ title = tour.title, steps = #tour.steps }, uncovered(session, tour.steps, sha))
 end
 
 local function tour_update(args, ctx)
-  local current = tour_store.current()
+  local session = session_of(ctx)
+  local current = tour_store.current(session)
 
   if not current then fail('no tour is running; start one with tour_start') end
 
@@ -145,11 +155,11 @@ local function tour_update(args, ctx)
     update.steps[index] = step
   end
 
-  local ok, why = tour_store.update(update)
+  local ok, why = tour_store.update(session, update)
 
   if not ok then fail(why) end
 
-  return with({ title = current.title, steps = #current.steps }, uncovered(current.steps, current.rev))
+  return with({ title = current.title, steps = #current.steps }, uncovered(session, current.steps, current.rev))
 end
 
 local STEP = schema.model({
