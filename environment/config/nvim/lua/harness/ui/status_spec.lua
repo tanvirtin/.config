@@ -4,6 +4,8 @@ local eq = assert.are.same
 
 local function session(opts)
   return {
+    title = opts.title,
+    key = opts.key,
     running = function()
       return opts.running or false
     end,
@@ -33,6 +35,28 @@ describe('harness.ui.status:', function()
     assert.is_truthy(text:find('1 running', 1, true))
     assert.is_truthy(text:find('3 agents', 1, true))
     assert.is_truthy(text:find('waiting', 1, true))
+  end)
+
+  it('should name the session that waits, and count them when more than one does', function()
+    local one = status.text({ session({ waiting = { {} }, title = 'shiny-toasting-scroll' }) })
+
+    assert.is_truthy(one:find('waiting in shiny-toasting-scroll', 1, true))
+
+    local two = status.text({
+      session({ waiting = { {} }, title = 'first' }),
+      session({ waiting = { {}, {} }, title = 'second' }),
+    })
+
+    assert.is_truthy(two:find('3 waiting', 1, true))
+    assert.is_falsy(two:find('waiting in', 1, true))
+  end)
+
+  it('should list only the sessions holding a request', function()
+    local idle = session({ title = 'idle' })
+    local busy = session({ waiting = { {} }, title = 'busy' })
+
+    eq({ busy }, status.waiting({ idle, busy }))
+    eq({}, status.waiting({ idle }))
   end)
 
   it('should be empty when nothing runs', function()
