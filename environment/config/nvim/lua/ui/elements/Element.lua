@@ -70,18 +70,30 @@ function Element:mount()
   return self
 end
 
-function Element:unmount()
+-- Drops the window and the refs without deleting the buffer, for the case where
+-- the buffer is already going (a BufWipeout): deleting it there is E937.
+function Element:forget()
   if not self._mounted then return self end
 
   self:detach_from_renderer()
 
   if self._window and self._window:is_valid() then self._window:close() end
   self._window = nil
-
-  if self._buffer and self._buffer:is_valid() then self._buffer:delete({ force = true }) end
   self._buffer = nil
 
   self._mounted = false
+
+  return self
+end
+
+function Element:unmount()
+  if not self._mounted then return self end
+
+  local buffer = self._buffer
+
+  self:forget()
+
+  if buffer and buffer:is_valid() then buffer:delete({ force = true }) end
 
   return self
 end

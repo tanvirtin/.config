@@ -159,6 +159,8 @@ end
 function ComposerView:close(discard, opts)
   local key = self.session.key
 
+  self.closing = true
+
   if self.answering then
     local target = self:answer_target()
 
@@ -510,6 +512,19 @@ function ComposerView:_listen()
   end)
 
   element:on('BufWipeout', function()
+    -- The buffer went on its own (it is bufhidden=wipe): switching buffers in
+    -- the composer window, as <C-l> does, is the usual way. The split must go
+    -- with it, or it is left showing whatever buffer replaced the composer.
+    if not self.closing and self.element and self.element:is_mounted() then
+      local element = self.element
+
+      -- closing the window inside BufWipeout is too early; the buffer switch
+      -- that caused it is still running
+      Timer.defer(0, function()
+        if element:is_mounted() then element:forget() end
+      end)
+    end
+
     if self.on_wipe then self.on_wipe(self) end
   end)
 

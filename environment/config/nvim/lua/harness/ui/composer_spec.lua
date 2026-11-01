@@ -642,6 +642,16 @@ describe('harness.ui.composer:', function()
     eq(1, #showing)
   end)
 
+  it('closes its split when another buffer takes the window', function()
+    open_composer(session)
+
+    vim.cmd('bnext')
+    vim.wait(200)
+
+    eq(false, composer.is_open())
+    eq(1, #vim.api.nvim_list_wins())
+  end)
+
   it('closes the split when its buffer was wiped first', function()
     local element = open_composer(session)
 
