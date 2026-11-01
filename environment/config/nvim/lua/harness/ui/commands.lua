@@ -10,6 +10,7 @@ local tour = lazy('harness.ui.tour')
 local edits = lazy('harness.ui.edits')
 local context = lazy('harness.context')
 local display = lazy('harness.ui.display')
+local composer = lazy('harness.ui.composer')
 local transcript = lazy('harness.ui.transcript')
 
 local commands = {}
@@ -137,6 +138,35 @@ end
 
 function commands.quickfix(scope)
   return transcript.report(scoped('quickfix', scope))
+end
+
+local function attach_session()
+  local view = transcript.last()
+
+  if view and view.session.state ~= 'closed' then return view.session end
+
+  for _, candidate in pairs(display.views()) do
+    if candidate.session.state ~= 'closed' then return candidate.session end
+  end
+end
+
+function commands.attach_visual()
+  local window = Window.get_current()
+  local range = window:visual_lines()
+
+  if not range then return false end
+
+  local buf = window:get_buffer().bufnr
+
+  if composer.is_open() then return composer.attach_visual(buf, range) end
+
+  local session = attach_session()
+
+  if not session then return transcript.report(false, 'no transcript to attach this to yet; open one first') end
+
+  composer.open(session, { display = display, insert = true })
+
+  return composer.attach(buf, range)
 end
 
 local function tour_session()

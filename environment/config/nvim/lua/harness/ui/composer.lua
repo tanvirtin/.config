@@ -52,13 +52,15 @@ function composer.attach(buf, range)
   return current:attach(buf, range)
 end
 
-function composer.attach_visual()
+function composer.attach_visual(buf, range)
   if not composer.is_open() then return false end
 
   local window = Window.get_current()
-  local range = window:visual_lines()
 
-  if not range or not current:attach(window:get_buffer().bufnr, range) then return false end
+  buf = buf or window:get_buffer().bufnr
+  range = range or window:visual_lines()
+
+  if not range or not current:attach(buf, range) then return false end
 
   keymap.feed('<Esc>')
 

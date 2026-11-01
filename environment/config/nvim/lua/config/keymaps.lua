@@ -106,7 +106,7 @@ map('n', '<leader>aw', function()
   require('harness.ui.status').to_waiting()
 end)
 map('v', '<leader>aa', function()
-  require('harness.ui.composer').attach_visual()
+  require('harness.ui.commands').attach_visual()
 end)
 
 map('n', '<leader>gs', '<Cmd>VGit buffer_hunk_stage<CR>')

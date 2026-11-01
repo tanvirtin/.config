@@ -1,5 +1,6 @@
 local async = require('harness.async')
 local composer = require('harness.ui.composer')
+local commands = require('harness.ui.commands')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local hub = require('harness.hub')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
@@ -575,6 +576,19 @@ describe('harness.ui.composer:', function()
       eq(false, composer.attach_visual())
       eq('V', vim.api.nvim_get_mode().mode)
       press('<Esc>')
+    end)
+
+    it('opens the composer for the last transcript and attaches there', function()
+      vim.api.nvim_win_set_buf(0, file)
+      press('Vj')
+
+      eq(true, commands.attach_visual())
+      eq(true, composer.is_open())
+      eq(session, composer.target())
+      eq({ 1, 2 }, composer.attached(session)[1].range)
+
+      press('<Esc>')
+      composer.close(true)
     end)
 
     it('moves the session\'s running tour to the selection', function()
