@@ -180,16 +180,26 @@ describe('harness.ui.TourView:', function()
     eq('line 10', vim.api.nvim_buf_get_lines(a, 12, 13, false)[1])
   end)
 
-  it('does not take over a harness window for the code', function()
+  it('opens a split above for the code when every window is a harness one, leaving the transcript alone', function()
     local transcript = vim.api.nvim_create_buf(false, true)
 
     vim.api.nvim_buf_set_name(transcript, 'harness://t1 untitled')
     vim.api.nvim_win_set_buf(0, transcript)
 
+    local harness_win = vim.api.nvim_get_current_win()
+
     view = TourView(data)
 
-    local ok, why = view:start()
+    assert.is_true(view:start())
 
-    eq({ false, 'no window to show the code in' }, { ok, why })
+    eq(transcript, vim.api.nvim_win_get_buf(harness_win))
+    eq(2, #vim.api.nvim_tabpage_list_wins(0) - #floats())
+    eq(real(dir .. '/a.lua'), real(vim.api.nvim_buf_get_name(0)))
+    assert.is_not.equal(harness_win, vim.api.nvim_get_current_win())
+
+    view:next()
+
+    eq(real(dir .. '/b.lua'), real(vim.api.nvim_buf_get_name(0)))
+    eq(2, #vim.api.nvim_tabpage_list_wins(0) - #floats())
   end)
 end)

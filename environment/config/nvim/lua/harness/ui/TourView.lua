@@ -55,6 +55,23 @@ function TourView:_code_window()
   return nil
 end
 
+function TourView:_open_above(buffer)
+  local base = self.source and Window(self.source) or nil
+
+  if not (base and base:is_valid() and base:get_config().relative == '') then
+    base = nil
+
+    for _, window in ipairs(Window.list_tab()) do
+      if window:get_config().relative == '' then
+        base = window
+        break
+      end
+    end
+  end
+
+  return base and base:split_above(buffer) or nil
+end
+
 function TourView:_range(index, buffer)
   local step = self.tour.steps[index]
   local last = buffer:get_line_count()
@@ -214,11 +231,10 @@ function TourView:show(index)
 
   if not step then return false end
 
-  local window = self:_code_window()
+  local buffer = buffers.load(step.path)
+  local window = self:_code_window() or self:_open_above(buffer)
 
   if not window then return false, 'no window to show the code in' end
-
-  local buffer = buffers.load(step.path)
 
   self:_clear()
 
@@ -241,11 +257,11 @@ function TourView:show(index)
 end
 
 function TourView:start()
-  local window = self:_code_window()
+  local ok, why = self:show(1)
 
-  if window then window:focus() end
+  if ok then self.window:focus() end
 
-  return self:show(1)
+  return ok, why
 end
 
 function TourView:next()

@@ -144,6 +144,13 @@ function Window:fold_level(lnum)
   return level
 end
 
+function Window:split_above(buffer)
+  self:focus()
+  vim.cmd('aboveleft sbuffer ' .. buffer.bufnr)
+
+  return Window(0)
+end
+
 function Window:split_right(buffer)
   self:focus()
   vim.cmd('vertical rightbelow sbuffer ' .. buffer.bufnr)
