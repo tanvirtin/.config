@@ -48,8 +48,8 @@ return Config({
     quickfix_session = 'gL',
   },
   tour = {
-    next = ']T',
-    previous = '[T',
+    next = ']]',
+    previous = '[[',
     stop = '<C-q>',
   },
   composer = {

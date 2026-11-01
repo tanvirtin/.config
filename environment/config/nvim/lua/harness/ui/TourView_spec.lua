@@ -155,15 +155,15 @@ describe('harness.ui.TourView:', function()
       end, vim.api.nvim_buf_get_keymap(buf, 'n'))
     end
 
-    assert.is_true(vim.tbl_contains(mapped(), ']T'))
-    assert.is_true(vim.tbl_contains(mapped(), '[T'))
+    assert.is_true(vim.tbl_contains(mapped(), ']]'))
+    assert.is_true(vim.tbl_contains(mapped(), '[['))
 
-    vim.api.nvim_feedkeys(vim.keycode(']T'), 'x', false)
+    vim.api.nvim_feedkeys(vim.keycode(']]'), 'x', false)
     eq(2, view.index)
 
     view:stop()
 
-    assert.is_false(vim.tbl_contains(mapped(), ']T'))
+    assert.is_false(vim.tbl_contains(mapped(), ']]'))
   end)
 
   it('follows the code when lines are added above it, so coming back lands on the same place', function()
