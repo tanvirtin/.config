@@ -170,11 +170,11 @@ The composer sits on `UiComposer`, its first line carries the `❯` icon and, wh
 
 ### Motion
 
-`ui.motion` is pure maths (easing, `lerp`, `steps`, `breath`, `Tween`) and owns no timer. `harness.ui.Animator` is the timer: `animator:add(key, step)` registers a `step(now)` that returns `true` to keep running; it ticks every `animate_ms` (33) only while something is registered, stops itself when the last one finishes, and on an error clears everything and notifies once. Animations update dedicated extmarks by stable id and never re-decorate a block. The 100ms `tick_ms` stays for text (elapsed time, the working word).
+`ui.motion` is pure maths (easing, `lerp`, `steps`, `breath`, `Tween`) and owns no timer. `harness.ui.Animator` is the timer: `animator:add(key, step)` registers a `step(now)` that returns `true` to keep running; it ticks every `animate_ms` (33) only while something is registered, stops itself when the last one finishes, and on an error clears everything and notifies once. Animations update dedicated extmarks by stable id and never re-decorate a block. The 100ms `tick_ms` stays for text (elapsed time, the working word). While a turn runs the one indicator for "the agent is working" is the line under the transcript (pulsing `◆`, the word, elapsed time, the interrupt key); the winbar only states the state with a still `◆ running` / `○ idle`.
 
 | Effect | Where | Setting |
 | --- | --- | --- |
-| spinner on a running tool, the winbar, the statusline | `theme.spinner` | `motion.loading` |
+| spinner on a running tool and in the global statusline count | `theme.spinner` | `motion.loading` |
 | pulse of the running icon and its label (the text colour), a waiting tool, the card rail (amber) | `UiPulse*`, `UiPulseWarn*` | `motion.pulse_ms` |
 | flash of a finished tool's head row | `Flashes` | `flash_ms` |
 | answered card flashes then collapses | `transcript_motion.close_card`, `status_line.closing_rows` | `flash_ms` |
