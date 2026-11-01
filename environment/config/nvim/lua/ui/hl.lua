@@ -4,6 +4,8 @@ local hl = {}
 
 hl.PULSE_STEPS = 12
 hl.FLASH_STEPS = 8
+hl.FADE_STEPS = 6
+hl.FADE_FLOOR = 0.45
 hl.FLASH_PEAK = 0.24
 
 hl.GROUPS = {
@@ -208,6 +210,18 @@ for i = 1, hl.PULSE_STEPS do
     if not warn or not background then return { link = 'UiWarn' } end
 
     return { fg = hl.blend(warn, background, alpha) }
+  end
+end
+
+for i = 1, hl.FADE_STEPS do
+  hl.COMPUTED['UiFade' .. i] = function()
+    local foreground, background = color('Normal', 'fg'), color('Normal', 'bg')
+
+    if not foreground or not background then return { link = 'UiMuted' } end
+
+    local alpha = hl.FADE_FLOOR + (1 - hl.FADE_FLOOR) * (i - 1) / (hl.FADE_STEPS - 1)
+
+    return { fg = hl.blend(foreground, background, alpha) }
   end
 end
 

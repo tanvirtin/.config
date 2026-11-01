@@ -14,6 +14,7 @@ local console = require('core.console')
 local asks = require('harness.ui.asks')
 local links = require('harness.ui.links')
 local Toast = require('harness.ui.Toast')
+local Fades = require('harness.ui.Fades')
 local winbar = require('harness.ui.winbar')
 local settings = require('harness.settings')
 local Flashes = require('harness.ui.Flashes')
@@ -96,6 +97,7 @@ function TranscriptView:constructor(session, opts)
     timer = Timer(),
     pacer = Timer(),
     flashes = Flashes(buffer),
+    fades = Fades(buffer),
     animator = Animator(function(err)
       console.notify_now('Harness: the transcript stopped animating: ' .. tostring(err), 'warn')
     end),
@@ -257,7 +259,10 @@ function TranscriptView:render()
     self.following:sync_all(windows, cursors)
   end
 
-  if not loading then self:flash() end
+  if not loading then
+    self:fade()
+    self:flash()
+  end
 
   self:update_plan()
 
@@ -266,6 +271,17 @@ function TranscriptView:render()
       self:tick()
     end)
   end
+end
+
+function TranscriptView:fade()
+  local touched = self.document.touched
+
+  if theme.reduced() or not touched or not self.session:running() or self.session:loading() then return end
+  if not self.fades:touch(touched.from, touched.to, Timer.now()) then return end
+
+  self.animator:add('fade', function(now)
+    return self.buffer:is_valid() and self.fades:step(now)
+  end)
 end
 
 function TranscriptView:flash()

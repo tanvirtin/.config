@@ -38,6 +38,24 @@ describe('harness.ui.Document:', function()
     document:write(blocks.build(history))
   end
 
+  it('reports the rows a write touched, and none when nothing changed', function()
+    emit(events.prompt('hello'))
+
+    local first = document.touched
+
+    assert.is_truthy(first)
+    eq(#document.lines - 1, first.to)
+
+    emit({ kind = 'message', text = 'a reply' })
+
+    assert.is_true(document.touched.from >= first.from)
+    eq(#document.lines - 1, document.touched.to)
+
+    document:write(blocks.build(history))
+
+    eq(nil, document.touched)
+  end)
+
   it('leaves a prompt as typed, with no markdown drawn over it', function()
     emit(events.prompt('see [x] and `code`'))
 

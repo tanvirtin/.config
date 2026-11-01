@@ -117,7 +117,7 @@ The harness follows vgit's shape: a domain that knows nothing of buffers, stores
 require('harness').setup({
   max_running = 4,                                      -- hub policy: agent, auto_allow, max_depth, ask
   transcript = {
-    live_turns = 50, tick_ms = 100, animate_ms = 33, flash_ms = 250, watch_ms = 150, frame_ms = 16, margin_screens = 2, preview_lines = 3, output_max = 200, argument_max = 120,
+    live_turns = 50, tick_ms = 100, animate_ms = 33, flash_ms = 250, fade_ms = 150, fade_rows = 40, watch_ms = 150, frame_ms = 16, margin_screens = 2, preview_lines = 3, output_max = 200, argument_max = 120,
     queue_preview = 120, request_preview = 80, diff_context = 3, diff_preview_lines = 12, diff_layout = 'auto', diff_overflow = 'truncate',
   },
   content = {
@@ -157,6 +157,8 @@ Blocks are cards: prompts, tool heads, diff paths and notes carry a `UiSurface` 
 A live thought shows a peek of its latest line, dimmed and cut to the window, beside `thinking…`; it goes when the thought finishes. `harness.ui.Toast.show(text, { icon })` floats a one-line notice at the top right that eases its `winblend` in, holds (`settings.transcript.toast`: `in_ms`, `hold_ms`, `out_ms`), eases out and closes; a newer toast replaces the one showing. A session waiting for permission or an answer, out of sight, now raises one in place of a `notify`.
 
 The plan panel's title carries a progress bar (`Plan  2/5 ▰▰▱▱▱▱▱▱`). While the panel is open the inline plan in the transcript folds to its count and the same bar, and unfolds when the panel closes (`Document:redecorate_kind` re-runs only the plan blocks).
+
+Newly streamed rows ease in: `Document` reports the rows a write touched (`document.touched`), and `harness.ui.Fades` dims them one step (`UiFade1`..`6`, the normal foreground blended toward the background, at a priority below markdown and syntax so only plain text dims) and eases them to full over `fade_ms` (150). Only a live turn fades; a rewrite wider than `fade_rows` (40), such as opening or replaying a session, does not, and `reduced` skips it.
 
 ## Motion
 

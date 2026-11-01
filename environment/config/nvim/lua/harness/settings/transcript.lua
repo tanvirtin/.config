@@ -4,6 +4,8 @@ return Config({
   tick_ms = 100,
   animate_ms = 33,
   flash_ms = 250,
+  fade_ms = 150,
+  fade_rows = 40,
   toast = { in_ms = 150, hold_ms = 2500, out_ms = 250 },
   watch_ms = 150,
   frame_ms = 16,

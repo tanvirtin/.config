@@ -261,6 +261,8 @@ function Document:write(list, state)
 
   if resized then self.width = width end
 
+  self.touched = nil
+
   local old = self.blocks
   local changed = Layout.first_changed(old, list)
   local keep = (changed or #list + 1) - 1
@@ -310,6 +312,8 @@ function Document:write(list, state)
     end
 
     if first then self:_set_lines(vim.list_slice(tail, first), from + first - 1) end
+
+    self.touched = first and { from = from + first - 1, to = #self.lines - 1 } or nil
 
     local settled = not resized and first and self:_settled(old, list, changed, first) or from
 
