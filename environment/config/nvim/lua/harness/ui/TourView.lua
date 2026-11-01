@@ -67,7 +67,7 @@ function TourView:_code_window()
   return nil
 end
 
-function TourView:_open_above(buffer)
+function TourView:_open_beside(buffer)
   local base = self.source and Window(self.source) or nil
 
   if not (base and base:is_valid() and base:get_config().relative == '') then
@@ -81,7 +81,18 @@ function TourView:_open_above(buffer)
     end
   end
 
-  return base and base:split_above(buffer) or nil
+  if not base then return nil end
+
+  local window = base:split_left(buffer)
+
+  if not window then return nil end
+
+  local spec = settings.tour
+  local total = window:get_width() + base:get_width()
+
+  base:set_width(math.max(spec:get('transcript_min_width'), math.floor(total * spec:get('transcript_width'))))
+
+  return window
 end
 
 function TourView:_buffer(step)
@@ -285,7 +296,7 @@ function TourView:show(index)
   if not step then return false end
 
   local buffer = self:_buffer(step)
-  local window = self:_code_window() or self:_open_above(buffer)
+  local window = self:_code_window() or self:_open_beside(buffer)
 
   if not window then return false, 'no window to show the code in' end
 
