@@ -1,4 +1,6 @@
 local fs = require('core.fs')
+local Timer = require('core.Timer')
+local event = require('core.event')
 local Buffer = require('core.Buffer')
 local Object = require('core.Object')
 local Window = require('core.Window')
@@ -8,6 +10,8 @@ local tour_scope = require('harness.tour_scope')
 
 local TourView = Object:extend()
 
+local instances = 0
+
 TourView.TRACK = Buffer.namespace('harness.tour.track')
 TourView.SHOW = Buffer.namespace('harness.tour.show')
 TourView.PRIORITY = 90
@@ -15,6 +19,8 @@ TourView.HARNESS_PREFIX = 'harness://'
 
 function TourView:constructor(tour, opts)
   opts = opts or {}
+
+  instances = instances + 1
 
   return {
     tour = tour,
@@ -30,6 +36,7 @@ function TourView:constructor(tour, opts)
     snapshots = {},
     on_stop = opts.on_stop,
     on_ask = opts.on_ask,
+    group = event.augroup('harness.tour.' .. instances),
     stopped = false,
   }
 end
@@ -182,6 +189,12 @@ function TourView:_bind(buffer)
   if self.bound[buffer.bufnr] then return end
 
   self.bound[buffer.bufnr] = true
+
+  self.group.on({ 'BufDelete', 'BufWipeout' }, function()
+    Timer.defer(0, function()
+      if not self.stopped and self:is_open() then self:stop() end
+    end)
+  end, { buffer = buffer })
 
   for _, key in ipairs(self:_keys()) do
     buffer:set_keymap({ key = key[1], mode = 'n', desc = key[3] }, function()
@@ -432,6 +445,8 @@ function TourView:stop()
   end
 
   self.snapshots, self.anchors, self.index = {}, {}, 0
+
+  if self.group then self.group.dispose() end
 
   if self.on_stop then self.on_stop(self) end
 

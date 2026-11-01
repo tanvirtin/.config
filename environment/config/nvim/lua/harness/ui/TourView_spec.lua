@@ -143,6 +143,20 @@ describe('harness.ui.TourView:', function()
     eq(1, stopped)
   end)
 
+  it('ends itself, note and all, when the code buffer is closed under it', function()
+    view = TourView(data)
+    view:start()
+
+    vim.cmd('bwipeout! ' .. vim.api.nvim_get_current_buf())
+
+    vim.wait(200, function()
+      return not view:is_open()
+    end)
+
+    eq(false, view:is_open())
+    eq(0, #floats())
+  end)
+
   it('binds next, previous and stop on the code it shows, and unbinds them when it ends', function()
     view = TourView(data)
     view:start()
