@@ -1,6 +1,6 @@
 local tour_store = {}
 
-tour_store.EVENT = { start = 'start', stop = 'stop' }
+tour_store.EVENT = { start = 'start', stop = 'stop', update = 'update' }
 
 tour_store.RECENT = 20
 
@@ -31,6 +31,14 @@ function tour_store.stop()
   if stopped then emit(tour_store.EVENT.stop, stopped, {}) end
 
   return stopped
+end
+
+function tour_store.update(update)
+  if not current then return false, 'no tour is running; start one with tour_start' end
+
+  emit(tour_store.EVENT.update, current, update)
+
+  return true
 end
 
 function tour_store.current()

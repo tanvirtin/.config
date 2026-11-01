@@ -202,4 +202,93 @@ describe('harness.ui.TourView:', function()
     eq(real(dir .. '/b.lua'), real(vim.api.nvim_buf_get_name(0)))
     eq(2, #vim.api.nvim_tabpage_list_wins(0) - #floats())
   end)
+
+  describe('when the agent changes the tour', function()
+    local function step(fields)
+      return assert(tour_type.step(vim.tbl_extend('force', { path = dir .. '/b.lua', line = 1 }, fields), dir))
+    end
+
+    it('inserts steps after the current one and moves to the first of them', function()
+      view = TourView(data)
+      view:start()
+
+      assert.is_true(view:insert({ step({ title = 'Aside', note = 'extra' }), step({ line = 2, title = 'Aside 2' }) }))
+
+      eq(2, view.index)
+      eq({ 'First', 'Aside', 'Aside 2', nil, 'Back again' }, {
+        view.tour.steps[1].title,
+        view.tour.steps[2].title,
+        view.tour.steps[3].title,
+        nil,
+        view.tour.steps[5].title,
+      })
+      eq(5, #view.tour.steps)
+      eq(real(dir .. '/b.lua'), real(vim.api.nvim_buf_get_name(0)))
+      assert.truthy(note_text():find('extra', 1, true))
+    end)
+
+    it('keeps the later steps tracking their code after an insert shifts them', function()
+      view = TourView(data)
+      view:start()
+      view:next()
+      view:next()
+
+      local a = vim.fn.bufnr(dir .. '/a.lua')
+
+      view:previous()
+      view:previous()
+      view:insert({ step({}) })
+      vim.api.nvim_buf_set_lines(a, 0, 0, false, { 'x', 'y' })
+      view:show(#view.tour.steps)
+
+      eq(32, vim.api.nvim_win_get_cursor(0)[1])
+    end)
+
+    it('replaces everything after the current step', function()
+      view = TourView(data)
+      view:start()
+
+      assert.is_true(view:replace_rest({ step({ title = 'New path' }) }))
+
+      eq(2, #view.tour.steps)
+      eq({ 2, 'New path' }, { view.index, view.tour.steps[2].title })
+    end)
+
+    it('rewrites the current step\'s note and stays on it', function()
+      view = TourView(data)
+      view:start()
+      view:next()
+
+      assert.is_true(view:annotate('A clearer note.'))
+
+      eq(2, view.index)
+      eq('A clearer note.', note_text())
+    end)
+
+    it('applies an update by its mode, and refuses one when the tour is not showing', function()
+      view = TourView(data)
+
+      eq({ false, 'the tour is not showing' }, { view:apply({ mode = 'note', note = 'x' }) })
+
+      view:start()
+      view:apply({ mode = 'note', note = 'via apply' })
+
+      assert.truthy(note_text():find('via apply', 1, true))
+    end)
+
+    it('asks about the step on its key, through the callback it was given', function()
+      local asked
+
+      view = TourView(data, {
+        on_ask = function(shown)
+          asked = shown.index
+        end,
+      })
+      view:start()
+      view:next()
+      vim.api.nvim_feedkeys('ga', 'x', false)
+
+      eq(2, asked)
+    end)
+  end)
 end)

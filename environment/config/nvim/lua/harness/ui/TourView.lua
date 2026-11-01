@@ -24,7 +24,9 @@ function TourView:constructor(tour, opts)
     anchors = {},
     bound = {},
     shown = {},
+    session = opts.session,
     on_stop = opts.on_stop,
+    on_ask = opts.on_ask,
     stopped = false,
   }
 end
@@ -135,6 +137,7 @@ function TourView:_keys()
     { keys.next, 'next', 'Next step of the tour' },
     { keys.previous, 'previous', 'Previous step of the tour' },
     { keys.stop, 'stop', 'End the tour' },
+    { keys.ask, 'ask', 'Ask about this step' },
   }
 end
 
@@ -256,6 +259,68 @@ function TourView:show(index)
   return true
 end
 
+function TourView:ask()
+  if self.on_ask then self.on_ask(self) end
+end
+
+function TourView:step()
+  return self.tour.steps[self.index], self.index
+end
+
+function TourView:_forget(from)
+  for index = #self.tour.steps, from, -1 do
+    local anchor = self.anchors[index]
+
+    if anchor and Buffer.exists(anchor.bufnr) then Buffer(anchor.bufnr):del_extmark(TourView.TRACK, anchor.id) end
+
+    self.anchors[index] = nil
+  end
+end
+
+function TourView:insert(steps)
+  local at, count = self.index, #steps
+
+  for index = #self.tour.steps, at + 1, -1 do
+    self.anchors[index + count] = self.anchors[index]
+    self.anchors[index] = nil
+  end
+
+  for offset, step in ipairs(steps) do
+    table.insert(self.tour.steps, at + offset, step)
+  end
+
+  return self:show(at + 1)
+end
+
+function TourView:replace_rest(steps)
+  self:_forget(self.index + 1)
+
+  for index = #self.tour.steps, self.index + 1, -1 do
+    table.remove(self.tour.steps, index)
+  end
+
+  vim.list_extend(self.tour.steps, steps)
+
+  return self:show(math.min(self.index + 1, #self.tour.steps))
+end
+
+function TourView:annotate(note)
+  self.tour.steps[self.index].note = note
+
+  return self:show(self.index)
+end
+
+TourView.MODE = { insert = 'insert', replace = 'replace', note = 'note' }
+
+function TourView:apply(update)
+  if not self:is_open() then return false, 'the tour is not showing' end
+
+  if update.mode == TourView.MODE.note then return self:annotate(update.note or '') end
+  if update.mode == TourView.MODE.replace then return self:replace_rest(update.steps or {}) end
+
+  return self:insert(update.steps or {})
+end
+
 function TourView:start()
   local ok, why = self:show(1)
 
@@ -282,9 +347,7 @@ function TourView:stop()
   self:_close_note()
   self:_unbind()
 
-  for _, anchor in pairs(self.anchors) do
-    if Buffer.exists(anchor.bufnr) then Buffer(anchor.bufnr):del_extmark(TourView.TRACK, anchor.id) end
-  end
+  self:_forget(1)
 
   self.anchors, self.index = {}, 0
 

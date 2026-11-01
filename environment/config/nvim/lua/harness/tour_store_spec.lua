@@ -53,4 +53,20 @@ describe('harness.tour_store:', function()
 
     eq(0, calls)
   end)
+
+  it('passes an update to the listeners of the tour that is running, and refuses without one', function()
+    local seen = {}
+
+    tour_store.on(function(kind, tour, update)
+      seen[#seen + 1] = { kind, tour.title, update.mode }
+    end)
+
+    eq(false, (tour_store.update({ mode = 'note' })))
+    eq({}, seen)
+
+    tour_store.start({ title = 'a', steps = {} })
+    eq(true, tour_store.update({ mode = 'note' }))
+
+    eq({ { 'start', 'a', nil }, { 'update', 'a', 'note' } }, seen)
+  end)
 end)

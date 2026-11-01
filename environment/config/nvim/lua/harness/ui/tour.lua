@@ -5,6 +5,7 @@ local hub = lazy('harness.hub')
 local console = lazy('core.console')
 local edits = lazy('harness.ui.edits')
 local display = lazy('harness.ui.display')
+local composer = lazy('harness.ui.composer')
 local TourView = lazy('harness.ui.TourView')
 local tour_type = lazy('harness.types.tour')
 local tour_store = lazy('harness.tour_store')
@@ -44,6 +45,8 @@ function tour.start(data, opts)
 
   current = TourView(data, {
     source_win = view and view.source_win,
+    session = opts and opts.session,
+    on_ask = tour.ask_step,
     on_stop = function(stopped)
       if current == stopped then current = nil end
       if tour_store.current() == data then tour_store.stop() end
@@ -140,6 +143,46 @@ function tour.ask(view, question)
   return true
 end
 
+function tour.step_draft(view)
+  local step, index = view:step()
+  local lines = {
+    string.format(
+      '[Tour "%s", step %d/%d%s]',
+      view.tour.title,
+      index,
+      #view.tour.steps,
+      step.title and (': ' .. step.title) or ''
+    ),
+    string.format('%s:%d-%d', step.path, step.line, step.end_line),
+  }
+
+  for _, line in ipairs(vim.split(step.note, '\n', { plain = true })) do
+    if line ~= '' then lines[#lines + 1] = '> ' .. line end
+  end
+
+  vim.list_extend(lines, {
+    '',
+    '(Answer in this session. If it helps the tour, change it with tour_update: insert steps after this one, replace the rest, or rewrite this step\'s note.)',
+    '',
+    'Question: ',
+  })
+
+  return table.concat(lines, '\n')
+end
+
+function tour.ask_step()
+  if not tour.is_active() then return false, 'no tour is running' end
+
+  local session = current.session and hub.session(current.session)
+
+  if not session then return false, 'the session that started this tour is gone' end
+
+  composer.restore(session, { tour.step_draft(current) })
+  composer.open(session, { display = display, insert = true })
+
+  return true
+end
+
 function tour.register_events()
   if dispose then dispose() end
 
@@ -148,6 +191,10 @@ function tour.register_events()
       tour.start(data, opts)
     elseif current and kind == tour_store.EVENT.stop then
       tour.close()
+    elseif current and kind == tour_store.EVENT.update then
+      local ok, why = current:apply(opts)
+
+      if not ok and why then warn(why) end
     end
   end)
 

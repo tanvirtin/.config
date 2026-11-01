@@ -51,6 +51,7 @@ return Config({
     next = ']]',
     previous = '[[',
     stop = '<C-q>',
+    ask = 'ga',
   },
   composer = {
     send = '<CR>',

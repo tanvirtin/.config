@@ -24,8 +24,57 @@ local function tour_start(args, ctx)
   return { title = tour.title, steps = #tour.steps }
 end
 
+local function tour_update(args, ctx)
+  local current = tour_store.current()
+
+  if not current then error('no tour is running; start one with tour_start', 0) end
+
+  local update = { mode = args.mode, note = args.note, steps = {} }
+
+  if args.mode == 'note' and (args.note == nil or args.note == '') then error('mode note needs a note', 0) end
+
+  if args.mode ~= 'note' and #(args.steps or {}) == 0 then error('mode ' .. args.mode .. ' needs steps', 0) end
+
+  for index, fields in ipairs(args.steps or {}) do
+    local step, err = tour_type.step(fields, dir_of(ctx))
+
+    if not step then error(string.format('step %d: %s', index, err), 0) end
+
+    update.steps[index] = step
+  end
+
+  local ok, why = tour_store.update(update)
+
+  if not ok then error(why, 0) end
+
+  return { title = current.title, steps = #current.steps }
+end
+
+local STEP = schema.model({
+  { name = 'path', type = schema.str({ description = 'File, relative to the project or absolute.' }) },
+  { name = 'line', type = schema.int({ description = 'First line, 1-based.' }) },
+  { name = 'end_line', type = schema.int({ description = 'Last line of the range.' }), optional = true },
+  { name = 'title', type = schema.str({ description = 'A few words.' }), optional = true },
+  { name = 'note', type = schema.str({ description = 'Markdown shown beside the code.' }), optional = true },
+})
+
 function tour_tools.definitions()
   return {
+    {
+      name = 'tour_update',
+      risk = 'read',
+      summary = 'Change the tour the user is following, after they ask about a step. mode "insert" adds steps right after the step they are on and moves them to the first new one; "replace" swaps every step after the current one for new steps; "note" rewrites the current step\'s note with a better explanation and keeps them where they are. Prefer "note" for a quick clarification, "insert" for a deeper look, "replace" when the tour should go somewhere else. Steps are as in tour_start.',
+      params = {
+        { name = 'mode', type = schema.literal({ 'insert', 'replace', 'note' }) },
+        { name = 'steps', type = schema.list(STEP), optional = true },
+        {
+          name = 'note',
+          type = schema.str({ description = 'The new note for the current step (mode note).' }),
+          optional = true,
+        },
+      },
+      fn = tour_update,
+    },
     {
       name = 'tour_start',
       risk = 'read',

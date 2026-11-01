@@ -50,4 +50,57 @@ describe('harness.tour_tools:', function()
     assert.truthy(tostring(err):find('step 2: no file no/such/file.lua', 1, true))
     eq(nil, tour_store.current())
   end)
+
+  describe('tour_update', function()
+    local function start()
+      tour_store.start({ title = 'Config', steps = { { title = 'one' } } })
+    end
+
+    it('passes parsed steps to whoever follows the tour', function()
+      local seen
+
+      start()
+      tour_store.on(function(kind, _, update)
+        if kind == 'update' then seen = update end
+      end)
+
+      local result = tools.run('tour_update', {
+        mode = 'insert',
+        steps = { { path = 'init.lua', line = 2, note = 'More.' } },
+      })
+
+      eq('insert', seen.mode)
+      eq(1, #seen.steps)
+      eq(2, seen.steps[1].line)
+      eq({ title = 'Config', steps = 1 }, result)
+    end)
+
+    it('rewrites a note without needing steps', function()
+      local seen
+
+      start()
+      tour_store.on(function(kind, _, update)
+        if kind == 'update' then seen = update end
+      end)
+      tools.run('tour_update', { mode = 'note', note = 'Clearer.' })
+
+      eq({ 'note', 'Clearer.' }, { seen.mode, seen.note })
+    end)
+
+    it('says what is missing, and that there is no tour to change', function()
+      local function message(args)
+        return tostring(select(2, pcall(tools.run, 'tour_update', args)))
+      end
+
+      assert.truthy(message({ mode = 'note', note = 'x' }):find('no tour is running', 1, true))
+
+      start()
+
+      assert.truthy(message({ mode = 'insert' }):find('needs steps', 1, true))
+      assert.truthy(message({ mode = 'note' }):find('needs a note', 1, true))
+      assert.truthy(
+        message({ mode = 'insert', steps = { { path = 'nope.lua', line = 1 } } }):find('step 1: no file', 1, true)
+      )
+    end)
+  end)
 end)
