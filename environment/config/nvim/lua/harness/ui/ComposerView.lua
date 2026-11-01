@@ -2,6 +2,7 @@ local lazy = require('core.lazy')
 
 local hub = lazy('harness.hub')
 local Timer = lazy('core.Timer')
+local motion = lazy('ui.motion')
 local surfaces = lazy('surfaces')
 local Buffer = lazy('core.Buffer')
 local Object = lazy('core.Object')
@@ -13,6 +14,7 @@ local asks = lazy('harness.ui.asks')
 local context = lazy('harness.context')
 local settings = lazy('harness.settings')
 local Element = lazy('ui.elements.Element')
+local Animator = lazy('harness.ui.Animator')
 local theme = lazy('harness.transcript.theme')
 local PromptHistory = lazy('harness.ui.PromptHistory')
 
@@ -125,25 +127,51 @@ function ComposerView:winbar()
     parts[#parts + 1] = string.format('%%#UiMuted#%dc %dl  ', chars, #written)
   end
 
-  local keys = settings.keymaps:get('composer')
+  return table.concat(parts)
+end
 
-  if answering then
-    parts[#parts + 1] = self:_key(keys.send, 'answer')
-  elseif session:running() then
-    parts[#parts + 1] = self:_key(keys.send, 'queue')
-    if session:can('steer') then parts[#parts + 1] = self:_key(keys.steer, 'steer') end
-    parts[#parts + 1] = self:_key(keys.interrupt, 'interrupt')
-  else
-    parts[#parts + 1] = self:_key(keys.send, 'send')
+function ComposerView:footer()
+  local session, store = self.session, self.store
+  local keys = settings.keymaps:get('composer')
+  local answering = self:answer_target() and self:answer_target():writing_label()
+  local chunks = {}
+
+  local function key(lhs, label)
+    chunks[#chunks + 1] = { lhs, 'UiAccent' }
+    chunks[#chunks + 1] = { ' ' .. label .. '  ', 'UiMuted' }
   end
 
-  if #session.commands > 0 then parts[#parts + 1] = self:_key(keys.slash, 'commands') end
-  if store:has_attachments(session.key) then parts[#parts + 1] = self:_key(keys.detach, 'drop selection') end
-  if not answering then parts[#parts + 1] = self:_key(keys.history, 'history') end
-  parts[#parts + 1] = self:_key(keys.help, 'keys')
-  parts[#parts + 1] = self:_key(keys.close, 'close')
+  if answering then
+    key(keys.send, 'answer')
+  elseif session:running() then
+    key(keys.send, 'queue')
+    if session:can('steer') then key(keys.steer, 'steer') end
+    key(keys.interrupt, 'interrupt')
+  else
+    key(keys.send, 'send')
+  end
 
-  return table.concat(parts)
+  if #session.commands > 0 then key(keys.slash, 'commands') end
+  if store:has_attachments(session.key) then key(keys.detach, 'drop selection') end
+  if not answering then key(keys.history, 'history') end
+  key(keys.help, 'keys')
+  key(keys.close, 'close')
+
+  return chunks
+end
+
+function ComposerView:footer_text()
+  return table.concat(vim.tbl_map(function(chunk)
+    return chunk[1]
+  end, self:footer()))
+end
+
+function ComposerView:refresh()
+  local signature = self:footer_text()
+
+  if signature ~= self.signature then self:_decorate() end
+
+  return self
 end
 
 function ComposerView:placeholder()
@@ -166,12 +194,40 @@ function ComposerView:_decorate()
     right_gravity = false,
   })
 
+  local last = math.max(self.element:get_line_count() - 1, 0)
+
+  self.signature = self:footer_text()
+  buffer:set_extmark(ComposerView.NAMESPACE, last, 0, { virt_lines = { self:footer() } })
+
   if not ComposerView.has_text(self.element:get_lines()) then
     buffer:set_extmark(ComposerView.NAMESPACE, 0, 0, {
       virt_text = { { self:placeholder(), 'UiMuted' } },
       virt_text_pos = 'eol',
     })
   end
+
+  return self
+end
+
+function ComposerView:_ease_open()
+  local ms = settings.composer:get('ease_ms')
+  local target = settings.composer:get('height')
+
+  if ms <= 0 or target <= 1 or theme.reduced() then return self end
+
+  local element = self.element
+  local tween = motion.Tween({ from = 1, to = target, ms = ms, started = Timer.now() })
+
+  element:set_height(1)
+
+  self.animator = self.animator or Animator()
+  self.animator:add('open', function(now)
+    if not self:is_open() or self.closing then return false end
+
+    element:set_height(math.max(1, math.floor(tween:at(now) + 0.5)))
+
+    return not tween:done(now)
+  end)
 
   return self
 end
@@ -200,6 +256,8 @@ function ComposerView:close(discard, opts)
   local key = self.session.key
 
   self.closing = true
+
+  if self.animator then self.animator:close() end
 
   if self.answering then
     local target = self:answer_target()
@@ -606,6 +664,8 @@ function ComposerView:mount(insert)
   element:mount()
 
   if view then view:hold_end() end
+
+  self:_ease_open()
 
   element:set_name(ComposerView.NAME)
   element:set_lines(not self.answering and self.store:draft(session.key) or { '' })

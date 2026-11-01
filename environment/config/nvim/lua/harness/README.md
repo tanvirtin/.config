@@ -125,7 +125,7 @@ require('harness').setup({
     csv = { header = 'UiToolName', cell = 'auto', separator = ' │ ', max_columns = 12 },
   },
   sessions = { confirm_ms = 3000 },
-  composer = { height = 10 },
+  composer = { height = 10, ease_ms = 120 },
   follow = { debounce_ms = 300, grace_ms = 1500, poll_ms = 3000 },
   keymaps = { transcript = { yank = 'gy', plan = 'gp', diff = 'gd' }, composer = { steer = '<C-s>', detach = '<C-x>' } },
   theme = {
@@ -163,6 +163,8 @@ Newly streamed rows ease in: `Document` reports the rows a write touched (`docum
 Smaller touches: a new working word fades in from the background over `motion.working.fade_ms` (300), a multi-question form shows its step as a six-cell bar, attached selections are `UiChip` chips in the composer winbar beside a character and line count, permission panel headings sit on `UiSurfaceRaised` with aligned tool columns, and the sessions picker shows a spinner on running sessions and the waiting icon on ones that wait for you.
 
 When a permission or question is answered its card does not vanish: `TranscriptView:close_card` keeps the last card rows in `document.state.closing`, flashes their surface (`UiFlashAccent*` for an allow, `UiFlashError*` for a refusal, read from the newest permission decision) and then collapses it a row at a time over `flash_ms * 2`. The plan panel flashes a step's row when it completes (the last step finishes the plan and closes the panel before the flash shows).
+
+Opening a fold with `<CR>` fades its revealed rows in (`TranscriptView:reveal`, through the same `Fades`). The composer grows to its height over `composer.ease_ms` (120; 0 opens it at once, `reduced` too) on its own Animator, which a close cancels. Its winbar holds the chips (session, mode, queue, attachments, answering, the count) and its key hints sit in a footer drawn as `virt_lines` under the last line, inside the window, so `composer_geometry` and the transcript margin are unchanged; session events refresh it only when the hints change. Closing is not eased: the leave-closes path stays immediate.
 
 ## Motion
 

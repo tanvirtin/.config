@@ -82,8 +82,13 @@ end
 
 function commands.toggle_at(view, window, fold_row, row)
   window:set_cursor({ fold_row, 0 })
-  window:normal(window:fold_closed(fold_row) and 'zo' or 'zc')
+
+  local opening = window:fold_closed(fold_row)
+
+  window:normal(opening and 'zo' or 'zc')
   window:set_cursor({ row, 0 })
+
+  if opening then view:reveal(fold_row) end
 
   return view
 end
@@ -94,6 +99,8 @@ function commands.activate(view)
 
   if window:fold_closed(row) then
     window:normal('zo')
+    view:reveal(row)
+
     return true
   end
 

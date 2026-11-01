@@ -21,6 +21,10 @@ function composer.winbar(session)
   return current and current:winbar() or ''
 end
 
+function composer.view()
+  return current
+end
+
 function composer.target()
   return current and current.session
 end
@@ -193,6 +197,8 @@ end
 
 function composer.on_session_event(session, event)
   if event.kind == NOTICE.returned then composer.on_returned(session, event.texts, event.reason) end
+
+  if current and current.session == session and current:is_open() then current:refresh() end
 end
 
 local dispose

@@ -75,7 +75,7 @@ describe('harness.ui.composer:', function()
           vim.api.nvim_buf_get_extmarks(buf, require('harness.ui.ComposerView').NAMESPACE, 0, -1, { details = true })
         )
       do
-        out[#out + 1] = { mark[4].virt_text[1][1], mark[4].virt_text_pos }
+        if mark[4].virt_text then out[#out + 1] = { mark[4].virt_text[1][1], mark[4].virt_text_pos } end
       end
 
       return out
@@ -118,6 +118,25 @@ describe('harness.ui.composer:', function()
       assert.is_truthy(bar:find('7c 2l', 1, true))
     end)
 
+    it('keeps the key hints in a footer under the text, not in the winbar', function()
+      open_composer(session)
+
+      local view = composer.view()
+      local footers = vim.tbl_filter(function(mark)
+        return mark[4].virt_lines ~= nil
+      end, vim.api.nvim_buf_get_extmarks(
+        0,
+        require('harness.ui.ComposerView').NAMESPACE,
+        0,
+        -1,
+        { details = true }
+      ))
+
+      eq(1, #footers)
+      assert.is_truthy(view:footer_text():find('send', 1, true))
+      eq(nil, composer.winbar():find('send', 1, true))
+    end)
+
     it('sits on its own surface and truncates the hints before the chips', function()
       open_composer(session)
 
@@ -136,6 +155,10 @@ describe('harness.ui.composer:', function()
 
     eq('', vim.api.nvim_win_get_config(win).relative)
     eq({ 'col', { { 'leaf', above }, { 'leaf', win } } }, vim.fn.winlayout())
+    assert.is_true(vim.api.nvim_win_get_height(win) < require('harness.settings.composer'):get('height'))
+    vim.wait(1000, function()
+      return vim.api.nvim_win_get_height(win) == require('harness.settings.composer'):get('height')
+    end)
     eq(require('harness.settings.composer'):get('height'), vim.api.nvim_win_get_height(win))
     eq(true, vim.wo[win].winfixheight)
     eq(composer.WINBAR, vim.wo[win].winbar)
@@ -144,6 +167,25 @@ describe('harness.ui.composer:', function()
     eq('acwrite', vim.bo[buf].buftype)
     assert.is_truthy(vim.api.nvim_buf_get_name(buf):find('harness://composer', 1, true))
     eq(true, element:is_valid())
+  end)
+
+  it('stops growing when it is closed halfway, and opens at once with no ease', function()
+    local settings = require('harness.settings.composer')
+    local element = open_composer(session)
+    local view = composer.view()
+
+    assert.is_true(view.animator:is_running())
+    composer.close(true)
+    async.drain()
+    eq(0, view.animator:count())
+    eq(false, view.animator:is_running())
+
+    settings:assign({ ease_ms = 0 })
+    open_composer(session)
+
+    eq(settings:get('height'), vim.api.nvim_win_get_height(vim.api.nvim_get_current_win()))
+    settings:assign({ ease_ms = 120 })
+    assert.is_truthy(element)
   end)
 
   it('leaves the global window defaults alone', function()
@@ -875,8 +917,8 @@ describe('harness.ui.composer:', function()
     it('queues what you send, shows it, and sends it when the turn ends', function()
       open_composer(session)
 
-      assert.is_truthy(composer.winbar():find('queue', 1, true))
-      assert.is_truthy(composer.winbar():find('<C-c>', 1, true))
+      assert.is_truthy(composer.view():footer_text():find('queue', 1, true))
+      assert.is_truthy(composer.view():footer_text():find('<C-c>', 1, true))
 
       vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'next question' })
       press('<CR>')
@@ -979,11 +1021,14 @@ describe('harness.ui.composer:', function()
 
     it('steers with <C-s>, falling back to the queue when the agent cannot steer', function()
       open_composer(session)
+
+      local view = composer.view()
+
       vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'change course' })
       press('<C-s>')
 
       eq({ 'change course' }, session:queued())
-      eq(nil, composer.winbar(session):find('steer', 1, true))
+      eq(nil, view:footer_text():find('steer', 1, true))
     end)
   end)
 
@@ -998,7 +1043,7 @@ describe('harness.ui.composer:', function()
 
     eq(0, composer.complete(1, ''))
     eq({ { word = '/review ', abbr = '/review branch', menu = 'review changes' } }, composer.complete(0, '/re'))
-    assert.is_truthy(composer.winbar():find('commands', 1, true))
+    assert.is_truthy(composer.view():footer_text():find('commands', 1, true))
 
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'not /a command' })
     vim.api.nvim_win_set_cursor(0, { 1, 8 })

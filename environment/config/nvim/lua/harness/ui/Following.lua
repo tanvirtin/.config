@@ -43,6 +43,7 @@ local function refresh(state, window)
     state.anchor_fill = 0
     state.anchor_skip = 0
     state.applied = nil
+    state.lines = nil
   end
 
   return state
@@ -113,6 +114,19 @@ local function moved(now, was)
     or (now.topfill or 0) ~= (was.topfill or 0)
 end
 
+-- the reader reached the end when the last row they could see is the one the
+-- buffer ended on at the last view we wrote, even if the stream has appended
+-- since, before their scroll was observed
+local function reached_end(state, window)
+  if sticky_bottom.at_end(window) then return true end
+
+  local known = state.lines
+
+  if not known then return false end
+
+  return select(2, window:get_visible_range()) >= math.min(known, window:get_buffer():get_line_count())
+end
+
 -- A difference from the view we last wrote is the reader's. Reaching the end
 -- from above turns following back on; anything else holds the new position.
 function Following:observe(window)
@@ -123,6 +137,7 @@ function Following:observe(window)
 
   if not state.applied then
     state.applied = now
+    state.lines = state.buffer:get_line_count()
 
     if sticky_bottom.at_end(window) then
       state.mode = 'follow'
@@ -137,7 +152,7 @@ function Following:observe(window)
 
   if not moved(now, state.applied) then return end
 
-  if later(now, state.applied) and sticky_bottom.at_end(window) then
+  if later(now, state.applied) and reached_end(state, window) then
     state.mode = 'follow'
     unanchor(state)
   else
@@ -146,6 +161,7 @@ function Following:observe(window)
   end
 
   state.applied = now
+  state.lines = state.buffer:get_line_count()
 end
 
 function Following:observe_all(windows)
@@ -231,6 +247,7 @@ function Following:sync(window, opts)
   end
 
   state.applied = window:get_view()
+  state.lines = state.buffer:get_line_count()
   state.height, state.width = window:get_height(), window:get_width()
   self.applying = false
 end
@@ -271,6 +288,7 @@ function Following:land(window, decorate)
 
   sticky_bottom.pin(window, reserve)
   state.applied = window:get_view()
+  state.lines = state.buffer:get_line_count()
   state.height, state.width = window:get_height(), window:get_width()
   self.applying = false
 end

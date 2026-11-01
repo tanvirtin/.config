@@ -309,11 +309,27 @@ function TranscriptView:fade()
   local touched = self.document.touched
 
   if theme.reduced() or not touched or not self.session:running() or self.session:loading() then return end
-  if not self.fades:touch(touched.from, touched.to, Timer.now()) then return end
+  self:ease_in(touched.from, touched.to)
+end
+
+function TranscriptView:ease_in(from, to, any_size)
+  if not self.fades:touch(from, to, Timer.now(), any_size) then return end
 
   self.animator:add('fade', function(now)
     return self.buffer:is_valid() and self.fades:step(now)
   end)
+end
+
+function TranscriptView:reveal(row)
+  if theme.reduced() then return end
+
+  local block = self.document:block_at(row - 1)
+
+  for _, fold in ipairs(block and block.folds or {}) do
+    local from, to = block.start + fold[1], block.start + fold[2]
+
+    if row - 1 >= from and row - 1 <= to then return self:ease_in(from, to, true) end
+  end
 end
 
 function TranscriptView:flash()

@@ -163,6 +163,19 @@ describe('harness.ui.Following:', function()
     eq(true, following:follows(window()))
   end)
 
+  it('follows again when the stream appends before the scroll to the end is observed', function()
+    land()
+    vim.cmd('normal! gg')
+    settle()
+    eq(false, following:follows(window()))
+
+    vim.cmd('normal! G')
+    append(1)
+    settle()
+
+    eq(true, following:follows(window()))
+  end)
+
   it('follows the end when a rewrite swallows the row the reader was on', function()
     land()
     vim.cmd('normal! 100G')

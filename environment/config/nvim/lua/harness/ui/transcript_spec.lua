@@ -1107,6 +1107,39 @@ describe('harness.ui.transcript:', function()
       press()
       assert.is_true(closed() > 0)
     end)
+
+    it('fades the rows of an output fold it opens', function()
+      vim.cmd('enew!')
+
+      local session = Session({ key = 'h' .. math.random(1e6), id = 's1', connection = Connection(fake_agent.new()) })
+      local output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, 12)), '\n')
+
+      session:_emit(events.prompt('go'))
+      session:_emit({
+        kind = 'tool_call',
+        id = 'a',
+        name = 'Bash',
+        category = 'execute',
+        input = { command = 'ls' },
+        diffs = {},
+      })
+      session:_emit({ kind = 'tool_update', id = 'a', status = 'completed', output = output, diffs = {} })
+      transcript.open(session)
+      vim.cmd('redraw')
+
+      local view = transcript.view()
+      local head
+
+      for i, line in ipairs(vim.api.nvim_buf_get_lines(0, 0, -1, false)) do
+        if line:find('-> Bash', 1, true) then head = i end
+      end
+
+      vim.api.nvim_win_set_cursor(0, { head, 0 })
+      view:activate()
+
+      eq(1, #view.fades.chunks)
+      eq(false, view.animator:count() == 0)
+    end)
   end)
 
   describe('foldtext', function()

@@ -14,10 +14,10 @@ function Fades:constructor(buffer)
   return { buffer = buffer, chunks = {} }
 end
 
-function Fades:touch(from, to, now)
+function Fades:touch(from, to, now, any_size)
   local limit = settings.transcript:get('fade_rows')
 
-  if settings.transcript:get('fade_ms') <= 0 or to - from + 1 > limit then return false end
+  if settings.transcript:get('fade_ms') <= 0 or (not any_size and to - from + 1 > limit) then return false end
 
   table.insert(self.chunks, { from = from, to = to, started = now })
 
