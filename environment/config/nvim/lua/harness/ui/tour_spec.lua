@@ -42,6 +42,10 @@ describe('harness.ui.tour:', function()
     eq({ false, 'no tour is running' }, { tour.ask_step() })
   end)
 
+  it('says how to bring a stopped tour back', function()
+    eq({ false, 'no tour is running; :HarnessTour resume brings back the last one' }, { tour.next('s1') })
+  end)
+
   it('resumes the last tour at the step it stopped on', function()
     local data = assert(tour_type.parse({
       title = 'Walk',
@@ -56,6 +60,26 @@ describe('harness.ui.tour:', function()
     tour.stop('s1')
 
     assert.is_true(tour.resume('s1'))
+    eq({ 2, 0 }, vim.api.nvim_win_get_cursor(0))
+
+    tour.stop('s1')
+    vim.cmd('silent! enew!')
+  end)
+
+  it('brings a stopped tour back on next', function()
+    local data = assert(tour_type.parse({
+      title = 'Walk',
+      steps = {
+        { path = 'a.lua', line = 1 },
+        { path = 'a.lua', line = 2, title = 'Second' },
+      },
+    }, dir))
+
+    assert.is_true(tour.start(data, { session = 's1' }))
+    assert.is_true(tour.next('s1'))
+    tour.stop('s1')
+
+    assert.is_true(tour.next('s1'))
     eq({ 2, 0 }, vim.api.nvim_win_get_cursor(0))
 
     tour.stop('s1')

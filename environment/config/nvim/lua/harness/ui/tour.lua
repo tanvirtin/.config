@@ -128,7 +128,11 @@ end
 local function active(session, method)
   local key = target(session)
 
-  if not key then return false, 'no tour is running' end
+  if not key then
+    if tour.resume(session) then return true end
+
+    return false, 'no tour is running; :HarnessTour resume brings back the last one'
+  end
 
   return views[key][method](views[key])
 end
