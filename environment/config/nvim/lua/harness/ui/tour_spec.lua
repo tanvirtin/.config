@@ -42,6 +42,26 @@ describe('harness.ui.tour:', function()
     eq({ false, 'no tour is running' }, { tour.ask_step() })
   end)
 
+  it('resumes the last tour at the step it stopped on', function()
+    local data = assert(tour_type.parse({
+      title = 'Walk',
+      steps = {
+        { path = 'a.lua', line = 1 },
+        { path = 'a.lua', line = 2, title = 'Second' },
+      },
+    }, dir))
+
+    assert.is_true(tour.start(data, { session = 's1' }))
+    assert.is_true(tour.next('s1'))
+    tour.stop('s1')
+
+    assert.is_true(tour.resume('s1'))
+    eq({ 2, 0 }, vim.api.nvim_win_get_cursor(0))
+
+    tour.stop('s1')
+    vim.cmd('silent! enew!')
+  end)
+
   it('will not start a tour that is not tied to a session', function()
     local data = assert(tour_type.parse({ title = 'Walk', steps = { { path = 'a.lua', line = 1 } } }, dir))
 

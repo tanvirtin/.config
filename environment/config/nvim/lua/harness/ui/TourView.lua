@@ -412,8 +412,8 @@ function TourView:apply(update)
   return self:insert(update.steps or {})
 end
 
-function TourView:start()
-  local ok, why = self:show(1)
+function TourView:start(index)
+  local ok, why = self:show(index or 1)
 
   if ok then self.window:focus() end
 
@@ -434,6 +434,8 @@ function TourView:stop()
   if self.stopped then return false end
 
   self.stopped = true
+  self.last_index = self.index
+
   self:_clear()
   self:_close_note()
   self:_unbind()

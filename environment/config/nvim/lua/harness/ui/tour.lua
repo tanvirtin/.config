@@ -13,7 +13,7 @@ local session_store = lazy('harness.session_store')
 
 local tour = {}
 
-local views, dispose, dispose_sessions = {}, nil, nil
+local views, last, dispose, dispose_sessions = {}, {}, nil, nil
 
 local function warn(message)
   console.notify('Harness: ' .. message, 'warn')
@@ -39,6 +39,18 @@ local function only_running()
 
       found = key
     end
+  end
+
+  return found
+end
+
+local function only_last()
+  local found
+
+  for key in pairs(last) do
+    if found then return nil end
+
+    found = key
   end
 
   return found
@@ -78,18 +90,39 @@ function tour.start(data, opts)
     end,
     on_stop = function(stopped)
       if views[key] == stopped then views[key] = nil end
+
+      last[key] = { tour = data, step = stopped.last_index or 1 }
+
       if tour_store.current(key) == data then tour_store.stop(key) end
     end,
   })
 
-  local ok, why = views[key]:start()
+  local ok, why = views[key]:start(opts and opts.step)
 
-  if not ok then
+  if ok then
+    last[key] = nil
+  else
     views[key] = nil
     warn(why or 'the tour could not start')
   end
 
   return ok
+end
+
+function tour.resume(session)
+  local key = target(session) or only_last()
+
+  if not key then return false, 'no tour to resume; ask your session for one' end
+
+  local view = views[key]
+
+  if view and view:is_open() then return view:show(view.index) end
+
+  local saved = last[key]
+
+  if not saved then return false, 'no tour to resume; ask your session for one' end
+
+  return tour.start(saved.tour, { session = key, step = saved.step })
 end
 
 local function active(session, method)

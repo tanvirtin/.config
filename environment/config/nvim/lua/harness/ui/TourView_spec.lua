@@ -76,6 +76,14 @@ describe('harness.ui.TourView:', function()
     assert.truthy(shown[2][4].virt_text[1][1]:find('1/3 · First', 1, true))
   end)
 
+  it('starts at a given step, so a stopped tour can come back where it was', function()
+    view = TourView(data)
+
+    assert.is_true(view:start(2))
+    eq(2, view.index)
+    eq(real(dir .. '/b.lua'), real(vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())))
+  end)
+
   it('shows the note beside the code, with the summary on the first step only', function()
     view = TourView(data)
     view:start()
