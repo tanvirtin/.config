@@ -9,6 +9,8 @@ local Dock = Object:extend()
 
 Dock.PRESET = { compact = 'compact', half = 'half', zoom = 'zoom' }
 
+Dock.PREFIX = 'harness://'
+
 function Dock:constructor(tab)
   return {
     tab = tab,
@@ -111,6 +113,25 @@ function Dock:close()
   self.window = nil
 
   return self
+end
+
+function Dock:_code(window)
+  if not window:is_valid() or window:get_tab() ~= self.tab then return false end
+  if window:get_config().relative ~= '' then return false end
+
+  return window:get_buffer():get_name():sub(1, #Dock.PREFIX) ~= Dock.PREFIX
+end
+
+function Dock:center()
+  local candidates = { Window.previous() }
+
+  vim.list_extend(candidates, Window.in_tab(self.tab))
+
+  for _, window in ipairs(candidates) do
+    if self:_code(window) then return window end
+  end
+
+  return Window.split_far_left()
 end
 
 function Dock:zoom_in()

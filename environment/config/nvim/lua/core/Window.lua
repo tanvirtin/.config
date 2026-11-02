@@ -69,6 +69,24 @@ function Window.split_far_right(width)
   return Window(0)
 end
 
+function Window.split_far_left()
+  vim.cmd('topleft vnew')
+
+  return Window(0)
+end
+
+function Window.previous()
+  local win_id = vim.fn.win_getid(vim.fn.winnr('#'))
+
+  return win_id ~= 0 and Window(win_id) or nil
+end
+
+function Window:edit(path)
+  return self:call(function()
+    vim.cmd('edit ' .. vim.fn.fnameescape(path))
+  end)
+end
+
 function Window.in_tab(tab)
   return vim.tbl_map(Window, vim.api.nvim_tabpage_list_wins(tab))
 end

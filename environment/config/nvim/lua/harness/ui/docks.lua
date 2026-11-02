@@ -67,6 +67,24 @@ local function ensure(view, preset)
   return dock
 end
 
+function docks.leave_zoom()
+  local zoomed = docks.zoomed()
+
+  if not zoomed then return false end
+
+  zoomed:zoom_out()
+
+  return true
+end
+
+function docks.code_window()
+  docks.leave_zoom()
+
+  local dock = docks.open_dock()
+
+  return dock and dock:center() or nil
+end
+
 function docks.close()
   local dock = docks.zoomed() or docks.of()
 

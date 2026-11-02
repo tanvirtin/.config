@@ -226,6 +226,113 @@ describe('harness.ui.docks:', function()
     assert.is_false((docks.run('sideways', nil)))
   end)
 
+  describe('the code area', function()
+    local links = require('harness.ui.links')
+
+    local function file(lines)
+      local path = vim.fn.tempname() .. '.txt'
+
+      vim.fn.writefile(lines, path)
+
+      return vim.uv.fs_realpath(path)
+    end
+
+    it('is the window you came from, never the dock or a composer', function()
+      local code_win = vim.api.nvim_get_current_win()
+      local view = view_of(first)
+
+      docks.run('', view)
+
+      local dock = docks.open_dock()
+
+      vim.api.nvim_set_current_win(dock.window.win_id)
+      eq(code_win, dock:center().win_id)
+
+      vim.cmd('split')
+      vim.api.nvim_win_set_buf(0, vim.api.nvim_create_buf(true, true))
+      vim.cmd('wincmd p')
+      vim.api.nvim_set_current_win(dock.window.win_id)
+      assert.are_not.equal(dock.window.win_id, dock:center().win_id)
+    end)
+
+    it('is made on the left when only the dock is left', function()
+      local view = view_of(first)
+
+      docks.run('', view)
+
+      local dock = docks.open_dock()
+
+      vim.cmd('wincmd h')
+      vim.cmd('close')
+      eq(1, #tiled())
+
+      vim.api.nvim_set_current_win(dock.window.win_id)
+
+      local window = dock:center()
+
+      eq(2, #tiled())
+      assert.are_not.equal(dock.window.win_id, window.win_id)
+      assert.is_true(
+        vim.api.nvim_win_get_position(window.win_id)[2] < vim.api.nvim_win_get_position(dock.window.win_id)[2]
+      )
+    end)
+
+    it('opens a link in the code window beside the dock, not in a new tab', function()
+      local path = file({ 'one', 'two', 'three' })
+      local code_win = vim.api.nvim_get_current_win()
+      local view = view_of(first)
+
+      docks.run('', view)
+
+      local dock = docks.open_dock()
+
+      vim.api.nvim_set_current_win(dock.window.win_id)
+      eq(true, links.open({ path = path, line = 2 }))
+
+      eq(1, #vim.api.nvim_list_tabpages())
+      eq(code_win, vim.api.nvim_get_current_win())
+      eq(path, vim.api.nvim_buf_get_name(0))
+      eq(2, vim.api.nvim_win_get_cursor(code_win)[1])
+      eq(view.bufnr, vim.api.nvim_win_get_buf(dock.window.win_id))
+    end)
+
+    it('opens a link from the zoom tab by going back to the dock first', function()
+      local path = file({ 'a', 'b' })
+      local origin = vim.api.nvim_get_current_tabpage()
+      local view = view_of(first)
+
+      docks.run('zoom', view)
+      eq(2, #vim.api.nvim_list_tabpages())
+
+      eq(true, links.open({ path = path }))
+
+      eq(origin, vim.api.nvim_get_current_tabpage())
+      eq(1, #vim.api.nvim_list_tabpages())
+      eq(true, docks.open_dock(origin):is_open())
+      eq(path, vim.api.nvim_buf_get_name(0))
+    end)
+
+    it('still opens a link in a new tab when there is no dock', function()
+      local path = file({ 'x' })
+
+      eq(true, links.open({ path = path }))
+      eq(2, #vim.api.nvim_list_tabpages())
+      eq(path, vim.api.nvim_buf_get_name(0))
+    end)
+
+    it('leaves the zoom tab for a tour, and does nothing without one', function()
+      local origin = vim.api.nvim_get_current_tabpage()
+      local view = view_of(first)
+
+      eq(false, docks.leave_zoom())
+
+      docks.run('zoom', view)
+      eq(true, docks.leave_zoom())
+      eq(origin, vim.api.nvim_get_current_tabpage())
+      eq(true, docks.open_dock(origin):is_open())
+    end)
+  end)
+
   it('lets a composer open under the dock, as wide as it', function()
     local composer = require('harness.ui.composer')
     local view = view_of(first)

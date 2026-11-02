@@ -236,6 +236,8 @@ The dock is a window on the right of a tab that exists only for the harness. It 
 
 **Only the harness lives in it.** Its window has `winfixbuf` and `winfixwidth`, Neovim's own options for this. `:e`, `:b`, `:bnext` and `<C-o>` across buffers are refused there with E1513, quickfix, tag and location jumps open in another window, and `<C-w>=` leaves its width alone. A split made from it is an ordinary window, so tours and code blocks open beside it. The harness lifts the option only for its own switch of session. Putting a session into a tab that has a dock (`:HarnessNew`, the sessions picker, sending from a composer whose transcript is not showing) puts it in the dock and moves focus there; with no dock they open as before.
 
+**Code opens beside it.** With a dock in the tab, a link, a file named in inline code, a diff line or a tool's file (`<CR>`, `gf`) opens in the tab's code window: the one you came from, else any other non-harness window, else a new one on the left. Focus goes there and the dock stays put. From the zoom tab they, and a tour, first go back to the tab you zoomed from. With no dock they open in a new tab as before. `gi` and `ga` keep using the buffer the session was opened over.
+
 The composer opens under the dock's window, as wide as it, like under any transcript. Switching the dock to another session closes the composer and keeps its draft. There is one dock per tab; a zoom tab belongs to the dock it came from.
 
 ## Sub-agents

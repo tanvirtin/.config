@@ -5,6 +5,7 @@ local Buffer = require('core.Buffer')
 local Object = require('core.Object')
 local Window = require('core.Window')
 local buffers = require('core.buffers')
+local docks = require('harness.ui.docks')
 local settings = require('harness.settings')
 local tour_scope = require('harness.tour_scope')
 
@@ -296,6 +297,9 @@ function TourView:show(index)
   if not step then return false end
 
   local buffer = self:_buffer(step)
+
+  docks.leave_zoom()
+
   local window = self:_code_window() or self:_open_beside(buffer)
 
   if not window then return false, 'no window to show the code in' end
