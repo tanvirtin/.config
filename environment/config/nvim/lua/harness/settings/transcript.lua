@@ -22,6 +22,6 @@ return Config({
   argument_max = 120,
   hints = true,
   tile_width = 0.3,
-  tile_expanded = 0.6,
+  half_width = 0.5,
   tile_min_width = 40,
 })

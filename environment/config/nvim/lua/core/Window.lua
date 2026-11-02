@@ -63,6 +63,63 @@ function Window.split_top()
   return Window(vim.api.nvim_get_current_win())
 end
 
+function Window.split_far_right(width)
+  vim.cmd(string.format('botright %dvsplit', width))
+
+  return Window(0)
+end
+
+function Window.in_tab(tab)
+  return vim.tbl_map(Window, vim.api.nvim_tabpage_list_wins(tab))
+end
+
+function Window.tab_valid(tab)
+  return vim.api.nvim_tabpage_is_valid(tab)
+end
+
+function Window.go_to_tab(tab)
+  vim.api.nvim_set_current_tabpage(tab)
+end
+
+function Window.drawn()
+  return vim.g.statusline_winid
+end
+
+function Window.current_tab()
+  return vim.api.nvim_get_current_tabpage()
+end
+
+function Window:get_tab()
+  return vim.api.nvim_win_get_tabpage(self.win_id)
+end
+
+function Window:neighbour(direction)
+  local win_id
+
+  self:call(function()
+    win_id = vim.fn.win_getid(vim.fn.winnr(direction))
+  end)
+
+  return win_id and win_id ~= 0 and win_id ~= self.win_id and Window(win_id) or nil
+end
+
+function Window:is_below(window)
+  if not (self:is_valid() and window:is_valid()) then return false end
+
+  local above = self:neighbour('k')
+
+  return above ~= nil
+    and above.win_id == window.win_id
+    and self:get_position()[2] == window:get_position()[2]
+    and self:get_width() == window:get_width()
+end
+
+function Window:place_below(window, height)
+  pcall(vim.api.nvim_win_set_config, self.win_id, { split = 'below', win = window.win_id, height = height })
+
+  return self
+end
+
 function Window:reset_options(names)
   return self:call(function()
     vim.cmd('setlocal ' .. table.concat(

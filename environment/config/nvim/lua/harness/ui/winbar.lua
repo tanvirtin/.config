@@ -62,8 +62,10 @@ function winbar.turns(session, prompt)
     or string.format('%d turn%s', total, total == 1 and '' or 's')
 end
 
-local function status(session, prompt)
+local function status(session, prompt, target)
   local parts = {}
+
+  if target then parts[#parts + 1] = '%#UiAccent#● selections go here  ' end
 
   if session.external and follow.is_following(session) then parts[#parts + 1] = '%#UiWarn#⇄ external  ' end
 
@@ -117,8 +119,8 @@ local function status(session, prompt)
   return table.concat(parts, '') .. ' '
 end
 
-function winbar.transcript(session, prompt, width)
-  local right = status(session, prompt)
+function winbar.transcript(session, prompt, width, target)
+  local right = status(session, prompt, target)
   local left = winbar.hints()
 
   if prompt then left = winbar.sticky(prompt, width and width - winbar.visible_width(right) - 2) end

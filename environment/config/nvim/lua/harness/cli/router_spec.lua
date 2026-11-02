@@ -21,16 +21,14 @@ describe('harness.cli.router:', function()
         'Harness',
         'HarnessNew',
         'HarnessSessions',
-        'HarnessStats',
         'HarnessCancel',
-        'HarnessClear',
         'HarnessChanges',
         'HarnessFork',
         'HarnessRevert',
         'HarnessQuickfix',
         'HarnessPermissions',
         'HarnessTour',
-        'HarnessTranscript',
+        'HarnessDock',
       },
       vim.tbl_map(function(command)
         return command.name
@@ -45,20 +43,12 @@ describe('harness.cli.router:', function()
     local registered = vim.api.nvim_get_commands({})
 
     assert.is_nil(registered.Harness)
-    assert.is_nil(registered.HarnessClear)
+    assert.is_nil(registered.HarnessCancel)
     assert.is_false(pcall(vim.api.nvim_get_autocmds, { group = 'harness' }))
   end)
 
   it('runs a command by name, and refuses unknown ones', function()
-    local script = require('nvim_mcp.script')
-    local original = script.clear
-
-    script.clear = function()
-      return 3
-    end
-
-    eq(3, router.execute('HarnessClear'))
-    script.clear = original
+    assert.is_nil(router.execute('HarnessCancel'))
 
     assert.has_error(function()
       router.execute('HarnessNope')

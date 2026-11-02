@@ -2,13 +2,14 @@ local lazy = require('core.lazy')
 
 local Buffer = lazy('core.Buffer')
 local Window = lazy('core.Window')
+local docks = lazy('harness.ui.docks')
 local composer = require('harness.ui.composer')
 local TranscriptView = lazy('harness.ui.TranscriptView')
 
 local display = {}
 
 local views = {}
-local last_buf
+local current = {}
 
 function display.view(buf)
   return views[buf or Buffer.current_number()]
@@ -16,6 +17,35 @@ end
 
 function display.views()
   return views
+end
+
+function display.shown()
+  local out, seen = {}, {}
+
+  for _, window in ipairs(Window.list_tab()) do
+    local view = views[window:get_buffer().bufnr]
+
+    if view and not seen[view] then
+      seen[view] = true
+      out[#out + 1] = view
+    end
+  end
+
+  return out
+end
+
+function display.set_current(view)
+  local tab = Window.current_tab()
+
+  if current[tab] == view.bufnr then return end
+
+  current[tab] = view.bufnr
+
+  for _, shown in ipairs(display.shown()) do
+    for _, window in ipairs(shown:windows()) do
+      shown:set_winbar(window)
+    end
+  end
 end
 
 function display.view_of(session)
@@ -36,14 +66,20 @@ function display.buffer_of(session)
   return view and view.bufnr or nil
 end
 
-function display.last()
-  return last_buf and Buffer.exists(last_buf) and views[last_buf] or nil
-end
-
 function display.window()
   for _, window in ipairs(Window.list_tab()) do
     if views[window:get_buffer().bufnr] then return window.win_id end
   end
+end
+
+function display.last()
+  local buf = current[Window.current_tab()]
+
+  if buf and Buffer.exists(buf) and views[buf] then return views[buf] end
+
+  local win_id = display.window()
+
+  return win_id and views[Window(win_id):get_buffer().bufnr] or nil
 end
 
 local function create(session, opts)
@@ -58,11 +94,14 @@ local function create(session, opts)
   view:bind(view:bindings())
   view:mount({
     on_enter = function()
-      last_buf = view.bufnr
+      display.set_current(view)
     end,
     on_dispose = function()
       views[view.bufnr] = nil
-      if last_buf == view.bufnr then last_buf = nil end
+
+      for tab, buf in pairs(current) do
+        if buf == view.bufnr then current[tab] = nil end
+      end
     end,
   })
 
@@ -79,7 +118,12 @@ function display.open(session, opts)
     view.source_buf = opts.source_buf
   end
 
-  if not opts.background then
+  local dock = not opts.background and docks.open_dock()
+
+  if dock then
+    dock:show(view):focus()
+    display.set_current(view)
+  elseif not opts.background then
     local window = Window.get_current()
 
     if composer.owns(window:get_buffer().bufnr) then
@@ -89,10 +133,34 @@ function display.open(session, opts)
     end
 
     view:show_in(window)
-    last_buf = view.bufnr
+    display.set_current(view)
   end
 
   return view.bufnr
+end
+
+function display.target()
+  local shown = display.shown()
+  local view = display.last()
+
+  if view then
+    if #shown == 0 then return view end
+
+    for _, candidate in ipairs(shown) do
+      if candidate == view then return view end
+    end
+  end
+
+  if #shown == 0 then return nil end
+  if #shown == 1 then return shown[1] end
+
+  return nil, shown
+end
+
+function display.is_target(view, window)
+  if window:get_tab() ~= Window.current_tab() then return false end
+
+  return #display.shown() > 1 and display.last() == view
 end
 
 function display.forget(session)
@@ -114,6 +182,12 @@ function display.reveal(session, origin, source)
     view:land(window)
 
     return window.win_id
+  end
+
+  if docks.open_dock() then
+    display.open(session, { source_win = source.win, source_buf = source.buf })
+
+    return Window.get_current().win_id
   end
 
   if window and window:is_valid() then

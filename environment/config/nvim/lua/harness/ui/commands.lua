@@ -1,15 +1,18 @@
 local lazy = require('core.lazy')
 
 local hub = lazy('harness.hub')
+local Timer = lazy('core.Timer')
+local surfaces = lazy('surfaces')
 local Buffer = lazy('core.Buffer')
 local Window = lazy('core.Window')
+local keymap = lazy('core.keymap')
 local async = lazy('harness.async')
 local console = lazy('core.console')
 local tools = lazy('nvim_mcp.tools')
 local tour = lazy('harness.ui.tour')
 local edits = lazy('harness.ui.edits')
+local docks = lazy('harness.ui.docks')
 local context = lazy('harness.context')
-local settings = lazy('harness.settings')
 local display = lazy('harness.ui.display')
 local composer = lazy('harness.ui.composer')
 local transcript = lazy('harness.ui.transcript')
@@ -141,14 +144,43 @@ function commands.quickfix(scope)
   return transcript.report(scoped('quickfix', scope))
 end
 
-local function attach_session()
-  local view = transcript.last()
+local function attach_to(session, buf, range)
+  if not composer.is_open(session) then composer.open(session, { display = display, insert = true }) end
 
-  if view and view.session.state ~= 'closed' then return view.session end
+  return composer.attach(buf, range, session)
+end
 
-  for _, candidate in pairs(display.views()) do
-    if candidate.session.state ~= 'closed' then return candidate.session end
+local function choose_session(shown, buf, range)
+  local items = {}
+
+  for _, view in ipairs(shown) do
+    if view.session.state ~= 'closed' then
+      items[#items + 1] = {
+        label = view.session.key .. ' ' .. (view.session.title or 'untitled'),
+        description = view.session:running() and 'running' or 'idle',
+        view = view,
+      }
+    end
   end
+
+  if #items == 0 then return transcript.report(false, 'no session in this tab to attach this to; open one first') end
+
+  keymap.feed('<Esc>', 'nx')
+
+  surfaces.pick({
+    title = 'Attach the selection to',
+    items = items,
+    width = '50vw',
+    max_height = 10,
+    on_select = function(item)
+      Timer.schedule(function()
+        display.set_current(item.view)
+        attach_to(item.view.session, buf, range)
+      end)
+    end,
+  })
+
+  return true
 end
 
 function commands.attach_visual()
@@ -159,15 +191,19 @@ function commands.attach_visual()
 
   local buf = window:get_buffer().bufnr
 
-  if composer.is_open() then return composer.attach_visual(buf, range) end
+  local view, shown = display.target()
 
-  local session = attach_session()
+  if shown then return choose_session(shown, buf, range) end
 
-  if not session then return transcript.report(false, 'no transcript to attach this to yet; open one first') end
+  if not view or view.session.state == 'closed' then
+    return transcript.report(false, 'no session in this tab to attach this to; open one first')
+  end
 
-  composer.open(session, { display = display, insert = true })
+  local session = view.session
 
-  return composer.attach(buf, range)
+  if not composer.is_open(session) then composer.open(session, { display = display, insert = true }) end
+
+  return composer.attach_visual(buf, range, session)
 end
 
 local function tour_session()
@@ -203,44 +239,10 @@ function commands.tour(text)
   )
 end
 
-local function tab_columns()
-  local total, count = 0, 0
+function commands.dock(action)
+  local view = transcript.view() or display.last()
 
-  for _, window in ipairs(Window.list_tab()) do
-    if window:get_config().relative == '' then
-      total = total + window:get_width()
-      count = count + 1
-    end
-  end
-
-  return total + math.max(count - 1, 0)
-end
-
-function commands.transcript(action)
-  action = vim.trim(action or '')
-
-  if not transcript.view() then return transcript.report(false, 'focus a transcript first') end
-
-  local window = Window.get_current()
-  local spec = settings.transcript
-  local columns = tab_columns()
-  local compact = math.max(spec:get('tile_min_width'), math.floor(columns * spec:get('tile_width')))
-  local wide = math.max(compact + 1, math.floor(columns * spec:get('tile_expanded')))
-
-  if action == 'right' then
-    window:move_right()
-    window:set_width(compact)
-
-    return true
-  end
-
-  if action == 'expand' then
-    window:set_width(window:get_width() >= wide and compact or wide)
-
-    return true
-  end
-
-  return transcript.report(false, 'HarnessTranscript takes expand or right')
+  return transcript.report(docks.run(vim.trim(action or ''), view))
 end
 
 function commands.permissions()
@@ -262,46 +264,6 @@ function commands.sessions()
       commands.new()
     end,
   })
-end
-
-function commands.stats_lines()
-  local compact = require('compact')
-  local lines = { '| session | title | context | tool output | saved |', '| --- | --- | --- | --- | --- |' }
-
-  for _, session in ipairs(hub.sessions()) do
-    local usage
-
-    for i = #session.history, 1, -1 do
-      if session.history[i].kind == require('harness.types.events').KIND.usage then
-        usage = session.history[i]
-        break
-      end
-    end
-
-    local stats = compact.stats(session.key)
-
-    lines[#lines + 1] = string.format(
-      '| %s | %s | %s | %d tokens in %d calls | %d tokens |',
-      session.key,
-      session.title or '',
-      usage and string.format('%d / %d', usage.used or 0, usage.size or 0) or '-',
-      stats.tokens,
-      stats.calls,
-      stats.saved_tokens
-    )
-  end
-
-  local all = compact.stats()
-
-  lines[#lines + 1] = ''
-  lines[#lines + 1] = string.format(
-    'All tool output: %d tokens sent, %d saved against plain JSON (%d calls).',
-    all.tokens,
-    all.saved_tokens,
-    all.calls
-  )
-
-  return lines
 end
 
 require('harness.session_store').on('start', function(session)

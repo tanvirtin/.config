@@ -162,7 +162,8 @@ function TranscriptView:toggle_plan()
 end
 
 function TranscriptView:set_winbar(window)
-  local text = winbar.transcript(self.session, self:sticky(window), window:get_width())
+  local target = self.display and self.display.is_target(self, window)
+  local text = winbar.transcript(self.session, self:sticky(window), window:get_width(), target)
 
   if window:get_option('winbar') ~= text then window:set_option('winbar', text) end
 end
@@ -310,7 +311,7 @@ function TranscriptView:write(history, state)
 end
 
 function TranscriptView.reserve(view, window)
-  if view.composer and view.composer.is_open() then return 0 end
+  if view.composer and view.composer.is_open(view.session) then return 0 end
 
   return sticky_bottom.margin(window)
 end

@@ -5,51 +5,49 @@ local function map(mode, key, action, opts)
   vim.keymap.set(mode, key, action, opts)
 end
 
+-- prefixes
+
 map('n', '<Space>', '<NOP>')
 map('n', ',', '<NOP>')
 
-map('v', '<', '<gv')
-map('v', '>', '>gv')
+-- editing
 
-map('x', 'K', ':move \'<-2<CR>gv-gv')
-map('x', 'J', ':move \'>+1<CR>gv-gv')
+map('v', '<', '<gv', { desc = 'Indent, keeping the selection' })
+map('v', '>', '>gv', { desc = 'Outdent, keeping the selection' })
 
-map('n', 'n', 'nzzzv')
-map('n', 'N', 'Nzzzv')
+map('x', 'K', ':move \'<-2<CR>gv-gv', { desc = 'Move the selection up' })
+map('x', 'J', ':move \'>+1<CR>gv-gv', { desc = 'Move the selection down' })
 
-map('n', '\\', '<Cmd>winc w<CR>')
+map('n', 'n', 'nzzzv', { desc = 'Next match, centred' })
+map('n', 'N', 'Nzzzv', { desc = 'Previous match, centred' })
 
-map('n', '<leader>q', '<Cmd>bp | sp | bn | bd<CR>')
+map('n', '<leader>d', '"_d', { desc = 'Delete to the void register' })
+map('v', '<leader>d', '"_d', { desc = 'Delete to the void register' })
 
-map('v', '<leader><ESC>', '<Cmd>q<CR>')
-map('n', '<leader><ESC>', '<Cmd>q<CR>')
-
-map('v', '<leader>d', '"_d')
-map('n', '<leader>d', '"_d')
-
-map('n', '<leader>c', '<Cmd>noh<CR>')
+map('n', '<leader>c', '<Cmd>noh<CR>', { desc = 'Clear search highlight' })
 
 map('n', '<leader>f', function()
   require('conform').format({ async = true, lsp_fallback = true })
-end)
+end, { desc = 'Format the buffer' })
 
-map('n', '<leader><leader>', '<Cmd>w<CR>')
+map('n', '<leader><leader>', '<Cmd>w<CR>', { desc = 'Write the buffer' })
 
-map('n', '<C-w>', '<Cmd>cp<CR>')
-map('n', '<C-s>', '<Cmd>cn<CR>')
+map('n', '<leader><ESC>', '<Cmd>q<CR>', { desc = 'Quit' })
+map('v', '<leader><ESC>', '<Cmd>q<CR>', { desc = 'Quit' })
 
-map('n', '<C-h>', '<Cmd>bp<CR>')
-map('n', '<C-l>', '<Cmd>bn<CR>')
+-- windows and buffers
 
-map('n', '<leader><space>', function()
-  local pickers = require('snacks').picker.get({ source = 'explorer' })
+map('n', '\\', '<Cmd>winc w<CR>', { desc = 'Next window' })
 
-  if #pickers > 0 then
-    pickers[1]:close()
-  else
-    require('snacks').explorer()
-  end
-end)
+map('n', '<leader>q', '<Cmd>bp | sp | bn | bd<CR>', { desc = 'Close the buffer, keeping the window' })
+
+map('n', '<C-h>', '<Cmd>bp<CR>', { desc = 'Previous buffer' })
+map('n', '<C-l>', '<Cmd>bn<CR>', { desc = 'Next buffer' })
+
+map('n', '<C-w>', '<Cmd>cp<CR>', { desc = 'Previous quickfix entry' })
+map('n', '<C-s>', '<Cmd>cn<CR>', { desc = 'Next quickfix entry' })
+
+-- pickers
 
 local function pick(title, source, source_opts)
   return function()
@@ -65,74 +63,102 @@ local function at_cursor(method)
   end
 end
 
-map('n', '<C-p>', pick('Files', 'files'))
-map('n', '<leader>/', pick('Grep', 'grep'))
+map('n', '<C-p>', pick('Files', 'files'), { desc = 'Find files' })
+map('n', '<leader>/', pick('Grep', 'grep'), { desc = 'Search the project' })
+map('n', '<leader>b', pick('Buffers', 'buffers'), { desc = 'Switch buffer' })
 
-map('n', '<leader>ld', pick('Definitions', 'lsp', at_cursor('definition')))
-map('n', '<leader>lr', pick('References', 'lsp', at_cursor('references')))
-map('n', '<leader>lt', pick('Type definitions', 'lsp', at_cursor('type_definition')))
-map('n', '<leader>li', pick('Implementations', 'lsp', at_cursor('implementation')))
+map('n', '<leader><space>', function()
+  local pickers = require('snacks').picker.get({ source = 'explorer' })
+
+  if #pickers > 0 then
+    pickers[1]:close()
+  else
+    require('snacks').explorer()
+  end
+end, { desc = 'Toggle the explorer' })
+
+-- lsp
+
+map('n', '<leader>ld', pick('Definitions', 'lsp', at_cursor('definition')), { desc = 'Definitions' })
+map('n', '<leader>lr', pick('References', 'lsp', at_cursor('references')), { desc = 'References' })
+map('n', '<leader>lt', pick('Type definitions', 'lsp', at_cursor('type_definition')), { desc = 'Type definitions' })
+map('n', '<leader>li', pick('Implementations', 'lsp', at_cursor('implementation')), { desc = 'Implementations' })
 map('n', '<leader>lj', function()
   vim.diagnostic.goto_next({ wrap = true, float = true })
-end)
+end, { desc = 'Next diagnostic' })
 map('n', '<leader>lk', function()
   vim.diagnostic.goto_prev({ wrap = true, float = true })
-end)
+end, { desc = 'Previous diagnostic' })
 map('n', '<leader>ls', function()
   vim.lsp.buf.hover()
-end)
+end, { desc = 'Hover' })
 map('n', '<leader>ln', function()
   vim.lsp.buf.rename()
-end)
+end, { desc = 'Rename' })
 map('n', '<leader>le', function()
   vim.diagnostic.open_float()
-end)
+end, { desc = 'Diagnostic under the cursor' })
 map('n', '<leader>lq', function()
   vim.diagnostic.setqflist()
-end)
-map('n', '<leader>lD', pick('Diagnostics', 'diagnostics'))
-map('n', '<leader>b', pick('Buffers', 'buffers'))
+end, { desc = 'Diagnostics to quickfix' })
+map('n', '<leader>lD', pick('Diagnostics', 'diagnostics'), { desc = 'Diagnostics picker' })
 
-map('n', '<leader>.', function()
-  require('harness.ui.commands').sessions()
-end)
-map('n', '<leader>aa', function()
-  require('harness.ui.commands').sessions()
-end)
-map('n', '<leader>an', function()
-  require('harness.ui.commands').new()
-end)
+-- git
+
+map('n', '<leader>gs', '<Cmd>VGit buffer_hunk_stage<CR>', { desc = 'Stage hunk' })
+map('n', '<leader>gr', '<Cmd>VGit buffer_hunk_reset<CR>', { desc = 'Reset hunk' })
+map('n', '<leader>gp', '<Cmd>VGit hunk<CR>', { desc = 'Preview hunk' })
+
+map('n', '<leader>gS', '<Cmd>VGit buffer_stage<CR>', { desc = 'Stage buffer' })
+map('n', '<leader>gU', '<Cmd>VGit buffer_unstage<CR>', { desc = 'Unstage buffer' })
+map('n', '<leader>gu', '<Cmd>VGit buffer_reset<CR>', { desc = 'Reset buffer' })
+
+map('n', '<leader>gb', '<Cmd>VGit blame<CR>', { desc = 'Blame' })
+map('n', '<leader>gf', '<Cmd>VGit diff --buffer<CR>', { desc = 'Diff buffer' })
+map('n', '<leader>gh', '<Cmd>VGit log<CR>', { desc = 'Log' })
+map('n', '<leader>gd', '<Cmd>VGit status<CR>', { desc = 'Status' })
+map('n', '<leader>gls', '<Cmd>VGit diff --staged<CR>', { desc = 'Diff staged' })
+map('n', '<leader>gt', '<Cmd>VGit status<CR>', { desc = 'Status' })
+
+map('n', '<leader>gg', '<Cmd>VGit toggle_live_blame<CR>', { desc = 'Toggle live blame' })
+map('n', '<leader>gG', '<Cmd>VGit toggle_live_gutter<CR>', { desc = 'Toggle live gutter' })
+map('n', '<leader>gx', '<Cmd>VGit toggle_diff_preference<CR>', { desc = 'Toggle diff preference' })
+
+map('n', '<leader>gcc', '<Cmd>VGit buffer_conflict_accept_current<CR>', { desc = 'Conflict: accept current' })
+map('n', '<leader>gci', '<Cmd>VGit buffer_conflict_accept_incoming<CR>', { desc = 'Conflict: accept incoming' })
+map('n', '<leader>gcb', '<Cmd>VGit buffer_conflict_accept_both<CR>', { desc = 'Conflict: accept both' })
+
+-- selection
+
+map(
+  'v',
+  '<leader>sy',
+  '<Esc><Cmd>lua require("core.selection").yank()<CR>',
+  { desc = 'Yank the selection for the agent' }
+)
+map(
+  'v',
+  '<leader>sa',
+  '<Esc><Cmd>lua require("core.selection").add()<CR>',
+  { desc = 'Add the selection for the agent' }
+)
+map('n', '<leader>sf', '<Cmd>lua require("core.selection").flush()<CR>', { desc = 'Flush the selection' })
+map('n', '<leader>sc', '<Cmd>lua require("core.selection").clear()<CR>', { desc = 'Clear the selection' })
+
+-- agent: enter a session and housekeeping; the transcript carries the rest
+
+map('n', '<leader>.', '<Cmd>HarnessSessions<CR>', { desc = 'Sessions' })
+
 map('n', '<leader>aw', function()
   require('harness.ui.status').to_waiting()
-end)
+end, { desc = 'Go to the waiting request' })
+
 map('v', '<leader>aa', function()
   require('harness.ui.commands').attach_visual()
-end)
+end, { desc = 'Attach the selection' })
 
-map('n', '<leader>gs', '<Cmd>VGit buffer_hunk_stage<CR>')
-map('n', '<leader>gr', '<Cmd>VGit buffer_hunk_reset<CR>')
-map('n', '<leader>gp', '<Cmd>VGit hunk<CR>')
+-- dock the session on the right: compact, half, then zoomed to its own tab
 
-map('n', '<leader>gS', '<Cmd>VGit buffer_stage<CR>')
-map('n', '<leader>gU', '<Cmd>VGit buffer_unstage<CR>')
-map('n', '<leader>gu', '<Cmd>VGit buffer_reset<CR>')
-
-map('n', '<leader>gb', '<Cmd>VGit blame<CR>')
-map('n', '<leader>gf', '<Cmd>VGit diff --buffer<CR>')
-map('n', '<leader>gh', '<Cmd>VGit log<CR>')
-map('n', '<leader>gd', '<Cmd>VGit status<CR>')
-map('n', '<leader>gls', '<Cmd>VGit diff --staged<CR>')
-map('n', '<leader>gt', '<Cmd>VGit status<CR>')
-
-map('n', '<leader>gg', '<Cmd>VGit toggle_live_blame<CR>')
-map('n', '<leader>gG', '<Cmd>VGit toggle_live_gutter<CR>')
-map('n', '<leader>gx', '<Cmd>VGit toggle_diff_preference<CR>')
-
-map('n', '<leader>gcc', '<Cmd>VGit buffer_conflict_accept_current<CR>')
-map('n', '<leader>gci', '<Cmd>VGit buffer_conflict_accept_incoming<CR>')
-map('n', '<leader>gcb', '<Cmd>VGit buffer_conflict_accept_both<CR>')
-
-map('v', '<leader>sy', '<Esc><Cmd>lua require("core.selection").yank()<CR>')
-map('v', '<leader>sa', '<Esc><Cmd>lua require("core.selection").add()<CR>')
-map('n', '<leader>sf', '<Cmd>lua require("core.selection").flush()<CR>')
-map('n', '<leader>sc', '<Cmd>lua require("core.selection").clear()<CR>')
+map('n', '<leader>a.', function()
+  require('harness.ui.commands').dock('')
+end, { desc = 'Dock, widen or zoom the session' })

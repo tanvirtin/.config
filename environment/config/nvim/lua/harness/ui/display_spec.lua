@@ -70,6 +70,120 @@ describe('harness.ui.display:', function()
     assert.is_true(vim.fn.line('w$', win) >= vim.api.nvim_buf_line_count(buf))
   end)
 
+  it('keeps a current session per tab, never one from another tab', function()
+    local other = Session({ key = 'h' .. math.random(1e6), id = 's2', connection = Connection(fake_agent.new()) })
+
+    display.open(session)
+    vim.cmd('enew')
+
+    eq(session, display.last().session)
+
+    vim.cmd('tabnew')
+    assert.is_nil(display.last())
+
+    display.open(other)
+    vim.cmd('enew')
+    eq(other, display.last().session)
+
+    vim.cmd('tabprevious')
+    eq(session, display.last().session)
+  end)
+
+  it('falls back to a transcript shown in the tab when none was entered there', function()
+    vim.cmd('tabnew')
+
+    local buf = display.open(session, { background = true })
+
+    vim.cmd('vsplit')
+    vim.api.nvim_win_set_buf(0, buf)
+    vim.cmd('wincmd p')
+
+    eq(session, display.last().session)
+  end)
+
+  describe('the session a selection goes to', function()
+    local function second()
+      return Session({ key = 'h' .. math.random(1e6), id = 's2', connection = Connection(fake_agent.new()) })
+    end
+
+    it('is the current one when it is in sight', function()
+      local other = second()
+
+      display.open(session)
+      vim.cmd('vsplit')
+      display.open(other)
+
+      local view, choices = display.target()
+
+      eq(other, view.session)
+      assert.is_nil(choices)
+    end)
+
+    it('is the only transcript in sight when the current one is hidden', function()
+      local other = second()
+
+      display.open(other)
+      vim.cmd('enew')
+      display.open(session)
+      vim.cmd('vsplit')
+      vim.cmd('enew')
+      display.set_current(display.view_of(other))
+
+      local view, choices = display.target()
+
+      eq(session, view.session)
+      assert.is_nil(choices)
+    end)
+
+    it('asks when the current one is hidden and several others are in sight', function()
+      local other, third = second(), second()
+
+      display.open(session)
+      vim.cmd('vsplit')
+      display.open(other)
+      vim.cmd('vsplit')
+      display.open(third, { background = true })
+      display.set_current(display.view_of(third))
+
+      local view, choices = display.target()
+
+      assert.is_nil(view)
+      eq(2, #choices)
+    end)
+
+    it('is nothing when no transcript was ever opened in the tab', function()
+      vim.cmd('tabnew')
+
+      local view, choices = display.target()
+
+      assert.is_nil(view)
+      assert.is_nil(choices)
+    end)
+
+    it('marks the current one only while several are in sight', function()
+      local other = second()
+      local first_win = vim.api.nvim_get_current_win()
+      local Window = require('core.Window')
+
+      display.open(session)
+      eq(false, display.is_target(display.view_of(session), Window(first_win)))
+
+      vim.cmd('vsplit')
+
+      local other_win = vim.api.nvim_get_current_win()
+
+      display.open(other)
+
+      eq(true, display.is_target(display.view_of(other), Window(other_win)))
+      eq(false, display.is_target(display.view_of(session), Window(first_win)))
+      assert.is_truthy(vim.wo[other_win].winbar:find('selections go here', 1, true))
+
+      display.set_current(display.view_of(session))
+      assert.is_nil(vim.wo[other_win].winbar:find('selections go here', 1, true))
+      assert.is_truthy(vim.wo[first_win].winbar:find('selections go here', 1, true))
+    end)
+  end)
+
   it('forgets a session by wiping its buffer', function()
     local buf = display.open(session)
 

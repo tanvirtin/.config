@@ -474,4 +474,52 @@ describe('Window:', function()
       eq({ 'one', 'four' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
     end)
   end)
+
+  describe('placement', function()
+    before_each(function()
+      vim.cmd('silent! only!')
+    end)
+
+    after_each(function()
+      vim.cmd('silent! only!')
+    end)
+
+    it('knows a window split under another, and only with the same width', function()
+      local top = Window(0)
+
+      vim.cmd('belowright split')
+
+      local bottom = Window(0)
+
+      eq(true, bottom:is_below(top))
+      eq(false, top:is_below(bottom))
+
+      top:focus()
+      vim.cmd('vsplit')
+
+      eq(false, bottom:is_below(Window(0)))
+    end)
+
+    it('moves a window back under another', function()
+      local anchor = Window(0)
+
+      vim.cmd('belowright split')
+
+      local under = Window(0)
+
+      anchor:focus()
+      vim.cmd('wincmd L')
+
+      eq(false, under:is_below(anchor))
+
+      under:place_below(anchor, 5)
+
+      eq(true, under:is_below(anchor))
+      eq(5, under:get_height())
+    end)
+
+    it('names the tab a window is in', function()
+      eq(Window.current_tab(), Window(0):get_tab())
+    end)
+  end)
 end)

@@ -8,16 +8,14 @@ router.COMMANDS = {
   'prompt',
   'new',
   'sessions',
-  'stats',
   'cancel',
-  'clear',
   'changes',
   'fork',
   'revert',
   'quickfix',
   'permissions',
   'tour',
-  'transcript',
+  'dock',
 }
 
 local disposers = {}

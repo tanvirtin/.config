@@ -13,54 +13,95 @@ local composer = {}
 composer.WINBAR = ComposerView.WINBAR
 
 local store = ComposerStore()
-local current
+local views = {}
+local last
 
-function composer.winbar(session)
-  if session and not (current and current.session == session) then return ComposerView(session, store):winbar() end
+local function active()
+  local win_id = Window.get_current().win_id
 
-  return current and current:winbar() or ''
+  for _, view in pairs(views) do
+    if view:is_open() and view.element:get_window().win_id == win_id then return view end
+  end
+
+  local view = last and views[last]
+
+  return view and view:is_open() and view or nil
 end
 
-function composer.view()
-  return current
+function composer.winbar(session)
+  local drawn = Window.drawn()
+
+  for _, view in pairs(views) do
+    if view:is_open() and view.element:get_window().win_id == drawn then return view:winbar() end
+  end
+
+  if session then return ComposerView(session, store):winbar() end
+
+  local view = active()
+
+  return view and view:winbar() or ''
+end
+
+function composer.view(session)
+  if session then
+    local view = views[session.key]
+
+    return view and view:is_open() and view or nil
+  end
+
+  return active()
 end
 
 function composer.target()
-  return current and current.session
+  local view = active()
+
+  return view and view.session
 end
 
-function composer.is_open()
-  return current ~= nil and current:is_open()
+function composer.is_open(session)
+  if session then return composer.view(session) ~= nil end
+
+  for _, view in pairs(views) do
+    if view:is_open() then return true end
+  end
+
+  return false
 end
 
--- True when this buffer is the open composer's. Nothing else may take over the
+-- True when this buffer is an open composer's. Nothing else may take over the
 -- window it lives in: the buffer is bufhidden=wipe, so replacing it would wipe
 -- the composer and leave its split behind.
 function composer.owns(bufnr)
-  if not current or not current:is_open() then return false end
+  for _, view in pairs(views) do
+    if view:is_open() and view.element:get_buffer().bufnr == bufnr then return true end
+  end
 
-  return current.element:get_buffer().bufnr == bufnr
+  return false
 end
 
 function composer.attached(session)
   return store:attachments(session.key)
 end
 
-function composer.attach(buf, range)
-  if not composer.is_open() then return false end
+function composer.attach(buf, range, session)
+  local view = session and composer.view(session) or active()
 
-  return current:attach(buf, range)
+  if not view then return false end
+
+  return view:attach(buf, range)
 end
 
-function composer.attach_visual(buf, range)
-  if not composer.is_open() then return false end
+function composer.attach_visual(buf, range, session)
+  local view = session and composer.view(session) or active()
+
+  if not view then return false end
 
   local window = Window.get_current()
 
   buf = buf or window:get_buffer().bufnr
   range = range or window:visual_lines()
 
-  if not range or not current:attach(buf, range) then return false end
+  if not range or not view:attach(buf, range) then return false end
 
   keymap.feed('<Esc>')
 
@@ -74,19 +115,23 @@ function composer.detach(session)
   Window.redraw_bars()
 end
 
-function composer.close(discard)
-  if not current then return end
+function composer.close(discard, session)
+  local closing = {}
 
-  local closing = current
+  for key, view in pairs(views) do
+    if not session or key == session.key then closing[#closing + 1] = view end
+  end
 
-  current = nil
-  closing:close(discard)
+  for _, view in ipairs(closing) do
+    views[view.session.key] = nil
+    view:close(discard)
+  end
 end
 
 function composer.send(opts)
-  if not current then return end
+  local view = active()
 
-  current:send(opts)
+  if view then view:send(opts) end
 end
 
 function composer.interrupt(session)
@@ -102,7 +147,8 @@ function composer.model(session, display)
 end
 
 function composer.slash()
-  local session = current and current.session
+  local view = active()
+  local session = view and view.session
   local complete = session ~= nil and #session.commands > 0 and Window.get_current():get_cursor()[2] == 0
 
   keymap.feed('/')
@@ -110,26 +156,29 @@ function composer.slash()
 end
 
 local function release(view)
-  if current == view then current = nil end
+  if views[view.session.key] == view then views[view.session.key] = nil end
 end
 
 function composer.open(session, opts)
   opts = opts or {}
 
   local display = opts.display
+  local existing = composer.view(session)
 
-  if composer.is_open() then
-    if current.session == session and current.answering == opts.answer then
-      current:focus(opts.insert)
-      return current.element
+  if existing then
+    if existing.answering == opts.answer then
+      last = session.key
+      existing:focus(opts.insert)
+
+      return existing.element
     end
 
-    composer.close()
+    composer.close(false, session)
   end
 
   if session.state == 'closed' then return ComposerView.warn('this session has ended') end
 
-  current = ComposerView(session, store, {
+  local view = ComposerView(session, store, {
     display = display,
     answering = opts.answer,
     on_interrupt = composer.interrupt,
@@ -137,13 +186,25 @@ function composer.open(session, opts)
     on_model = composer.model,
     on_close = release,
     on_wipe = release,
-  }):mount(opts.insert)
+    on_enter = function()
+      last = session.key
 
-  return current.element
+      local shown = display and display.view_of(session)
+
+      if shown then display.set_current(shown) end
+    end,
+  })
+
+  views[session.key] = view
+  last = session.key
+  view:mount(opts.insert)
+
+  return view.element
 end
 
 function composer.complete(findstart, base)
-  local session = current and current.session
+  local view = active()
+  local session = view and view.session
 
   if not session then return findstart == 1 and -3 or {} end
 
@@ -177,7 +238,7 @@ end
 function composer.restore(session, texts)
   if #texts == 0 then return end
 
-  local view = current and current.session == session and current or ComposerView(session, store)
+  local view = composer.view(session) or ComposerView(session, store)
 
   view:restore(texts)
 end
@@ -200,7 +261,9 @@ end
 function composer.on_session_event(session, event)
   if event.kind == NOTICE.returned then composer.on_returned(session, event.texts, event.reason) end
 
-  if current and current.session == session and current:is_open() then current:refresh() end
+  local view = composer.view(session)
+
+  if view then view:refresh() end
 end
 
 local dispose
@@ -215,8 +278,7 @@ end
 
 function composer.forget(session)
   store:clear(session.key)
-
-  if current and current.session == session then composer.close(true) end
+  composer.close(true, session)
 end
 
 return composer

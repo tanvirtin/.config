@@ -219,6 +219,25 @@ A session is a buffer: `harness://h3 <title>`, listed like any other buffer. Ses
 
 **Jumps.** `]]`, `[[`, `]b`, `[b`, `]t`, `]e`, `]x`, `]w` and their reverses record where you were, so `<C-o>` takes you back, and `<C-i>` forward again. Counts work: `3]t` is the third tool call below. The cursor's block shows the keys that act on it at the end of its first line (`gd diff · gf open · gR revert`); `hints = false` in the transcript settings turns that off. The transcript's winbar counts turns (`turn 3/9` while a prompt is stuck at the top).
 
+## The dock
+
+The dock is a window on the right of a tab that exists only for the harness. It shows the tab's current session and nothing else. It is an ordinary vertical split, so your code windows shrink to make room and you read both side by side. It is optional: transcripts still open in any window you like, and the composer works the same either way.
+
+`<leader>a.` (or `:HarnessDock`) steps through it:
+
+| Press | You get |
+| --- | --- |
+| first | the session docked on the right at `transcript.tile_width` (30%, never narrower than `tile_min_width`); the window it was in goes back to the code it was open over |
+| again | half the screen (`transcript.half_width`) |
+| again | zoomed: the session alone in a tab of its own, full size. The tab you came from is left as it was, splits and cursors included |
+| again | back to the tab you came from, with the dock at its compact width |
+
+`:HarnessDock open|compact|half|zoom|close` goes straight to one. Closing the zoom tab any other way (`:q`, `:tabclose`) also brings you back to the dock. A width you drag the separator to is kept for the tab, and the dock reopens at it.
+
+**Only the harness lives in it.** Its window has `winfixbuf` and `winfixwidth`, Neovim's own options for this. `:e`, `:b`, `:bnext` and `<C-o>` across buffers are refused there with E1513, quickfix, tag and location jumps open in another window, and `<C-w>=` leaves its width alone. A split made from it is an ordinary window, so tours and code blocks open beside it. The harness lifts the option only for its own switch of session. Putting a session into a tab that has a dock (`:HarnessNew`, the sessions picker, sending from a composer whose transcript is not showing) puts it in the dock and moves focus there; with no dock they open as before.
+
+The composer opens under the dock's window, as wide as it, like under any transcript. Switching the dock to another session closes the composer and keeps its draft. There is one dock per tab; a zoom tab belongs to the dock it came from.
+
 ## Sub-agents
 
 The client declares `subagents` (the ACP sub-agent RFD). When an agent reports a child session (`subagent_update`), the parent follows it: the child's updates, and its permission requests, come through the parent session, filed under the tool call that started the child (from its `session_message` id, or the child's `parentToolUseId`). Agents that only tag work with `_meta.<vendor>.parentToolUseId` nest the same way.
@@ -247,21 +266,23 @@ The composer window sits on its own `UiComposer` surface (set through `winhl`, s
 
 You write to a session in the composer, much like a commit message window.
 
-- **Opening.** Press `i`, `a`, `o`, `I`, `A` or `O` in a session's buffer, which is read-only. The composer opens as a split along the bottom of the editor, like a commit message window, so it never covers the conversation. It's a normal window: move it with `<C-w>K`, `<C-w>L` and the rest, or resize it. Its winbar names the session it writes to and lists its keys.
+- **Opening.** Press `i`, `a`, `o`, `I`, `A` or `O` in a session's buffer, which is read-only. The composer opens as a split under the transcript's window, as wide as it, like a commit message window, so it never covers the conversation and never touches the code beside it. It belongs to that window: move the transcript (`:wincmd H`, `L` and the rest) and the composer goes back under it at the height it had; close the transcript's window, or put another buffer in it, and the composer closes with it, keeping the draft. When the transcript is not in sight (a selection attached from code with its window closed), it opens along the bottom of the editor instead. Its winbar names the session it writes to and lists its keys.
 - **No file behind it.** It's a buffer with `buftype=acwrite`, so it edits like any buffer, and "writing" it means sending it.
   - `<CR>` in normal mode, or `:w`, sends to the session, then clears and closes the composer and leaves focus in the window you opened it from. In insert mode, `<CR>` is just a newline.
   - `q` in normal mode, `:q`, or closing its window any other way closes it. Moving focus away leaves it open with its draft, so you can go and select code for it. Replacing its buffer, as `<C-l>` does, takes its window with the buffer, and the draft is kept per session for next time.
-- **Only one.** Opening it again focuses the open one, and opening it from another session's buffer moves it there.
+- **One per session.** Opening it again focuses that session's open composer. Another session's transcript, in its own window, gets its own composer under it, so several can be open side by side, each with its own draft and its own name in its winbar. A selection from `<leader>aa` goes to the tab's current session (the transcript or composer you last entered or opened in that tab), and opening or entering a composer makes its session the current one. When the current session is not in sight, it goes to the one transcript that is; when several are in sight and the current one is not among them, a picker asks. While two or more transcripts are showing, the current one's winbar says `● selections go here`.
 - **Context.** Each message says where you were, from the buffer the session was opened from.
 - **Reading the reply.** Each window has one intent: *follow* the newest line, or *hold* the row you left at the top. A following window keeps at least the rows the composer would take free below its newest line (`composer.height` plus its winbar and the separator, a third of the window at most), so the composer opens into them without moving the text; while it is open the edge is its top. The edge is a floor, not an exact value: a scroll moves whole lines, so a wrapped line can leave a little more room, and the view never scrolls back up to chase it. The viewport is a function of the intent, never of how far it moved: a difference from the view the transcript last wrote is yours, because every write, decoration, resize and composer change records the view it leaves. So scrolling up by any amount, even one row or the filler row drawn above the top line, holds the row you scrolled to, and nothing but `G`, a send or scrolling back down until the newest line is on the bottom row moves it, however much text arrives. A resize first puts the text back where it was, then lets only the edge move it, so a window you scrolled in the same moment keeps your scroll. Folds, decorations, rewrites and rows going away above you never lose the end. Subagents write under their tool call, in the middle of the transcript: a held row stays put whether they write above or below it, and a following window keeps its edge as their output and the status rows change. While subagents outlive the turn, the status says how many are still working. Windows are watched every `watch_ms` as well as on `WinScrolled`, so a mouse scroll counts as soon as it happens. A fresh open, a window showing the transcript for the first time, a stored session finishing its load and sending a prompt all follow the end; coming back to a window left at the end follows what streamed meanwhile, and one left scrolled up stays where it was.
 - **Earlier prompts.** `<Up>` on the first line and `<Down>` on the last step through the prompts you sent, the way a shell does; `<C-p>` and `<C-n>` do the same in normal mode. Your unsent text comes back when you step past the newest one, and editing a recalled prompt starts a new walk. `<C-f>` opens a picker of earlier prompts, newest first. They come from the session and from everything sent in this editor; steering messages and duplicates are left out. `<F1>` lists the composer's keys.
-- **Selections.** Select lines in any file and press `<leader>aa` (visual mode) to attach them. With no composer open, it opens one for the transcript you last used (keeping its draft) and leaves you in insert mode there; with several transcripts, that is the last one you entered. Each shows in the winbar as `+ path:from-to`, and when the file is part of the session's running tour, the tour moves to that step and range. They go with the next message, as embedded resources when the agent takes them and fenced code otherwise. The sent prompt lists them under its text (`+ math.lua:3-5`). `<C-x>` in normal mode drops the last one; sending, or closing with the draft discarded, clears them. With no transcript open it leaves the selection alone and says so.
+- **Selections.** Select lines in any file and press `<leader>aa` (visual mode) to attach them. With no composer open, it opens one for the session it picks (keeping its draft) and leaves you in insert mode there. Each tab has its own current session: the transcript you last entered or opened in that tab, else one showing in it; a session from another tab is never picked. Each shows in the winbar as `+ path:from-to`, and when the file is part of the session's running tour, the tour moves to that step and range. They go with the next message, as embedded resources when the agent takes them and fenced code otherwise. The sent prompt lists them under its text (`+ math.lua:3-5`). `<C-x>` in normal mode drops the last one; sending, or closing with the draft discarded, clears them. With no session in the tab it leaves the selection alone and says so.
 
 It belongs to the session, not to the session's buffer:
 
 | When | The composer |
 | --- | --- |
-| The session's buffer is closed | Stays open. Sending shows the buffer again, with the reply streaming in: in the window you came from, or in a new window above if that one closed too. |
+| The transcript's window is closed, or shows another buffer | Closes and keeps the draft. Focus stays where you are. |
+| The transcript's window is moved | Goes back under it, at the height it had. |
+| It was opened with the transcript out of sight | Sits along the bottom of the editor. Sending shows the transcript, with the reply streaming in: in the window you came from, or in a new window above if that one closed. |
 | You leave it | Stays open, keeping its text. |
 | You `q` it, `:q` it or close its window | Closes and keeps the draft, which is saved as you type. Nothing complains about unsaved changes. |
 | You `:wq` it | Sends and closes only the composer, never the window under it. |
@@ -303,7 +324,7 @@ The MCP server reads the editor's tool definitions when it connects, so a new to
 - *Surfaces are state machines that commands drive.* A picker goes `loading -> ready -> chosen` through `query`, `move` and `select`; a list takes `cursor`, `open` and `add`; a panel takes `write`. `ui_command` runs one step, the same step a person takes with keys, and returns what the surface shows. `ui_read` reads it, and `ui_pick` lets the user choose while the agent reads the choice later.
 - *Any UI.* `ui_screen` returns what the user sees: every window, its visible lines and the cursor. `ui_keys` types into anything, such as vgit's views.
 - *Git through vgit.* `git_view` opens vgit's UI and returns once vgit has finished, using `require('vgit').run` when vgit has it, else `:VGit`. The reads come straight from git, as compact text. `git_stage` and `git_discard` apply exactly the hunk at a line with `git apply`.
-- *Tokens.* Every result goes through `lua/compact.lua`, which applies rtk's techniques: grouping by file, relative paths, joined duplicates, budgets with `… N more (offset=K)`. `:HarnessStats` shows each session's context use and what compact output saved against plain JSON.
+- *Tokens.* Every result goes through `lua/compact.lua`, which applies rtk's techniques: grouping by file, relative paths, joined duplicates, budgets with `… N more (offset=K)`.
 - People get the same pickers from the keymaps (`<C-p>`, `<leader>/`, `<leader>l*`, `<leader>b`) and `vim.ui.select`.
 
 **Scripts.** `lua` is code mode: the agent writes one multi-line script instead of making many small calls.
@@ -311,7 +332,6 @@ The MCP server reads the editor's tool definitions when it connects, so a new to
 - Globals persist between scripts in a scratch environment, not in `_G`.
 - A runaway script stops at `timeout_ms` (default 10000).
 - Callbacks a script registers are disabled on their first error. You get one notification, and the agent sees the error with its next script.
-- `:HarnessClear` removes everything that scripts created.
 
 **Focus.** The tools act on the buffer you ran `:Harness` from (`tools.set_focus`), not on the session buffer. When no window shows that buffer any more, they use its last cursor position.
 
@@ -362,17 +382,19 @@ Add another ACP agent (Gemini, Codex, ...) as another YAML file, then open a ses
 :Harness what is wrong with this function?
 :'<,'>Harness explain these lines
 :Harness now fix it          " asks the session in the session window again
-:HarnessNew [agent]          " a new session (a new buffer); also <leader>an
-:HarnessSessions             " the session selector: new, open, delete; also <leader>. and <leader>aa
-:HarnessCancel
-:HarnessClear                " remove what agents' scripts left behind
-:HarnessStats                " tokens per session, and what compact output saved
+:HarnessNew [agent]          " a new session (a new buffer); pick "+ New session" in sessions
+:HarnessSessions             " the session selector: new, open, delete; also <leader>.
+:HarnessCancel               " stop the running turn; also <C-c> in a transcript
 :HarnessChanges              " every file the session changed, in vgit; also gC
-:HarnessTranscript expand|right  " tile the transcript in focus: widen it, or move it to the right
 :HarnessFork                 " fork the session from the reply under the cursor; also gF
 :HarnessRevert [scope]       " revert an edit, a turn or the session after a vgit preview; also gR
 :HarnessQuickfix [scope]     " an edit's, a turn's or the session's edits in quickfix; also gl / gL
+:HarnessPermissions          " the session's grants, saved rules and decisions; also gP
+:HarnessTour [step]          " walk a tour or the agent's changes; drive it with the tour's own keys
+:HarnessDock [width]         " dock the session on the right; compact, half, zoom or close; also <leader>a.
 ```
+
+Sessions live on `<leader>.`; the agent's actions are keys inside the transcript, and `<leader>a` keeps only the dock (`a.`) and waiting (`aw`).
 
 ```lua
 local harness = require('harness')

@@ -2,6 +2,7 @@ local lazy = require('core.lazy')
 
 local hub = lazy('harness.hub')
 local Timer = lazy('core.Timer')
+local event = lazy('core.event')
 local motion = lazy('ui.motion')
 local surfaces = lazy('surfaces')
 local Buffer = lazy('core.Buffer')
@@ -18,6 +19,7 @@ local Animator = lazy('harness.ui.Animator')
 local tour_store = lazy('harness.tour_store')
 local theme = lazy('harness.transcript.theme')
 local PromptHistory = lazy('harness.ui.PromptHistory')
+local composer_geometry = lazy('harness.ui.composer_geometry')
 
 local ComposerView = Object:extend()
 
@@ -43,6 +45,26 @@ function ComposerView.focus_window(win)
   if window and window:is_valid() then window:focus() end
 end
 
+function ComposerView.anchor_for(view)
+  if not view then return nil end
+
+  local tab = Window.current_tab()
+  local candidates = { Window.get_current() }
+
+  vim.list_extend(candidates, view:windows())
+
+  for _, window in ipairs(candidates) do
+    if
+      window:is_valid()
+      and window:get_tab() == tab
+      and window:get_buffer().bufnr == view.bufnr
+      and window:get_height() > composer_geometry.footprint()
+    then
+      return window
+    end
+  end
+end
+
 function ComposerView:constructor(session, store, callbacks)
   callbacks = callbacks or {}
 
@@ -51,6 +73,9 @@ function ComposerView:constructor(session, store, callbacks)
     store = store,
     display = callbacks.display,
     element = nil,
+    anchor = nil,
+    contained = nil,
+    height = nil,
     origin = nil,
     source = {},
     on_send = callbacks.on_send,
@@ -59,6 +84,7 @@ function ComposerView:constructor(session, store, callbacks)
     on_interrupt = callbacks.on_interrupt,
     on_close = callbacks.on_close,
     on_wipe = callbacks.on_wipe,
+    on_enter = callbacks.on_enter,
     answering = callbacks.answering,
     recall = nil,
     shown = nil,
@@ -240,12 +266,58 @@ function ComposerView:attach(buf, range)
 end
 
 function ComposerView:_keep()
-  if not self:is_open() or self.answering then return self end
+  if not self:is_open() then return self end
+
+  self.element:set_buf_option('modified', false)
+
+  if self.answering then return self end
 
   local lines = self.element:get_lines()
 
   self.store:set_draft(self.session.key, ComposerView.has_text(lines) and lines or nil)
-  self.element:set_buf_option('modified', false)
+
+  return self
+end
+
+function ComposerView:_release()
+  if self.contained then self.contained.dispose() end
+
+  self.contained = nil
+
+  return self
+end
+
+function ComposerView:_contain(transcript_buf)
+  local anchor = self.anchor
+
+  if not anchor then return self end
+
+  local function leave()
+    Timer.schedule(function()
+      if self:is_open() and not self.closing then self:close(false, { keep_focus = true }) end
+    end)
+  end
+
+  self.contained = event.augroup('harness.composer.anchor.' .. self.session.key)
+  self.contained.on('WinClosed', function(args)
+    if tonumber(args.match) == anchor.win_id then leave() end
+  end)
+  self.contained.on('BufWinEnter', function()
+    if anchor:is_valid() and anchor:get_buffer().bufnr ~= transcript_buf then leave() end
+  end)
+  self.contained.on('WinResized', function()
+    Timer.schedule(function()
+      if not (self:is_open() and anchor:is_valid()) or self.closing then return end
+
+      local window = self.element:get_window()
+
+      if window:is_below(anchor) then
+        self.height = window:get_height()
+      else
+        window:place_below(anchor, self.height or settings.composer:get('height'))
+      end
+    end)
+  end)
 
   return self
 end
@@ -254,6 +326,7 @@ function ComposerView:close(discard, opts)
   local key = self.session.key
 
   self.closing = true
+  self:_release()
 
   if self.animator then self.animator:close() end
 
@@ -582,6 +655,10 @@ function ComposerView:_listen()
     self:_keep()
   end)
 
+  element:on('BufEnter', function()
+    if self.on_enter then self.on_enter(self) end
+  end)
+
   element:on('BufWriteCmd', function()
     element:set_buf_option('modified', false)
 
@@ -589,6 +666,8 @@ function ComposerView:_listen()
   end)
 
   element:on('BufWipeout', function()
+    self:_release()
+
     -- The buffer went on its own (it is bufhidden=wipe): switching buffers in
     -- the composer window, as <C-l> does, is the usual way. The split must go
     -- with it, or it is left showing whatever buffer replaced the composer.
@@ -611,6 +690,7 @@ end
 function ComposerView:mount(insert)
   local session = self.session
   local view = self.display and self.display.view_of(session)
+  local anchor = ComposerView.anchor_for(view)
   local element = Element({
     buf_options = {
       buftype = 'acwrite',
@@ -629,9 +709,10 @@ function ComposerView:mount(insert)
       signcolumn = 'no',
       winhl = 'Normal:UiComposer,EndOfBuffer:UiComposer',
     },
-    win_plot = { split = 'below', win = -1, height = settings.composer:get('height') },
+    win_plot = { split = 'below', win = anchor and anchor.win_id or -1, height = settings.composer:get('height') },
   })
 
+  self.anchor = anchor
   self.origin = Window.get_current().win_id
   self.source = { win = view and view.source_win, buf = view and view.source_buf }
   self.element = element
@@ -646,13 +727,14 @@ function ComposerView:mount(insert)
 
   self:_ease_open()
 
-  element:set_name(ComposerView.NAME)
+  element:set_name(ComposerView.NAME .. '/' .. session.key)
   element:set_lines(not self.answering and self.store:draft(session.key) or { '' })
   element:set_buf_option('modified', false)
   element:focus()
   element:set_cursor({ element:get_line_count(), #(element:get_lines()[element:get_line_count()] or '') })
 
   self:_bind(settings.keymaps:get('composer')):_listen():_decorate()
+  self:_contain(view and view.bufnr)
 
   if insert then element:start_insert() end
 

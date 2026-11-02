@@ -709,23 +709,160 @@ describe('harness.ui.composer:', function()
     eq({}, prompts(fake))
   end)
 
-  it('is only ever one: opening again focuses it, another session moves it', function()
-    local first = open_composer(session)
+  describe('one per session', function()
+    local other
 
-    vim.cmd('wincmd p')
-    eq(first, open_composer(session))
-    eq(1, #composers())
+    local function side_by_side()
+      local first = vim.api.nvim_get_current_win()
 
-    vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'for the first' })
+      vim.cmd('vsplit')
+      other = hub.start({ dir = '/w' }):wait()
+      transcript.open(other)
 
-    local other = hub.start({ dir = '/w' }):wait()
+      return first, vim.api.nvim_get_current_win()
+    end
 
-    open_composer(other)
-    eq(other, composer.target())
-    eq({ '' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    it('focuses the open one when asked again for the same session', function()
+      local first = open_composer(session)
 
-    open_composer(session)
-    eq({ 'for the first' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+      vim.cmd('wincmd p')
+      eq(first, open_composer(session))
+      eq(1, #composers())
+    end)
+
+    it('gives each visible transcript its own, under it, keeping every draft', function()
+      local first_win, other_win = side_by_side()
+      local Window = require('core.Window')
+
+      vim.api.nvim_set_current_win(first_win)
+      open_composer(session)
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'for the first' })
+      vim.wait(50)
+
+      vim.api.nvim_set_current_win(other_win)
+      open_composer(other)
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'for the other' })
+      vim.wait(50)
+
+      eq(2, #composers())
+      eq(true, composer.is_open(session))
+      eq(true, composer.is_open(other))
+      eq(true, Window(composer.view(session).element:get_window().win_id):is_below(Window(first_win)))
+      eq(true, Window(composer.view(other).element:get_window().win_id):is_below(Window(other_win)))
+      eq({ 'for the first' }, composer.view(session):lines())
+      eq({ 'for the other' }, composer.view(other):lines())
+    end)
+
+    it('closes only the one whose transcript window closed', function()
+      local first_win, other_win = side_by_side()
+
+      vim.api.nvim_set_current_win(first_win)
+      open_composer(session)
+      vim.api.nvim_set_current_win(other_win)
+      open_composer(other)
+
+      vim.api.nvim_win_close(first_win, true)
+      vim.wait(200, function()
+        return not composer.is_open(session)
+      end)
+
+      eq(false, composer.is_open(session))
+      eq(true, composer.is_open(other))
+      eq(1, #composers())
+    end)
+
+    it('names each in its own winbar and tells them apart by buffer', function()
+      local first_win, other_win = side_by_side()
+
+      vim.api.nvim_set_current_win(first_win)
+      open_composer(session)
+      vim.api.nvim_set_current_win(other_win)
+      open_composer(other)
+
+      local names = vim.tbl_map(function(win)
+        return vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win))
+      end, composers())
+
+      table.sort(names)
+      eq(2, #names)
+      assert.are_not.equal(names[1], names[2])
+      assert.is_truthy(composer.view(session):winbar():find(session.key, 1, true))
+      assert.is_truthy(composer.view(other):winbar():find(other.key, 1, true))
+    end)
+
+    it('asks which session when the current one is out of sight and several others are showing', function()
+      local surfaces = require('surfaces')
+      local pick = surfaces.pick
+      local asked
+      local file = vim.api.nvim_create_buf(false, true)
+
+      vim.api.nvim_buf_set_lines(file, 0, -1, false, { 'one', 'two', 'three' })
+
+      local first_win, other_win = side_by_side()
+      local third = hub.start({ dir = '/w' }):wait()
+
+      transcript.open(third, { background = true })
+      require('harness.ui.display').set_current(transcript.view_of(third))
+
+      surfaces.pick = function(opts)
+        asked = opts
+      end
+
+      vim.cmd('botright vsplit')
+      vim.api.nvim_win_set_buf(0, file)
+      press('Vj')
+
+      eq(true, commands.attach_visual())
+      surfaces.pick = pick
+
+      assert.is_truthy(asked)
+      eq(2, #asked.items)
+      press('<Esc>')
+      eq({}, composer.attached(session))
+
+      local chosen = vim.tbl_filter(function(item)
+        return item.view.session == other
+      end, asked.items)[1]
+
+      asked.on_select(chosen)
+      vim.wait(300, function()
+        return #composer.attached(other) == 1
+      end)
+
+      eq({ 1, 2 }, composer.attached(other)[1].range)
+      eq({}, composer.attached(session))
+      eq(other, composer.target())
+      assert.is_true(vim.api.nvim_win_is_valid(first_win) and vim.api.nvim_win_is_valid(other_win))
+    end)
+
+    it('takes a selection for the session the tab is working with, as it moves between them', function()
+      local file = vim.api.nvim_create_buf(false, true)
+
+      vim.api.nvim_buf_set_lines(file, 0, -1, false, { 'one', 'two', 'three' })
+
+      local first_win, other_win = side_by_side()
+
+      vim.api.nvim_set_current_win(first_win)
+      open_composer(session)
+      vim.api.nvim_set_current_win(other_win)
+      open_composer(other)
+
+      vim.cmd('botright vsplit')
+      vim.api.nvim_win_set_buf(0, file)
+      press('Vj')
+      eq(true, commands.attach_visual())
+      eq({ 1, 2 }, composer.attached(other)[1].range)
+      eq({}, composer.attached(session))
+      press('<Esc>')
+
+      vim.api.nvim_set_current_win(first_win)
+      vim.cmd('botright vsplit')
+      vim.api.nvim_win_set_buf(0, file)
+      press('Vj')
+      eq(true, commands.attach_visual())
+      eq(1, #composer.attached(session))
+      press('<Esc>')
+    end)
   end)
 
   it('stays open when focus leaves, keeping the draft, so a selection can be attached', function()
@@ -800,28 +937,128 @@ describe('harness.ui.composer:', function()
     eq({ 'closed with <C-w>c' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   end)
 
-  it('stays when the session buffer is closed, and sending shows it in a window of its own', function()
-    local session_buf = vim.api.nvim_get_current_buf()
+  describe('attached to its transcript', function()
+    local function layout()
+      local transcript_win = vim.api.nvim_get_current_win()
 
-    open_composer(session)
-    vim.cmd('bwipeout! ' .. session_buf)
+      vim.cmd('vertical aboveleft new')
 
-    eq(true, composer.is_open())
+      local code_win = vim.api.nvim_get_current_win()
 
-    vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'still here?' })
-    press('<CR>')
-    vim.wait(1000, function()
-      return #prompts(fake) == 1
+      vim.api.nvim_set_current_win(transcript_win)
+
+      return transcript_win, code_win
+    end
+
+    local function composer_win()
+      return composers()[1]
+    end
+
+    it('opens under the transcript, as wide as it, leaving the code beside it alone', function()
+      local transcript_win, code_win = layout()
+      local code_width = vim.api.nvim_win_get_width(code_win)
+
+      open_composer(session)
+
+      local win = composer_win()
+
+      eq(vim.api.nvim_win_get_width(transcript_win), vim.api.nvim_win_get_width(win))
+      eq(vim.api.nvim_win_get_position(transcript_win)[2], vim.api.nvim_win_get_position(win)[2])
+      eq(code_width, vim.api.nvim_win_get_width(code_win))
+      eq(true, require('core.Window')(win):is_below(require('core.Window')(transcript_win)))
     end)
 
-    local win = vim.api.nvim_get_current_win()
+    it('closes with its transcript window and keeps the draft', function()
+      local transcript_win = layout()
 
-    eq({ 'still here?' }, prompts(fake))
-    eq({ win }, vim.api.nvim_list_wins())
-    eq(session, transcript.view().session)
-    eq(false, vim.wo[win].winfixheight)
-    eq(1, vim.wo[win].winbar:find(require('harness.ui.winbar').hints(), 1, true))
-    assert.is_truthy(fake:sent_method('session/prompt').params.prompt[1].text:find('(bufnr ' .. code .. ')', 1, true))
+      open_composer(session)
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'kept for later' })
+      vim.wait(50)
+      vim.api.nvim_win_close(transcript_win, true)
+      vim.wait(200, function()
+        return not composer.is_open()
+      end)
+
+      eq(false, composer.is_open())
+      eq(0, #composers())
+
+      transcript.open(session)
+      open_composer(session)
+      eq({ 'kept for later' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    end)
+
+    it('closes when another buffer takes the transcript window, leaving focus there', function()
+      local transcript_win = layout()
+
+      open_composer(session)
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'not lost' })
+      vim.wait(50)
+      vim.api.nvim_set_current_win(transcript_win)
+      vim.cmd('enew')
+      vim.wait(200, function()
+        return not composer.is_open()
+      end)
+
+      eq(false, composer.is_open())
+      eq(transcript_win, vim.api.nvim_get_current_win())
+
+      transcript.open(session)
+      open_composer(session)
+      eq({ 'not lost' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    end)
+
+    it('follows its transcript when the window is moved', function()
+      local transcript_win = layout()
+      local Window = require('core.Window')
+
+      open_composer(session)
+      vim.wait(300)
+
+      local height = vim.api.nvim_win_get_height(composer_win())
+
+      vim.api.nvim_exec_autocmds('WinResized', {})
+      vim.wait(50)
+      vim.api.nvim_set_current_win(transcript_win)
+      vim.cmd('wincmd H')
+      vim.api.nvim_exec_autocmds('WinResized', {})
+      vim.wait(300, function()
+        return Window(composer_win()):is_below(Window(transcript_win))
+      end)
+
+      eq(true, Window(composer_win()):is_below(Window(transcript_win)))
+      eq(height, vim.api.nvim_win_get_height(composer_win()))
+    end)
+
+    it('opens along the bottom when its transcript is not in sight', function()
+      vim.cmd('enew')
+      open_composer(session)
+
+      eq(vim.o.columns, vim.api.nvim_win_get_width(composer_win()))
+    end)
+  end)
+
+  it('stays unmodified while answering, so :wall never submits the answer', function()
+    local prompt = {
+      is_open = function()
+        return true
+      end,
+      writing = function()
+        return true
+      end,
+      writing_label = function()
+        return 'Name'
+      end,
+      stop_writing = function() end,
+    }
+
+    open_composer(session, { answer = prompt })
+
+    local buf = vim.api.nvim_get_current_buf()
+
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'Ada' })
+    vim.wait(100)
+
+    eq(false, vim.bo[buf].modified)
   end)
 
   it('sends the reply to the window it came from when that is still open', function()

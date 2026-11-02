@@ -80,44 +80,6 @@ describe('harness.ui.commands:', function()
     eq({ '# untitled', '', '> what is here?', '', 'reply to what is here?', '', '*end_turn*', '' }, lines(buf))
   end)
 
-  it('tiles the focused transcript: move it right at its compact width, then expand it', function()
-    commands.run('hi'):wait()
-    vim.cmd('vsplit')
-
-    local win = vim.api.nvim_get_current_win()
-    local spec = require('harness.settings').transcript
-
-    local function columns()
-      local total, count = 0, 0
-
-      for _, candidate in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-        if vim.api.nvim_win_get_config(candidate).relative == '' then
-          total = total + vim.api.nvim_win_get_width(candidate)
-          count = count + 1
-        end
-      end
-
-      return total + math.max(count - 1, 0)
-    end
-
-    local compact = math.max(spec:get('tile_min_width'), math.floor(columns() * spec:get('tile_width')))
-
-    eq(true, commands.transcript('right'))
-    eq(compact, vim.api.nvim_win_get_width(win))
-    assert.is_true(vim.api.nvim_win_get_position(win)[2] > 0)
-
-    local wide = math.max(compact + 1, math.floor(columns() * spec:get('tile_expanded')))
-
-    eq(true, commands.transcript('expand'))
-    eq(wide, vim.api.nvim_win_get_width(win))
-
-    eq(true, commands.transcript('expand'))
-    eq(compact, vim.api.nvim_win_get_width(win))
-
-    vim.cmd('enew')
-    eq(false, commands.transcript('expand'))
-  end)
-
   it('tells the agent where the user was, and points the tools there, behind the session buffer', function()
     local source = vim.api.nvim_get_current_buf()
 
@@ -227,16 +189,5 @@ describe('harness.ui.commands:', function()
     commands.cancel()
 
     eq('s1', fakes[1]:sent_method('session/cancel').params.sessionId)
-  end)
-
-  it('reports tokens per session', function()
-    local session = commands.new():wait()
-
-    require('compact').reply(session.key, string.rep('x', 400), 'short')
-
-    local lines = commands.stats_lines()
-
-    assert.is_truthy(lines[3]:find('| ' .. session.key .. ' |', 1, true))
-    assert.is_truthy(lines[3]:find('2 tokens in 1 calls | 99 tokens |', 1, true))
   end)
 end)
