@@ -534,6 +534,34 @@ describe('harness.ui.composer:', function()
       eq({}, composer.attached(session))
     end)
 
+    it('lists the key that drops a selection in the footer as soon as one is attached, and not after', function()
+      local function footer()
+        local buf = vim.api.nvim_get_current_buf()
+        local view = require('harness.ui.ComposerView')
+        local text = {}
+
+        for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(buf, view.NAMESPACE, 0, -1, { details = true })) do
+          for _, line in ipairs(mark[4].virt_lines or {}) do
+            for _, chunk in ipairs(line) do
+              text[#text + 1] = chunk[1]
+            end
+          end
+        end
+
+        return table.concat(text)
+      end
+
+      open_composer(session)
+      assert.is_nil(footer():find('drop selection', 1, true))
+
+      composer.attach(file, { 1, 1 })
+      assert.is_truthy(footer():find('<C-x>', 1, true))
+      assert.is_truthy(footer():find('drop selection', 1, true))
+
+      press('<C-x>')
+      assert.is_nil(footer():find('drop selection', 1, true))
+    end)
+
     it('rides along with the next message, named in the winbar until sent', function()
       open_composer(session)
       eq(true, composer.attach(file, { 2, 3 }))

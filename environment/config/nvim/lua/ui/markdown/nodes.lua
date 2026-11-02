@@ -16,7 +16,7 @@ nodes.CALLOUTS = {
   important = { icon = '◆ ', hl = 'UiHint' },
   warning = { icon = '! ', hl = 'UiWarn' },
   caution = { icon = '✗ ', hl = 'UiError' },
-  thought = { icon = '◇ ', hl = 'UiMuted' },
+  thought = { icon = '◇ ', hl = 'UiMuted', label = 'Thought', defer = true },
 }
 
 nodes.RULE_WIDTH = 400
@@ -158,7 +158,7 @@ end
 NODES.checked = checkbox('✓', 'UiMarkdownChecked')
 NODES.unchecked = checkbox('○', 'UiMarkdownUnchecked')
 
-function NODES.quote(out, node, src)
+function NODES.quote(out, node, src, renderer)
   local start_row = src:start(node)
   local first = src:line(start_row)
   local name = first:match('^[%s>]*%[!(%a+)%]')
@@ -177,14 +177,17 @@ function NODES.quote(out, node, src)
 
     if callout and row == start_row then
       local title = text:sub(#markers + 1):gsub('^%[!%a+%]%s*', '')
+      local label = callout.label or name:sub(1, 1):upper() .. name:sub(2):lower()
 
       mark(out, row, #markers, { end_col = #text, conceal = '' })
-      mark(out, row, #markers, {
-        virt_text = {
-          { callout.icon .. (title ~= '' and title or name:sub(1, 1):upper() .. name:sub(2):lower()), callout.hl },
-        },
-        virt_text_pos = 'inline',
-      })
+
+      -- a deferred callout is drawn by its owner, which can animate it
+      if not (callout.defer and renderer and renderer.defer_callouts) then
+        mark(out, row, #markers, {
+          virt_text = { { callout.icon .. (title ~= '' and title or label), callout.hl } },
+          virt_text_pos = 'inline',
+        })
+      end
     end
   end
 end

@@ -11,7 +11,6 @@ local console = lazy('core.console')
 local tools = lazy('nvim_mcp.tools')
 local tour = lazy('harness.ui.tour')
 local edits = lazy('harness.ui.edits')
-local docks = lazy('harness.ui.docks')
 local context = lazy('harness.context')
 local display = lazy('harness.ui.display')
 local composer = lazy('harness.ui.composer')
@@ -237,12 +236,6 @@ function commands.tour(text)
     false,
     'ask for a tour in your session; :HarnessTour takes next, prev, stop, resume or changes'
   )
-end
-
-function commands.dock(action)
-  local view = transcript.view() or display.last()
-
-  return transcript.report(docks.run(vim.trim(action or ''), view))
 end
 
 function commands.permissions()

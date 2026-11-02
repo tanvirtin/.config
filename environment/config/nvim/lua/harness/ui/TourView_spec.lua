@@ -234,7 +234,7 @@ describe('harness.ui.TourView:', function()
     eq('line 10', vim.api.nvim_buf_get_lines(a, 12, 13, false)[1])
   end)
 
-  it('docks the transcript to the right and opens the code beside it when every window is a harness one', function()
+  it('tiles the transcript to the right and opens the code beside it when every window is a harness one', function()
     local transcript = vim.api.nvim_create_buf(false, true)
 
     vim.api.nvim_buf_set_name(transcript, 'harness://t1 untitled')

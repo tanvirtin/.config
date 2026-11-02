@@ -1,6 +1,9 @@
 local compact = require('compact')
 local MarkSpec = require('ui.MarkSpec')
+local nodes = require('ui.markdown.nodes')
 local theme = require('harness.transcript.theme')
+
+local CALLOUT = nodes.CALLOUTS.thought
 
 local PEEK = 60
 
@@ -15,8 +18,16 @@ end
 return function(block, ctx)
   local out = {}
   local text
+  local first = block.lines[1] or ''
+  local pulsing = block.live and ctx.running
+  local hl = pulsing and ctx.now and theme.pulse(ctx.now) or CALLOUT.hl
 
-  if block.live and ctx.running then
+  MarkSpec.add(out, block.start, #(first:match('^[%s>]*') or ''), {
+    virt_text = { { CALLOUT.icon, hl }, { CALLOUT.label, CALLOUT.hl } },
+    virt_text_pos = 'inline',
+  })
+
+  if pulsing then
     text = { { '  ' .. theme.motion('thinking', ctx.now), 'UiMuted' } }
 
     local last = peek(block, ctx)

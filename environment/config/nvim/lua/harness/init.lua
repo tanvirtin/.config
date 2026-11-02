@@ -4,7 +4,6 @@ local hl = lazy('ui.hl')
 local hub = lazy('harness.hub')
 local tools = lazy('harness.tools')
 local tour = lazy('harness.ui.tour')
-local docks = lazy('harness.ui.docks')
 local router = lazy('harness.cli.router')
 local settings = lazy('harness.settings')
 local composer = lazy('harness.ui.composer')
@@ -57,7 +56,6 @@ local function register_events()
   features = { EditCheckTime():register_events(), SkillSync():register_events() }
   composer.register_events()
   tour.register_events()
-  docks.register_events()
 end
 
 function harness.setup(opts)

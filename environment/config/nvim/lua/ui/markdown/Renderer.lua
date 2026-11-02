@@ -50,6 +50,7 @@ function Renderer:constructor(bufnr, opts)
     hidden_labels = opts.hidden_labels or {},
     code_hl = opts.code_hl or {},
     resolve = opts.resolve,
+    defer_callouts = opts.defer_callouts or false,
   }
 end
 

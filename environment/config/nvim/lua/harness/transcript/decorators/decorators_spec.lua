@@ -276,7 +276,7 @@ describe('harness.transcript.decorators:', function()
     local live =
       decorators.decorate(make(Block.KIND.thought, lines, { live = true }), { running = true, now = 0, width = 60 })
     local shown = find(live, function(opts)
-      return opts.virt_text and #opts.virt_text == 2
+      return opts.virt_text_pos == 'eol'
     end).opts.virt_text[2][1]
 
     assert.truthy(shown:find('the latest idea', 1, true))
@@ -285,7 +285,7 @@ describe('harness.transcript.decorators:', function()
     local done = decorators.decorate(make(Block.KIND.thought, lines, { started = 0, finished = 2000 }), {})
 
     eq(1, #find(done, function(opts)
-      return opts.virt_text
+      return opts.virt_text_pos == 'eol'
     end).opts.virt_text)
   end)
 
@@ -312,9 +312,26 @@ describe('harness.transcript.decorators:', function()
   it('animates a live thought and times a finished one', function()
     local live = decorators.decorate(make(Block.KIND.thought, { 'x' }, { live = true }), { running = true, now = 0 })
     local done = decorators.decorate(make(Block.KIND.thought, { 'x' }, { started = 0, finished = 2000 }), {})
+    local function head(marks)
+      return find(marks, function(opts)
+        return opts.virt_text_pos == 'inline'
+      end).opts.virt_text
+    end
 
-    eq('  ' .. theme.motion('thinking', 0), virt(live[1].opts))
-    eq('  2s', virt(done[1].opts))
+    eq(
+      '  ' .. theme.motion('thinking', 0),
+      virt(find(live, function(opts)
+        return opts.virt_text_pos == 'eol'
+      end).opts)
+    )
+    eq({ { '◇ ', theme.pulse(0) }, { 'Thought', 'UiMuted' } }, head(live))
+    eq({ { '◇ ', 'UiMuted' }, { 'Thought', 'UiMuted' } }, head(done))
+    eq(
+      '  2s',
+      virt(find(done, function(opts)
+        return opts.virt_text_pos == 'eol'
+      end).opts)
+    )
   end)
 
   it('draws every note as a cross, its label and its detail, with errors in the error colour', function()

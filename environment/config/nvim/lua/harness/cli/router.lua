@@ -15,7 +15,6 @@ router.COMMANDS = {
   'quickfix',
   'permissions',
   'tour',
-  'dock',
 }
 
 local disposers = {}

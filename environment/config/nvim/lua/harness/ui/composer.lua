@@ -108,13 +108,6 @@ function composer.attach_visual(buf, range, session)
   return true
 end
 
-function composer.detach(session)
-  if not session then return end
-
-  store:detach(session.key)
-  Window.redraw_bars()
-end
-
 function composer.close(discard, session)
   local closing = {}
 

@@ -2,7 +2,6 @@ local lazy = require('core.lazy')
 
 local Buffer = lazy('core.Buffer')
 local Window = lazy('core.Window')
-local docks = lazy('harness.ui.docks')
 local composer = require('harness.ui.composer')
 local TranscriptView = lazy('harness.ui.TranscriptView')
 
@@ -13,10 +12,6 @@ local current = {}
 
 function display.view(buf)
   return views[buf or Buffer.current_number()]
-end
-
-function display.views()
-  return views
 end
 
 function display.shown()
@@ -111,19 +106,16 @@ end
 function display.open(session, opts)
   opts = opts or {}
 
-  local view = display.view_of(session) or create(session, opts)
+  local view = display.view_of(session)
 
-  if opts.source_win then
+  if not view then
+    view = create(session, opts)
+  elseif opts.source_win then
     view.source_win = opts.source_win
     view.source_buf = opts.source_buf
   end
 
-  local dock = not opts.background and docks.open_dock()
-
-  if dock then
-    dock:show(view):focus()
-    display.set_current(view)
-  elseif not opts.background then
+  if not opts.background then
     local window = Window.get_current()
 
     if composer.owns(window:get_buffer().bufnr) then
@@ -159,8 +151,9 @@ end
 
 function display.is_target(view, window)
   if window:get_tab() ~= Window.current_tab() then return false end
+  if display.last() ~= view then return false end
 
-  return #display.shown() > 1 and display.last() == view
+  return #display.shown() > 1
 end
 
 function display.forget(session)
@@ -182,12 +175,6 @@ function display.reveal(session, origin, source)
     view:land(window)
 
     return window.win_id
-  end
-
-  if docks.open_dock() then
-    display.open(session, { source_win = source.win, source_buf = source.buf })
-
-    return Window.get_current().win_id
   end
 
   if window and window:is_valid() then

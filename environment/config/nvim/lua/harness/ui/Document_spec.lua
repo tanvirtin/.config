@@ -332,6 +332,40 @@ describe('harness.ui.Document:', function()
       vim.api.nvim_buf_delete(whole, { force = true })
     end)
 
+    it('pulses a live thought\'s diamond, and holds it still once the thought is done', function()
+      local running = { running = true }
+
+      events.append(history, events.prompt('hi'))
+      events.append(history, { kind = 'thought', text = 'thinking' })
+      document:write(blocks.build(history, nil, running), running)
+      document:decorate_visible()
+
+      local thought = document.blocks[#document.blocks]
+      local function header()
+        for _, mark in ipairs(marks(buf, Document.NAMESPACE)) do
+          if mark[2] == thought.start and mark[4].virt_text_pos == 'inline' then return mark[4].virt_text end
+        end
+      end
+
+      local live = header()
+
+      eq({ '◇ ', 'Thought' }, { live[1][1], live[2][1] })
+      eq('UiMuted', live[2][2])
+      assert.is_truthy(live[1][2]:match('^UiPulse%d+$'))
+      eq(
+        {},
+        vim.tbl_filter(function(mark)
+          return mark[2] == thought.start and mark[4].virt_text_pos == 'inline'
+        end, marks(buf, require('ui.markdown.Renderer').NAMESPACE))
+      )
+
+      events.append(history, { kind = 'message', text = 'done' })
+      document:write(blocks.build(history, nil, running), running)
+      document:decorate_visible()
+
+      eq({ { '◇ ', 'UiMuted' }, { 'Thought', 'UiMuted' } }, header())
+    end)
+
     it('drops a table\'s box from above once the table grows past the settled line', function()
       emit(events.prompt('hi'))
       stream('intro\n\n| a | b |\n| - | - |', 100)

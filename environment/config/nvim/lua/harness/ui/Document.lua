@@ -55,6 +55,7 @@ function Document:constructor(bufnr)
     renderer = Renderer(bufnr, {
       hidden_labels = { output = true, terminal = true, split = true, diff = true, edit = true },
       code_hl = { output = 'UiToolOutput', terminal = 'UiTerminal', split = false },
+      defer_callouts = true,
     }),
   }
 end

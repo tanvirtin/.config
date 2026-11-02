@@ -156,9 +156,3 @@ end, { desc = 'Go to the waiting request' })
 map('v', '<leader>aa', function()
   require('harness.ui.commands').attach_visual()
 end, { desc = 'Attach the selection' })
-
--- dock the session on the right: compact, half, then zoomed to its own tab
-
-map('n', '<leader>a.', function()
-  require('harness.ui.commands').dock('')
-end, { desc = 'Dock, widen or zoom the session' })

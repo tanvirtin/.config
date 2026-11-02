@@ -4,7 +4,6 @@ local fs = lazy('core.fs')
 local Buffer = lazy('core.Buffer')
 local Window = lazy('core.Window')
 local console = lazy('core.console')
-local docks = lazy('harness.ui.docks')
 local INLINE = require('ui.markdown.Renderer').INLINE
 
 local links = {}
@@ -114,19 +113,7 @@ function links.open(target)
 
   if target.path and fs.is_dir(target.path) then return false end
 
-  local window = docks.code_window()
-
-  if window then
-    window:focus()
-
-    if target.bufnr then
-      window:set_buffer(Buffer(target.bufnr))
-    else
-      window:edit(target.path)
-    end
-  else
-    window = target.bufnr and Window.tab_with(Buffer(target.bufnr)) or Window.tab_edit(target.path)
-  end
+  local window = target.bufnr and Window.tab_with(Buffer(target.bufnr)) or Window.tab_edit(target.path)
 
   if target.line then
     window:set_cursor({ math.min(target.line, window:get_buffer():get_line_count()), 0 })

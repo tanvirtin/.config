@@ -93,6 +93,14 @@ describe('ui.markdown.Renderer:', function()
     end
   end)
 
+  it('leaves a deferred callout to its owner', function()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '> [!THOUGHT]', '> thinking' })
+    Renderer(buf, { defer_callouts = true }):render(0, 2)
+
+    assert.is_truthy(find(0, 'conceal'))
+    assert.is_falsy(vim.tbl_contains(virt_text(0), Renderer.CALLOUTS.thought.icon .. 'Thought'))
+  end)
+
   it('draws a rule across the window', function()
     render({ 'a', '', '---', '', 'b' })
 

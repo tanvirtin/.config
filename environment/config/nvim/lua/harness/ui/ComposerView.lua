@@ -177,7 +177,8 @@ function ComposerView:footer()
   if #session.commands > 0 then key(keys.slash, 'commands') end
   if store:has_attachments(session.key) then key(keys.detach, 'drop selection') end
   if not answering then key(keys.history, 'history') end
-  key(keys.help, 'keys')
+  if session:mode() then key(keys.cycle_mode, 'mode') end
+  if session:choice('model') then key(keys.model, 'model') end
   key(keys.close, 'close')
 
   return chunks
@@ -255,12 +256,19 @@ function ComposerView:_ease_open()
   return self
 end
 
+function ComposerView:detach()
+  self.store:detach(self.session.key)
+  Window.redraw_bars()
+  self:refresh()
+end
+
 function ComposerView:attach(buf, range)
   if buf == self.element:get_buffer().bufnr or not Buffer.exists(buf) then return false end
 
   self.store:attach(self.session.key, context.selection(Buffer(buf), range))
   tour_store.select(self.session.key, Buffer(buf):get_name(), range[1], range[2])
   Window.redraw_bars()
+  self:refresh()
 
   return true
 end
@@ -556,9 +564,6 @@ function ComposerView:_bind_history(keys)
     element:set_keymap(mode, keys.history, function()
       self:pick_history()
     end, 'Pick an earlier prompt')
-    element:set_keymap(mode, keys.help, function()
-      self:show_help()
-    end, 'List the composer keys')
   end
 
   element:set_keymap('n', keys.older, function()
@@ -569,30 +574,6 @@ function ComposerView:_bind_history(keys)
   end, 'Later prompt')
 
   return self
-end
-
-function ComposerView:show_help()
-  local keys = settings.keymaps:get('composer')
-  local rows = {
-    { keys.send, 'Send, or queue while the agent works (normal mode)' },
-    { keys.steer, 'Steer the running turn' },
-    { keys.interrupt, 'Interrupt the running turn' },
-    { keys.slash, 'Slash commands (insert mode)' },
-    { keys.cycle_mode, 'Next session mode' },
-    { keys.model, 'Session model (normal mode)' },
-    { keys.detach, 'Drop the last attached selection' },
-    { '<Up> / ' .. keys.older, 'Earlier prompt (<Up> on the first line)' },
-    { '<Down> / ' .. keys.newer, 'Later prompt (<Down> on the last line)' },
-    { keys.history, 'Pick an earlier prompt' },
-    { keys.close, 'Close, keeping the draft (normal mode)' },
-  }
-  local lines = { '| Key | Does |', '| --- | --- |' }
-
-  for _, row in ipairs(rows) do
-    lines[#lines + 1] = string.format('| `%s` | %s |', row[1], row[2])
-  end
-
-  return surfaces.panel({ title = 'Composer keys', markdown = table.concat(lines, '\n') })
 end
 
 function ComposerView:_bind(keys)
@@ -633,8 +614,7 @@ function ComposerView:_bind(keys)
     self:close()
   end, 'Close (keeps the draft)')
   element:set_keymap('n', keys.detach, function()
-    self.store:detach(session.key)
-    Window.redraw_bars()
+    self:detach()
   end, 'Drop the last attached selection')
 
   return self:_bind_history(keys)

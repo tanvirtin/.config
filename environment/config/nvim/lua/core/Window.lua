@@ -63,42 +63,6 @@ function Window.split_top()
   return Window(vim.api.nvim_get_current_win())
 end
 
-function Window.split_far_right(width)
-  vim.cmd(string.format('botright %dvsplit', width))
-
-  return Window(0)
-end
-
-function Window.split_far_left()
-  vim.cmd('topleft vnew')
-
-  return Window(0)
-end
-
-function Window.previous()
-  local win_id = vim.fn.win_getid(vim.fn.winnr('#'))
-
-  return win_id ~= 0 and Window(win_id) or nil
-end
-
-function Window:edit(path)
-  return self:call(function()
-    vim.cmd('edit ' .. vim.fn.fnameescape(path))
-  end)
-end
-
-function Window.in_tab(tab)
-  return vim.tbl_map(Window, vim.api.nvim_tabpage_list_wins(tab))
-end
-
-function Window.tab_valid(tab)
-  return vim.api.nvim_tabpage_is_valid(tab)
-end
-
-function Window.go_to_tab(tab)
-  vim.api.nvim_set_current_tabpage(tab)
-end
-
 function Window.drawn()
   return vim.g.statusline_winid
 end

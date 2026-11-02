@@ -65,6 +65,5 @@ return Config({
     older = '<C-p>',
     newer = '<C-n>',
     history = '<C-f>',
-    help = '<F1>',
   },
 })
