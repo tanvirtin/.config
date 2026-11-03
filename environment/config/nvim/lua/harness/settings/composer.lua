@@ -4,4 +4,5 @@ return Config({
   height = 10,
   -- how long the composer takes to grow to its height when it opens; 0 opens it at once
   ease_ms = 120,
+  reference_lines = 2000,
 })

@@ -10,6 +10,7 @@ content.Attachment = dataclass.define('Attachment', {
   path = { type = 'string' },
   range = { type = 'table' },
   title = { type = 'string' },
+  token = { type = 'string' },
 })
 
 content.Context = dataclass.define('Context', {
@@ -54,11 +55,12 @@ function content.prompt(text, context, instructions)
   })
 end
 
-function content.labels(context)
+function content.labels(context, opts)
+  opts = opts or {}
   local out = {}
 
   for _, attachment in ipairs(context and context.attachments or {}) do
-    if attachment.label then out[#out + 1] = attachment.label end
+    if attachment.label and not (opts.skip_inline and attachment.token) then out[#out + 1] = attachment.label end
   end
 
   return #out > 0 and out or nil

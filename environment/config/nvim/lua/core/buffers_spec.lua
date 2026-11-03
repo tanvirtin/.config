@@ -24,6 +24,33 @@ describe('core.buffers:', function()
     it('is empty for a missing file', function()
       eq({}, buffers.lines_of(vim.fn.tempname()))
     end)
+
+    it('never reads a buffer whose name only contains the path', function()
+      local path = vim.fn.tempname() .. '.lua'
+
+      vim.fn.writefile({ 'disk' }, path)
+
+      local buf = vim.fn.bufadd(path .. '.bak')
+
+      vim.fn.bufload(buf)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'other' })
+
+      eq({ 'disk' }, buffers.lines_of(path))
+
+      vim.api.nvim_buf_delete(buf, { force = true })
+      os.remove(path)
+    end)
+  end)
+
+  describe('find', function()
+    it('finds the buffer named by a path, and nothing for others', function()
+      local path = vim.fn.tempname()
+      local buf = vim.fn.bufadd(path)
+
+      eq(buf, buffers.find(path).bufnr)
+      assert.is_nil(buffers.find(path .. 'x'))
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
   end)
 
   describe('load', function()

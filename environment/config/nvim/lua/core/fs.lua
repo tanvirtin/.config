@@ -75,6 +75,10 @@ function fs.glob(pattern)
   return vim.fn.glob(pattern, false, true)
 end
 
+function fs.complete(prefix)
+  return vim.fn.getcompletion(prefix, 'file')
+end
+
 function fs.normalize(path)
   return vim.fs.normalize(path)
 end

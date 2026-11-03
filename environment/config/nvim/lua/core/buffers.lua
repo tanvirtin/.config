@@ -22,10 +22,21 @@ function buffers.load(path)
   return Buffer(bufnr)
 end
 
-function buffers.lines_of(path)
-  local bufnr = vim.fn.bufnr(path)
+function buffers.find(path)
+  local target = vim.fs.normalize(path)
+  local real = vim.fn.resolve(target)
 
-  if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then return vim.api.nvim_buf_get_lines(bufnr, 0, -1, false) end
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    local name = vim.api.nvim_buf_get_name(bufnr)
+
+    if name ~= '' and (name == target or vim.fn.resolve(name) == real) then return Buffer(bufnr) end
+  end
+end
+
+function buffers.lines_of(path)
+  local buffer = buffers.find(path)
+
+  if buffer and buffer:is_loaded() then return buffer:get_lines() end
   if vim.fn.filereadable(path) == 1 then return vim.fn.readfile(path) end
 
   return {}

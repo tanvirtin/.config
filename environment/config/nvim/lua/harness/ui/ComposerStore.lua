@@ -7,7 +7,7 @@ local ComposerStore = Object:extend()
 ComposerStore.LIMIT = 200
 
 function ComposerStore:constructor()
-  return { drafts = {}, attached = {}, sent = {} }
+  return { drafts = {}, sent = {} }
 end
 
 function ComposerStore:draft(key)
@@ -28,36 +28,8 @@ function ComposerStore:remember(text)
   return self
 end
 
-function ComposerStore:attachments(key)
-  return self.attached[key] or {}
-end
-
-function ComposerStore:has_attachments(key)
-  return self.attached[key] ~= nil
-end
-
-function ComposerStore:attach(key, selection)
-  self.attached[key] = self.attached[key] or {}
-  self.attached[key][#self.attached[key] + 1] = selection
-
-  return self
-end
-
-function ComposerStore:detach(key)
-  local list = self.attached[key]
-
-  if not list then return self end
-
-  list[#list] = nil
-
-  if #list == 0 then self.attached[key] = nil end
-
-  return self
-end
-
 function ComposerStore:clear(key)
   self.drafts[key] = nil
-  self.attached[key] = nil
 
   return self
 end

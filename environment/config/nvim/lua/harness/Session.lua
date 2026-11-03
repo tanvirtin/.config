@@ -183,7 +183,9 @@ function Session:prompt(text, context, opts)
 
   self:_to(Session.STATE.running)
   self._turn = { text = {}, permissions = {} }
-  if not (opts and opts.shown) then self:_emit(events.prompt(text, { selections = content.labels(context) })) end
+  if not (opts and opts.shown) then
+    self:_emit(events.prompt(text, { selections = content.labels(context, { skip_inline = true }) }))
+  end
 
   local system = self:_system()
   local instruct = self:_needs_instructions(system)

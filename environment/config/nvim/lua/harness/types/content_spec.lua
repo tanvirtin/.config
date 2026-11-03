@@ -15,4 +15,15 @@ describe('harness.types.content:', function()
     eq(nil, content.labels(content.context()))
     eq('go', content.prompt('go').text)
   end)
+
+  it('can leave inline labels out of a prompt\'s selection list', function()
+    local context = content.attach(content.context(), {
+      label = 'a.lua:1',
+      lines = { 'x' },
+      token = '@a.lua:1',
+    })
+
+    eq({ 'a.lua:1' }, content.labels(context))
+    eq(nil, content.labels(context, { skip_inline = true }))
+  end)
 end)

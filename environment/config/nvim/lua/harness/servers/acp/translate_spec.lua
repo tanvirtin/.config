@@ -50,6 +50,32 @@ describe('harness.servers.acp.translate:', function()
     eq({ { type = 'text', text = 'plain' } }, translate.prompt(content.prompt('plain')))
   end)
 
+  it('places an inline token\'s content right after the token, which stays in the prose', function()
+    local token = content.Attachment({
+      token = '@a.lua:2-3',
+      label = 'a.lua:2-3',
+      source = 'a.lua',
+      path = '/w/a.lua',
+      range = { 2, 3 },
+      lines = { 'two', 'three' },
+      language = 'lua',
+    })
+    local prompt =
+      content.prompt('fix @a.lua:2-3 for me, and keep @a.lua:2-3 tidy', content.context({ attachments = { token } }))
+
+    eq(
+      { 'fix @a.lua:2-3', 'resource', ' for me, and keep @a.lua:2-3 tidy' },
+      vim.tbl_map(function(block)
+        return block.text or block.type
+      end, translate.prompt(prompt, { embeddedContext = true }))
+    )
+
+    eq(
+      { { type = 'text', text = 'fix it' } },
+      translate.prompt(content.prompt('fix it', content.context({ attachments = { token } })))
+    )
+  end)
+
   it('keeps the agent\'s id for each permission option', function()
     local request = translate.permission_request({
       toolCall = { toolCallId = 't1', title = 'Plan' },

@@ -453,4 +453,12 @@ function Window.stop_insert()
   vim.cmd('stopinsert')
 end
 
+function Window.completion()
+  if vim.fn.pumvisible() == 0 then return nil end
+
+  local info = vim.fn.complete_info({ 'selected', 'items' })
+
+  return { selected = info.items[info.selected + 1], items = info.items }
+end
+
 return Window

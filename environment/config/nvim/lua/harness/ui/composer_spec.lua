@@ -1,6 +1,7 @@
 local async = require('harness.async')
 local composer = require('harness.ui.composer')
 local commands = require('harness.ui.commands')
+local ComposerView = require('harness.ui.ComposerView')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local hub = require('harness.hub')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
@@ -20,6 +21,18 @@ end
 
 local function press(keys)
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(keys, true, false, true), 'x', false)
+end
+
+local function input(session)
+  local view = composer.view(session)
+
+  return view and view:lines() or {}
+end
+
+local function marks(buf)
+  local bufnr = buf or vim.api.nvim_get_current_buf()
+
+  return vim.api.nvim_buf_get_extmarks(bufnr, ComposerView.NAMESPACE, 0, -1, { details = true })
 end
 
 local function composers()
@@ -71,39 +84,38 @@ describe('harness.ui.composer:', function()
     local function chunks(buf)
       local out = {}
 
-      for _, mark in
-        ipairs(
-          vim.api.nvim_buf_get_extmarks(buf, require('harness.ui.ComposerView').NAMESPACE, 0, -1, { details = true })
-        )
-      do
+      for _, mark in ipairs(marks(buf)) do
         if mark[4].virt_text then out[#out + 1] = { mark[4].virt_text[1][1], mark[4].virt_text_pos } end
       end
 
       return out
     end
 
-    it('marks the first line with the prompt icon and says what to type while it is empty', function()
+    it('says what to type while the input is empty', function()
       open_composer(session)
 
       local buf = vim.api.nvim_get_current_buf()
-      local shown = chunks(buf)
+      local placeholder
 
-      eq({ require('harness.transcript.theme').PROMPT_ICON .. ' ', 'inline' }, shown[1])
-      assert.is_truthy(shown[2][1]:find('ask anything', 1, true))
-      eq('eol', shown[2][2])
+      for _, chunk in ipairs(chunks(buf)) do
+        if chunk[2] == 'eol' then placeholder = chunk end
+      end
+
+      assert.is_truthy(placeholder[1]:find('ask anything', 1, true))
+      eq('eol', placeholder[2])
     end)
 
-    it('drops the placeholder once there is text, keeping the icon', function()
+    it('drops the placeholder once there is text', function()
       open_composer(session)
 
       local buf = vim.api.nvim_get_current_buf()
 
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'hello' })
       vim.wait(200, function()
-        return #chunks(buf) == 1
+        return #chunks(buf) == 0
       end)
 
-      eq(1, #chunks(buf))
+      eq(0, #chunks(buf))
     end)
 
     it('counts the characters and lines written in the winbar', function()
@@ -119,26 +131,83 @@ describe('harness.ui.composer:', function()
       assert.is_truthy(bar:find('7c 2l', 1, true))
     end)
 
-    it('keeps the key hints in a footer under the text, not in the winbar', function()
+    it('keeps the key hints in the winbar, out of the text', function()
       open_composer(session)
 
-      local view = composer.view()
-      local footers = vim.tbl_filter(function(mark)
-        return mark[4].virt_lines ~= nil
-      end, vim.api.nvim_buf_get_extmarks(
-        0,
-        require('harness.ui.ComposerView').NAMESPACE,
-        0,
-        -1,
-        { details = true }
-      ))
+      local overlays = vim.tbl_filter(function(mark)
+        return mark[4].virt_text_pos == 'overlay'
+      end, marks())
 
-      eq(1, #footers)
-      assert.is_truthy(view:footer_text():find('send', 1, true))
-      eq(nil, composer.winbar():find('send', 1, true))
+      eq(0, #overlays)
+      eq({ '' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+      assert.is_truthy(composer.winbar():find('send', 1, true))
+      assert.is_truthy(composer.winbar():find('send', 1, true) < composer.winbar():find('%=', 1, true))
     end)
 
-    it('sits on its own surface and truncates the hints before the chips', function()
+    for _, case in ipairs({
+      { 'clearing it', 'ggdG' },
+      { 'deleting the empty line', 'dd' },
+      { 'undoing past the start', 'ihi<Esc>uu' },
+    }) do
+      it('stays an empty input with its placeholder after ' .. case[1], function()
+        open_composer(session)
+        vim.cmd('stopinsert')
+        press(case[2])
+        vim.wait(100)
+
+        eq({ '' }, input(session))
+        eq({ 1, 0 }, vim.api.nvim_win_get_cursor(0))
+        assert.is_truthy(vim.tbl_filter(function(mark)
+          return mark[4].virt_text_pos == 'eol'
+        end, marks())[1])
+      end)
+    end
+
+    it('completes a file reference after @ at the start of a word', function()
+      local cwd = vim.fn.getcwd()
+      local dir = vim.fn.resolve(vim.fn.tempname())
+
+      vim.fn.mkdir(dir .. '/lua', 'p')
+      vim.fn.writefile({}, dir .. '/lua/a.lua')
+      vim.fn.writefile({}, dir .. '/my file.lua')
+      vim.cmd.cd(dir)
+      open_composer(session)
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'read @lu' })
+      vim.api.nvim_win_set_cursor(0, { 1, 8 })
+
+      eq(5, composer.complete(1, ''))
+
+      local words = vim.tbl_map(function(item)
+        return item.word
+      end, composer.complete(0, '@lua/').words)
+
+      eq({ '@lua/a.lua' }, words)
+      eq(
+        { '@"my file.lua"' },
+        vim.tbl_map(function(item)
+          return item.word
+        end, composer.complete(0, '@my').words)
+      )
+
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'me@lu' })
+      vim.api.nvim_win_set_cursor(0, { 1, 5 })
+      eq(-3, composer.complete(1, ''))
+
+      vim.cmd.cd(cwd)
+      vim.fn.delete(dir, 'rf')
+    end)
+
+    it('shows what is typed on the first line', function()
+      open_composer(session)
+      vim.cmd('stopinsert')
+      press('ggihello<Esc>')
+      vim.wait(100)
+
+      eq({ 'hello' }, input(session))
+      eq(0, #marks())
+    end)
+
+    it('sits on its own surface and keeps the counts after the truncation point', function()
       open_composer(session)
 
       local win = vim.api.nvim_get_current_win()
@@ -146,9 +215,19 @@ describe('harness.ui.composer:', function()
       assert.is_truthy(vim.wo[win].winhl:find('Normal:UiComposer', 1, true))
       assert.is_truthy(composer.winbar():find('%=%<', 1, true))
     end)
+
+    it('leaves the session name, title and mode to the transcript it sits under', function()
+      session.title = 'A session with a long name'
+      open_composer(session)
+
+      local bar = composer.view(session):winbar()
+
+      eq(nil, bar:find(session.key, 1, true))
+      eq(nil, bar:find('A session with a long name', 1, true))
+    end)
   end)
 
-  it('opens as a fileless split along the bottom, naming its session', function()
+  it('opens as a fileless split along the bottom', function()
     local above = vim.api.nvim_get_current_win()
     local element = open_composer(session)
     local buf = vim.api.nvim_get_current_buf()
@@ -163,7 +242,6 @@ describe('harness.ui.composer:', function()
     eq(require('harness.settings.composer'):get('height'), vim.api.nvim_win_get_height(win))
     eq(true, vim.wo[win].winfixheight)
     eq(composer.WINBAR, vim.wo[win].winbar)
-    assert.is_truthy(composer.winbar():find(session.key, 1, true))
     eq('', vim.go.winbar)
     eq('acwrite', vim.bo[buf].buftype)
     assert.is_truthy(vim.api.nvim_buf_get_name(buf):find('harness://composer', 1, true))
@@ -512,7 +590,7 @@ describe('harness.ui.composer:', function()
     eq(origin, vim.api.nvim_get_current_win())
 
     open_composer(session)
-    eq({ '' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    eq({ '' }, input(session))
   end)
 
   describe('a selection', function()
@@ -531,45 +609,34 @@ describe('harness.ui.composer:', function()
 
     it('is not taken when no composer is open', function()
       eq(false, composer.attach(file, { 1, 2 }))
-      eq({}, composer.attached(session))
     end)
 
-    it('lists the key that drops a selection in the footer as soon as one is attached, and not after', function()
-      local function footer()
-        local buf = vim.api.nvim_get_current_buf()
-        local view = require('harness.ui.ComposerView')
-        local text = {}
-
-        for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(buf, view.NAMESPACE, 0, -1, { details = true })) do
-          for _, line in ipairs(mark[4].virt_lines or {}) do
-            for _, chunk in ipairs(line) do
-              text[#text + 1] = chunk[1]
-            end
-          end
-        end
-
-        return table.concat(text)
-      end
-
-      open_composer(session)
-      assert.is_nil(footer():find('drop selection', 1, true))
-
-      composer.attach(file, { 1, 1 })
-      assert.is_truthy(footer():find('<C-x>', 1, true))
-      assert.is_truthy(footer():find('drop selection', 1, true))
-
-      press('<C-x>')
-      assert.is_nil(footer():find('drop selection', 1, true))
-    end)
-
-    it('rides along with the next message, named in the winbar until sent', function()
+    it('inserts a reference token at the cursor', function()
       open_composer(session)
       eq(true, composer.attach(file, { 2, 3 }))
-      eq(true, composer.attach(file, { 1, 1 }))
-      assert.is_truthy(composer.winbar():find('+ /w/a.lua:2-3', 1, true))
-      assert.is_truthy(composer.winbar():find('+ /w/a.lua:1 ', 1, true))
 
-      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'explain' })
+      assert.is_truthy(table.concat(input(session), '\n'):find('@/w/a.lua:2-3', 1, true))
+    end)
+
+    it('resolves a token from the file when the prompt is sent', function()
+      local path = vim.fn.tempname() .. '.lua'
+
+      vim.fn.writefile({ 'one', 'two', 'three' }, path)
+
+      local buffer = vim.fn.bufadd(path)
+
+      vim.fn.bufload(buffer)
+      vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { 'one', 'two', 'three' })
+      vim.bo[buffer].filetype = 'lua'
+
+      open_composer(session)
+      eq(true, composer.attach(buffer, { 2, 3 }))
+
+      local lines = input(session)
+
+      composer.view(session).element:set_lines({ lines[1] .. 'explain' })
+
+      press('<Esc>')
       press('<CR>')
       vim.wait(1000, function()
         return #prompts(fake) == 1
@@ -578,31 +645,47 @@ describe('harness.ui.composer:', function()
       local sent = vim.tbl_filter(function(message)
         return message.method == 'session/prompt'
       end, fake.sent)[1].params.prompt
-      local texts = vim.tbl_map(function(block)
-        return block.text or block.resource.text
-      end, sent)
+      local text = {}
 
-      assert.is_truthy(vim.tbl_contains(texts, 'local b = 2\nlocal c = 3') or texts[2]:find('local b = 2', 1, true))
-      eq('explain', texts[#texts])
-      eq(4, #sent)
-      eq({}, composer.attached(session))
+      for _, block in ipairs(sent) do
+        text[#text + 1] = block.text or (block.resource and block.resource.text) or ''
+      end
+
+      local written = table.concat(text, '\n')
+
+      assert.is_truthy(written:find('two', 1, true))
+      assert.is_truthy(written:find('three', 1, true))
+      assert.is_truthy(written:find('explain', 1, true))
+      local token = lines[1]:match('@%S+')
+
+      assert.is_truthy(token:find(':2%-3$'))
+      assert.is_truthy(written:find(token, 1, true) < written:find('two', 1, true))
+
+      vim.fn.delete(path)
+      vim.api.nvim_buf_delete(buffer, { force = true })
     end)
 
-    it('is dropped last first, and with a discarded draft', function()
+    it('drops a token that is no longer in the text', function()
       open_composer(session)
-      composer.attach(file, { 1, 1 })
-      composer.attach(file, { 2, 2 })
-      press('<C-x>')
+      composer.attach(file, { 1, 2 })
+      composer.view(session).element:set_lines({ 'no reference' })
 
-      eq(
-        { { 1, 1 } },
-        vim.tbl_map(function(selection)
-          return selection.range
-        end, composer.attached(session))
-      )
+      press('<Esc>')
+      press('<CR>')
+      vim.wait(1000, function()
+        return #prompts(fake) == 1
+      end)
 
-      composer.close(true)
-      eq({}, composer.attached(session))
+      local sent = vim.tbl_filter(function(message)
+        return message.method == 'session/prompt'
+      end, fake.sent)[1].params.prompt
+      local text = {}
+
+      for _, block in ipairs(sent) do
+        text[#text + 1] = block.text or (block.resource and block.resource.text) or ''
+      end
+
+      assert.is_nil(table.concat(text, '\n'):find('local a = 1', 1, true))
     end)
 
     it('is taken from a visual selection in another window', function()
@@ -612,7 +695,7 @@ describe('harness.ui.composer:', function()
       press('Vj')
 
       eq(true, composer.attach_visual())
-      eq({ 1, 2 }, composer.attached(session)[1].range)
+      assert.is_truthy(table.concat(input(session), '\n'):find('@/w/a.lua:1-2', 1, true))
     end)
 
     it('leaves a visual selection alone when no composer is open', function()
@@ -631,7 +714,7 @@ describe('harness.ui.composer:', function()
       eq(true, commands.attach_visual())
       eq(true, composer.is_open())
       eq(session, composer.target())
-      eq({ 1, 2 }, composer.attached(session)[1].range)
+      assert.is_truthy(table.concat(input(session), '\n'):find('@/w/a.lua:1-2', 1, true))
 
       press('<Esc>')
       composer.close(true)
@@ -655,6 +738,45 @@ describe('harness.ui.composer:', function()
     end)
   end)
 
+  it('attaches the current line in normal mode', function()
+    local line_file = vim.api.nvim_create_buf(true, false)
+
+    vim.api.nvim_buf_set_name(line_file, '/w/current.lua')
+    vim.api.nvim_buf_set_lines(line_file, 0, -1, false, { 'one', 'two' })
+
+    open_composer(session)
+    vim.cmd('wincmd k')
+    vim.api.nvim_win_set_buf(0, line_file)
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+
+    eq(true, commands.attach_line())
+    assert.is_truthy(table.concat(input(session), '\n'):find('@/w/current.lua:2', 1, true))
+
+    vim.api.nvim_buf_delete(line_file, { force = true })
+  end)
+
+  it('says why a transcript selection has nothing to reference', function()
+    open_composer(session)
+    vim.cmd('wincmd k')
+    vim.api.nvim_win_set_buf(0, transcript.buffer_of(session))
+    press('Vj')
+
+    local console = require('core.console')
+    local notify = console.notify_now
+    local said
+
+    console.notify_now = function(message)
+      said = message
+    end
+
+    local attached = commands.attach_visual()
+
+    console.notify_now = notify
+    eq(false, attached)
+    assert.is_truthy(said and said:find('select lines in a file', 1, true))
+    press('<Esc>')
+  end)
+
   it('recalls earlier prompts with <Up> and <Down> at the edges, handing the draft back', function()
     for _, text in ipairs({ 'first', 'second' }) do
       open_composer(session)
@@ -669,12 +791,12 @@ describe('harness.ui.composer:', function()
     open_composer(session)
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'draft' })
     press('<Up>')
-    eq({ 'second' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    eq({ 'second' }, input(session))
     press('<C-p>')
-    eq({ 'first' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    eq({ 'first' }, input(session))
     press('<C-n>')
     press('<Down>')
-    eq({ 'draft' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    eq({ 'draft' }, input(session))
   end)
 
   it('moves by line, not by prompt, inside a multi-line draft', function()
@@ -683,14 +805,14 @@ describe('harness.ui.composer:', function()
     vim.api.nvim_win_set_cursor(0, { 3, 0 })
     press('<Up>')
     eq(2, vim.api.nvim_win_get_cursor(0)[1])
-    eq({ 'a', 'b', 'c' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    eq({ 'a', 'b', 'c' }, input(session))
   end)
 
   it('treats <CR> in insert mode as a newline', function()
     open_composer(session)
     press('ione<CR>two<Esc>')
 
-    eq({ 'one', 'two' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    eq({ 'one', 'two' }, input(session))
     eq(true, composer.is_open())
     eq({}, prompts(fake))
   end)
@@ -728,7 +850,7 @@ describe('harness.ui.composer:', function()
     eq(false, composer.is_open())
 
     open_composer(session)
-    eq({ 'half a thought' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    eq({ 'half a thought' }, input(session))
 
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { '   ' })
     press('<CR>')
@@ -799,7 +921,7 @@ describe('harness.ui.composer:', function()
       eq(1, #composers())
     end)
 
-    it('names each in its own winbar and tells them apart by buffer', function()
+    it('tells two open composers apart by buffer', function()
       local first_win, other_win = side_by_side()
 
       vim.api.nvim_set_current_win(first_win)
@@ -814,8 +936,6 @@ describe('harness.ui.composer:', function()
       table.sort(names)
       eq(2, #names)
       assert.are_not.equal(names[1], names[2])
-      assert.is_truthy(composer.view(session):winbar():find(session.key, 1, true))
-      assert.is_truthy(composer.view(other):winbar():find(other.key, 1, true))
     end)
 
     it('asks which session when the current one is out of sight and several others are showing', function()
@@ -824,6 +944,7 @@ describe('harness.ui.composer:', function()
       local asked
       local file = vim.api.nvim_create_buf(false, true)
 
+      vim.api.nvim_buf_set_name(file, '/w/b.lua')
       vim.api.nvim_buf_set_lines(file, 0, -1, false, { 'one', 'two', 'three' })
 
       local first_win, other_win = side_by_side()
@@ -846,7 +967,7 @@ describe('harness.ui.composer:', function()
       assert.is_truthy(asked)
       eq(2, #asked.items)
       press('<Esc>')
-      eq({}, composer.attached(session))
+      assert.is_nil(table.concat(input(session), '\n'):find('@', 1, true))
 
       local chosen = vim.tbl_filter(function(item)
         return item.view.session == other
@@ -854,11 +975,11 @@ describe('harness.ui.composer:', function()
 
       asked.on_select(chosen)
       vim.wait(300, function()
-        return #composer.attached(other) == 1
+        return table.concat(input(other), '\n'):find('@/w/b.lua:1-2', 1, true) ~= nil
       end)
 
-      eq({ 1, 2 }, composer.attached(other)[1].range)
-      eq({}, composer.attached(session))
+      assert.is_truthy(table.concat(input(other), '\n'):find('@/w/b.lua:1-2', 1, true))
+      assert.is_nil(table.concat(input(session), '\n'):find('@', 1, true))
       eq(other, composer.target())
       assert.is_true(vim.api.nvim_win_is_valid(first_win) and vim.api.nvim_win_is_valid(other_win))
     end)
@@ -866,6 +987,7 @@ describe('harness.ui.composer:', function()
     it('takes a selection for the session the tab is working with, as it moves between them', function()
       local file = vim.api.nvim_create_buf(false, true)
 
+      vim.api.nvim_buf_set_name(file, '/w/c.lua')
       vim.api.nvim_buf_set_lines(file, 0, -1, false, { 'one', 'two', 'three' })
 
       local first_win, other_win = side_by_side()
@@ -879,8 +1001,8 @@ describe('harness.ui.composer:', function()
       vim.api.nvim_win_set_buf(0, file)
       press('Vj')
       eq(true, commands.attach_visual())
-      eq({ 1, 2 }, composer.attached(other)[1].range)
-      eq({}, composer.attached(session))
+      assert.is_truthy(table.concat(input(other), '\n'):find('@/w/c.lua:1-2', 1, true))
+      assert.is_nil(table.concat(input(session), '\n'):find('@', 1, true))
       press('<Esc>')
 
       vim.api.nvim_set_current_win(first_win)
@@ -888,7 +1010,7 @@ describe('harness.ui.composer:', function()
       vim.api.nvim_win_set_buf(0, file)
       press('Vj')
       eq(true, commands.attach_visual())
-      eq(1, #composer.attached(session))
+      assert.is_truthy(table.concat(input(session), '\n'):find('@/w/c.lua:1-2', 1, true))
       press('<Esc>')
     end)
   end)
@@ -908,7 +1030,7 @@ describe('harness.ui.composer:', function()
     eq(moved, vim.api.nvim_get_current_win())
 
     composer.view():focus()
-    eq({ 'later' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    eq({ 'later' }, input(session))
   end)
 
   it('keeps its window when the transcript is opened while it has focus', function()
@@ -962,7 +1084,7 @@ describe('harness.ui.composer:', function()
     eq(0, #composers())
 
     open_composer(session)
-    eq({ 'closed with <C-w>c' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    eq({ 'closed with <C-w>c' }, input(session))
   end)
 
   describe('attached to its transcript', function()
@@ -1012,7 +1134,7 @@ describe('harness.ui.composer:', function()
 
       transcript.open(session)
       open_composer(session)
-      eq({ 'kept for later' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+      eq({ 'kept for later' }, input(session))
     end)
 
     it('closes when another buffer takes the transcript window, leaving focus there', function()
@@ -1032,7 +1154,7 @@ describe('harness.ui.composer:', function()
 
       transcript.open(session)
       open_composer(session)
-      eq({ 'not lost' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+      eq({ 'not lost' }, input(session))
     end)
 
     it('follows its transcript when the window is moved', function()
@@ -1059,9 +1181,15 @@ describe('harness.ui.composer:', function()
 
     it('opens along the bottom when its transcript is not in sight', function()
       vim.cmd('enew')
+      session.title = 'A session'
       open_composer(session)
 
       eq(vim.o.columns, vim.api.nvim_win_get_width(composer_win()))
+
+      local bar = composer.view(session):winbar()
+
+      assert.is_truthy(bar:find(session.key, 1, true))
+      assert.is_truthy(bar:find('A session', 1, true))
     end)
   end)
 
@@ -1116,7 +1244,7 @@ describe('harness.ui.composer:', function()
     eq(false, composer.is_open())
 
     open_composer(session)
-    eq({ 'written then quit' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    eq({ 'written then quit' }, input(session))
   end)
 
   it('quits with :q even with text in it, and sends with :wq', function()
@@ -1127,7 +1255,7 @@ describe('harness.ui.composer:', function()
     eq(false, composer.is_open())
 
     open_composer(session)
-    eq({ 'unsent' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    eq({ 'unsent' }, input(session))
 
     vim.cmd('wq')
     vim.wait(1000, function()
@@ -1156,7 +1284,7 @@ describe('harness.ui.composer:', function()
     vim.notify = notify
 
     eq(true, composer.is_open())
-    eq({ 'anyone there?' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    eq({ 'anyone there?' }, input(session))
     assert.is_truthy(warned:find('ended; your text is kept', 1, true))
     eq({}, prompts(fake))
   end)
@@ -1170,7 +1298,7 @@ describe('harness.ui.composer:', function()
 
     session.state = 'idle'
     open_composer(session)
-    eq({ '' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    eq({ '' }, input(session))
   end)
 
   describe('while the agent works', function()
@@ -1202,8 +1330,8 @@ describe('harness.ui.composer:', function()
     it('queues what you send, shows it, and sends it when the turn ends', function()
       open_composer(session)
 
-      assert.is_truthy(composer.view():footer_text():find('queue', 1, true))
-      assert.is_truthy(composer.view():footer_text():find('<C-c>', 1, true))
+      assert.is_truthy(composer.view():hints_text():find('queue', 1, true))
+      assert.is_truthy(composer.view():hints_text():find('<C-c>', 1, true))
 
       vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'next question' })
       press('<CR>')
@@ -1257,7 +1385,7 @@ describe('harness.ui.composer:', function()
       vim.notify = notify
 
       eq('s1', fake:sent_method('session/cancel').params.sessionId)
-      eq({ 'queued one', '', 'my draft' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+      eq({ 'queued one', '', 'my draft' }, input(session))
       eq({}, session:queued())
       eq(1, #prompt_ids)
     end)
@@ -1282,7 +1410,7 @@ describe('harness.ui.composer:', function()
 
       open_composer(session)
 
-      eq({ 'from the queue' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+      eq({ 'from the queue' }, input(session))
     end)
 
     it('says why queued messages came back: an interrupt, or a failed turn', function()
@@ -1313,7 +1441,7 @@ describe('harness.ui.composer:', function()
       press('<C-s>')
 
       eq({ 'change course' }, session:queued())
-      eq(nil, view:footer_text():find('steer', 1, true))
+      eq(nil, view:hints_text():find('steer', 1, true))
     end)
   end)
 
@@ -1328,11 +1456,53 @@ describe('harness.ui.composer:', function()
 
     eq(0, composer.complete(1, ''))
     eq({ { word = '/review ', abbr = '/review branch', menu = 'review changes' } }, composer.complete(0, '/re'))
-    assert.is_truthy(composer.view():footer_text():find('commands', 1, true))
+    assert.is_truthy(composer.view():hints_text():find('commands', 1, true))
 
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'not /a command' })
     vim.api.nvim_win_set_cursor(0, { 1, 8 })
     eq(-3, composer.complete(1, ''))
+  end)
+
+  it('keeps / and @ in the order they were typed, however fast', function()
+    open_composer(session)
+    vim.cmd('stopinsert')
+    press('ia/b @lua/core and x@y/z<Esc>')
+
+    eq({ 'a/b @lua/core and x@y/z' }, input(session))
+  end)
+
+  it('takes the completion with <CR> and <Tab>, going into a folder', function()
+    local Window = require('core.Window')
+    local real = Window.completion
+
+    Window.completion = function()
+      return nil
+    end
+    eq('<CR>', composer.accept('<CR>'))
+    eq('<Tab>', composer.next_item('<Tab>'))
+
+    Window.completion = function()
+      return { items = {} }
+    end
+    eq('<C-e><CR>', composer.accept('<CR>'))
+    eq('<C-n>', composer.next_item('<Tab>'))
+
+    Window.completion = function()
+      return { items = { { word = '@lua/a.lua' } } }
+    end
+    eq('<C-n><C-y>', composer.accept('<CR>'))
+
+    Window.completion = function()
+      return { selected = { word = '@lua/' }, items = {} }
+    end
+    eq('<C-y><C-x><C-o>', composer.accept('<CR>'))
+
+    Window.completion = function()
+      return { selected = { word = '@lua/a.lua' }, items = {} }
+    end
+    eq('<C-y>', composer.accept('<CR>'))
+
+    Window.completion = real
   end)
 
   it('opens from the session buffer\'s i', function()

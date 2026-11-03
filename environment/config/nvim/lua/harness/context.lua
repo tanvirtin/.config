@@ -3,6 +3,7 @@ local lazy = require('core.lazy')
 local fs = lazy('core.fs')
 local Buffer = lazy('core.Buffer')
 local Window = lazy('core.Window')
+local buffers = lazy('core.buffers')
 local content = lazy('harness.types.content')
 
 local context = {}
@@ -43,6 +44,141 @@ local function describe(buffer, line, col, range)
     where = string.format('<%s>%s</%s>', context.TAG, table.concat(parts, ' '), context.TAG),
     attachments = range and { context.selection(buffer, range) } or {},
   })
+end
+
+local TRAILING = '[,;:.!?%)%]]'
+
+function context.token(path, range)
+  local source = fs.display(path)
+  local span = range[1] == range[2] and tostring(range[1]) or (range[1] .. '-' .. range[2])
+
+  if source:find('%s') then source = '"' .. source .. '"' end
+
+  return '@' .. source .. ':' .. span
+end
+
+local function parse(token)
+  local path, from, to = token:match('^@"([^"]+)":(%d+)%-(%d+)$')
+
+  if not path then
+    path, from = token:match('^@"([^"]+)":(%d+)$')
+  end
+
+  if not path then
+    path, from, to = token:match('^@([^"]+):(%d+)%-(%d+)$')
+  end
+
+  if not path then
+    path, from = token:match('^@([^"]+):(%d+)$')
+  end
+
+  if not path then
+    path = token:match('^@"([^"]+)"$') or token:match('^@([^"]+)$')
+
+    if path then return path, 1, math.huge, true end
+  end
+
+  if not path then return nil end
+
+  from = tonumber(from)
+
+  return path, from, tonumber(to) or from, false
+end
+
+local function candidates(path, dir)
+  local expanded = fs.expand(path)
+
+  if expanded:sub(1, 1) == '/' then return { expanded } end
+
+  local out = { fs.absolute_path(fs.cwd(), expanded) }
+
+  if dir and dir ~= '' then
+    local from_dir = fs.absolute_path(dir, expanded)
+
+    if from_dir ~= out[1] then out[2] = from_dir end
+  end
+
+  return out
+end
+
+local function token_attachment(token, dir, max_lines)
+  local path, from, to, whole = parse(token)
+
+  if not path then return nil end
+
+  for _, full in ipairs(candidates(path, dir)) do
+    local lines = buffers.lines_of(full)
+
+    if #lines > 0 then
+      if from < 1 or from > #lines then
+        return nil, string.format('%s is past the end of the file, so it was sent as text', token)
+      end
+
+      to = math.min(math.max(to, from), #lines)
+
+      local note
+
+      if max_lines and to - from + 1 > max_lines then
+        note = string.format('%s has %d lines; only the first %d were sent', token, to - from + 1, max_lines)
+        to = from + max_lines - 1
+      end
+
+      return content.Attachment({
+        token = token,
+        label = token:sub(2),
+        source = path,
+        path = full,
+        range = { from, to },
+        lines = vim.list_slice(lines, from, to),
+        language = fs.detect_filetype(full),
+      }),
+        note
+    end
+  end
+
+  if whole then return nil end
+
+  return nil, string.format('%s does not name a file, so it was sent as text', token)
+end
+
+local function next_token(text, at)
+  local start = text:find('@', at, true)
+
+  if not start then return nil end
+  if start > 1 and not text:sub(start - 1, start - 1):match('[%s%(%[{"\'`]') then return '@', start + 1 end
+
+  local quoted = text:match('^@"[^"\n]+":%d+%-%d+', start)
+    or text:match('^@"[^"\n]+":%d+', start)
+    or text:match('^@"[^"\n]+"', start)
+
+  if quoted then return quoted, start + #quoted end
+
+  local plain = text:match('^@%S+', start)
+
+  if not plain then return '@', start + 1 end
+
+  return (plain:gsub(TRAILING .. '+$', '')), start + #plain
+end
+
+function context.resolve_tokens(text, dir, opts)
+  opts = opts or {}
+  local out, problems, seen = {}, {}, {}
+  local token, at = next_token(text, 1)
+
+  while token do
+    if parse(token) and not seen[token] then
+      seen[token] = true
+
+      local attachment, problem = token_attachment(token, dir, opts.max_lines)
+
+      if attachment then out[#out + 1] = attachment end
+      if problem then problems[#problems + 1] = problem end
+    end
+
+    token, at = next_token(text, at)
+  end
+
+  return out, problems
 end
 
 function context.capture(win, range)

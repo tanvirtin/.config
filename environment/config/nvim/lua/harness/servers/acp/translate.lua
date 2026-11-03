@@ -37,17 +37,64 @@ function translate.attachment(attachment, prompt_capabilities)
   }
 end
 
+local function inline_blocks(text, attachments, capabilities)
+  local by_token = {}
+
+  for _, attachment in ipairs(attachments) do
+    if attachment.token then by_token[attachment.token] = attachment end
+  end
+
+  local blocks, at = {}, 1
+
+  while at <= #text do
+    local token, found
+
+    for candidate in pairs(by_token) do
+      local position = text:find(candidate, at, true)
+
+      if position and (not found or position < found or (position == found and #candidate > #token)) then
+        token, found = candidate, position
+      end
+    end
+
+    if not found then break end
+
+    local after = found + #token
+
+    blocks[#blocks + 1] = { type = 'text', text = text:sub(at, after - 1) }
+    blocks[#blocks + 1] = translate.attachment(by_token[token], capabilities)
+    by_token[token] = nil
+    at = after
+  end
+
+  if at <= #text then blocks[#blocks + 1] = { type = 'text', text = text:sub(at) } end
+
+  return blocks
+end
+
 function translate.prompt(prompt, prompt_capabilities)
   local blocks = {}
 
   if prompt.instructions then blocks[#blocks + 1] = { type = 'text', text = prompt.instructions } end
   if prompt.where then blocks[#blocks + 1] = { type = 'text', text = prompt.where } end
 
+  local inline = {}
+
   for _, attachment in ipairs(prompt.attachments or {}) do
-    blocks[#blocks + 1] = translate.attachment(attachment, prompt_capabilities)
+    if attachment.token then
+      inline[#inline + 1] = attachment
+    else
+      blocks[#blocks + 1] = translate.attachment(attachment, prompt_capabilities)
+    end
   end
 
-  blocks[#blocks + 1] = { type = 'text', text = prompt.text }
+  local text = prompt.text or ''
+
+  if text ~= '' then
+    vim.list_extend(blocks, inline_blocks(text, inline, prompt_capabilities))
+  else
+    blocks[#blocks + 1] = { type = 'text', text = text }
+  end
 
   return blocks
 end

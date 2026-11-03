@@ -143,6 +143,12 @@ function commands.quickfix(scope)
   return transcript.report(scoped('quickfix', scope))
 end
 
+local function referenceable(buf)
+  local name = Buffer(buf):get_name()
+
+  return name ~= '' and not name:match('^%w+://')
+end
+
 local function attach_to(session, buf, range)
   if not composer.is_open(session) then composer.open(session, { display = display, insert = true }) end
 
@@ -182,13 +188,8 @@ local function choose_session(shown, buf, range)
   return true
 end
 
-function commands.attach_visual()
-  local window = Window.get_current()
-  local range = window:visual_lines()
-
-  if not range then return false end
-
-  local buf = window:get_buffer().bufnr
+local function attach_range(buf, range)
+  if not referenceable(buf) then return transcript.report(false, 'select lines in a file to reference them') end
 
   local view, shown = display.target()
 
@@ -202,7 +203,23 @@ function commands.attach_visual()
 
   if not composer.is_open(session) then composer.open(session, { display = display, insert = true }) end
 
-  return composer.attach_visual(buf, range, session)
+  return composer.attach(buf, range, session)
+end
+
+function commands.attach_visual()
+  local window = Window.get_current()
+  local range = window:visual_lines()
+
+  if not range then return false end
+
+  return attach_range(window:get_buffer().bufnr, range)
+end
+
+function commands.attach_line()
+  local window = Window.get_current()
+  local line = window:get_cursor()[1]
+
+  return attach_range(window:get_buffer().bufnr, { line, line })
 end
 
 local function tour_session()

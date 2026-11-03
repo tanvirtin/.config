@@ -153,6 +153,10 @@ map('n', '<leader>aw', function()
   require('harness.ui.status').to_waiting()
 end, { desc = 'Go to the waiting request' })
 
+map('n', '<leader>aa', function()
+  require('harness.ui.commands').attach_line()
+end, { desc = 'Attach the current line' })
+
 map('v', '<leader>aa', function()
   require('harness.ui.commands').attach_visual()
 end, { desc = 'Attach the selection' })

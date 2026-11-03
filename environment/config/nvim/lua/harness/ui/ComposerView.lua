@@ -80,6 +80,9 @@ function ComposerView:constructor(session, store, callbacks)
     source = {},
     on_send = callbacks.on_send,
     on_slash = callbacks.on_slash,
+    on_reference = callbacks.on_reference,
+    on_accept = callbacks.on_accept,
+    on_next_item = callbacks.on_next_item,
     on_model = callbacks.on_model,
     on_interrupt = callbacks.on_interrupt,
     on_close = callbacks.on_close,
@@ -102,7 +105,9 @@ function ComposerView:is_open()
 end
 
 function ComposerView:lines()
-  return self:is_open() and self.element:get_lines() or {}
+  if not self:is_open() then return {} end
+
+  return self.element:get_lines()
 end
 
 function ComposerView:focus(insert)
@@ -114,19 +119,23 @@ function ComposerView:focus(insert)
 end
 
 function ComposerView:winbar()
-  local session, store = self.session, self.store
+  local session = self.session
   local title = (session.title or 'untitled'):gsub('%%', '%%%%')
-  local parts = { '%#UiTitle# ' .. theme.PROMPT_ICON .. ' ' .. session.key .. ' ' .. title .. ' %*' }
-  local mode = session:mode()
+  local anchored = self.anchor ~= nil and self.anchor:is_valid()
+  local parts = {}
 
-  if mode then
-    parts[#parts + 1] = '%#UiAccent#' .. theme.MODE_FORMAT:format(mode.name or mode.id):gsub('%%', '%%%%') .. ' '
+  if not anchored then
+    parts[#parts + 1] = '%#UiTitle# ' .. session.key .. ' ' .. title .. ' %*'
+
+    local mode = session:mode()
+
+    if mode then
+      parts[#parts + 1] = '%#UiAccent#' .. theme.MODE_FORMAT:format(mode.name or mode.id):gsub('%%', '%%%%') .. ' '
+    end
   end
+
   if #session.queue > 0 then
     parts[#parts + 1] = string.format('%%#UiMuted#%s%d queued ', theme.QUEUE_ICON[1], #session.queue)
-  end
-  for _, selection in ipairs(store:attachments(session.key)) do
-    parts[#parts + 1] = '%#UiChip# + ' .. selection.label:gsub('%%', '%%%%') .. ' %#UiMuted# '
   end
 
   if session.external then parts[#parts + 1] = '%#UiWarn#⇄ also driven elsewhere: sending forks it ' end
@@ -138,6 +147,10 @@ function ComposerView:winbar()
     parts[#parts + 1] = '%#UiWarn#' .. theme.WAITING_ICON[1] .. 'answering: ' .. answering:gsub('%%', '%%%%') .. ' '
   elseif #asks.asks_of(session) > 0 then
     parts[#parts + 1] = '%#UiWarn#' .. theme.WAITING_ICON[1] .. 'answer in the transcript '
+  end
+
+  for _, chunk in ipairs(self:hints()) do
+    parts[#parts + 1] = '%#' .. chunk[2] .. '#' .. chunk[1]:gsub('%%', '%%%%')
   end
 
   parts[#parts + 1] = '%=%<'
@@ -153,10 +166,11 @@ function ComposerView:winbar()
   return table.concat(parts)
 end
 
-function ComposerView:footer()
-  local session, store = self.session, self.store
+function ComposerView:hints()
+  local session = self.session
   local keys = settings.keymaps:get('composer')
-  local answering = self:answer_target() and self:answer_target():writing_label()
+  local target = self:answer_target()
+  local answering = target and target:writing_label()
   local chunks = {}
 
   local function key(lhs, label)
@@ -175,7 +189,6 @@ function ComposerView:footer()
   end
 
   if #session.commands > 0 then key(keys.slash, 'commands') end
-  if store:has_attachments(session.key) then key(keys.detach, 'drop selection') end
   if not answering then key(keys.history, 'history') end
   if session:mode() then key(keys.cycle_mode, 'mode') end
   if session:choice('model') then key(keys.model, 'model') end
@@ -184,16 +197,23 @@ function ComposerView:footer()
   return chunks
 end
 
-function ComposerView:footer_text()
+function ComposerView:hints_text()
   return table.concat(vim.tbl_map(function(chunk)
     return chunk[1]
-  end, self:footer()))
+  end, self:hints()))
+end
+
+function ComposerView:_signature()
+  return self:hints_text()
 end
 
 function ComposerView:refresh()
-  local signature = self:footer_text()
+  local signature = self:_signature()
 
-  if signature ~= self.signature then self:_decorate() end
+  if signature ~= self.signature then
+    self.signature = signature
+    Window.redraw_bars()
+  end
 
   return self
 end
@@ -212,18 +232,10 @@ function ComposerView:_decorate()
   local buffer = self.element:get_buffer()
 
   buffer:clear_namespace(ComposerView.NAMESPACE)
-  buffer:set_extmark(ComposerView.NAMESPACE, 0, 0, {
-    virt_text = { { theme.PROMPT_ICON .. ' ', 'UiPromptBar' } },
-    virt_text_pos = 'inline',
-    right_gravity = false,
-  })
 
-  local last = math.max(self.element:get_line_count() - 1, 0)
+  self.signature = self:_signature()
 
-  self.signature = self:footer_text()
-  buffer:set_extmark(ComposerView.NAMESPACE, last, 0, { virt_lines = { self:footer() } })
-
-  if not ComposerView.has_text(self.element:get_lines()) then
+  if not ComposerView.has_text(self:lines()) then
     buffer:set_extmark(ComposerView.NAMESPACE, 0, 0, {
       virt_text = { { self:placeholder(), 'UiMuted' } },
       virt_text_pos = 'eol',
@@ -256,21 +268,33 @@ function ComposerView:_ease_open()
   return self
 end
 
-function ComposerView:detach()
-  self.store:detach(self.session.key)
-  Window.redraw_bars()
-  self:refresh()
-end
-
 function ComposerView:attach(buf, range)
   if buf == self.element:get_buffer().bufnr or not Buffer.exists(buf) then return false end
 
-  self.store:attach(self.session.key, context.selection(Buffer(buf), range))
-  tour_store.select(self.session.key, Buffer(buf):get_name(), range[1], range[2])
+  local buffer = Buffer(buf)
+  local name = buffer:get_name()
+
+  if name == '' or name:match('^%w+://') then return false, 'select lines in a file to reference them' end
+
+  self:_insert(context.token(name, range))
+  tour_store.select(self.session.key, name, range[1], range[2])
   Window.redraw_bars()
-  self:refresh()
 
   return true
+end
+
+function ComposerView:_insert(text)
+  local cursor = self.element:get_cursor()
+  local row, col = cursor[1], cursor[2]
+  local line = self.element:get_lines()[row] or ''
+  local before, after = line:sub(1, col), line:sub(col + 1)
+  local lead = before ~= '' and before:sub(-1):match('%s') == nil and ' ' or ''
+  local trail = (after == '' or after:sub(1, 1) ~= ' ') and ' ' or ''
+  local skip = after:match('^%s+') or ''
+  local written = lead .. text .. trail
+
+  self.element:set_text(row - 1, col, written)
+  self.element:set_cursor({ row, col + #lead + #text + #trail + #skip })
 end
 
 function ComposerView:_keep()
@@ -280,7 +304,7 @@ function ComposerView:_keep()
 
   if self.answering then return self end
 
-  local lines = self.element:get_lines()
+  local lines = self:lines()
 
   self.store:set_draft(self.session.key, ComposerView.has_text(lines) and lines or nil)
 
@@ -289,8 +313,9 @@ end
 
 function ComposerView:_release()
   if self.contained then self.contained.dispose() end
+  if self.group then self.group.dispose() end
 
-  self.contained = nil
+  self.contained, self.group = nil, nil
 
   return self
 end
@@ -405,9 +430,14 @@ function ComposerView:_deliver(message, opts)
 
   local where = Buffer.exists(source.buf) and context.capture_buffer(source.buf) or nil
 
-  for _, selection in ipairs(store:attachments(session.key)) do
-    where = context.attach(where, selection)
+  local attachments, problems =
+    context.resolve_tokens(text, session.dir, { max_lines = settings.composer:get('reference_lines') })
+
+  for _, attachment in ipairs(attachments) do
+    where = context.attach(where, attachment)
   end
+
+  if #problems > 0 then ComposerView.warn(table.concat(problems, '; ')) end
 
   local sent, err = hub.send(session, text, where, opts)
 
@@ -463,7 +493,7 @@ end
 
 function ComposerView:restore(texts)
   local lines = vim.split(table.concat(texts, '\n\n'), '\n', { plain = true })
-  local existing = self:is_open() and self.element:get_lines() or self.store:draft(self.session.key)
+  local existing = self:is_open() and self:lines() or self.store:draft(self.session.key)
 
   if existing and ComposerView.has_text(existing) then
     lines[#lines + 1] = ''
@@ -609,14 +639,25 @@ function ComposerView:_bind(keys)
 
   element:set_buf_var('completion', false)
   element:set_buf_option('omnifunc', ComposerView.OMNIFUNC)
-  element:set_keymap('i', keys.slash, self.on_slash, 'Slash commands')
+  element:set_buf_option('completeopt', 'menuone,noinsert')
+  element:set_keymap({ mode = 'i', key = keys.slash, desc = 'Slash commands', expr = true }, self.on_slash)
+
+  if self.on_reference then
+    element:set_keymap({ mode = 'i', key = keys.reference, desc = 'Reference a file', expr = true }, self.on_reference)
+  end
+
+  if self.on_accept then
+    element:set_keymap({ mode = 'i', key = '<CR>', desc = 'Take the completion', expr = true }, function()
+      return self.on_accept('<CR>')
+    end)
+    element:set_keymap({ mode = 'i', key = '<Tab>', desc = 'Next completion', expr = true }, function()
+      return self.on_next_item('<Tab>')
+    end)
+  end
+
   element:set_keymap('n', keys.close, function()
     self:close()
   end, 'Close (keeps the draft)')
-  element:set_keymap('n', keys.detach, function()
-    self:detach()
-  end, 'Drop the last attached selection')
-
   return self:_bind_history(keys)
 end
 
@@ -637,6 +678,13 @@ function ComposerView:_listen()
 
   element:on('BufEnter', function()
     if self.on_enter then self.on_enter(self) end
+  end)
+
+  self.group = event.augroup('harness.composer.view.' .. self.session.key)
+  self.group.on('WinResized', function()
+    Timer.defer(0, function()
+      if self:is_open() then self:_decorate() end
+    end)
   end)
 
   element:on('BufWriteCmd', function()
@@ -708,7 +756,9 @@ function ComposerView:mount(insert)
   self:_ease_open()
 
   element:set_name(ComposerView.NAME .. '/' .. session.key)
-  element:set_lines(not self.answering and self.store:draft(session.key) or { '' })
+  local draft = (not self.answering and self.store:draft(session.key)) or { '' }
+
+  element:set_lines(draft)
   element:set_buf_option('modified', false)
   element:focus()
   element:set_cursor({ element:get_line_count(), #(element:get_lines()[element:get_line_count()] or '') })

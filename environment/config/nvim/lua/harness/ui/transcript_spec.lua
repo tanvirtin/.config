@@ -883,7 +883,7 @@ describe('harness.ui.transcript:', function()
           end)
 
           assert.is_true(composer.is_open())
-          eq({ '' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+          eq({ '' }, composer.view(asked):lines())
           assert.is_truthy(composer.winbar():find('answering: Other', 1, true))
           assert.is_truthy(asked_in(buf, 'write Other in the composer'):find('write Other', 1, true))
 
@@ -894,7 +894,7 @@ describe('harness.ui.transcript:', function()
           assert.is_false(composer.is_open())
 
           composer.open(asked, { display = require('harness.ui.display') })
-          eq({ 'my unsent draft' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+          eq({ 'my unsent draft' }, composer.view(asked):lines())
         end)
 
         it('keeps the composer open and says why when a written answer does not fit', function()
