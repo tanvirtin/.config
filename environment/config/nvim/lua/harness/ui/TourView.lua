@@ -5,7 +5,9 @@ local Buffer = require('core.Buffer')
 local Object = require('core.Object')
 local Window = require('core.Window')
 local buffers = require('core.buffers')
+local Panel = require('surfaces.Panel')
 local settings = require('harness.settings')
+local Renderer = require('ui.markdown.Renderer')
 local tour_scope = require('harness.tour_scope')
 
 local TourView = Object:extend()
@@ -260,8 +262,9 @@ function TourView:_show_note(window, index, first)
 
   width = math.min(width, math.max(window:get_width() - 2, 10))
   buffer:set_lines(lines)
-  buffer:set_option('filetype', 'markdown')
+  buffer:set_option('filetype', Panel.MARKDOWN)
   buffer:set_option('bufhidden', 'wipe')
+  Renderer(buffer.bufnr):render(0)
 
   self.note = window:open(buffer, {
     relative = 'win',

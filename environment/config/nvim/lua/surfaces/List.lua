@@ -9,7 +9,7 @@ local List = Surface:extend()
 function List:constructor(opts)
   local instance = Surface.constructor(self, { kind = 'list', title = opts.title or 'List', owner = opts.owner })
 
-  instance._items = compact.order(opts.items or {})
+  instance._items = vim.list_extend({}, opts.items or {})
   instance._height = opts.height
   instance._rows = {}
 
@@ -147,7 +147,6 @@ List.COMMANDS = {
     params = { { name = 'items', type = schema.list(LOCATION) } },
     run = function(self, args)
       vim.list_extend(self._items, args.items)
-      self._items = compact.order(self._items)
       self:_refresh()
     end,
   },

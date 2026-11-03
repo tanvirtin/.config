@@ -144,6 +144,54 @@ describe('harness.ui.composer:', function()
       assert.is_truthy(composer.winbar():find('send', 1, true) < composer.winbar():find('%=', 1, true))
     end)
 
+    it('draws its markdown like the transcript, and a reference to a file as a chip', function()
+      local Renderer = require('ui.markdown.Renderer')
+      local path = vim.fn.tempname() .. '.lua'
+
+      vim.fn.writefile({ 'x' }, path)
+      open_composer(session)
+
+      local buf = vim.api.nvim_get_current_buf()
+
+      eq('harness_composer', vim.bo[buf].filetype)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'fix **this** in @' .. path .. ' for @someone' })
+      vim.wait(200, function()
+        return #vim.api.nvim_buf_get_extmarks(buf, Renderer.NAMESPACE, 0, -1, {}) > 0
+      end)
+
+      local chips = vim.tbl_filter(function(mark)
+        return mark[4].hl_group == 'UiChip'
+      end, marks(buf))
+
+      eq(1, #chips)
+      eq(('fix **this** in '):len(), chips[1][3])
+      assert.is_truthy(#vim.api.nvim_buf_get_extmarks(buf, Renderer.NAMESPACE, 0, -1, {}) > 0)
+      vim.fn.delete(path)
+    end)
+
+    it('says how to send from the mode you are in', function()
+      local Window = require('core.Window')
+      local real = Window.inserting
+
+      open_composer(session)
+      Window.inserting = function()
+        return true
+      end
+
+      local typing = composer.view(session):hints_text()
+
+      Window.inserting = real
+      vim.cmd('stopinsert')
+
+      assert.is_truthy(typing:find('<Esc><CR>', 1, true))
+      eq(nil, typing:find('close', 1, true))
+
+      local normal = composer.view(session):hints_text()
+
+      eq(nil, normal:find('<Esc>', 1, true))
+      assert.is_truthy(normal:find('close', 1, true))
+    end)
+
     for _, case in ipairs({
       { 'clearing it', 'ggdG' },
       { 'deleting the empty line', 'dd' },

@@ -183,6 +183,11 @@ session_tools.TOOLS = {
 
 function session_tools.register()
   tools.register('session', session_tools.TOOLS)
+  tools.observe_edits('session', function(caller, diff)
+    local session = caller and hub.session(caller)
+
+    if session then session:record_edit(diff) end
+  end)
 end
 
 return session_tools

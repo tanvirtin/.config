@@ -18,6 +18,10 @@ local transcript = lazy('harness.ui.transcript')
 
 local commands = {}
 
+local function choice_hints(action)
+  return { { '<CR>', action }, { '<C-n>/<C-p>', 'move' }, { '<Esc>', 'close' } }
+end
+
 local function warn(message)
   console.notify('Harness: ' .. message, 'warn')
 end
@@ -168,7 +172,7 @@ local function choose_session(shown, buf, range)
     end
   end
 
-  if #items == 0 then return transcript.report(false, 'no session in this tab to attach this to; open one first') end
+  if #items == 0 then return transcript.report(false, 'no session to attach this to; start one with <leader>.') end
 
   keymap.feed('<Esc>', 'nx')
 
@@ -177,6 +181,7 @@ local function choose_session(shown, buf, range)
     items = items,
     width = '50vw',
     max_height = 10,
+    hints = choice_hints('attach'),
     on_select = function(item)
       Timer.schedule(function()
         display.set_current(item.view)
@@ -196,7 +201,7 @@ local function attach_range(buf, range)
   if shown then return choose_session(shown, buf, range) end
 
   if not view or view.session.state == 'closed' then
-    return transcript.report(false, 'no session in this tab to attach this to; open one first')
+    return transcript.report(false, 'no session to attach this to; start one with <leader>.')
   end
 
   local session = view.session
@@ -263,6 +268,37 @@ function commands.permissions()
   return view:show_permissions()
 end
 
+function commands.choose_new()
+  local agents = require('harness.agent')
+  local default = agents.get().name
+  local names = agents.names()
+
+  if #names <= 1 then return commands.new(default) end
+
+  table.sort(names, function(a, b)
+    if a == default or b == default then return a == default end
+
+    return a < b
+  end)
+
+  surfaces.pick({
+    title = 'New session with',
+    hints = choice_hints('start'),
+    items = vim.tbl_map(function(name)
+      return { label = name, description = agents.get(name).description, agent = name }
+    end, names),
+    width = '50vw',
+    max_height = 10,
+    on_select = function(item)
+      Timer.schedule(function()
+        commands.new(item.agent)
+      end)
+    end,
+  })
+
+  return true
+end
+
 function commands.sessions()
   local from = source()
 
@@ -270,8 +306,8 @@ function commands.sessions()
     on_open = function(session)
       commands.open(session, { source_win = from.win, source_buf = from.buf })
     end,
-    on_new = function()
-      commands.new()
+    on_new = function(agent_name)
+      commands.new(agent_name)
     end,
   })
 end

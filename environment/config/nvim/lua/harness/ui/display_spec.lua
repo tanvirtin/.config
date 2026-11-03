@@ -151,12 +151,17 @@ describe('harness.ui.display:', function()
       eq(2, #choices)
     end)
 
-    it('is nothing when no transcript was ever opened in the tab', function()
+    it('is the one used last, from another tab, when none is in this tab', function()
+      local other = second()
+
+      display.open(other)
+      vim.cmd('enew')
+      display.open(session)
       vim.cmd('tabnew')
 
       local view, choices = display.target()
 
-      assert.is_nil(view)
+      eq(session, view.session)
       assert.is_nil(choices)
     end)
 

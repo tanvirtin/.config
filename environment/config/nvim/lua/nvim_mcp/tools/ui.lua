@@ -196,7 +196,7 @@ return {
   {
     name = 'ui_show',
     risk = 'write',
-    summary = 'Show the user a list of locations (kind = list: a split grouped by file; they press Enter to jump) or a markdown panel (kind = panel). Prefer this to writing a Lua script. Returns the surface id and its commands.',
+    summary = 'Show the user a list of locations (kind = list: a split in the order you give, items in one file in a row sharing its name; they press Enter to jump) or a markdown panel (kind = panel). Prefer this to writing a Lua script; to walk the user through code step by step (how something works, a review), use tour_start instead. Returns the surface id and its commands.',
     params = {
       { name = 'kind', type = schema.literal({ 'list', 'panel' }) },
       { name = 'title', type = schema.str() },

@@ -68,9 +68,29 @@ function History:_prompts(list)
   return out
 end
 
+function History:_within(short, long)
+  local at = 1
+
+  for word in short:gmatch('%S+') do
+    local found = long:find(word, at, true)
+
+    if not found then return false end
+
+    at = found + #word
+  end
+
+  return true
+end
+
+function History:_same_prompt(a, b)
+  if a == b then return true end
+
+  return #a <= #b and self:_within(a, b) or self:_within(b, a)
+end
+
 function History:_compare(ours, theirs)
   for i = 1, math.min(#ours, #theirs) do
-    if theirs[i].text ~= ours[i].text then return History.RELATION.diverged end
+    if not self:_same_prompt(ours[i].text, theirs[i].text) then return History.RELATION.diverged end
   end
 
   return #theirs < #ours and History.RELATION.behind or History.RELATION.extends

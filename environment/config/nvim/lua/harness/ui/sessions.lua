@@ -1,6 +1,7 @@
 local lazy = require('core.lazy')
 
 local Timer = lazy('core.Timer')
+local agent = lazy('harness.agent')
 local date = lazy('core.utils.date')
 local theme = lazy('harness.transcript.theme')
 local EVENT = require('harness.types.events').KIND
@@ -35,8 +36,11 @@ local function status_of(live, updated_at)
   return prompt and (state .. ' · ' .. prompt) or state
 end
 
-function sessions.rows(listed)
-  local rows = { vim.deepcopy(NEW) }
+function sessions.rows(listed, current)
+  current = current or agent.get().name
+
+  local rows =
+    { vim.tbl_extend('force', NEW, { agent = current, description = 'start a fresh conversation with ' .. current }) }
 
   for _, item in ipairs(listed) do
     local live = item.session
@@ -62,11 +66,39 @@ function sessions.rows(listed)
     }
   end
 
+  for _, name in ipairs(agent.names()) do
+    if name ~= current then
+      rows[#rows + 1] = {
+        label = '+ New ' .. name .. ' session',
+        description = 'start a fresh conversation with ' .. name,
+        action = 'new',
+        agent = name,
+      }
+      rows[#rows + 1] = {
+        label = '  ' .. name .. ' sessions…',
+        description = 'resume an earlier ' .. name .. ' conversation',
+        action = 'browse',
+        agent = name,
+      }
+    end
+  end
+
   return rows
 end
 
 function sessions.open(opts)
-  return SessionsView(opts, sessions.rows, status_of):open()
+  opts = opts or {}
+
+  local view = SessionsView(opts, function(listed)
+    return sessions.rows(listed, opts.agent)
+  end, status_of)
+
+  opts.on_browse = opts.on_browse
+    or function(name)
+      sessions.open(vim.tbl_extend('force', opts, { agent = name }))
+    end
+
+  return view:open()
 end
 
 return sessions

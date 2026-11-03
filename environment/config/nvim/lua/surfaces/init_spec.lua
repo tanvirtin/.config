@@ -242,6 +242,28 @@ describe('surfaces:', function()
       eq(2, vim.api.nvim_win_get_cursor(0)[1])
     end)
 
+    it('keeps the order it was given, so numbered steps read in order', function()
+      local list = surfaces.list({
+        title = 'Steps',
+        items = {
+          { path = '/w/main.rs', line = 150, text = '1. entry' },
+          { path = '/w/diff.rs', line = 358, text = '2. pick' },
+          { path = '/w/hunks.rs', line = 134, text = '3. hunks' },
+          { path = '/w/diff.rs', line = 267, text = '4. shape' },
+        },
+      })
+      local steps = vim.tbl_filter(function(line)
+        return line:find('%d%. ') ~= nil
+      end, list:_refresh())
+
+      eq(
+        { '1. entry', '2. pick', '3. hunks', '4. shape' },
+        vim.tbl_map(function(line)
+          return line:match('%d%. %a+')
+        end, steps)
+      )
+    end)
+
     it('points at an item and grows as results arrive', function()
       local root = fixture()
       local list = surfaces.list({ title = 'Greets', items = { items(root)[1] } })
@@ -270,6 +292,15 @@ describe('surfaces:', function()
       panel:command('close')
       eq('closed', panel.state)
       eq({}, surfaces.all())
+    end)
+
+    it('draws its own markdown, out of reach of markdown plugins', function()
+      local panel = surfaces.panel({ title = 'Notes', markdown = '```text\nplain\n```' })
+      local Renderer = require('ui.markdown.Renderer')
+
+      eq('markdown_surface', vim.bo.filetype)
+      assert.is_truthy(#vim.api.nvim_buf_get_extmarks(0, Renderer.NAMESPACE, 0, -1, {}) > 0)
+      panel:command('close')
     end)
   end)
 end)

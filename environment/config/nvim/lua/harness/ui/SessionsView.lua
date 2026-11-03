@@ -61,14 +61,14 @@ function SessionsView:_confirm(row)
 end
 
 function SessionsView:delete(row)
-  if not row or row.action == 'new' then return self end
+  if not row or row.action then return self end
   if self.pending ~= row.id then return self:_confirm(row) end
 
   self.pending = nil
 
   local live = row.key and hub.session(row.key)
 
-  hub.delete({ dir = self.dir, id = row.id }):on_complete(function(err)
+  hub.delete({ dir = self.dir, agent = self.opts.agent, id = row.id }):on_complete(function(err)
     Timer.schedule(function()
       if err then return SessionsView.warn(tostring(err)) end
 
@@ -112,6 +112,7 @@ function SessionsView:_load(row)
   hub
     .load({
       dir = self.dir,
+      agent = self.opts.agent,
       id = row.id,
       title = row.title,
       on_session = function(session)
@@ -139,7 +140,8 @@ end
 function SessionsView:select(row)
   local opts = self.opts
 
-  if row.action == 'new' then return opts.on_new and opts.on_new() end
+  if row.action == 'new' then return opts.on_new and opts.on_new(row.agent) end
+  if row.action == 'browse' then return opts.on_browse and opts.on_browse(row.agent) end
 
   local live = row.key and hub.session(row.key)
 
@@ -183,7 +185,7 @@ end
 function SessionsView:open()
   local opened = async.Future()
 
-  hub.list(self.dir):on_complete(function(err, listed)
+  hub.list(self.dir, self.opts.agent):on_complete(function(err, listed)
     if err then
       SessionsView.warn(tostring(err))
       listed = {}

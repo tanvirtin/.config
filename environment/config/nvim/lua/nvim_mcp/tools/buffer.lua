@@ -14,9 +14,10 @@ local function buffer_read(args)
     out[i] = string.format('%6d\t%s', first + i - 1, line)
   end
 
+  local path = util.buf_path(buf)
   local header = string.format(
     '%s (bufnr %d, lines %d-%d of %d%s)',
-    util.buf_path(buf) or '[No Name]',
+    path and vim.fn.fnamemodify(path, ':~:.') or '[No Name]',
     buf,
     first,
     last,
@@ -66,7 +67,11 @@ local function line_of(text, offset)
   return newlines + 1
 end
 
-local function buffer_edit(args)
+local function report(ctx, diff)
+  if ctx and ctx.edited and diff.path then ctx.edited(diff) end
+end
+
+local function buffer_edit(args, ctx)
   if args.old_string == '' then util.fail('old_string is empty; use buffer_write to replace a whole buffer') end
   if args.old_string == args.new_string then util.fail('old_string and new_string are identical') end
 
@@ -88,7 +93,9 @@ local function buffer_edit(args)
   local new_lines = vim.split(replaced, '\n', { plain = true })
 
   util.break_undo(buf)
+  util.list(buf)
   vim.api.nvim_buf_set_lines(buf, first - 1, last, false, new_lines)
+  report(ctx, { path = util.buf_path(buf), old = args.old_string, new = args.new_string })
 
   return {
     path = util.buf_path(buf),
@@ -100,14 +107,18 @@ local function buffer_edit(args)
   }
 end
 
-local function buffer_write(args)
+local function buffer_write(args, ctx)
   local buf = util.resolve(args, true)
   local new_lines = vim.split(args.content, '\n', { plain = true })
 
   if #new_lines > 1 and new_lines[#new_lines] == '' then new_lines[#new_lines] = nil end
 
+  local old = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+
   util.break_undo(buf)
+  util.list(buf)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, new_lines)
+  report(ctx, { path = util.buf_path(buf), old = old, new = table.concat(new_lines, '\n') })
 
   return { path = util.buf_path(buf), bufnr = buf, line_count = #new_lines, saved = false }
 end
@@ -145,7 +156,7 @@ return {
   {
     name = 'buffer_edit',
     risk = 'write',
-    summary = 'Replace an exact string in a buffer (like Edit, but on the live buffer). old_string must match once unless replace_all. One undo step; the buffer is left unsaved.',
+    summary = 'Replace an exact string in a buffer (like Edit, but on the live buffer). old_string must match once unless replace_all. One undo step; the buffer is left unsaved, so save it before running a build or tests.',
     params = util.params(util.TARGET, {
       { name = 'old_string', type = schema.str() },
       { name = 'new_string', type = schema.str() },

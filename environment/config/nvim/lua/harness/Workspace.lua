@@ -4,6 +4,7 @@ local Object = lazy('core.Object')
 local async = lazy('harness.async')
 local Session = lazy('harness.Session')
 local servers = lazy('harness.servers')
+local session_types = lazy('harness.types.session')
 
 local Workspace = Object:extend()
 
@@ -167,7 +168,7 @@ function Workspace:list(agent)
 
     for _, stored in ipairs(stored_sessions) do
       if not seen[stored.id] then
-        out[#out + 1] = { id = stored.id, title = stored.title, updated_at = stored.updated_at }
+        out[#out + 1] = { id = stored.id, title = session_types.title(stored.title), updated_at = stored.updated_at }
       elseif live[stored.id].session:adopt_title(stored.title) then
         live[stored.id].title = stored.title
       end

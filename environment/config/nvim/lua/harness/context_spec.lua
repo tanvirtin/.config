@@ -131,6 +131,33 @@ describe('harness.context:', function()
       eq({ 'a', 'b' }, context.resolve_tokens('see @"my dir/b.lua" here', dir)[1].lines)
     end)
 
+    it('takes back the file an agent wrote into its echo of a prompt', function()
+      local echoed = table.concat({
+        'tour it, start with @a.lua',
+        '[' .. dir .. '/a.lua:1]',
+        'one',
+        'two',
+        'three',
+        ' and explain it',
+        'then @a.lua:2-2',
+        '[' .. dir .. '/a.lua:2]',
+        'two',
+        'three',
+      }, '\n')
+
+      eq('tour it, start with @a.lua and explain it\nthen @a.lua:2-2\nthree', context.strip_echoed(echoed))
+      eq('plain [text]', context.strip_echoed('plain [text]'))
+    end)
+
+    it('finds where each reference sits in a line', function()
+      eq({
+        { token = '@a.lua:2', start = 5, finish = 12 },
+        { token = '@"my dir/b.lua"', start = 18, finish = 32 },
+      }, context.tokens('see @a.lua:2, or @"my dir/b.lua" (me@x)'))
+      eq(true, context.names_file('@a.lua', dir))
+      eq(false, context.names_file('@nope.lua', dir))
+    end)
+
     it('resolves a repeated token once', function()
       eq(1, #context.resolve_tokens('@a.lua:1 and @a.lua:1', dir))
     end)

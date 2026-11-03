@@ -453,6 +453,10 @@ function Window.stop_insert()
   vim.cmd('stopinsert')
 end
 
+function Window.inserting()
+  return vim.api.nvim_get_mode().mode:sub(1, 1) == 'i'
+end
+
 function Window.completion()
   if vim.fn.pumvisible() == 0 then return nil end
 

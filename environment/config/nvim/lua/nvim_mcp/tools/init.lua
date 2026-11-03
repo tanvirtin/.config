@@ -12,6 +12,20 @@ local RISKS = { read = true, write = true, exec = true }
 
 local sets, order, by_name
 
+local observers = {}
+
+function tools.observe_edits(name, fn)
+  observers[name] = fn
+end
+
+local function edited(caller)
+  return function(diff)
+    for _, fn in pairs(observers) do
+      pcall(fn, caller, diff)
+    end
+  end
+end
+
 local function check(set, entry)
   local where = string.format('toolset %s, tool %s', set, tostring(entry.name))
 
@@ -130,7 +144,9 @@ function tools.run(name, args, caller)
 
   if not ok then util.fail('invalid arguments for ' .. name .. ': ' .. schema.format_errors(coerced)) end
 
-  return entry.fn(coerced, { caller = caller ~= '' and caller or nil })
+  caller = caller ~= '' and caller or nil
+
+  return entry.fn(coerced, { caller = caller, edited = edited(caller) })
 end
 
 return tools

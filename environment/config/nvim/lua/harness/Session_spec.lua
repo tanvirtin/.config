@@ -41,6 +41,130 @@ local function asking(tool)
 end
 
 describe('harness.Session:', function()
+  describe('an edit made through the editor tools', function()
+    local events = require('harness.types.events')
+    local EditLog = require('harness.edits.EditLog')
+    local K = events.KIND
+
+    local function running_with(tools)
+      local session = session_with()
+
+      session:_to('running')
+      session:_emit(events.new({ kind = K.prompt, text = 'go' }))
+
+      for _, tool in ipairs(tools) do
+        session:_emit(events.new(vim.tbl_extend('force', { kind = K.tool_call }, tool)))
+      end
+
+      return session
+    end
+
+    local function edits(session)
+      session:_emit(events.new({ kind = K.tool_update, id = 't1', status = 'completed' }))
+
+      return vim.tbl_map(function(tool)
+        return vim.tbl_map(function(diff)
+          return diff.path .. ' ' .. diff.old .. '>' .. diff.new
+        end, tool.diffs)
+      end, EditLog.tools(session.log.events))
+    end
+
+    it('joins the tool call that is running, so it can be reviewed and reverted', function()
+      local session = running_with({ { id = 't1', name = 'execute', status = 'in_progress' } })
+
+      eq(true, session:record_edit({ path = '/w/a.rs', old = 'a', new = 'b' }))
+      eq(true, session:record_edit({ path = '/w/b.rs', old = 'c', new = 'd' }))
+      eq({ { '/w/a.rs a>b', '/w/b.rs c>d' } }, edits(session))
+    end)
+
+    it('is not counted twice when the tool call already carries it', function()
+      local session = running_with({
+        {
+          id = 't1',
+          name = 'buffer_edit',
+          status = 'in_progress',
+          diffs = { { path = 'a.rs', old = 'a', new = 'b' } },
+        },
+      })
+
+      eq(false, session:record_edit({ path = '/w/a.rs', old = 'a', new = 'b' }))
+      eq({ { 'a.rs a>b' } }, edits(session))
+    end)
+
+    it('names a command that ran after an edit its buffer still has unsaved', function()
+      local path = vim.fn.tempname() .. '.rs'
+      local buf = vim.fn.bufadd(path)
+
+      vim.fn.writefile({ 'a' }, path)
+      vim.fn.bufload(buf)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'b' })
+
+      local session = running_with({
+        { id = 't0', category = 'execute', input = { command = 'ls' }, status = 'completed' },
+        { id = 't1', status = 'completed', diffs = { { path = path, old = 'a', new = 'b' } } },
+        { id = 't2', category = 'execute', input = { command = 'cargo test' }, status = 'completed' },
+      })
+
+      eq({ { command = 'cargo test', paths = { vim.fs.normalize(path) } } }, session:stale_runs())
+
+      vim.api.nvim_buf_call(buf, function()
+        vim.cmd('silent write')
+      end)
+      eq({}, session:stale_runs())
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('is counted as unasked unless the user was asked about that tool call', function()
+      local session = running_with({
+        { id = 't1', status = 'in_progress', diffs = { { path = 'a.rs', old = 'a', new = 'b' } } },
+        { id = 't2', status = 'in_progress', diffs = { { path = 'b.rs', old = 'c', new = 'd' } } },
+      })
+
+      session:_emit(events.permission('edit', true, { id = 't2' }))
+
+      eq({ 't1' }, session:unasked_edits())
+    end)
+
+    it('waits for its tool call when it arrives first, instead of being lost', function()
+      local session = running_with({})
+
+      eq(true, session:record_edit({ path = '/w/a.rs', old = 'a', new = 'b' }))
+      session:_on_event(events.new({ kind = K.tool_call, id = 't1', name = 'execute', status = 'in_progress' }))
+      vim.wait(200, function()
+        return #EditLog.tools(vim.list_extend(vim.deepcopy(session.log.events), {
+          events.new({ kind = K.tool_update, id = 't1', status = 'completed' }),
+        })) > 0
+      end)
+
+      eq({ { '/w/a.rs a>b' } }, edits(session))
+    end)
+
+    it('is kept as its own entry when the turn ends without a tool call', function()
+      local session = running_with({})
+
+      session:record_edit({ path = '/w/a.rs', old = 'a', new = 'b' })
+      session:_settle_loose_edits(true)
+
+      local tools = EditLog.tools(session.log.events)
+
+      eq(1, #tools)
+      eq('/w/a.rs', tools[1].diffs[1].path)
+    end)
+
+    it('is left alone when idle, and held for the turn\'s last tool call after it finished', function()
+      local idle = session_with()
+
+      eq(false, idle:record_edit({ path = '/w/a.rs', old = 'a', new = 'b' }))
+
+      local done = running_with({ { id = 't1', status = 'completed' } })
+
+      eq(true, done:record_edit({ path = '/w/a.rs', old = 'a', new = 'b' }))
+      eq({}, EditLog.tools(done.log.events))
+      done:_settle_loose_edits(true)
+      eq('/w/a.rs', EditLog.tools(done.log.events)[1].diffs[1].path)
+    end)
+  end)
+
   it('moves through its lifecycle only along allowed transitions', function()
     local session = session_with()
 

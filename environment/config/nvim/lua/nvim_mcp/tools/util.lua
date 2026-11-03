@@ -1,4 +1,5 @@
 local Buffer = require('core.Buffer')
+local buffers = require('core.buffers')
 local compact = require('compact')
 local schema = require('nvim_mcp.schema')
 
@@ -73,13 +74,13 @@ function util.resolve(args, create)
 
   if args.path then
     local path = vim.fs.normalize(vim.fn.fnamemodify(args.path, ':p'))
-    local buf = vim.fn.bufnr(path)
+    local found = buffers.find(path)
+    local buf = found and found.bufnr
 
-    if buf == -1 then
+    if not buf then
       if not create and not vim.uv.fs_stat(path) then util.fail('no buffer or file: ' .. path) end
 
       buf = vim.fn.bufadd(path)
-      vim.bo[buf].buflisted = true
     end
 
     vim.fn.bufload(buf)
@@ -92,6 +93,10 @@ end
 
 function util.break_undo(buf)
   Buffer(buf):break_undo()
+end
+
+function util.list(buf)
+  vim.bo[buf].buflisted = true
 end
 
 function util.describe_buf(buf)

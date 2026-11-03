@@ -9,6 +9,7 @@ local display = {}
 
 local views = {}
 local current = {}
+local latest
 
 function display.view(buf)
   return views[buf or Buffer.current_number()]
@@ -31,6 +32,8 @@ end
 
 function display.set_current(view)
   local tab = Window.current_tab()
+
+  latest = view.bufnr
 
   if current[tab] == view.bufnr then return end
 
@@ -143,10 +146,35 @@ function display.target()
     end
   end
 
-  if #shown == 0 then return nil end
   if #shown == 1 then return shown[1] end
+  if #shown > 1 then return nil, shown end
 
-  return nil, shown
+  return display._elsewhere()
+end
+
+function display._live()
+  local out = {}
+
+  for buf, view in pairs(views) do
+    if Buffer.exists(buf) and view.session.state ~= 'closed' then out[#out + 1] = view end
+  end
+
+  table.sort(out, function(a, b)
+    return a.bufnr < b.bufnr
+  end)
+
+  return out
+end
+
+function display._elsewhere()
+  local live = display._live()
+
+  for _, view in ipairs(live) do
+    if view.bufnr == latest then return view end
+  end
+
+  if #live == 1 then return live[1] end
+  if #live > 1 then return nil, live end
 end
 
 function display.is_target(view, window)

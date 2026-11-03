@@ -48,6 +48,14 @@ end
 
 local TRAILING = '[,;:.!?%)%]]'
 
+function context.absolute(path, dir)
+  local expanded = fs.expand(path)
+
+  if expanded:sub(1, 1) ~= '/' then expanded = fs.absolute_path(dir or fs.cwd(), expanded) end
+
+  return fs.normalize(expanded)
+end
+
 function context.token(path, range)
   local source = fs.display(path)
   local span = range[1] == range[2] and tostring(range[1]) or (range[1] .. '-' .. range[2])
@@ -145,19 +153,44 @@ local function next_token(text, at)
   local start = text:find('@', at, true)
 
   if not start then return nil end
-  if start > 1 and not text:sub(start - 1, start - 1):match('[%s%(%[{"\'`]') then return '@', start + 1 end
+  if start > 1 and not text:sub(start - 1, start - 1):match('[%s%(%[{"\'`]') then return '@', start + 1, start end
 
   local quoted = text:match('^@"[^"\n]+":%d+%-%d+', start)
     or text:match('^@"[^"\n]+":%d+', start)
     or text:match('^@"[^"\n]+"', start)
 
-  if quoted then return quoted, start + #quoted end
+  if quoted then return quoted, start + #quoted, start end
 
   local plain = text:match('^@%S+', start)
 
-  if not plain then return '@', start + 1 end
+  if not plain then return '@', start + 1, start end
 
-  return (plain:gsub(TRAILING .. '+$', '')), start + #plain
+  return (plain:gsub(TRAILING .. '+$', '')), start + #plain, start
+end
+
+function context.tokens(text)
+  local out = {}
+  local token, at, start = next_token(text, 1)
+
+  while token do
+    if parse(token) then out[#out + 1] = { token = token, start = start, finish = start + #token - 1 } end
+
+    token, at, start = next_token(text, at)
+  end
+
+  return out
+end
+
+function context.names_file(token, dir)
+  local path = parse(token)
+
+  if not path then return false end
+
+  for _, full in ipairs(candidates(path, dir)) do
+    if buffers.find(full) or fs.exists(full) then return not fs.is_dir(full) end
+  end
+
+  return false
 end
 
 function context.resolve_tokens(text, dir, opts)
@@ -179,6 +212,54 @@ function context.resolve_tokens(text, dir, opts)
   end
 
   return out, problems
+end
+
+local function echoed_limit(before, path, start)
+  local limit
+
+  for token in before:gmatch('@%S+') do
+    local name, from, to = token:match('^@"?([^"]-)"?:(%d+)%-(%d+)')
+
+    if name and tonumber(from) == start and context.absolute(name) == path then limit = tonumber(to) - start + 1 end
+  end
+
+  return limit or math.huge
+end
+
+function context.strip_echoed(text)
+  if not text:find('\n%[/') and not text:find('^%[/') then return text end
+
+  local lines = vim.split(text, '\n', { plain = true })
+  local out = {}
+  local i = 1
+
+  while i <= #lines do
+    local path, start = lines[i]:match('^%[(/.-):(%d+)%]$')
+
+    if path then
+      start = tonumber(start)
+
+      local file = buffers.lines_of(path)
+      local limit = echoed_limit(table.concat(out, '\n'), fs.normalize(path), start)
+      local j, taken = i + 1, 0
+
+      while j <= #lines and taken < limit and file[start + taken] ~= nil and lines[j] == file[start + taken] do
+        j, taken = j + 1, taken + 1
+      end
+
+      i = j
+
+      if lines[i] and lines[i]:match('^%s') and #out > 0 then
+        out[#out] = out[#out] .. lines[i]
+        i = i + 1
+      end
+    else
+      out[#out + 1] = lines[i]
+      i = i + 1
+    end
+  end
+
+  return table.concat(out, '\n')
 end
 
 function context.capture(win, range)

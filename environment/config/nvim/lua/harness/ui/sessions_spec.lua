@@ -55,6 +55,20 @@ describe('harness.ui.sessions:', function()
     )
   end)
 
+  it('offers a new session with every other agent, and a way to browse its sessions', function()
+    local rows = sessions.rows({}, 'claude')
+    local by_label = {}
+
+    for _, row in ipairs(rows) do
+      by_label[row.label] = row
+    end
+
+    eq({ 'new', 'claude' }, { rows[1].action, rows[1].agent })
+    eq({ 'new', 'opencode' }, { by_label['+ New opencode session'].action, by_label['+ New opencode session'].agent })
+    eq('browse', by_label['  opencode sessions…'].action)
+    eq(nil, by_label['+ New claude session'])
+  end)
+
   it('says how long ago a stored session was used, in plain words', function()
     local now = 1792229400
 
@@ -160,9 +174,9 @@ describe('harness.ui.sessions:', function()
 
     eq('old', fake:sent_method('session/delete').params.sessionId)
     settle(function()
-      return picker:snapshot():find('0 of 1 items', 1, true) ~= nil
+      return picker:snapshot():find('"Yesterday", 0 of', 1, true) ~= nil
     end)
-    assert.is_truthy(picker:snapshot():find('query "Yesterday", 0 of 1 items', 1, true))
+    assert.is_truthy(picker:snapshot():find('query "Yesterday", 0 of', 1, true))
   end)
 
   it('does not delete the new-session row', function()

@@ -14,7 +14,7 @@ server.INSTRUCTIONS = table.concat({
   'Start with editor_state to see the focused file, cursor and open buffers.',
   'Read and edit through buffer_read and buffer_edit rather than the file on disk: buffers can hold unsaved changes, and edits land in the editor as one undo step each.',
   'Editor tools take a path (or bufnr; omit both for the focused buffer) and 1-based, inclusive lines.',
-  'Edits stay unsaved; call buffer_save only when the user asks to save.',
+  'Edits stay unsaved, so a command that reads files from disk (a build, tests, a linter, git) would see the old text: save the buffers you changed with buffer_save before running one, and otherwise only when the user asks.',
   'The nvim_* tools are the raw RPC API: 0-based rows, integer handles, and argument names exactly as their schema lists. Use them for anything the editor tools do not cover.',
   'Pass handles explicitly on every nvim_* call: 0 means the current buffer, window or tabpage, and an omitted handle is an error rather than a default.',
   'For anything visual or multi-step, write one Lua script with the lua tool instead of many small calls: fill a quickfix list, open a float or scratch buffer, draw extmarks. Present results in the editor when that helps the user explore.',

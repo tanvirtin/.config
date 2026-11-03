@@ -121,6 +121,55 @@ describe('nvim_mcp.tools:', function()
     end)
   end)
 
+  describe('buffers the agent opens', function()
+    it('leaves a file it only read out of the buffer list, and lists one it edited', function()
+      local read_path, edit_path = vim.fn.tempname() .. '.lua', vim.fn.tempname() .. '.lua'
+
+      vim.fn.writefile({ 'a' }, read_path)
+      vim.fn.writefile({ 'b' }, edit_path)
+      run('buffer_read', { path = read_path })
+      run('buffer_edit', { path = edit_path, old_string = 'b', new_string = 'c' })
+
+      eq(false, vim.bo[vim.fn.bufnr(read_path)].buflisted)
+      eq(true, vim.bo[vim.fn.bufnr(edit_path)].buflisted)
+    end)
+
+    it('never reads a buffer whose name only contains the path', function()
+      local path = vim.fn.tempname() .. '.lua'
+      local other = vim.fn.bufadd(path .. '.bak')
+
+      vim.fn.writefile({ 'on disk' }, path)
+      vim.fn.bufload(other)
+      vim.api.nvim_buf_set_lines(other, 0, -1, false, { 'other' })
+
+      assert.is_truthy(run('buffer_read', { path = path }):find('on disk', 1, true))
+    end)
+  end)
+
+  describe('edit reports', function()
+    after_each(function()
+      tools.observe_edits('spec', nil)
+    end)
+
+    it('tells observers what an edit and a write changed, and who asked', function()
+      local seen = {}
+      local path = vim.fn.tempname() .. '.lua'
+
+      vim.api.nvim_buf_set_name(buf, path)
+      tools.observe_edits('spec', function(caller, diff)
+        seen[#seen + 1] = { caller, diff.old, diff.new, diff.path == vim.api.nvim_buf_get_name(buf) }
+      end)
+
+      tools.run('buffer_edit', { bufnr = buf, old_string = 'return y', new_string = 'return x' }, 'h1')
+      tools.run('buffer_write', { bufnr = buf, content = 'one\ntwo\n' }, '')
+
+      eq({
+        { 'h1', 'return y', 'return x', true },
+        { nil, 'local x = 1\nlocal y = x\nreturn x', 'one\ntwo', true },
+      }, seen)
+    end)
+  end)
+
   describe('buffer_edit', function()
     it('replaces a unique match as one undo step and leaves the buffer unsaved', function()
       local result = run('buffer_edit', { bufnr = buf, old_string = 'local y = x', new_string = 'local y = x + 1' })

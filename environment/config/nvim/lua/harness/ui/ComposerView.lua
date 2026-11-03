@@ -16,6 +16,7 @@ local context = lazy('harness.context')
 local settings = lazy('harness.settings')
 local Element = lazy('ui.elements.Element')
 local Animator = lazy('harness.ui.Animator')
+local Renderer = lazy('ui.markdown.Renderer')
 local tour_store = lazy('harness.tour_store')
 local theme = lazy('harness.transcript.theme')
 local PromptHistory = lazy('harness.ui.PromptHistory')
@@ -26,6 +27,8 @@ local ComposerView = Object:extend()
 ComposerView.NAME = 'harness://composer'
 
 ComposerView.NAMESPACE = Buffer.namespace('harness.composer')
+
+ComposerView.FILETYPE = 'harness_composer'
 
 ComposerView.WINBAR = '%!v:lua.require\'harness.ui.composer\'.winbar()'
 
@@ -178,21 +181,26 @@ function ComposerView:hints()
     chunks[#chunks + 1] = { ' ' .. label .. '  ', 'UiMuted' }
   end
 
+  local inserting = self:is_open()
+    and Window.get_current().win_id == self.element:get_window().win_id
+    and Window.inserting()
+  local send = inserting and ('<Esc>' .. keys.send) or keys.send
+
   if answering then
-    key(keys.send, 'answer')
+    key(send, 'answer')
   elseif session:running() then
-    key(keys.send, 'queue')
+    key(send, 'queue')
     if session:can('steer') then key(keys.steer, 'steer') end
-    key(keys.interrupt, 'interrupt')
+    if not inserting then key(keys.interrupt, 'interrupt') end
   else
-    key(keys.send, 'send')
+    key(send, 'send')
   end
 
   if #session.commands > 0 then key(keys.slash, 'commands') end
   if not answering then key(keys.history, 'history') end
   if session:mode() then key(keys.cycle_mode, 'mode') end
-  if session:choice('model') then key(keys.model, 'model') end
-  key(keys.close, 'close')
+  if not inserting and session:choice('model') then key(keys.model, 'model') end
+  if not inserting then key(keys.close, 'close') end
 
   return chunks
 end
@@ -234,6 +242,20 @@ function ComposerView:_decorate()
   buffer:clear_namespace(ComposerView.NAMESPACE)
 
   self.signature = self:_signature()
+  self.renderer = self.renderer or Renderer(buffer.bufnr)
+  self.renderer:render(0)
+
+  for row, line in ipairs(self:lines()) do
+    for _, found in ipairs(context.tokens(line)) do
+      if context.names_file(found.token, self.session.dir) then
+        buffer:set_extmark(ComposerView.NAMESPACE, row - 1, found.start - 1, {
+          end_col = found.finish,
+          hl_group = 'UiChip',
+          priority = 200,
+        })
+      end
+    end
+  end
 
   if not ComposerView.has_text(self:lines()) then
     buffer:set_extmark(ComposerView.NAMESPACE, 0, 0, {
@@ -681,6 +703,9 @@ function ComposerView:_listen()
   end)
 
   self.group = event.augroup('harness.composer.view.' .. self.session.key)
+  self.group.on('ModeChanged', function()
+    if self:is_open() then self:refresh() end
+  end)
   self.group.on('WinResized', function()
     Timer.defer(0, function()
       if self:is_open() then self:_decorate() end
@@ -725,13 +750,15 @@ function ComposerView:mount(insert)
       bufhidden = 'wipe',
       swapfile = false,
       buflisted = false,
-      filetype = 'markdown',
+      filetype = ComposerView.FILETYPE,
     },
     win_options = {
       winbar = ComposerView.WINBAR,
       winfixheight = true,
       wrap = true,
       linebreak = true,
+      conceallevel = 2,
+      concealcursor = '',
       number = false,
       relativenumber = false,
       signcolumn = 'no',

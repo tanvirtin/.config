@@ -1,16 +1,19 @@
 local Surface = require('surfaces.Surface')
 local View = require('ui.View')
 local LinesComponent = require('ui.components.LinesComponent')
+local Renderer = require('ui.markdown.Renderer')
 local compact = require('compact')
 local schema = require('nvim_mcp.schema')
 
 local Panel = Surface:extend()
 
+Panel.MARKDOWN = 'markdown_surface'
+
 function Panel:constructor(opts)
   local instance = Surface.constructor(self, { kind = 'panel', title = opts.title or 'Panel', owner = opts.owner })
 
   instance._lines = opts.lines or vim.split(opts.markdown or '', '\n', { plain = true })
-  instance._filetype = opts.filetype or 'markdown'
+  instance._filetype = opts.filetype or Panel.MARKDOWN
   instance._width = opts.width or '70vw'
   instance._height = opts.height
 
@@ -30,6 +33,7 @@ function Panel:open()
     wrap = true,
     cursorline = false,
     border = 'rounded',
+    win_options = { conceallevel = 2, concealcursor = 'nc', linebreak = true },
   })
   self._view = View()
   self._view:_render({
@@ -45,9 +49,16 @@ function Panel:open()
     end, 'Close')
   end
 
+  self:_render()
   self:set_state('ready')
 
   return self
+end
+
+function Panel:_render()
+  if self._filetype ~= Panel.MARKDOWN or not (self._body and self._body:is_valid()) then return end
+
+  Renderer(self._body:get_bufnr()):render(0)
 end
 
 Panel.COMMANDS = {
@@ -62,6 +73,7 @@ Panel.COMMANDS = {
 
       self._lines = args.append and vim.list_extend(self._lines, lines) or lines
       self._body:set_content(self:_content())
+      self:_render()
     end,
   },
 }

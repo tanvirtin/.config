@@ -67,6 +67,12 @@ function LinesComponent:set_content(lines, highlights)
   end)
 end
 
+function LinesComponent:get_bufnr()
+  return self:with_element(function(element)
+    return element:get_buffer().bufnr
+  end)
+end
+
 function LinesComponent:get_lnum()
   return self:with_element(function(element)
     return element:get_lnum()

@@ -50,6 +50,37 @@ describe('harness.session.History:', function()
     )
   end)
 
+  it('keeps its own history when the agent echoes a prompt with its attachments written in', function()
+    local history = History()
+
+    history:append(user('tour it, start with @src/main.rs and explain dispatch'))
+    history:append(reply('first'))
+    history:append({ kind = events.KIND.stop, reason = 'end_turn' })
+    history:begin_replay()
+
+    for _, event in ipairs({
+      user('tour it, start with @src/main.rs[/w/src/main.rs:1]\nuse clap::Parser;\n and explain dispatch'),
+      reply('first'),
+    }) do
+      history:append(event)
+    end
+
+    eq(nil, history:end_replay(true))
+    eq('tour it, start with @src/main.rs and explain dispatch', history.events[1].text)
+  end)
+
+  it('still sees a different prompt as a divergence', function()
+    local history = History()
+
+    history:append(user('rename the parser'))
+    history:append(reply('first'))
+    history:begin_replay()
+    history:append(user('delete the tests'))
+    history:append(reply('other'))
+
+    eq(events.NOTICE.reset, history:end_replay(true))
+  end)
+
   describe('after a finished turn, with no new prompt in the replay', function()
     local function finished()
       local history = History()
