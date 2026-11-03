@@ -15,7 +15,7 @@ local ElicitationPrompt = Object:extend()
 
 ElicitationPrompt.MAX_KEYS = 9
 
-local function steps_of(request)
+function ElicitationPrompt:_steps_of(request)
   if request.mode ~= elicitation.MODE.form then return {} end
 
   local companion = elicitation.companions(request)
@@ -25,7 +25,7 @@ local function steps_of(request)
   end, request.fields)
 end
 
-local function by_key(request)
+function ElicitationPrompt:_by_key(request)
   local out = {}
 
   for _, field in ipairs(request.fields) do
@@ -35,7 +35,7 @@ local function by_key(request)
   return out
 end
 
-local function defaults(request)
+function ElicitationPrompt:_defaults(request)
   local picked = {}
 
   for _, field in ipairs(request.fields) do
@@ -59,11 +59,11 @@ function ElicitationPrompt:constructor(ask)
     session = ask.session,
     request = request,
     future = async.Future(),
-    steps = steps_of(request),
-    fields = by_key(request),
+    steps = self:_steps_of(request),
+    fields = self:_by_key(request),
     step = 1,
     values = {},
-    picked = defaults(request),
+    picked = self:_defaults(request),
     writing_key = nil,
     error = nil,
   }
@@ -93,11 +93,11 @@ function ElicitationPrompt:is_picked(value)
   return field ~= nil and (self.picked[field.key] or {})[value] == true
 end
 
-local function box(field, checked)
+function ElicitationPrompt:_box(field, checked)
   if field.kind == FIELD.multi then return checked end
 end
 
-local function shown_default(field)
+function ElicitationPrompt:_shown_default(field)
   if field.kind == FIELD.boolean then return field.default and 'yes' or 'no' end
 
   return tostring(field.default)
@@ -115,12 +115,12 @@ function ElicitationPrompt:_extras(field)
       action = CHOICE.write,
       target = field.other,
       label = 'Other…',
-      checked = box(field, self.values[field.other] ~= nil),
+      checked = self:_box(field, self.values[field.other] ~= nil),
     }
   end
 
   if field.default ~= nil and field.kind ~= FIELD.multi then
-    extras[#extras + 1] = { action = CHOICE.default, label = 'Use the default (' .. shown_default(field) .. ')' }
+    extras[#extras + 1] = { action = CHOICE.default, label = 'Use the default (' .. self:_shown_default(field) .. ')' }
   end
 
   if field.kind == FIELD.multi then
@@ -174,7 +174,7 @@ function ElicitationPrompt:choices()
       value = option.value,
       label = option.label,
       description = option.description,
-      checked = box(field, self:is_picked(option.value)),
+      checked = self:_box(field, self:is_picked(option.value)),
     })
   end
 
@@ -290,13 +290,13 @@ function ElicitationPrompt:_done(field)
   self:_advance()
 end
 
-local function length(text)
+function ElicitationPrompt:_length(text)
   local _, count = text:gsub('[^\128-\191]', '')
 
   return count
 end
 
-local function parse(field, text)
+function ElicitationPrompt:_parse(field, text)
   if field.kind == FIELD.number or field.kind == FIELD.integer then
     local number = tonumber(text)
 
@@ -308,10 +308,12 @@ local function parse(field, text)
     return number
   end
 
-  if field.min and length(text) < field.min then
+  if field.min and self:_length(text) < field.min then
     return nil, string.format('write at least %d characters', field.min)
   end
-  if field.max and length(text) > field.max then return nil, string.format('write at most %d characters', field.max) end
+  if field.max and self:_length(text) > field.max then
+    return nil, string.format('write at most %d characters', field.max)
+  end
 
   return text
 end
@@ -321,7 +323,7 @@ function ElicitationPrompt:submit_text(text)
 
   if not field or not self:is_open() then return nil, 'nothing is waiting for an answer' end
 
-  local value, why = parse(field, vim.trim(text))
+  local value, why = self:_parse(field, vim.trim(text))
 
   if value == nil then return nil, why end
 

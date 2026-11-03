@@ -14,7 +14,7 @@ function History:constructor()
   return { events = {}, times = {}, turns = TurnIndex(), _shadow = nil }
 end
 
-local function stamp(events_list, times)
+function History:_stamp(events_list, times)
   times[#events_list] = times[#events_list] or Timer.now()
 end
 
@@ -23,14 +23,14 @@ function History:append(event)
 
   if shadow then
     events.append(shadow.events, event)
-    stamp(shadow.events, shadow.times)
+    self:_stamp(shadow.events, shadow.times)
     return false
   end
 
   local before = #self.events
 
   events.append(self.events, event)
-  stamp(self.events, self.times)
+  self:_stamp(self.events, self.times)
 
   if #self.events > before then self.turns:add(self.events, #self.events) end
 
@@ -58,7 +58,7 @@ end
 local USER = { [events.KIND.prompt] = true, [events.KIND.user] = true }
 local LOCAL = { [events.KIND.stop] = true, [events.KIND.permission] = true, [events.KIND.error] = true }
 
-local function prompts(list)
+function History:_prompts(list)
   local out = {}
 
   for i, event in ipairs(list) do
@@ -68,7 +68,7 @@ local function prompts(list)
   return out
 end
 
-local function compare(ours, theirs)
+function History:_compare(ours, theirs)
   for i = 1, math.min(#ours, #theirs) do
     if theirs[i].text ~= ours[i].text then return History.RELATION.diverged end
   end
@@ -76,7 +76,7 @@ local function compare(ours, theirs)
   return #theirs < #ours and History.RELATION.behind or History.RELATION.extends
 end
 
-local function refreshable(list, from)
+function History:_refreshable(list, from)
   if list[from].kind ~= events.KIND.user then return false end
 
   for i = from + 1, #list do
@@ -86,7 +86,7 @@ local function refreshable(list, from)
   return true
 end
 
-local function settled(list, from)
+function History:_settled(list, from)
   local out = {}
 
   for i = from + 1, #list do
@@ -96,7 +96,7 @@ local function settled(list, from)
   return out
 end
 
-local function grown(ours, theirs)
+function History:_grown(ours, theirs)
   return events.TEXT[ours.kind]
     and theirs.kind == ours.kind
     and theirs.parent == ours.parent
@@ -105,14 +105,14 @@ local function grown(ours, theirs)
     and theirs.text:sub(1, #ours.text) == ours.text
 end
 
-local function later(ours, theirs)
+function History:_later(ours, theirs)
   if #theirs < #ours then return nil end
 
   local extra = {}
 
   for i, event in ipairs(ours) do
     if not vim.deep_equal(event, theirs[i]) then
-      if i < #ours or not grown(event, theirs[i]) then return nil end
+      if i < #ours or not self:_grown(event, theirs[i]) then return nil end
 
       local rest = vim.deepcopy(theirs[i])
 
@@ -128,7 +128,7 @@ local function later(ours, theirs)
   return #extra > 0 and extra or nil
 end
 
-local function replace(target, source)
+function History:_replace(target, source)
   for i = #target, 1, -1 do
     target[i] = nil
   end
@@ -140,8 +140,8 @@ end
 
 function History:_adopt(shadow)
   local list, times = self.events, self.times
-  local ours, theirs = prompts(list), prompts(shadow.events)
-  local relation = compare(ours, theirs)
+  local ours, theirs = self:_prompts(list), self:_prompts(shadow.events)
+  local relation = self:_compare(ours, theirs)
 
   if relation == History.RELATION.behind then return nil end
 
@@ -149,13 +149,15 @@ function History:_adopt(shadow)
     local last = ours[#ours]
     local from, source
 
-    if last and refreshable(list, last.index) then
+    if last and self:_refreshable(list, last.index) then
       from, source = last.index, theirs[#ours].index
     elseif #theirs > #ours then
       from, source = #list + 1, theirs[#ours + 1].index
     else
-      local extra =
-        later(settled(list, last and last.index or 0), settled(shadow.events, last and theirs[#ours].index or 0))
+      local extra = self:_later(
+        self:_settled(list, last and last.index or 0),
+        self:_settled(shadow.events, last and theirs[#ours].index or 0)
+      )
 
       if not extra then return nil end
 
@@ -197,8 +199,8 @@ function History:_adopt(shadow)
     shadow.times[i] = times[i] or shadow.times[i]
   end
 
-  replace(list, shadow.events)
-  replace(times, shadow.times)
+  self:_replace(list, shadow.events)
+  self:_replace(times, shadow.times)
 
   return events.NOTICE.reset
 end

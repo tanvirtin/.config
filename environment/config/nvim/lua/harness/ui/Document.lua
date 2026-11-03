@@ -60,7 +60,7 @@ function Document:constructor(bufnr)
   }
 end
 
-local function merge(state, update)
+function Document:_merge(state, update)
   for key, value in pairs(update or {}) do
     state[key] = value
   end
@@ -255,7 +255,7 @@ end
 function Document:write(list, state)
   if not self.buffer:is_valid() then return end
 
-  merge(self.state, state)
+  self:_merge(self.state, state)
 
   local width = self:text_width()
   local resized = width ~= nil and width ~= self.width
@@ -371,7 +371,7 @@ function Document:visible_ranges()
   return ranges
 end
 
-local function overlaps(block, ranges)
+function Document:_overlaps(block, ranges)
   for _, range in ipairs(ranges) do
     if block.finish > range[1] and block.start < range[2] then return true end
   end
@@ -387,7 +387,7 @@ function Document:_redecorate(lang)
   for i, block in ipairs(self.blocks) do
     local command = block.kind == Block.KIND.tool and Document.COMMAND_LANG[block.category] == lang
 
-    if command and not self.pending[i] and overlaps(block, ranges) then self:_decorate(block, ctx) end
+    if command and not self.pending[i] and self:_overlaps(block, ranges) then self:_decorate(block, ctx) end
   end
 end
 
@@ -432,7 +432,7 @@ function Document:decorate_visible()
   for i, block in ipairs(self.blocks) do
     local waiting = self.pending[i] or self.deferred[i]
 
-    if waiting and overlaps(block, ranges) and content.option(block, 'quote') and self:folded(block) then
+    if waiting and self:_overlaps(block, ranges) and content.option(block, 'quote') and self:folded(block) then
       flush()
 
       if self.pending[i] then
@@ -440,7 +440,7 @@ function Document:decorate_visible()
         due[#due + 1] = block
         self.pending[i], self.partial[i], self.deferred[i] = nil, nil, true
       end
-    elseif waiting and overlaps(block, ranges) then
+    elseif waiting and self:_overlaps(block, ranges) then
       local top = self.partial[i] or block.start
 
       due[#due + 1] = block
@@ -471,7 +471,7 @@ end
 function Document:tick(state)
   if not self.buffer:is_valid() then return end
 
-  merge(self.state, state)
+  self:_merge(self.state, state)
 
   local ctx = self:_context()
 

@@ -15,7 +15,7 @@ Toast.BLEND_HIDDEN = 100
 
 local animator, current
 
-local function timings()
+function Toast:_timings()
   local spec = settings.transcript:get('toast')
 
   if theme.reduced() then return 0, spec.hold_ms, 0 end
@@ -23,7 +23,7 @@ local function timings()
   return spec.in_ms, spec.hold_ms, spec.out_ms
 end
 
-local function open(message, icon)
+function Toast:_open(message, icon)
   local label = ' ' .. icon .. ' ' .. message:gsub('%s+', ' ') .. ' '
   local screen = Window.screen_width()
   local buffer = Buffer():create(false, true)
@@ -66,8 +66,8 @@ end
 function Toast.show(message, opts)
   Toast.dismiss()
 
-  local window, buffer = open(message, opts and opts.icon or '◆')
-  local in_ms, hold_ms, out_ms = timings()
+  local window, buffer = Toast:_open(message, opts and opts.icon or '◆')
+  local in_ms, hold_ms, out_ms = Toast:_timings()
   local started = Timer.now()
   local fade_in = motion.Tween({ from = Toast.BLEND_HIDDEN, to = Toast.BLEND_SHOWN, ms = in_ms, started = started })
   local fade_out

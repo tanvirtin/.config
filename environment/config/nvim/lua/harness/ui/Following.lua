@@ -19,7 +19,7 @@ function Following:constructor(reserve)
   return { reserve = reserve, windows = {}, applying = false }
 end
 
-local function clamp(value, low, high)
+function Following:_clamp(value, low, high)
   if value < low then return low end
   if value > high then return high end
 
@@ -28,7 +28,7 @@ end
 
 -- a window that came to show another buffer starts clean: the old intent and
 -- its mark belong to the buffer that was there
-local function refresh(state, window)
+function Following:_refresh(state, window)
   local buffer = window:get_buffer()
 
   if state.bufnr ~= buffer.bufnr then
@@ -57,7 +57,7 @@ function Following:of(window)
     self.windows[window.win_id] = state
   end
 
-  return refresh(state, window)
+  return self:_refresh(state, window)
 end
 
 function Following:follows(window)
@@ -82,7 +82,7 @@ function Following:resized(window)
   return state.height ~= window:get_height() or state.width ~= window:get_width()
 end
 
-local function anchor(state, view)
+function Following:_anchor(state, view)
   state.anchor = state.buffer:set_extmark(Following.ANCHOR, view.topline - 1, 0, {
     id = state.anchor,
     right_gravity = true,
@@ -91,7 +91,7 @@ local function anchor(state, view)
   state.anchor_skip = view.skipcol or 0
 end
 
-local function unanchor(state)
+function Following:_unanchor(state)
   if state.anchor and state.buffer and state.buffer:is_valid() then
     state.buffer:del_extmark(Following.ANCHOR, state.anchor)
   end
@@ -101,14 +101,14 @@ end
 
 -- the reader moved later in the buffer: a lower top line, further into a
 -- smoothscrolled line, or one filler row less above it
-local function later(now, was)
+function Following:_later(now, was)
   if now.topline ~= was.topline then return now.topline > was.topline end
   if (now.skipcol or 0) ~= (was.skipcol or 0) then return (now.skipcol or 0) > (was.skipcol or 0) end
 
   return (now.topfill or 0) < (was.topfill or 0)
 end
 
-local function moved(now, was)
+function Following:_moved(now, was)
   return now.topline ~= was.topline
     or (now.skipcol or 0) ~= (was.skipcol or 0)
     or (now.topfill or 0) ~= (was.topfill or 0)
@@ -117,7 +117,7 @@ end
 -- the reader reached the end when the last row they could see is the one the
 -- buffer ended on at the last view we wrote, even if the stream has appended
 -- since, before their scroll was observed
-local function reached_end(state, window)
+function Following:_reached_end(state, window)
   if sticky_bottom.at_end(window) then return true end
 
   local known = state.lines
@@ -141,23 +141,23 @@ function Following:observe(window)
 
     if sticky_bottom.at_end(window) then
       state.mode = 'follow'
-      unanchor(state)
+      self:_unanchor(state)
     else
       state.mode = 'hold'
-      anchor(state, now)
+      self:_anchor(state, now)
     end
 
     return
   end
 
-  if not moved(now, state.applied) then return end
+  if not self:_moved(now, state.applied) then return end
 
-  if later(now, state.applied) and reached_end(state, window) then
+  if self:_later(now, state.applied) and self:_reached_end(state, window) then
     state.mode = 'follow'
-    unanchor(state)
+    self:_unanchor(state)
   else
     state.mode = 'hold'
-    anchor(state, now)
+    self:_anchor(state, now)
   end
 
   state.applied = now
@@ -170,7 +170,7 @@ function Following:observe_all(windows)
   end
 end
 
-local function desired_hold(state, window)
+function Following:_desired_hold(state, window)
   local row = state.anchor and state.buffer:get_extmark_row(Following.ANCHOR, state.anchor)
   local last = state.buffer:get_line_count() - 1
 
@@ -185,9 +185,9 @@ local function desired_hold(state, window)
 
   return {
     topline = row + 1,
-    topfill = clamp(fill, 0, math.max(line - 1, 0)),
+    topfill = self:_clamp(fill, 0, math.max(line - 1, 0)),
     skipcol = skip,
-    lnum = clamp(view.lnum, row + 1, math.min(last + 1, row + height)),
+    lnum = self:_clamp(view.lnum, row + 1, math.min(last + 1, row + height)),
     col = view.col,
     curswant = view.curswant,
   }
@@ -195,7 +195,7 @@ end
 
 -- A resize moves the text to keep the cursor in view. Put it back where it was
 -- first, so only the edge can move it, not the resize.
-local function restore(state, window)
+function Following:_restore(state, window)
   local was = state.applied
 
   if not was then return end
@@ -208,13 +208,13 @@ local function restore(state, window)
     topline = top,
     topfill = was.topfill,
     skipcol = was.skipcol,
-    lnum = clamp(view.lnum, top, math.min(last, top + window:get_height() - 1)),
+    lnum = self:_clamp(view.lnum, top, math.min(last, top + window:get_height() - 1)),
     col = view.col,
     curswant = view.curswant,
   })
 end
 
-local function same(now, wanted)
+function Following:_same(now, wanted)
   return now.topline == wanted.topline
     and (now.topfill or 0) == (wanted.topfill or 0)
     and (now.skipcol or 0) == (wanted.skipcol or 0)
@@ -232,16 +232,16 @@ function Following:sync(window, opts)
   local state = self:of(window)
   local wanted
 
-  if state.mode == 'hold' then wanted = desired_hold(state, window) end
+  if state.mode == 'hold' then wanted = self:_desired_hold(state, window) end
 
   self.applying = true
 
   if wanted then
-    if not same(window:get_view(), wanted) then window:set_view(wanted) end
+    if not self:_same(window:get_view(), wanted) then window:set_view(wanted) end
   else
     state.mode = 'follow'
 
-    if self:resized(window) then restore(state, window) end
+    if self:resized(window) then self:_restore(state, window) end
 
     sticky_bottom.tail(window, opts.with_cursor, self.reserve(window))
   end
@@ -262,7 +262,7 @@ function Following:follow(window)
   local state = self:of(window)
 
   state.mode = 'follow'
-  unanchor(state)
+  self:_unanchor(state)
   self:sync(window)
 end
 
@@ -270,7 +270,7 @@ function Following:hold(window)
   local state = self:of(window)
 
   state.mode = 'hold'
-  anchor(state, window:get_view())
+  self:_anchor(state, window:get_view())
   self:sync(window)
 end
 
@@ -279,7 +279,7 @@ function Following:land(window, decorate)
   local reserve = self.reserve(window)
 
   state.mode = 'follow'
-  unanchor(state)
+  self:_unanchor(state)
 
   self.applying = true
   sticky_bottom.pin(window, reserve)

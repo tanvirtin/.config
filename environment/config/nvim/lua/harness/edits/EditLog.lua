@@ -15,12 +15,14 @@ EditLog.CHANGED = { add = 'added', remove = 'removed' }
 
 EditLog.TOOL = { [EVENT.tool_call] = true, [EVENT.tool_update] = true }
 
-local function none()
+function EditLog:_none()
   return {}
 end
 
 function EditLog:constructor(file_lines)
-  return { file_lines = file_lines or none, entries = {}, primed = nil }
+  return { file_lines = file_lines or function()
+    return self:_none()
+  end, entries = {}, primed = nil }
 end
 
 function EditLog.tools(history, from, to)

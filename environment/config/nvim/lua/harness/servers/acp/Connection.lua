@@ -111,7 +111,7 @@ end
 
 Connection.PERMISSION_METHOD = 'session/request_permission'
 
-local function deliver(delegate, update)
+function Connection:_deliver(delegate, update)
   local event = updates.from_update(update)
 
   if event and delegate.event then delegate.event(event) end
@@ -125,7 +125,7 @@ function Connection:attach(session_id, delegate)
   self._early[session_id] = nil
 
   for _, update in ipairs(early) do
-    deliver(delegate, update)
+    self:_deliver(delegate, update)
   end
 
   local asks = self._early_asks[session_id] or {}
@@ -180,7 +180,7 @@ function Connection:_dispatch(message)
     local listener = self._listeners[params.sessionId]
 
     if listener then
-      deliver(listener, params.update or {})
+      self:_deliver(listener, params.update or {})
     elseif params.sessionId then
       local early = self._early[params.sessionId] or {}
       early[#early + 1] = params.update or {}
@@ -195,7 +195,7 @@ Connection.ELICIT_COMPLETE_METHOD = 'elicitation/complete'
 
 Connection.CANCEL_METHOD = '$/cancel_request'
 
-local function elicitation_reply(value)
+function Connection:_elicitation_reply(value)
   return translate.elicitation_response(elicitation.answer_of(value))
 end
 
@@ -213,7 +213,7 @@ end
 
 function Connection:_refuse(message)
   if message.method == Connection.ELICIT_METHOD then
-    return self:_reply(message, true, elicitation_reply(elicitation.decline()))
+    return self:_reply(message, true, self:_elicitation_reply(elicitation.decline()))
   end
 
   self._transport:send(
@@ -274,7 +274,9 @@ function Connection:_elicit(message, params, session_id, listener)
 
   local ok, result = pcall(listener.elicitation, request)
 
-  self:_settle(message, ok, result, elicitation_reply)
+  self:_settle(message, ok, result, function(value)
+    return self:_elicitation_reply(value)
+  end)
 end
 
 function Connection:_on_elicitation_complete(params)
@@ -302,7 +304,7 @@ function Connection:_on_cancel(params)
       if message.id == id then
         table.remove(asks, i)
         if #asks == 0 then self._early_asks[session_id] = nil end
-        return self:_reply(message, true, elicitation_reply(elicitation.cancel()))
+        return self:_reply(message, true, self:_elicitation_reply(elicitation.cancel()))
       end
     end
   end

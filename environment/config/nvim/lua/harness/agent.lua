@@ -81,7 +81,7 @@ function Agent:transcript(id)
   return matches[1]
 end
 
-local function resolve(value)
+function Agent:_resolve(value)
   if type(value) == 'string' and value:sub(1, 1) == '$' then return env.var(value:sub(2)) or '' end
 
   return value
@@ -101,7 +101,7 @@ function Agent:environment()
   local env = {}
 
   for key, value in pairs(self.env) do
-    env[key] = resolve(value)
+    env[key] = self:_resolve(value)
   end
 
   return env
@@ -114,7 +114,7 @@ function Agent:mcp_servers()
     local copy = vim.deepcopy(server)
 
     for _, var in ipairs(copy.env or {}) do
-      var.value = resolve(var.value)
+      var.value = self:_resolve(var.value)
     end
 
     servers[#servers + 1] = copy
@@ -127,7 +127,7 @@ agent.Agent = Agent
 
 local loaded
 
-local function read_exported(path)
+function Agent._read_exported(path)
   local file = io.open(path, 'r')
 
   if not file then return {}, nil end
@@ -146,7 +146,7 @@ local function read_exported(path)
 end
 
 function agent.load(path)
-  local specs, default = read_exported(path or agent.PATH)
+  local specs, default = Agent._read_exported(path or agent.PATH)
 
   loaded = {}
 

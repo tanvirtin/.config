@@ -12,7 +12,7 @@ PromptQueue.BUSY = 'no free turn slot; queued until a running turn ends'
 
 local queued = 0
 
-local function item(text, context, opts)
+function PromptQueue:_item(text, context, opts)
   queued = queued + 1
   opts = opts or {}
 
@@ -73,7 +73,7 @@ function PromptQueue:drain()
 end
 
 function PromptQueue:enqueue(text, context, opts)
-  self.items[#self.items + 1] = item(text, context, opts)
+  self.items[#self.items + 1] = self:_item(text, context, opts)
   self:_changed()
 
   if self.session:idle() then self:drain() end
@@ -104,7 +104,7 @@ function PromptQueue:steer(text, context)
       session:_notify({ kind = events.NOTICE.reset })
 
       if session:running() then
-        self.items[#self.items + 1] = item(text, context, true)
+        self.items[#self.items + 1] = self:_item(text, context, true)
         self:_changed()
       else
         session:prompt(text, context, { shown = true })

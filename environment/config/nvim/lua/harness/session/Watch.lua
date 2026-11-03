@@ -28,7 +28,7 @@ function Watch:constructor(session)
   }
 end
 
-local function key(kind, id)
+function Watch:_key(kind, id)
   return kind .. ':' .. id
 end
 
@@ -36,7 +36,7 @@ function Watch:open(kind, id, fields)
   if not settings:get('enabled') then return end
   if kind == Watch.KIND.tool and not settings:get('tools') then return end
 
-  local name = key(kind, id)
+  local name = self:_key(kind, id)
   local item = self.items[name]
 
   if not item then
@@ -52,7 +52,7 @@ function Watch:open(kind, id, fields)
 end
 
 function Watch:settle(kind, id, fields)
-  local name = key(kind, id)
+  local name = self:_key(kind, id)
   local item = self.items[name]
 
   if not item or item.settled then return end

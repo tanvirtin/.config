@@ -14,7 +14,7 @@ function PermissionGate:constructor(session)
   return { session = session, pending = {}, state = PermissionState() }
 end
 
-local function label_of(choices, decision)
+function PermissionGate:_label_of(choices, decision)
   for _, choice in ipairs(choices or {}) do
     if decision.option and choice.option == decision.option then return choice.label end
   end
@@ -43,7 +43,7 @@ function PermissionGate:request(request)
       tool = tool,
       kind = decision.kind,
       title = pending.title,
-      label = label_of(request.choices, decision),
+      label = self:_label_of(request.choices, decision),
     })
     session:_notify({ kind = events.NOTICE.permissions })
     session:_record_permission(tool, allowed)
