@@ -10,6 +10,7 @@ local composer = lazy('harness.ui.composer')
 local tour_tools = lazy('harness.tour_tools')
 local transcript = lazy('harness.ui.transcript')
 local SkillSync = lazy('harness.features.SkillSync')
+local instructions = lazy('harness.types.instructions')
 local EditCheckTime = lazy('harness.features.EditCheckTime')
 
 require('harness.transcript.content.builtin')()
@@ -45,6 +46,7 @@ end
 local function register_modules()
   tools.register()
   tour_tools.register()
+  instructions.register('harness', instructions.HARNESS)
   router.setup()
 end
 

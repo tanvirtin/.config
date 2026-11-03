@@ -262,6 +262,16 @@ function context.strip_echoed(text)
   return table.concat(out, '\n')
 end
 
+function context.attach_tokens(where, text, dir, opts)
+  local attachments, problems = context.resolve_tokens(text, dir, opts)
+
+  for _, attachment in ipairs(attachments) do
+    where = context.attach(where, attachment)
+  end
+
+  return where, problems
+end
+
 function context.capture(win, range)
   local window = Window(win)
   local cursor = window:get_cursor()

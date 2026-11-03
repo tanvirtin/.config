@@ -43,6 +43,11 @@ describe('harness.ui.winbar:', function()
     assert.is_nil(winbar.turns({ history = {} }))
   end)
 
+  it('says when the agent has edited without asking, once it has', function()
+    assert.is_nil(winbar.transcript(session({})):find('edits unasked', 1, true))
+    assert.truthy(winbar.transcript(session({ auto_edits = true })):find('edits unasked', 1, true))
+  end)
+
   it('counts running agents, and says how long the quietest has been silent', function()
     local summary = { active = 2, quiet = 125000 }
     local text = winbar.transcript(session({

@@ -169,6 +169,41 @@ describe('harness.ui.composer:', function()
       vim.fn.delete(path)
     end)
 
+    it('draws only what is in sight and a margin of a long draft, and the rest on scrolling', function()
+      local Renderer = require('ui.markdown.Renderer')
+      local draft = {}
+
+      for i = 1, 400 do
+        draft[i] = '**line ' .. i .. '**'
+      end
+
+      open_composer(session)
+
+      local buf = vim.api.nvim_get_current_buf()
+
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, draft)
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      composer.view(session):_decorate()
+
+      local function drawn()
+        local rows = {}
+
+        for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(buf, Renderer.NAMESPACE, 0, -1, {})) do
+          rows[mark[2]] = true
+        end
+
+        return rows
+      end
+
+      assert.is_truthy(drawn()[0])
+      assert.is_nil(drawn()[300])
+
+      vim.api.nvim_win_set_cursor(0, { 300, 0 })
+      vim.cmd('normal! zt')
+      composer.view(session):_decorate()
+      assert.is_truthy(drawn()[300])
+    end)
+
     it('says how to send from the mode you are in', function()
       local Window = require('core.Window')
       local real = Window.inserting

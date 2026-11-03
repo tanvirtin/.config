@@ -30,6 +30,10 @@ ComposerView.NAMESPACE = Buffer.namespace('harness.composer')
 
 ComposerView.FILETYPE = 'harness_composer'
 
+ComposerView.WINDOWED = 30
+
+ComposerView.MARGIN = 20
+
 ComposerView.WINBAR = '%!v:lua.require\'harness.ui.composer\'.winbar()'
 
 ComposerView.OMNIFUNC = 'v:lua.require\'harness.ui.composer\'.complete'
@@ -243,10 +247,20 @@ function ComposerView:_decorate()
 
   self.signature = self:_signature()
   self.renderer = self.renderer or Renderer(buffer.bufnr)
-  self.renderer:render(0)
 
-  for row, line in ipairs(self:lines()) do
-    for _, found in ipairs(context.tokens(line)) do
+  local drawn = self:lines()
+  local first, last = 0, #drawn
+
+  if #drawn > ComposerView.WINDOWED then
+    local top, bottom = self.element:get_window():get_visible_range()
+
+    first, last = math.max(top - ComposerView.MARGIN, 0), math.min(bottom + ComposerView.MARGIN, #drawn)
+  end
+
+  self.renderer:render(first, last)
+
+  for row = first + 1, last do
+    for _, found in ipairs(context.tokens(drawn[row])) do
       if context.names_file(found.token, self.session.dir) then
         buffer:set_extmark(ComposerView.NAMESPACE, row - 1, found.start - 1, {
           end_col = found.finish,
@@ -452,12 +466,9 @@ function ComposerView:_deliver(message, opts)
 
   local where = Buffer.exists(source.buf) and context.capture_buffer(source.buf) or nil
 
-  local attachments, problems =
-    context.resolve_tokens(text, session.dir, { max_lines = settings.composer:get('reference_lines') })
-
-  for _, attachment in ipairs(attachments) do
-    where = context.attach(where, attachment)
-  end
+  local problems
+  where, problems =
+    context.attach_tokens(where, text, session.dir, { max_lines = settings.composer:get('reference_lines') })
 
   if #problems > 0 then ComposerView.warn(table.concat(problems, '; ')) end
 
@@ -705,6 +716,9 @@ function ComposerView:_listen()
   self.group = event.augroup('harness.composer.view.' .. self.session.key)
   self.group.on('ModeChanged', function()
     if self:is_open() then self:refresh() end
+  end)
+  self.group.on('WinScrolled', function()
+    if self:is_open() and #self:lines() > ComposerView.WINDOWED then self:_decorate() end
   end)
   self.group.on('WinResized', function()
     Timer.defer(0, function()

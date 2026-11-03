@@ -123,6 +123,18 @@ describe('harness.Session:', function()
       session:_emit(events.permission('edit', true, { id = 't2' }))
 
       eq({ 't1' }, session:unasked_edits())
+      session:_note_unasked()
+      eq(true, session.auto_edits)
+    end)
+
+    it('is not marked unasked when every edit was asked about', function()
+      local session = running_with({
+        { id = 't1', status = 'completed', diffs = { { path = 'a.rs', old = 'a', new = 'b' } } },
+      })
+
+      session:_emit(events.permission('edit', true, { id = 't1' }))
+      session:_note_unasked()
+      eq(nil, session.auto_edits)
     end)
 
     it('waits for its tool call when it arrives first, instead of being lost', function()

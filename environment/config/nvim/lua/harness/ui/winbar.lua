@@ -105,6 +105,7 @@ local function status(session, prompt, target)
   local mode = session:mode()
   local model = session:choice('model')
 
+  if session.auto_edits then parts[#parts + 1] = '%#UiMuted#  edits unasked' end
   if mode then parts[#parts + 1] = '%#UiAccent#  ' .. escape(theme.MODE_FORMAT:format(mode.name or mode.id)) end
   if model then parts[#parts + 1] = '%#UiMuted#  ' .. escape(model.name or model.value) end
 

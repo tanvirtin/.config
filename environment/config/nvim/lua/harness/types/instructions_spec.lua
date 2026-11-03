@@ -9,6 +9,16 @@ describe('harness.types.instructions:', function()
     builtin()
   end)
 
+  it('should carry the harness guidance agents need whatever their exported prompt says', function()
+    instructions.register('harness', instructions.HARNESS)
+
+    local text = instructions.text()
+
+    assert.is_truthy(text:find('buffer_save', 1, true))
+    assert.is_truthy(text:find('tour_start', 1, true))
+    assert.is_truthy(text:find('leave its configuration alone', 1, true))
+  end)
+
   it('should join registered instructions in id order', function()
     instructions.register('b', 'B')
     instructions.register('a', 'A')

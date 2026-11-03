@@ -158,6 +158,14 @@ describe('harness.context:', function()
       eq(false, context.names_file('@nope.lua', dir))
     end)
 
+    it('puts each file a message names on its context, and says what it could not', function()
+      local where, problems = context.attach_tokens(nil, 'see @a.lua:1 and @nope.lua:1', dir)
+
+      eq({ 'one' }, where.attachments[1].lines)
+      eq(1, #where.attachments)
+      eq(1, #problems)
+    end)
+
     it('resolves a repeated token once', function()
       eq(1, #context.resolve_tokens('@a.lua:1 and @a.lua:1', dir))
     end)

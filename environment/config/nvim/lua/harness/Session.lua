@@ -226,7 +226,7 @@ function Session:prompt(text, context, opts)
     self:_emit(events.stop(reason))
     self.watch:turn_ended(reason)
     self:_look_up_title()
-    self:_tell_unasked()
+    self:_note_unasked()
     self:_tell_stale()
 
     if reason ~= events.STOP_REASON.cancelled and self.prompts:size() > 0 then
@@ -409,22 +409,11 @@ function Session:_tell_stale()
   )
 end
 
-function Session:_tell_unasked()
-  if self._told_unasked or #self:unasked_edits() == 0 then return end
+function Session:_note_unasked()
+  if self.auto_edits or #self:unasked_edits() == 0 then return end
 
-  self._told_unasked = true
-
-  local mode = self:mode()
-  local named = mode and (' in ' .. (mode.name or mode.id) .. ' mode') or ''
-
-  console.notify(
-    string.format(
-      'Harness: %s changed files without asking you first%s; <S-Tab> in the transcript switches the mode',
-      self.agent and self.agent.name or 'the agent',
-      named
-    ),
-    'warn'
-  )
+  self.auto_edits = true
+  self:_notify({ kind = events.NOTICE.config })
 end
 
 function Session:_open_tool()
