@@ -48,6 +48,14 @@ pub fn pathExists(path: []const u8) bool {
     return true;
 }
 
+pub fn pathPresent(path: []const u8) bool {
+    _ = std.Io.Dir.cwd().statFile(runtime.io(), path, .{ .follow_symlinks = false }) catch |e| switch (e) {
+        error.FileNotFound => return false,
+        else => return true,
+    };
+    return true;
+}
+
 pub fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
     return std.Io.Dir.cwd().readFileAlloc(runtime.io(), path, allocator, .limited(256 * 1024));
 }
@@ -172,4 +180,23 @@ test "ensureParentDirExists creates parent chain" {
     const child = try join(t.dir, "parent/child");
     defer std.testing.allocator.free(child);
     try std.testing.expect(pathExists(child));
+}
+
+test "pathPresent sees a dangling symlink that pathExists does not" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const root = try realPathAlloc(a, tmp.parent_dir, &tmp.sub_path);
+    const link = try std.fs.path.join(a, &.{ root, "dangling" });
+    const file = try std.fs.path.join(a, &.{ root, "file" });
+    try std.Io.Dir.symLinkAbsolute(runtime.io(), "/nonexistent/target", link, .{});
+    try writeFile(file, "x");
+
+    try std.testing.expect(pathPresent(file));
+    try std.testing.expect(pathPresent(link));
+    try std.testing.expect(!pathExists(link));
+    try std.testing.expect(!pathPresent(try std.fs.path.join(a, &.{ root, "missing" })));
 }

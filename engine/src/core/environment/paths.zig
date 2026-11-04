@@ -25,16 +25,6 @@ pub const RecipeLayer = struct {
     origin: []const u8,
 };
 
-const Presence = enum { absent, present };
-
-fn pathPresence(path: []const u8) Presence {
-    _ = std.Io.Dir.cwd().statFile(runtime.io(), path, .{ .follow_symlinks = false }) catch |e| switch (e) {
-        error.FileNotFound => return .absent,
-        else => return .present,
-    };
-    return .present;
-}
-
 pub const Origin = enum { personal, repo, none };
 
 pub const Selection = struct {
@@ -56,7 +46,7 @@ pub fn selectTinrc(self: *const Paths, allocator: std.mem.Allocator) !Selection 
     const repo_path = try self.repoTinrcPath(allocator);
     errdefer allocator.free(repo_path);
 
-    if (pathPresence(personal_path) == .present) {
+    if (fs.pathPresent(personal_path)) {
         return .{
             .path = try allocator.dupe(u8, personal_path),
             .origin = .personal,
@@ -64,7 +54,7 @@ pub fn selectTinrc(self: *const Paths, allocator: std.mem.Allocator) !Selection 
             .repo_path = repo_path,
         };
     }
-    if (pathPresence(repo_path) == .present) {
+    if (fs.pathPresent(repo_path)) {
         return .{
             .path = try allocator.dupe(u8, repo_path),
             .origin = .repo,
@@ -150,7 +140,7 @@ pub fn repoTinrcPath(self: *const Paths, allocator: std.mem.Allocator) ![]const 
 
 pub fn tinrcPath(self: *const Paths, allocator: std.mem.Allocator) ![]const u8 {
     const personal = try self.personalTinrcPath(allocator);
-    if (pathPresence(personal) == .present) return personal;
+    if (fs.pathPresent(personal)) return personal;
     allocator.free(personal);
     return self.repoTinrcPath(allocator);
 }

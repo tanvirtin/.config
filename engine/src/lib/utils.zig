@@ -25,6 +25,12 @@ pub fn escapeJson(allocator: std.mem.Allocator, s: []const u8) ![]const u8 {
     return buf.toOwnedSlice(allocator);
 }
 
+pub fn sha256Hex(content: []const u8) [64]u8 {
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(content, &digest, .{});
+    return std.fmt.bytesToHex(digest, .lower);
+}
+
 pub fn slugify(allocator: std.mem.Allocator, id: []const u8) ![]const u8 {
     var buf: std.ArrayListUnmanaged(u8) = .empty;
     errdefer buf.deinit(allocator);
@@ -130,4 +136,9 @@ test "escapeYamlString quotes and escapes scalars" {
     try std.testing.expectEqualStrings("\"a: b \\\"c\\\"\"", try escapeYamlString(a, "a: b \"c\""));
     try std.testing.expectEqualStrings("\"line1\\nline2\"", try escapeYamlString(a, "line1\nline2"));
     try std.testing.expectEqualStrings("\"path\\\\to\"", try escapeYamlString(a, "path\\to"));
+}
+
+test "sha256Hex hashes to lowercase hex" {
+    const hex = sha256Hex("abc");
+    try std.testing.expectEqualStrings("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", &hex);
 }

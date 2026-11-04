@@ -70,11 +70,6 @@ const LoadedConfig = struct {
     config: ?Config,
 };
 
-fn pathPresent(path: []const u8) bool {
-    _ = std.Io.Dir.cwd().statFile(runtime.io(), path, .{ .follow_symlinks = false }) catch return false;
-    return true;
-}
-
 fn loadConfig(allocator: std.mem.Allocator, paths: Paths) !LoadedConfig {
     const selection = try paths.selectTinrc(allocator);
     if (selection.path == null) {
@@ -147,9 +142,9 @@ pub fn inspectStatus(allocator: std.mem.Allocator, paths: Paths) !StatusReport {
         .config = loaded.report,
         .symlinks = try symlinks.toOwnedSlice(allocator),
         .artifacts_dir = artifacts_dir,
-        .artifacts_present = pathPresent(artifacts_dir),
+        .artifacts_present = fs.pathPresent(artifacts_dir),
         .schemas_dir = schemas_dir,
-        .schemas_present = pathPresent(schemas_dir),
+        .schemas_present = fs.pathPresent(schemas_dir),
         .revision = paths.readRevision(allocator),
     };
 }
@@ -265,8 +260,8 @@ pub fn renderConfig(report: ConfigReport) void {
         output.plain("  effective: (none — no tinrc.yml found)", .{});
     }
     output.plain("  origin:    {s}", .{originLabel(report.origin)});
-    output.plain("  personal:  {s} ({s})", .{ report.personal_path, if (pathPresent(report.personal_path)) "present" else "absent" });
-    output.plain("  repo:      {s} ({s})", .{ report.repo_path, if (pathPresent(report.repo_path)) "present" else "absent" });
+    output.plain("  personal:  {s} ({s})", .{ report.personal_path, if (fs.pathPresent(report.personal_path)) "present" else "absent" });
+    output.plain("  repo:      {s} ({s})", .{ report.repo_path, if (fs.pathPresent(report.repo_path)) "present" else "absent" });
     switch (report.state) {
         .loaded => output.plain("  state:     loaded", .{}),
         .absent => output.plain("  state:     absent", .{}),
@@ -420,9 +415,7 @@ fn snapshotTree(a: std.mem.Allocator, root: []const u8) !Snapshot {
             },
             .file => blk: {
                 const data = fs.readFileAlloc(a, abs) catch "";
-                var digest: [32]u8 = undefined;
-                std.crypto.hash.sha2.Sha256.hash(data, &digest, .{});
-                const hex = std.fmt.bytesToHex(digest, .lower);
+                const hex = utils.sha256Hex(data);
                 break :blk try std.fmt.allocPrint(a, "file:{d}:{s}", .{ data.len, hex[0..] });
             },
             else => try a.dupe(u8, "other"),

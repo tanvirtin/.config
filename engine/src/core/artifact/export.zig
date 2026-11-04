@@ -94,12 +94,6 @@ fn statKind(path: []const u8) Kind {
     };
 }
 
-fn sha256Hex(content: []const u8) [64]u8 {
-    var digest: [32]u8 = undefined;
-    std.crypto.hash.sha2.Sha256.hash(content, &digest, .{});
-    return std.fmt.bytesToHex(digest, .lower);
-}
-
 fn resolveSystem(allocator: std.mem.Allocator, skill: Skill, rules: []const Rule) ![]const u8 {
     const system = skill.system orelse return "";
     if (skill.include.len == 0) return system;
@@ -229,7 +223,7 @@ pub fn prepareWithOptions(
         if (gop.found_existing) {
             try colliding.put(allocator, slug, {});
         }
-        try rendered.append(allocator, .{ .skill = skill, .slug = slug, .content = content, .hash = sha256Hex(content) });
+        try rendered.append(allocator, .{ .skill = skill, .slug = slug, .content = content, .hash = utils.sha256Hex(content) });
     }
 
     var entries: std.ArrayListUnmanaged(Entry) = .empty;
@@ -314,7 +308,7 @@ pub fn prepareWithOptions(
         }
 
         const current = fs.readFileAlloc(allocator, skill_file) catch return Error.ReadFailed;
-        if (std.mem.eql(u8, &sha256Hex(current), &recorded.hash)) {
+        if (std.mem.eql(u8, &utils.sha256Hex(current), &recorded.hash)) {
             try entries.append(allocator, .{
                 .id = recorded.slug,
                 .slug = recorded.slug,
@@ -404,7 +398,7 @@ fn appendManaged(
     }
 
     const current = fs.readFileAlloc(allocator, path) catch return Error.ReadFailed;
-    const current_hash = sha256Hex(current);
+    const current_hash = utils.sha256Hex(current);
     if (std.mem.eql(u8, &current_hash, &r.hash)) {
         try entries.append(allocator, .{
             .id = r.skill.id,
@@ -439,7 +433,7 @@ fn appendLegacy(
 ) !void {
     if (file_kind == .file) {
         const current = fs.readFileAlloc(allocator, path) catch return Error.ReadFailed;
-        const matches = std.mem.eql(u8, &sha256Hex(current), &r.hash);
+        const matches = std.mem.eql(u8, &utils.sha256Hex(current), &r.hash);
         if (!matches) {
             try entries.append(allocator, conflictEntry(r, path, .legacy, "legacy output differs from current rendering; preserved"));
         } else if (adopt) {
@@ -527,11 +521,11 @@ pub fn apply(allocator: std.mem.Allocator, prepared: Prepared) !void {
         switch (entry.action) {
             .conflict => return Error.Conflicts,
             .unchanged => {
-                try owned.append(allocator, .{ .slug = entry.slug, .hash = sha256Hex(entry.content.?) });
+                try owned.append(allocator, .{ .slug = entry.slug, .hash = utils.sha256Hex(entry.content.?) });
             },
             .create, .update => {
                 writeAtomic(allocator, entry.path, entry.content.?) catch return Error.WriteFailed;
-                try owned.append(allocator, .{ .slug = entry.slug, .hash = sha256Hex(entry.content.?) });
+                try owned.append(allocator, .{ .slug = entry.slug, .hash = utils.sha256Hex(entry.content.?) });
                 writeManifest(allocator, prepared.base_dir, owned.items) catch return Error.WriteFailed;
             },
             .remove => {

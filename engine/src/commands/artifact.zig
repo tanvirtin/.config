@@ -158,40 +158,9 @@ fn renderSkillYaml(allocator: std.mem.Allocator, skill: Artifact.Skill) !void {
 }
 
 fn renderSkillMd(allocator: std.mem.Allocator, skill: Artifact.Skill) !void {
-    _ = allocator;
-    output.plain("---", .{});
-    output.plain("name: {s}", .{skill.id});
-    output.plain("description: {s}", .{skill.description});
-    if (skill.command != null) output.plain("allowed-tools: Bash Read", .{});
-    if (skill.context) |ctx| output.plain("context: {s}", .{ctx});
-    output.plain("---", .{});
-    output.plain("", .{});
-
-    if (skill.system) |sys| output.plain("{s}", .{sys});
-    if (skill.command) |cmd| {
-        output.plain("", .{});
-        output.plain("## Command", .{});
-        output.plain("", .{});
-        output.plain("`{s}`", .{cmd});
-    }
-    if (skill.skills.len > 0) {
-        output.plain("", .{});
-        output.plain("## Composed Skills", .{});
-        output.plain("", .{});
-        for (skill.skills) |s| output.plain("- {s}", .{s});
-    }
-    if (skill.input.len > 0) {
-        output.plain("", .{});
-        output.plain("## Parameters", .{});
-        output.plain("", .{});
-        output.plain("| Name | Type | Required | Description |", .{});
-        output.plain("|------|------|----------|-------------|", .{});
-        for (skill.input) |param| {
-            const req = if (param.required) "yes" else "no";
-            const desc = param.description orelse "";
-            output.plain("| {s} | {s} | {s} | {s} |", .{ param.name, param.type, req, desc });
-        }
-    }
+    const text = try export_mod.renderSkillMd(allocator, skill);
+    defer allocator.free(text);
+    output.plain("{s}", .{std.mem.trimEnd(u8, text, "\n")});
 }
 
 const formatters = [_]SkillFormatter{
@@ -418,7 +387,10 @@ fn exportAgents(
 
     if (dry_run or unchanged) return 0;
 
-    fs.ensureParentDirExists(target.path) catch {};
+    fs.ensureParentDirExists(target.path) catch |e| {
+        output.record(.err, .{ .action = "export", .target = target.name, .status = "failed" }, "could not create the directory for {s}: {s}", .{ target.path, @errorName(e) });
+        return 1;
+    };
     fs.writeFile(target.path, json) catch |e| {
         output.record(.err, .{ .action = "export", .target = target.name, .status = "failed" }, "agents export failed for {s}: {s}", .{ target.name, @errorName(e) });
         return 1;

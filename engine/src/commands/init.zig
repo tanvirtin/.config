@@ -45,17 +45,9 @@ const Plan = struct {
     pending: usize,
 };
 
-fn pathPresent(path: []const u8) bool {
-    _ = std.Io.Dir.cwd().statFile(runtime.io(), path, .{ .follow_symlinks = false }) catch |e| switch (e) {
-        error.FileNotFound => return false,
-        else => return true,
-    };
-    return true;
-}
-
 fn buildPlan(allocator: std.mem.Allocator, paths: Paths, artifacts_dir: []const u8, options: Options) !Plan {
     const config_path = try paths.personalTinrcPath(allocator);
-    const config_exists = pathPresent(config_path);
+    const config_exists = fs.pathPresent(config_path);
 
     var template: []const u8 = "";
     if (!config_exists) {
@@ -64,7 +56,7 @@ fn buildPlan(allocator: std.mem.Allocator, paths: Paths, artifacts_dir: []const 
     }
 
     const sample_path = try std.fs.path.join(allocator, &.{ artifacts_dir, "skills", "sample.yml" });
-    const sample_exists = options.sample and pathPresent(sample_path);
+    const sample_exists = options.sample and fs.pathPresent(sample_path);
     var sample_content: ?[]const u8 = null;
     if (options.sample and !sample_exists) {
         sample_content = sample_skill;
@@ -279,12 +271,12 @@ test "init creates a personal config and sample skill" {
     try std.testing.expectEqual(Status.created, outcome.sample);
 
     const config_path = try env.paths.personalTinrcPath(a);
-    try std.testing.expect(pathPresent(config_path));
+    try std.testing.expect(fs.pathPresent(config_path));
     const default_path = try env.paths.repoTinrcPath(a);
     try std.testing.expectEqualStrings(try fs.readFileAlloc(a, default_path), try fs.readFileAlloc(a, config_path));
 
     const sample_path = try std.fs.path.join(a, &.{ env.artifacts_dir, "skills", "sample.yml" });
-    try std.testing.expect(pathPresent(sample_path));
+    try std.testing.expect(fs.pathPresent(sample_path));
 }
 
 test "init leaves an existing personal config unchanged" {
@@ -361,7 +353,7 @@ test "init can skip the sample skill" {
     try std.testing.expectEqual(Status.not_requested, outcome.sample);
 
     const sample_path = try std.fs.path.join(a, &.{ env.artifacts_dir, "skills", "sample.yml" });
-    try std.testing.expect(!pathPresent(sample_path));
+    try std.testing.expect(!fs.pathPresent(sample_path));
 }
 
 test "prompting requires an interactive terminal and no override" {
