@@ -1,3 +1,4 @@
+local Block = require('harness.transcript.Block')
 local Layout = require('harness.transcript.calculators.Layout')
 
 local FoldCalculator = {}
@@ -6,6 +7,10 @@ function FoldCalculator.level(blocks, row)
   local block = Layout.block_at(blocks, row)
 
   if not block or row < block.start or row >= block.finish then return '0' end
+
+  local tail = blocks[#blocks]
+
+  if block.kind == Block.KIND.thought and tail and block.finish >= tail.finish then return '0' end
 
   local base = block.depth or 0
 

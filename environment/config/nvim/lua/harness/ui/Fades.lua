@@ -13,7 +13,7 @@ Fades.PRIORITY = 100
 Fades.MAX = 8
 
 function Fades:constructor(buffer, view)
-  return { buffer = buffer, view = view, chunks = {} }
+  return { buffer = buffer, view = view, chunks = {}, high = -1 }
 end
 
 function Fades:observe()
@@ -44,6 +44,14 @@ function Fades:touch(from, to, now, any_size)
   local limit = settings.transcript:get('fade_rows')
 
   if settings.transcript:get('fade_ms') <= 0 or (not any_size and to - from + 1 > limit) then return false end
+
+  if not any_size then
+    from = math.max(from, self.high + 1)
+
+    if from > to then return false end
+  end
+
+  self.high = math.max(self.high, to)
 
   table.insert(self.chunks, { from = from, to = to, started = now })
 

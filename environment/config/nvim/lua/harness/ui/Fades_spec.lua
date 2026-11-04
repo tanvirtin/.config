@@ -48,4 +48,18 @@ describe('harness.ui.Fades:', function()
 
     eq(2, #marks())
   end)
+
+  it('fades each streamed row once, instead of restarting the fade on the rewritten tail', function()
+    eq(true, fades:touch(1, 2, 1000))
+    eq(true, fades:touch(2, 3, 1010))
+    eq(false, fades:touch(1, 3, 1020))
+
+    fades:step(1020)
+
+    local rows = vim.tbl_map(function(mark)
+      return mark[2]
+    end, buffer:get_extmarks(Fades.NAMESPACE, 0, -1))
+
+    eq({ 1, 3 }, rows)
+  end)
 end)

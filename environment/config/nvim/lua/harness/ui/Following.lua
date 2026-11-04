@@ -2,15 +2,6 @@ local Buffer = require('core.Buffer')
 local Object = require('core.Object')
 local sticky_bottom = require('harness.ui.sticky_bottom')
 
--- A window has one intent, and its viewport is a function of it:
---
---   follow  the newest line sits on the edge, `reserve` rows above the bottom
---   hold    the reader's row sits at the top, where they left it
---
--- Nothing is inferred from how far the view moved. `observe` compares the view
--- against the last one we wrote: a difference is the reader's, because every
--- change we make (a scroll, a rewrite, a resize) records the view it left. The
--- intent only changes when the reader does something.
 local Following = Object:extend()
 
 Following.ANCHOR = Buffer.namespace('harness.following')
@@ -26,8 +17,6 @@ function Following:_clamp(value, low, high)
   return value
 end
 
--- a window that came to show another buffer starts clean: the old intent and
--- its mark belong to the buffer that was there
 function Following:_refresh(state, window)
   local buffer = window:get_buffer()
 
@@ -170,31 +159,36 @@ function Following:observe_all(windows)
   end
 end
 
-function Following:_desired_hold(state, window)
+function Following:_desired_hold(state, window, resized)
   local row = state.anchor and state.buffer:get_extmark_row(Following.ANCHOR, state.anchor)
   local last = state.buffer:get_line_count() - 1
 
-  -- a rewrite can swallow the tail the reader was on; there is no scroll that
-  -- reaches past the last line, so the end is the closest true place
   if not row or row > last then return nil end
 
   local fill, skip = state.anchor_fill, state.anchor_skip
   local view = window:get_view()
-  local height = window:get_height()
   local line = window:get_text_height(row, row)
+  local lnum
+
+  if resized then
+    local top, bottom = window:get_visible_range()
+    local bound = math.min(last + 1, bottom + (row - top))
+
+    lnum = self:_clamp(view.lnum, row + 1, bound)
+  else
+    lnum = self:_clamp(view.lnum, 1, last + 1)
+  end
 
   return {
     topline = row + 1,
     topfill = self:_clamp(fill, 0, math.max(line - 1, 0)),
     skipcol = skip,
-    lnum = self:_clamp(view.lnum, row + 1, math.min(last + 1, row + height)),
+    lnum = lnum,
     col = view.col,
     curswant = view.curswant,
   }
 end
 
--- A resize moves the text to keep the cursor in view. Put it back where it was
--- first, so only the edge can move it, not the resize.
 function Following:_restore(state, window)
   local was = state.applied
 
@@ -218,21 +212,16 @@ function Following:_same(now, wanted)
   return now.topline == wanted.topline
     and (now.topfill or 0) == (wanted.topfill or 0)
     and (now.skipcol or 0) == (wanted.skipcol or 0)
-    and now.lnum == wanted.lnum
-    and now.col == wanted.col
 end
 
--- Puts the viewport where the intent says it should be. Always records the view
--- it leaves, so the next observation knows what we did.
-function Following:sync(window, opts)
+function Following:sync(window)
   if not window:is_valid() then return end
 
-  opts = opts or {}
-
   local state = self:of(window)
+  local resized = self:resized(window)
   local wanted
 
-  if state.mode == 'hold' then wanted = self:_desired_hold(state, window) end
+  if state.mode == 'hold' then wanted = self:_desired_hold(state, window, resized) end
 
   self.applying = true
 
@@ -241,9 +230,9 @@ function Following:sync(window, opts)
   else
     state.mode = 'follow'
 
-    if self:resized(window) then self:_restore(state, window) end
+    if resized then self:_restore(state, window) end
 
-    sticky_bottom.tail(window, opts.with_cursor, self.reserve(window))
+    sticky_bottom.pin(window, self.reserve(window))
   end
 
   state.applied = window:get_view()
@@ -252,9 +241,9 @@ function Following:sync(window, opts)
   self.applying = false
 end
 
-function Following:sync_all(windows, cursors)
+function Following:sync_all(windows)
   for _, window in ipairs(windows) do
-    self:sync(window, { with_cursor = cursors and cursors[window.win_id] })
+    self:sync(window)
   end
 end
 

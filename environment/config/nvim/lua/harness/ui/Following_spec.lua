@@ -271,7 +271,7 @@ describe('harness.ui.Following:', function()
   it('glides the newest line onto the edge of the reserved rows', function()
     land()
     append(3)
-    following:sync(window(), { with_cursor = true })
+    following:sync(window())
 
     eq(reserve, sticky_bottom.room(window()))
     eq(203, cursor()[1])
@@ -546,6 +546,23 @@ describe('harness.ui.Following:', function()
     eq(true, following:follows(window()))
     assert.is_true(sticky_bottom.at_end(window()))
     assert.is_true(sticky_bottom.room(window()) >= reserve)
+  end)
+
+  it('does not clamp a held cursor onto a row inside a closed fold', function()
+    vim.wo[win].foldmethod = 'manual'
+    vim.cmd('10,80fold')
+    vim.wo[win].foldenable = true
+    vim.api.nvim_win_set_cursor(win, { 90, 0 })
+    vim.fn.winrestview({ topline = 10 })
+
+    local state = following:of(window())
+    state.anchor = state.buffer:set_extmark(Following.ANCHOR, 9, 0, { right_gravity = true })
+    state.anchor_fill, state.anchor_skip = 0, 0
+
+    local wanted = following:_desired_hold(state, window())
+
+    eq(90, wanted.lnum)
+    eq(-1, vim.fn.foldclosed(wanted.lnum))
   end)
 
   it('keeps the edge clear of status rows drawn under the last line', function()

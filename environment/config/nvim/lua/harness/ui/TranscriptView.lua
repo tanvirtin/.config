@@ -219,10 +219,8 @@ function TranscriptView:render()
   if not self.buffer:is_valid() then return end
 
   local session = self.session
-  local before = self.buffer:get_line_count()
   local windows = self:windows()
   local loading = session:loading()
-  local cursors = {}
 
   self:adopt(windows)
 
@@ -230,10 +228,6 @@ function TranscriptView:render()
     for _, window in ipairs(windows) do
       if not self.following:resized(window) then self.following:observe(window) end
     end
-  end
-
-  for _, window in ipairs(windows) do
-    if not loading then cursors[window.win_id] = window:get_cursor()[1] >= before end
   end
 
   local state = self:state()
@@ -259,7 +253,7 @@ function TranscriptView:render()
       if landing == true or landing == window.win_id then self:land(window) end
     end
   elseif not loading then
-    self.following:sync_all(windows, cursors)
+    self.following:sync_all(windows)
   end
 
   if not loading then motion.settle(self) end

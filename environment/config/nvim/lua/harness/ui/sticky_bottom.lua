@@ -23,11 +23,6 @@ function sticky_bottom.room(window)
   return window:get_height() - window:get_text_height(top, last - 1)
 end
 
--- The invariant of following: the newest line leaves at least `reserve` screen
--- rows free below it. It is a floor, not an exact value: with 'smoothscroll'
--- off, a scroll moves whole lines, so a wrapped top line cannot land on an
--- exact room. Scrolling up to chase one would move the text back and forth on
--- every tick, so the edge only ever scrolls down, and stops once it is clear.
 function sticky_bottom.edge(window, reserve)
   if not window:is_valid() then return end
 
@@ -43,14 +38,6 @@ function sticky_bottom.pin(window, reserve)
 
   window:set_cursor({ window:get_buffer():get_line_count(), 0 })
   sticky_bottom.edge(window, reserve)
-end
-
-function sticky_bottom.tail(window, with_cursor, reserve)
-  if not window:is_valid() then return end
-
-  sticky_bottom.edge(window, reserve)
-
-  if with_cursor then window:set_cursor({ window:get_buffer():get_line_count(), 0 }) end
 end
 
 return sticky_bottom
