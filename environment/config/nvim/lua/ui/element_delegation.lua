@@ -1,269 +1,99 @@
+local VARIADIC = -1
+
+local CHAINED = {
+  set_lines = 1,
+  clear_lines = 0,
+  append = 1,
+  set_text = 5,
+  set_cursor = 1,
+  set_lnum = 1,
+  scroll_to = 2,
+  reset_cursor = 0,
+  set_width = 1,
+  set_height = 1,
+  focus = 0,
+  start_insert = 0,
+  stop_insert = 0,
+  set_filetype = 1,
+  clear_extmarks = 0,
+  clear_extmark_lnums = 0,
+  clear_extmark_texts = 0,
+  clear_extmark_signs = 0,
+  clear_extmark_highlights = VARIADIC,
+  set_keymap = 4,
+  on = 2,
+  attach_to_changes = 1,
+  call = 1,
+  set_win_option = 2,
+  enable_cursorline = 0,
+  disable_cursorline = 0,
+  attach_to_renderer = 1,
+  detach_from_renderer = 0,
+}
+
+local READS = {
+  get_lines = 0,
+  get_line_count = 0,
+  get_cursor = 0,
+  get_lnum = 0,
+  get_width = 0,
+  get_height = 0,
+  get_filetype = 0,
+}
+
+local FORWARDED = {
+  place_extmark_text = 1,
+  place_extmark_lnum = 1,
+  place_extmark_sign = 1,
+  place_extmark_highlight = 1,
+  place_extmark_virt_lines = 1,
+}
+
+local function forwarded(name, arity)
+  return function(self, ...)
+    local args = { ... }
+    local count = arity == VARIADIC and select('#', ...) or arity
+
+    return self:with_element(function(el)
+      return el[name](el, unpack(args, 1, count))
+    end)
+  end
+end
+
+local function chained(name, arity)
+  local forward = forwarded(name, arity)
+
+  return function(self, ...)
+    forward(self, ...)
+
+    return self
+  end
+end
+
 local function define_single_element_methods(Class, opts)
   local exclude = opts and opts.exclude or {}
 
-  function Class:set_lines(lines)
-    self:with_element(function(el)
-      el:set_lines(lines)
-    end)
-    return self
+  for name, arity in pairs(CHAINED) do
+    Class[name] = chained(name, arity)
   end
 
-  function Class:clear_lines()
-    self:with_element(function(el)
-      el:clear_lines()
-    end)
-    return self
+  for name, arity in pairs(READS) do
+    if not exclude[name] then Class[name] = forwarded(name, arity) end
   end
 
-  function Class:append(lines)
-    self:with_element(function(el)
-      el:append(lines)
-    end)
-    return self
+  for name, arity in pairs(FORWARDED) do
+    Class[name] = forwarded(name, arity)
   end
 
-  function Class:set_text(row, col, text, end_row, end_col)
-    self:with_element(function(el)
-      el:set_text(row, col, text, end_row, end_col)
-    end)
-    return self
-  end
-
-  function Class:set_cursor(cursor)
-    self:with_element(function(el)
-      el:set_cursor(cursor)
-    end)
-    return self
-  end
-
-  function Class:set_lnum(lnum)
-    self:with_element(function(el)
-      el:set_lnum(lnum)
-    end)
-    return self
-  end
-
-  function Class:scroll_to(pos, offset)
-    self:with_element(function(el)
-      el:scroll_to(pos, offset)
-    end)
-    return self
-  end
-
-  function Class:reset_cursor()
-    self:with_element(function(el)
-      el:reset_cursor()
-    end)
-    return self
-  end
-
-  function Class:set_width(width)
-    self:with_element(function(el)
-      el:set_width(width)
-    end)
-    return self
-  end
-
-  function Class:set_height(height)
-    self:with_element(function(el)
-      el:set_height(height)
-    end)
-    return self
-  end
-
-  function Class:focus()
-    self:with_element(function(el)
-      el:focus()
-    end)
-    return self
-  end
-
-  function Class:start_insert()
-    self:with_element(function(el)
-      el:start_insert()
-    end)
-    return self
-  end
-
-  function Class:stop_insert()
-    self:with_element(function(el)
-      el:stop_insert()
-    end)
-    return self
-  end
-
-  function Class:set_filetype(filetype)
-    self:with_element(function(el)
-      el:set_filetype(filetype)
-    end)
-    return self
-  end
-
-  function Class:clear_extmarks()
-    self:with_element(function(el)
-      el:clear_extmarks()
-    end)
-    return self
-  end
-
-  function Class:clear_extmark_lnums()
-    self:with_element(function(el)
-      el:clear_extmark_lnums()
-    end)
-    return self
-  end
-
-  function Class:clear_extmark_texts()
-    self:with_element(function(el)
-      el:clear_extmark_texts()
-    end)
-    return self
-  end
-
-  function Class:clear_extmark_signs()
-    self:with_element(function(el)
-      el:clear_extmark_signs()
-    end)
-    return self
-  end
-
-  function Class:clear_extmark_highlights(...)
-    local args = { ... }
-    self:with_element(function(el)
-      el:clear_extmark_highlights(unpack(args))
-    end)
-    return self
-  end
-
-  function Class:set_keymap(opts_or_mode, callback_or_key, handler, desc)
-    self:with_element(function(el)
-      el:set_keymap(opts_or_mode, callback_or_key, handler, desc)
-    end)
-    return self
-  end
-
-  function Class:on(event_name, callback)
-    self:with_element(function(el)
-      el:on(event_name, callback)
-    end)
-    return self
-  end
+  local on_click = forwarded('on_click', 2)
+  local is_focused = forwarded('is_focused', 0)
 
   function Class:on_click(clicks, click_opts)
-    return self:with_element(function(el)
-      return el:on_click(clicks, click_opts)
-    end) or function() end
-  end
-
-  function Class:attach_to_changes(callback)
-    self:with_element(function(el)
-      el:attach_to_changes(callback)
-    end)
-    return self
-  end
-
-  function Class:call(callback)
-    self:with_element(function(el)
-      el:call(callback)
-    end)
-    return self
-  end
-
-  function Class:set_win_option(key, value)
-    self:with_element(function(el)
-      el:set_win_option(key, value)
-    end)
-    return self
-  end
-
-  function Class:enable_cursorline()
-    self:with_element(function(el)
-      el:enable_cursorline()
-    end)
-    return self
-  end
-
-  function Class:disable_cursorline()
-    self:with_element(function(el)
-      el:disable_cursorline()
-    end)
-    return self
-  end
-
-  function Class:attach_to_renderer(callback)
-    self:with_element(function(el)
-      el:attach_to_renderer(callback)
-    end)
-    return self
-  end
-
-  function Class:detach_from_renderer()
-    self:with_element(function(el)
-      el:detach_from_renderer()
-    end)
-    return self
-  end
-
-  if not exclude.get_lines then
-    function Class:get_lines()
-      return self:with_element(function(el)
-        return el:get_lines()
-      end)
-    end
-  end
-
-  if not exclude.get_line_count then
-    function Class:get_line_count()
-      return self:with_element(function(el)
-        return el:get_line_count()
-      end)
-    end
-  end
-
-  if not exclude.get_cursor then
-    function Class:get_cursor()
-      return self:with_element(function(el)
-        return el:get_cursor()
-      end)
-    end
-  end
-
-  if not exclude.get_lnum then
-    function Class:get_lnum()
-      return self:with_element(function(el)
-        return el:get_lnum()
-      end)
-    end
-  end
-
-  if not exclude.get_width then
-    function Class:get_width()
-      return self:with_element(function(el)
-        return el:get_width()
-      end)
-    end
-  end
-
-  if not exclude.get_height then
-    function Class:get_height()
-      return self:with_element(function(el)
-        return el:get_height()
-      end)
-    end
-  end
-
-  if not exclude.get_filetype then
-    function Class:get_filetype()
-      return self:with_element(function(el)
-        return el:get_filetype()
-      end)
-    end
+    return on_click(self, clicks, click_opts) or function() end
   end
 
   function Class:is_focused()
-    return self:with_element(function(el)
-      return el:is_focused()
-    end) or false
+    return is_focused(self) or false
   end
 
   function Class:is_valid()
@@ -271,49 +101,8 @@ local function define_single_element_methods(Class, opts)
       return true
     end) or false
   end
-
-  function Class:place_extmark_text(extmark_opts)
-    return self:with_element(function(el)
-      return el:place_extmark_text(extmark_opts)
-    end)
-  end
-
-  function Class:place_extmark_lnum(extmark_opts)
-    return self:with_element(function(el)
-      return el:place_extmark_lnum(extmark_opts)
-    end)
-  end
-
-  function Class:place_extmark_sign(extmark_opts)
-    return self:with_element(function(el)
-      return el:place_extmark_sign(extmark_opts)
-    end)
-  end
-
-  function Class:place_extmark_highlight(extmark_opts)
-    return self:with_element(function(el)
-      return el:place_extmark_highlight(extmark_opts)
-    end)
-  end
-
-  function Class:place_extmark_virt_lines(extmark_opts)
-    return self:with_element(function(el)
-      return el:place_extmark_virt_lines(extmark_opts)
-    end)
-  end
-end
-
-local function define_getters_with_fallbacks(Class, fallbacks)
-  for method_name, fallback in pairs(fallbacks) do
-    Class[method_name] = function(self)
-      return self:with_element(function(el)
-        return el[method_name](el)
-      end) or fallback
-    end
-  end
 end
 
 return {
   define_single_element_methods = define_single_element_methods,
-  define_getters_with_fallbacks = define_getters_with_fallbacks,
 }
