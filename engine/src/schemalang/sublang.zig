@@ -17,7 +17,7 @@ pub const Sublang = struct {
         env: ?*const ContextEnv,
         diagnostics: *std.ArrayListUnmanaged(Diagnostic),
         source_map: ?SourceMap,
-    ) anyerror!void,
+    ) std.mem.Allocator.Error!void,
 };
 
 pub const SublangRegistry = struct {

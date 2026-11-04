@@ -28,7 +28,7 @@ const State = struct {
     span: diag.Span,
 };
 
-pub fn evaluate(allocator: std.mem.Allocator, node: *const Node, env: *const EvalEnv) anyerror!Value {
+pub fn evaluate(allocator: std.mem.Allocator, node: *const Node, env: *const EvalEnv) EvalError!Value {
     return evalNode(.{ .allocator = allocator, .diagnostics = null, .span = undefined }, node, env);
 }
 
@@ -38,7 +38,7 @@ pub fn evaluateDetailed(
     env: *const EvalEnv,
     diagnostics: *std.ArrayListUnmanaged(Diagnostic),
     span: diag.Span,
-) anyerror!Value {
+) EvalError!Value {
     return evalNode(.{ .allocator = allocator, .diagnostics = diagnostics, .span = span }, node, env);
 }
 

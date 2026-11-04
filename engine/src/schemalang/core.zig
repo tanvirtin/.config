@@ -178,7 +178,9 @@ pub const Resolver = struct {
         return resolver;
     }
 };
-pub fn validateImpl(v: *Validator, schema: *const Schema, value: yaml.Value) anyerror!void {
+pub const ValidateError = std.mem.Allocator.Error || error{ InvalidPath, ProxyFailed };
+
+pub fn validateImpl(v: *Validator, schema: *const Schema, value: yaml.Value) ValidateError!void {
     const span = diag.spanFromValue(value);
 
     if (schema.push_scope) |kind| {

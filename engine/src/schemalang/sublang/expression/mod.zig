@@ -50,6 +50,8 @@ fn parseOrDiagnose(
     return ast;
 }
 
+pub const Error = parser_mod.ParseError || eval_mod.EvalError;
+
 pub fn validate(
     allocator: std.mem.Allocator,
     source: []const u8,
@@ -57,7 +59,7 @@ pub fn validate(
     env: ?*const ContextEnv,
     diagnostics: *std.ArrayListUnmanaged(Diagnostic),
     source_map: ?yaml.SourceMap,
-) anyerror!void {
+) std.mem.Allocator.Error!void {
     _ = source_map;
 
     const ast = parseOrDiagnose(allocator, stripWrapper(source), diagnostics, span) catch return;
@@ -71,7 +73,7 @@ pub fn validate(
     _ = try checker.check(&ast);
 }
 
-pub fn evaluate(allocator: std.mem.Allocator, source: []const u8, env: *const env_mod.EvalEnv) anyerror!Value {
+pub fn evaluate(allocator: std.mem.Allocator, source: []const u8, env: *const env_mod.EvalEnv) Error!Value {
     var parser = parser_mod.Parser.init(allocator, stripWrapper(source));
     const ast = try parser.parse();
     return try eval_mod.evaluate(allocator, &ast, env);
@@ -83,7 +85,7 @@ pub fn evaluateDetailed(
     env: *const env_mod.EvalEnv,
     diagnostics: *std.ArrayListUnmanaged(Diagnostic),
     span: Span,
-) anyerror!Value {
+) Error!Value {
     const ast = try parseOrDiagnose(allocator, stripWrapper(source), diagnostics, span);
     return eval_mod.evaluateDetailed(allocator, &ast, env, diagnostics, span);
 }

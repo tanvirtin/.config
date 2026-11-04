@@ -19,7 +19,7 @@ fn validate(
     env: ?*const ContextEnv,
     diagnostics: *std.ArrayListUnmanaged(Diagnostic),
     source_map: ?@import("yaml").SourceMap,
-) anyerror!void {
+) std.mem.Allocator.Error!void {
     _ = source_map;
     _ = env;
     if (std.mem.indexOf(u8, source, " ")) |_| {

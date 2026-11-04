@@ -13,20 +13,12 @@ pub const ProxyOptions = struct {
     command: []const u8,
 };
 
-pub fn validate(
-    allocator: std.mem.Allocator,
-    source: []const u8,
-    span: Span,
-    env: ?*const ContextEnv,
-    diagnostics: *std.ArrayListUnmanaged(Diagnostic),
-    source_map: ?SourceMap,
-    options: ProxyOptions,
-) !void {
-    _ = env;
+pub const Error = std.mem.Allocator.Error || error{ProxyFailed};
 
+fn run(allocator: std.mem.Allocator, source: []const u8, command: []const u8) ![]u8 {
     const io = runtime.io();
     var child = try std.process.spawn(io, .{
-        .argv = &[_][]const u8{ "/bin/sh", "-c", options.command },
+        .argv = &[_][]const u8{ "/bin/sh", "-c", command },
         .stdin = .pipe,
         .stdout = .pipe,
         .stderr = .pipe,
@@ -39,13 +31,33 @@ pub fn validate(
     var stdout_buffer: [4096]u8 = undefined;
     var stdout_reader = child.stdout.?.reader(io, &stdout_buffer);
     const stdout = try stdout_reader.interface.allocRemaining(allocator, .limited(1024 * 1024));
-    defer allocator.free(stdout);
+    errdefer allocator.free(stdout);
     var stderr_buffer: [4096]u8 = undefined;
     var stderr_reader = child.stderr.?.reader(io, &stderr_buffer);
     const stderr = try stderr_reader.interface.allocRemaining(allocator, .limited(1024 * 1024));
     defer allocator.free(stderr);
 
     _ = try child.wait(io);
+
+    return stdout;
+}
+
+pub fn validate(
+    allocator: std.mem.Allocator,
+    source: []const u8,
+    span: Span,
+    env: ?*const ContextEnv,
+    diagnostics: *std.ArrayListUnmanaged(Diagnostic),
+    source_map: ?SourceMap,
+    options: ProxyOptions,
+) Error!void {
+    _ = env;
+
+    const stdout = run(allocator, source, options.command) catch |e| switch (e) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return error.ProxyFailed,
+    };
+    defer allocator.free(stdout);
 
     var it = std.mem.splitScalar(u8, stdout, '\n');
     while (it.next()) |line| {

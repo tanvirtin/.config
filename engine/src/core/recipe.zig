@@ -129,7 +129,7 @@ fn parseAction(step_val: yaml.Value, allocator: std.mem.Allocator) !Action {
     return RecipeError.InvalidStep;
 }
 
-pub fn execute(self: *const Recipe, allocator: std.mem.Allocator) anyerror!void {
+pub fn execute(self: *const Recipe, allocator: std.mem.Allocator) !void {
     const paths = Environment.Paths.init(allocator) catch {
         output.err("could not resolve environment paths", .{});
         return RecipeError.ExecutionFailed;
@@ -148,7 +148,7 @@ pub fn runSteps(
     vars: []const Environment.TemplateVar,
     paths: Environment.Paths,
     config: Environment.Config,
-) anyerror!void {
+) RecipeError!void {
     output.record(.info, .{ .action = "recipe", .target = self.name, .status = "running" }, "Executing recipe: {s}", .{self.name});
     if (self.description) |desc| {
         output.plain("  {s}", .{desc});
@@ -192,7 +192,7 @@ fn renderField(allocator: std.mem.Allocator, text: []const u8, vars: []const Env
     };
 }
 
-fn executeAction(allocator: std.mem.Allocator, action: Action, vars: []const Environment.TemplateVar, paths: Environment.Paths, config: Environment.Config) anyerror!void {
+fn executeAction(allocator: std.mem.Allocator, action: Action, vars: []const Environment.TemplateVar, paths: Environment.Paths, config: Environment.Config) !void {
     switch (action) {
         .run => |cmd| {
             const rendered = renderField(allocator, cmd, vars);
