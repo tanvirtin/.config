@@ -1,7 +1,7 @@
 const std = @import("std");
 const output = @import("../lib/output.zig");
+const shared = @import("shared.zig");
 const Environment = @import("../core/environment.zig");
-const Paths = @import("../core/environment/paths.zig").Paths;
 const Symlink = @import("../core/symlink.zig");
 
 pub const meta = .{
@@ -10,10 +10,7 @@ pub const meta = .{
 };
 
 pub fn execute(allocator: std.mem.Allocator, _: []const []const u8) u8 {
-    const paths = Paths.init(allocator) catch {
-        output.err("could not resolve environment paths", .{});
-        return output.ExitCode.failure;
-    };
+    const paths = shared.paths(allocator) orelse return output.ExitCode.failure;
 
     output.info("healing environment...", .{});
     output.plain("", .{});

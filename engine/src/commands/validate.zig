@@ -2,9 +2,9 @@ const std = @import("std");
 const yaml = @import("yaml");
 const fs = @import("../lib/fs.zig");
 const output = @import("../lib/output.zig");
+const shared = @import("shared.zig");
 const validate_mod = @import("../schemalang/core.zig");
 const diag = @import("../schemalang/diagnostic.zig");
-const Environment = @import("../core/environment.zig");
 
 const Engine = @import("../schemalang/engine.zig").Engine;
 const schema_cmd = @import("schema.zig");
@@ -23,10 +23,7 @@ pub fn execute(allocator: std.mem.Allocator, args: []const []const u8) u8 {
     const schema_ref = args[0];
     const file_path = args[1];
 
-    const paths = Environment.Paths.init(allocator) catch {
-        output.err("could not resolve environment paths", .{});
-        return 2;
-    };
+    const paths = shared.paths(allocator) orelse return 2;
     const schemas_dir = paths.schemasDir(allocator) catch {
         output.err("could not resolve schemas directory", .{});
         return 2;

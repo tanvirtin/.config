@@ -31,6 +31,7 @@ test {
     _ = @import("lib/template.zig");
     _ = @import("lib/utils.zig");
     _ = @import("yaml");
+    _ = @import("commands/shared.zig");
     _ = @import("commands/help.zig");
     _ = @import("commands/link.zig");
     _ = @import("commands/unlink.zig");

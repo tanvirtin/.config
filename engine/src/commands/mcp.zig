@@ -3,6 +3,7 @@ const Artifact = @import("../core/artifact.zig");
 const mcp = @import("../core/mcp.zig");
 const fs = @import("../lib/fs.zig");
 const output = @import("../lib/output.zig");
+const shared = @import("shared.zig");
 const Environment = @import("../core/environment.zig");
 
 pub const meta = .{
@@ -13,10 +14,7 @@ pub const meta = .{
 const Mode = enum { diff, apply };
 
 pub fn execute(allocator: std.mem.Allocator, args: []const []const u8) u8 {
-    const environment = Environment.init(allocator) catch {
-        output.err("could not resolve environment paths", .{});
-        return 1;
-    };
+    const environment = shared.environment(allocator) orelse return 1;
 
     if (args.len == 0) {
         showHelp();

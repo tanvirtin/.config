@@ -1,5 +1,6 @@
 const std = @import("std");
 const output = @import("../lib/output.zig");
+const shared = @import("shared.zig");
 const link = @import("../commands/link.zig");
 const fonts = @import("../commands/fonts.zig");
 const recipe = @import("../commands/recipe.zig");
@@ -11,10 +12,7 @@ pub const meta = .{
 };
 
 pub fn execute(allocator: std.mem.Allocator, _: []const []const u8) u8 {
-    const paths = Environment.Paths.init(allocator) catch {
-        output.err("could not resolve environment paths", .{});
-        return output.ExitCode.failure;
-    };
+    const paths = shared.paths(allocator) orelse return output.ExitCode.failure;
 
     const loaded_config = Environment.Config.load(allocator, paths) catch {
         output.err("install aborted: configuration could not be loaded", .{});

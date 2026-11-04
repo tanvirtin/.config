@@ -2,8 +2,8 @@ const std = @import("std");
 const runtime = @import("../lib/runtime.zig");
 const fs = @import("../lib/fs.zig");
 const output = @import("../lib/output.zig");
+const shared = @import("shared.zig");
 const Recipe = @import("../core/recipe.zig");
-const Environment = @import("../core/environment.zig");
 const Engine = @import("../schemalang/engine.zig").Engine;
 const diag = @import("../schemalang/diagnostic.zig");
 
@@ -13,10 +13,7 @@ pub const meta = .{
 };
 
 pub fn execute(allocator: std.mem.Allocator, args: []const []const u8) u8 {
-    const paths = Environment.Paths.init(allocator) catch {
-        output.err("could not resolve environment paths", .{});
-        return 1;
-    };
+    const paths = shared.paths(allocator) orelse return 1;
 
     var search = paths.recipeSearch(allocator) catch {
         output.err("could not resolve recipes directories", .{});

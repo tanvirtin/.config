@@ -1,6 +1,7 @@
 const std = @import("std");
 const Artifact = @import("../core/artifact.zig");
 const output = @import("../lib/output.zig");
+const shared = @import("shared.zig");
 const Environment = @import("../core/environment.zig");
 const utils = @import("../lib/utils.zig");
 const fs = @import("../lib/fs.zig");
@@ -27,10 +28,7 @@ fn parseFlag(args: []const []const u8, prefix: []const u8) ?[]const u8 {
 }
 
 pub fn execute(allocator: std.mem.Allocator, args: []const []const u8) u8 {
-    var environment = Environment.init(allocator) catch {
-        output.err("could not resolve environment paths", .{});
-        return 1;
-    };
+    var environment = shared.environment(allocator) orelse return 1;
     const paths = environment.paths;
 
     const artifacts_dir = paths.artifactsDir(allocator) catch {

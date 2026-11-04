@@ -1,6 +1,6 @@
 const std = @import("std");
 const output = @import("../lib/output.zig");
-const Environment = @import("../core/environment.zig");
+const shared = @import("shared.zig");
 
 pub const meta = .{
     .name = "unlink",
@@ -8,10 +8,7 @@ pub const meta = .{
 };
 
 pub fn execute(allocator: std.mem.Allocator, _: []const []const u8) u8 {
-    const env = Environment.init(allocator) catch {
-        output.err("could not resolve environment", .{});
-        return output.ExitCode.failure;
-    };
+    const env = shared.environment(allocator) orelse return output.ExitCode.failure;
 
     const symlinks = env.managedSymlinks(allocator) catch {
         output.err("could not resolve symlinks from tinrc.yml", .{});

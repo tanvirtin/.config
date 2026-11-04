@@ -2,6 +2,7 @@ const std = @import("std");
 const runtime = @import("../lib/runtime.zig");
 const yaml = @import("yaml");
 const output = @import("../lib/output.zig");
+const shared = @import("shared.zig");
 const fs = @import("../lib/fs.zig");
 const Paths = @import("../core/environment/paths.zig").Paths;
 const Engine = @import("../schemalang/engine.zig").Engine;
@@ -188,10 +189,7 @@ pub fn execute(allocator: std.mem.Allocator, args: []const []const u8) u8 {
         return 2;
     }
 
-    const paths = Paths.init(allocator) catch {
-        output.err("could not resolve environment paths", .{});
-        return 1;
-    };
+    const paths = shared.paths(allocator) orelse return 1;
     const artifacts_dir = paths.artifactsDir(allocator) catch {
         output.err("could not resolve the artifacts directory", .{});
         return 1;

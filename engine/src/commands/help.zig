@@ -2,8 +2,8 @@ const std = @import("std");
 const runtime = @import("../lib/runtime.zig");
 const router = @import("../router.zig");
 const output = @import("../lib/output.zig");
+const shared = @import("shared.zig");
 const fs = @import("../lib/fs.zig");
-const Paths = @import("../core/environment/paths.zig").Paths;
 
 pub const meta = .{
     .name = "help",
@@ -99,10 +99,7 @@ fn printDetail(topic: []const u8, detail: []const u8) void {
 }
 
 fn printSchema(allocator: std.mem.Allocator, filename: []const u8) void {
-    const paths = Paths.init(allocator) catch {
-        output.err("could not resolve environment paths", .{});
-        return;
-    };
+    const paths = shared.paths(allocator) orelse return;
     const path = std.fmt.allocPrint(allocator, "{s}/engine/src/schemas/{s}", .{ paths.tin_dir, filename }) catch return;
     defer allocator.free(path);
     const content = fs.readFileAlloc(allocator, path) catch {

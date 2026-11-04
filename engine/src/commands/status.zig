@@ -1,5 +1,6 @@
 const std = @import("std");
 const output = @import("../lib/output.zig");
+const shared = @import("shared.zig");
 const Paths = @import("../core/environment/paths.zig");
 const inspection = @import("../core/inspection.zig");
 const upgrade = @import("../core/upgrade.zig");
@@ -20,10 +21,7 @@ pub fn execute(allocator: std.mem.Allocator, args: []const []const u8) u8 {
         }
     }
 
-    const paths = Paths.init(allocator) catch {
-        output.err("could not resolve environment paths", .{});
-        return 1;
-    };
+    const paths = shared.paths(allocator) orelse return 1;
     const report = inspection.inspectStatus(allocator, paths) catch {
         output.err("could not inspect environment status", .{});
         return 1;
