@@ -132,13 +132,23 @@ fn parseAction(step_val: yaml.Value, allocator: std.mem.Allocator) !Action {
 pub fn execute(self: *const Recipe, allocator: std.mem.Allocator) anyerror!void {
     const paths = Environment.Paths.init(allocator) catch {
         output.err("could not resolve environment paths", .{});
-        return;
+        return RecipeError.ExecutionFailed;
     };
 
     const loaded_config = try Environment.Config.load(allocator, paths);
     const config = loaded_config orelse Environment.Config{ .doc = null };
     const vars = Environment.IdentityProvider.getTemplateVars(allocator, config) catch &[_]Environment.TemplateVar{};
 
+    try self.runSteps(allocator, vars, paths, config);
+}
+
+pub fn runSteps(
+    self: *const Recipe,
+    allocator: std.mem.Allocator,
+    vars: []const Environment.TemplateVar,
+    paths: Environment.Paths,
+    config: Environment.Config,
+) anyerror!void {
     output.record(.info, .{ .action = "recipe", .target = self.name, .status = "running" }, "Executing recipe: {s}", .{self.name});
     if (self.description) |desc| {
         output.plain("  {s}", .{desc});
@@ -152,7 +162,7 @@ pub fn execute(self: *const Recipe, allocator: std.mem.Allocator) anyerror!void 
             if (!cond_env_ready) {
                 cond_env = buildConditionEnv(allocator) catch |err| {
                     output.err("could not build condition environment: {s}", .{@errorName(err)});
-                    return;
+                    return RecipeError.ExecutionFailed;
                 };
                 cond_env_ready = true;
             }
@@ -168,9 +178,9 @@ pub fn execute(self: *const Recipe, allocator: std.mem.Allocator) anyerror!void 
             output.record(.info, .{ .action = "step", .target = name, .status = "running" }, "  Step: {s}", .{name});
         }
 
-        executeAction(allocator, step.action, vars, paths, config) catch {
-            output.record(.err, .{ .action = "step", .target = step.name orelse "unnamed", .status = "failed" }, "  step failed: {s}", .{step.name orelse "unnamed"});
-            return;
+        executeAction(allocator, step.action, vars, paths, config) catch |err| {
+            output.record(.err, .{ .action = "step", .target = step.name orelse "unnamed", .status = "failed" }, "  step failed: {s} ({s})", .{ step.name orelse "unnamed", @errorName(err) });
+            return RecipeError.ExecutionFailed;
         };
     }
 }
@@ -203,7 +213,7 @@ fn executeAction(allocator: std.mem.Allocator, action: Action, vars: []const Env
             const content = try fs.readFileAlloc(allocator, found.path);
             defer allocator.free(content);
             const sub = try parse(allocator, content);
-            try sub.execute(allocator);
+            try sub.runSteps(allocator, vars, paths, config);
         },
         .link => {
             if (apply.linkManaged(allocator, paths, config) != 0) return error.LinkFailed;
@@ -220,9 +230,7 @@ fn executeAction(allocator: std.mem.Allocator, action: Action, vars: []const Env
             const to_expanded = renderField(allocator, dl.to, vars);
             const to_resolved = paths.absolutePath(allocator, to_expanded) catch to_expanded;
             const rendered_url = renderField(allocator, dl.url, vars);
-            const cmd = try std.fmt.allocPrint(allocator, "curl -fsSL -o {s} {s}", .{ to_resolved, rendered_url });
-            defer allocator.free(cmd);
-            try process.runShell(allocator, cmd);
+            try process.run(allocator, &.{ "curl", "-fsSL", "-o", to_resolved, rendered_url });
         },
         .clone => |cl| {
             const to_expanded = renderField(allocator, cl.to, vars);
@@ -232,9 +240,7 @@ fn executeAction(allocator: std.mem.Allocator, action: Action, vars: []const Env
                 output.info("  skip clone (already exists): {s}", .{to_resolved});
                 return;
             }
-            const cmd = try std.fmt.allocPrint(allocator, "git clone {s} {s}", .{ rendered_repo, to_resolved });
-            defer allocator.free(cmd);
-            try process.runShell(allocator, cmd);
+            try process.run(allocator, &.{ "git", "clone", "--", rendered_repo, to_resolved });
         },
     }
 }
@@ -286,4 +292,40 @@ test "parse recipe step composes another recipe" {
         .recipe => |name| try std.testing.expectEqualStrings("child", name),
         else => @panic("expected recipe action"),
     }
+}
+
+const test_paths = Environment.Paths{ .tin_dir = "/nonexistent/.tin", .home_dir = "/nonexistent" };
+const test_config = Environment.Config{ .doc = null };
+
+test "a failing step fails the recipe instead of ending it quietly" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const failing = try parse(a, "name: bad\nsteps:\n  - run: \"true\"\n  - name: breaks\n    run: \"false\"\n  - run: \"true\"");
+    try std.testing.expectError(RecipeError.ExecutionFailed, failing.runSteps(a, &.{}, test_paths, test_config));
+
+    const passing = try parse(a, "name: good\nsteps:\n  - run: \"true\"");
+    try passing.runSteps(a, &.{}, test_paths, test_config);
+}
+
+test "download keeps a destination with spaces as one argument" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const root = try fs.realPathAlloc(a, tmp.parent_dir, &tmp.sub_path);
+    const source = try std.fs.path.join(a, &.{ root, "source.txt" });
+    const target = try std.fs.path.join(a, &.{ root, "a dir", "copy.txt" });
+    try fs.writeFile(source, "payload");
+    try fs.ensureDirectoryExists(std.fs.path.dirname(target).?);
+
+    const text = try std.fmt.allocPrint(a, "name: dl\nsteps:\n  - download: file://{s}\n    to: \"{s}\"", .{ source, target });
+    const r = try parse(a, text);
+    try r.runSteps(a, &.{}, test_paths, test_config);
+
+    const copied = try fs.readFileAlloc(a, target);
+    try std.testing.expectEqualStrings("payload", copied);
 }
