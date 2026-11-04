@@ -12,6 +12,7 @@ local transcript = lazy('harness.ui.transcript')
 local SkillSync = lazy('harness.features.SkillSync')
 local instructions = lazy('harness.types.instructions')
 local EditCheckTime = lazy('harness.features.EditCheckTime')
+local StaleRunNotice = lazy('harness.features.StaleRunNotice')
 
 require('harness.transcript.content.builtin')()
 
@@ -55,7 +56,7 @@ local function register_events()
     feature:cleanup()
   end
 
-  features = { EditCheckTime():register_events(), SkillSync():register_events() }
+  features = { EditCheckTime():register_events(), SkillSync():register_events(), StaleRunNotice():register_events() }
   composer.register_events()
   tour.register_events()
 end

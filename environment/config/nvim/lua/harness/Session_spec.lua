@@ -105,12 +105,12 @@ describe('harness.Session:', function()
         { id = 't2', category = 'execute', input = { command = 'cargo test' }, status = 'completed' },
       })
 
-      eq({ { command = 'cargo test', paths = { vim.fs.normalize(path) } } }, session:stale_runs())
+      eq({ { command = 'cargo test', paths = { vim.fs.normalize(path) } } }, session.audit:stale_runs())
 
       vim.api.nvim_buf_call(buf, function()
         vim.cmd('silent write')
       end)
-      eq({}, session:stale_runs())
+      eq({}, session.audit:stale_runs())
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
@@ -122,7 +122,7 @@ describe('harness.Session:', function()
 
       session:_emit(events.permission('edit', true, { id = 't2' }))
 
-      eq({ 't1' }, session:unasked_edits())
+      eq({ 't1' }, session.audit:unasked_edits())
       session:_note_unasked()
       eq(true, session.auto_edits)
     end)
@@ -155,7 +155,7 @@ describe('harness.Session:', function()
       local session = running_with({})
 
       session:record_edit({ path = '/w/a.rs', old = 'a', new = 'b' })
-      session:_settle_loose_edits(true)
+      session.attribution:settle(true)
 
       local tools = EditLog.tools(session.log.events)
 
@@ -172,7 +172,7 @@ describe('harness.Session:', function()
 
       eq(true, done:record_edit({ path = '/w/a.rs', old = 'a', new = 'b' }))
       eq({}, EditLog.tools(done.log.events))
-      done:_settle_loose_edits(true)
+      done.attribution:settle(true)
       eq('/w/a.rs', EditLog.tools(done.log.events)[1].diffs[1].path)
     end)
   end)

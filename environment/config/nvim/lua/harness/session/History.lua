@@ -47,6 +47,49 @@ function History:last()
   return self.events[#self.events]
 end
 
+function History:turn_start()
+  for i = #self.events, 1, -1 do
+    if self.events[i].kind == events.KIND.prompt then return i end
+  end
+
+  return 1
+end
+
+function History:turn_tools()
+  local list, by_id, order = self.events, {}, {}
+
+  for i = #list, self:turn_start(), -1 do
+    local event = list[i]
+
+    if events.TOOL[event.kind] and event.id then
+      local tool = by_id[event.id]
+
+      if not tool then
+        tool = { id = event.id }
+        by_id[event.id] = tool
+        order[#order + 1] = tool
+      end
+
+      if tool.status == nil and event.status then tool.status = event.status end
+      if tool.diffs == nil and event.diffs and #event.diffs > 0 then tool.diffs = event.diffs end
+    end
+  end
+
+  return order
+end
+
+function History:turn_asked()
+  local list, asked = self.events, {}
+
+  for i = #list, self:turn_start(), -1 do
+    local event = list[i]
+
+    if event.kind == events.KIND.permission and event.id then asked[event.id] = true end
+  end
+
+  return asked
+end
+
 function History:begin_replay()
   self._shadow = { events = {}, times = {} }
 end

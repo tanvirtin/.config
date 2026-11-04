@@ -213,4 +213,54 @@ describe('harness.session.History:', function()
     history:reindex()
     same()
   end)
+
+  describe('the current turn', function()
+    local K = events.KIND
+
+    local function turn(list)
+      local history = History()
+
+      for _, event in ipairs(list) do
+        history:append(event)
+      end
+
+      return history
+    end
+
+    it('starts at the last prompt, or at the first event when there is none', function()
+      eq(1, History():turn_start())
+      eq(
+        3,
+        turn({ { kind = K.prompt, text = 'a' }, reply('x'), { kind = K.prompt, text = 'b' }, reply('y') }):turn_start()
+      )
+    end)
+
+    it('lists its tools latest first with their newest status and diffs, ignoring earlier turns', function()
+      local diffs = { { path = 'a.rs', old = 'a', new = 'b' } }
+      local history = turn({
+        { kind = K.prompt, text = 'old' },
+        { kind = K.tool_call, id = 'gone', status = 'completed' },
+        { kind = K.prompt, text = 'now' },
+        { kind = K.tool_call, id = 't1', status = 'in_progress' },
+        { kind = K.tool_call, id = 't2', status = 'in_progress' },
+        { kind = K.tool_update, id = 't1', status = 'completed', diffs = diffs },
+      })
+
+      local tools = history:turn_tools()
+
+      eq({ 't1', 't2' }, { tools[1].id, tools[2].id })
+      eq({ 'completed', 'in_progress' }, { tools[1].status, tools[2].status })
+      eq(diffs, tools[1].diffs)
+      eq(nil, tools[2].diffs)
+    end)
+
+    it('knows which tool calls the user was asked about', function()
+      local history = turn({
+        { kind = K.prompt, text = 'now' },
+        events.permission('edit', true, { id = 't2' }),
+      })
+
+      eq({ t2 = true }, history:turn_asked())
+    end)
+  end)
 end)

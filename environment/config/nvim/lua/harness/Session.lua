@@ -1,6 +1,5 @@
 local lazy = require('core.lazy')
 
-local fs = lazy('core.fs')
 local Timer = require('core.Timer')
 local console = lazy('core.console')
 local Object = require('core.Object')
@@ -16,10 +15,12 @@ local History = require('harness.session.History')
 local permissions = require('harness.permissions')
 local session_types = require('harness.types.session')
 local Subagents = require('harness.session.Subagents')
+local TurnAudit = require('harness.session.TurnAudit')
 local PromptQueue = require('harness.session.PromptQueue')
 local instructions = require('harness.types.instructions')
 local SessionConfig = require('harness.session.SessionConfig')
 local PermissionGate = require('harness.session.PermissionGate')
+local EditAttribution = require('harness.session.EditAttribution')
 local ElicitationGate = require('harness.session.ElicitationGate')
 
 local K = events.KIND
@@ -61,6 +62,9 @@ function Session:constructor(opts)
     _listeners = {},
     _tools = {},
     _turn = nil,
+    _instructed = nil,
+    auto_edits = nil,
+    turn_ended = nil,
     edits = EditLog(opts.file_lines or buffers.lines_of),
   }
 
@@ -75,6 +79,8 @@ function Session:constructor(opts)
   session.watch = Watch(session)
   session.config = SessionConfig(session)
   session.subagents = Subagents(session)
+  session.attribution = EditAttribution(session)
+  session.audit = TurnAudit(session, opts.modified)
   session.children = session.subagents.children
 
   return session
@@ -144,11 +150,7 @@ function Session:_on_event(event)
 end
 
 function Session:_handle(event)
-  if self._loose_edits and (event.kind == K.tool_call or event.kind == K.tool_update) and event.id then
-    Timer.defer(0, function()
-      self:_settle_loose_edits(false)
-    end)
-  end
+  if events.TOOL[event.kind] and event.id then self.attribution:settle_soon() end
 
   if event.kind == K.tool_call then
     self._tools[event.id] = event.name
@@ -157,7 +159,7 @@ function Session:_handle(event)
   elseif event.kind == K.tool_update then
     event.name = event.name or self._tools[event.id]
 
-    if not event.parent and (event.status == 'completed' or event.status == 'failed') then
+    if not event.parent and events.TOOL_FINISHED[event.status] then
       self.watch:settle(Watch.KIND.tool, event.id, { status = event.status, output = event.output })
     end
   elseif event.kind == K.title then
@@ -221,13 +223,12 @@ function Session:prompt(text, context, opts)
       return nil, err
     end
 
-    self:_settle_loose_edits(true)
+    self.attribution:settle(true)
     self.turn_ended = Timer.now()
     self:_emit(events.stop(reason))
     self.watch:turn_ended(reason)
     self:_look_up_title()
     self:_note_unasked()
-    self:_tell_stale()
 
     if reason ~= events.STOP_REASON.cancelled and self.prompts:size() > 0 then
       Timer.defer(0, function()
@@ -319,216 +320,15 @@ function Session:running()
   return self.state == Session.STATE.running
 end
 
-Session.FINISHED = { completed = true, failed = true }
-
-function Session:unasked_edits()
-  local list = self.log.events
-  local asked, edited, order = {}, {}, {}
-
-  for i = #list, 1, -1 do
-    local event = list[i]
-
-    if event.kind == K.prompt then break end
-    if event.kind == K.permission and event.id then asked[event.id] = true end
-
-    if (event.kind == K.tool_call or event.kind == K.tool_update) and event.id and event.diffs and #event.diffs > 0 then
-      if not edited[event.id] then order[#order + 1] = event.id end
-
-      edited[event.id] = true
-    end
-  end
-
-  return vim.tbl_filter(function(id)
-    return not asked[id]
-  end, order)
-end
-
-function Session:stale_runs()
-  local list = self.log.events
-  local start = 1
-
-  for i = #list, 1, -1 do
-    if list[i].kind == K.prompt then
-      start = i
-      break
-    end
-  end
-
-  local edited, order, runs, seen = {}, {}, {}, {}
-
-  for i = start, #list do
-    local event = list[i]
-
-    if (event.kind == K.tool_call or event.kind == K.tool_update) and event.id then
-      for _, diff in ipairs(event.diffs or {}) do
-        local path = editor_context.absolute(diff.path, self.dir)
-
-        if not edited[path] then
-          edited[path] = i
-          order[#order + 1] = path
-        end
-      end
-
-      local command = event.input and event.input.command
-
-      if event.category == 'execute' and type(command) == 'string' and not seen[event.id] then
-        seen[event.id] = true
-
-        local stale = {}
-
-        for _, path in ipairs(order) do
-          local buffer = buffers.find(path)
-
-          if edited[path] < i and buffer and buffer:is_modified() then stale[#stale + 1] = path end
-        end
-
-        if #stale > 0 then runs[#runs + 1] = { command = command, paths = stale } end
-      end
-    end
-  end
-
-  return runs
-end
-
-function Session:_tell_stale()
-  local runs = self:stale_runs()
-
-  if #runs == 0 then return end
-
-  local run = runs[#runs]
-  local names = vim.tbl_map(fs.basename, run.paths)
-
-  console.notify(
-    string.format(
-      'Harness: `%s` ran while %s %s unsaved, so it saw the old text; :wa saves them',
-      run.command:match('^[^\n]*'):sub(1, 60),
-      table.concat(names, ', '),
-      #names == 1 and 'was' or 'were'
-    ),
-    'warn'
-  )
-end
-
 function Session:_note_unasked()
-  if self.auto_edits or #self:unasked_edits() == 0 then return end
+  if self.auto_edits or #self.audit:unasked_edits() == 0 then return end
 
   self.auto_edits = true
   self:_notify({ kind = events.NOTICE.config })
 end
 
-function Session:_open_tool()
-  local list = self.log.events
-  local seen, status, diffs, order = {}, {}, {}, {}
-
-  for i = #list, 1, -1 do
-    local event = list[i]
-
-    if (event.kind == K.tool_call or event.kind == K.tool_update) and event.id then
-      if not seen[event.id] then
-        seen[event.id] = true
-        order[#order + 1] = event.id
-      end
-
-      if status[event.id] == nil and event.status then status[event.id] = event.status end
-      if diffs[event.id] == nil and event.diffs and #event.diffs > 0 then diffs[event.id] = event.diffs end
-    end
-
-    if event.kind == K.prompt then break end
-  end
-
-  for _, id in ipairs(order) do
-    if not Session.FINISHED[status[id]] then return id, diffs[id] or {} end
-  end
-end
-
-function Session:_same_file(a, b)
-  return a and b and editor_context.absolute(a, self.dir) == editor_context.absolute(b, self.dir)
-end
-
-function Session:_known(diffs, diff)
-  for _, known in ipairs(diffs) do
-    if self:_same_file(known.path, diff.path) and known.old == diff.old and known.new == diff.new then return true end
-  end
-
-  return false
-end
-
-function Session:_attach_edits(id, diffs, incoming)
-  local merged = vim.deepcopy(diffs)
-
-  for _, diff in ipairs(incoming) do
-    if not self:_known(merged, diff) then merged[#merged + 1] = { path = diff.path, old = diff.old, new = diff.new } end
-  end
-
-  if #merged == #diffs then return false end
-
-  self:_emit(events.new({ kind = K.tool_update, id = id, diffs = merged }))
-
-  return true
-end
-
 function Session:record_edit(diff)
-  if not self:running() then return false end
-
-  local id, diffs = self:_open_tool()
-
-  if not id then
-    self._loose_edits = self._loose_edits or {}
-    self._loose_edits[#self._loose_edits + 1] = diff
-
-    return true
-  end
-
-  return self:_attach_edits(id, diffs, { diff })
-end
-
-function Session:_last_tool()
-  local list = self.log.events
-
-  for i = #list, 1, -1 do
-    local event = list[i]
-
-    if event.kind == K.prompt then return nil end
-    if (event.kind == K.tool_call or event.kind == K.tool_update) and event.id then return event.id end
-  end
-end
-
-function Session:_settle_loose_edits(ended)
-  local loose = self._loose_edits
-
-  if not loose or #loose == 0 then return end
-
-  local id, diffs = self:_open_tool()
-
-  if not id and not ended then return end
-
-  self._loose_edits = nil
-
-  if id then return self:_attach_edits(id, diffs, loose) end
-
-  id = self:_last_tool()
-
-  if id then
-    local known = {}
-
-    for i = #self.log.events, 1, -1 do
-      local event = self.log.events[i]
-
-      if event.id == id and event.diffs and #event.diffs > 0 then
-        known = event.diffs
-        break
-      end
-    end
-
-    return self:_attach_edits(id, known, loose)
-  end
-
-  self._edit_seq = (self._edit_seq or 0) + 1
-  id = 'editor-edits-' .. self._edit_seq
-  self:_emit(
-    events.new({ kind = K.tool_call, id = id, name = 'editor edits', category = 'edit', status = 'completed' })
-  )
-  self:_attach_edits(id, {}, loose)
+  return self.attribution:record(diff)
 end
 
 function Session:enqueue(text, context, opts)

@@ -44,6 +44,12 @@ local K = events.KIND
 
 events.TEXT = { [K.user] = true, [K.message] = true, [K.thought] = true }
 
+events.TOOL = { [K.tool_call] = true, [K.tool_update] = true }
+
+events.TOOL_STATUS = dataclass.enum({ 'pending', 'in_progress', 'completed', 'failed' })
+
+events.TOOL_FINISHED = { [events.TOOL_STATUS.completed] = true, [events.TOOL_STATUS.failed] = true }
+
 local STRING = { type = 'string' }
 local TABLE = { type = 'table' }
 
