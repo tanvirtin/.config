@@ -67,4 +67,29 @@ describe('core.buffers:', function()
       os.remove(path)
     end)
   end)
+
+  describe('listed', function()
+    it('describes the listed buffers, marking unsaved ones', function()
+      local path = vim.fn.tempname()
+
+      vim.fn.writefile({ 'a' }, path)
+
+      local buffer = buffers.load(path)
+
+      local function mine()
+        for _, info in ipairs(buffers.listed()) do
+          if info.bufnr == buffer.bufnr then return info end
+        end
+      end
+
+      eq({ vim.fn.resolve(path), false }, { vim.fn.resolve(mine().name), mine().changed })
+
+      vim.api.nvim_buf_set_lines(buffer.bufnr, 0, -1, false, { 'b' })
+      eq(true, mine().changed)
+
+      vim.api.nvim_buf_delete(buffer.bufnr, { force = true })
+      assert.is_nil(mine())
+      os.remove(path)
+    end)
+  end)
 end)

@@ -1,3 +1,7 @@
+local Timer = require('core.Timer')
+local text = require('core.text')
+local process = require('core.process')
+
 local sources = {}
 
 local registry = {}
@@ -54,7 +58,7 @@ function sources.collect(name, query, opts, timeout_ms)
     finished = true
   end)
 
-  vim.wait(timeout_ms or 10000, function()
+  Timer.wait(timeout_ms or 10000, function()
     return finished
   end, 10)
 
@@ -69,11 +73,9 @@ end
 function sources.filter(items, query)
   if not query or query == '' then return items end
 
-  return vim.fn.matchfuzzy(items, query, {
-    text_cb = function(item)
-      return item.label or item.path or ''
-    end,
-  })
+  return text.fuzzy(items, query, function(item)
+    return item.label or item.path or ''
+  end)
 end
 
 function sources.lines(cmd, opts, parse, emit, done)
@@ -81,8 +83,8 @@ function sources.lines(cmd, opts, parse, emit, done)
   local cancelled = false
 
   local function flush(chunk, final)
-    local text = pending .. (chunk or '')
-    local lines = vim.split(text, '\n', { plain = true })
+    local buffered = pending .. (chunk or '')
+    local lines = vim.split(buffered, '\n', { plain = true })
 
     pending = final and '' or table.remove(lines)
 
@@ -95,12 +97,12 @@ function sources.lines(cmd, opts, parse, emit, done)
       end
     end
 
-    if #batch > 0 then vim.schedule(function()
+    if #batch > 0 then Timer.schedule(function()
       if not cancelled then emit(batch) end
     end) end
   end
 
-  local ok, proc = pcall(vim.system, cmd, {
+  local ok, proc = pcall(process.system, cmd, {
     cwd = opts.cwd,
     text = true,
     stdout = function(_, chunk)
@@ -108,14 +110,14 @@ function sources.lines(cmd, opts, parse, emit, done)
     end,
   }, function(out)
     flush(nil, true)
-    vim.schedule(function()
+    Timer.schedule(function()
       if cancelled then return end
       done((out.code ~= 0 and out.code ~= 1 and out.signal == 0) and vim.trim(out.stderr or '') or nil)
     end)
   end)
 
   if not ok then
-    vim.schedule(function()
+    Timer.schedule(function()
       done(tostring(proc))
     end)
     return function() end

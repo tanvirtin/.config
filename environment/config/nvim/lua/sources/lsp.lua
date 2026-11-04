@@ -1,3 +1,7 @@
+local fs = require('core.fs')
+local Timer = require('core.Timer')
+local Window = require('core.Window')
+
 local METHODS = {
   definition = 'textDocument/definition',
   references = 'textDocument/references',
@@ -8,10 +12,10 @@ local METHODS = {
 local function position(opts)
   if opts.buf and opts.line then return opts.buf, opts.line - 1, (opts.col or 1) - 1 end
 
-  local win = vim.api.nvim_get_current_win()
-  local cursor = vim.api.nvim_win_get_cursor(win)
+  local win = Window.get_current()
+  local cursor = win:get_cursor()
 
-  return vim.api.nvim_win_get_buf(win), cursor[1] - 1, cursor[2]
+  return win:get_buffer().bufnr, cursor[1] - 1, cursor[2]
 end
 
 return {
@@ -22,7 +26,7 @@ return {
     local method = METHODS[opts.method or 'definition']
 
     if not method then
-      vim.schedule(function()
+      Timer.schedule(function()
         done('unknown LSP method: ' .. tostring(opts.method))
       end)
       return function() end
@@ -31,7 +35,7 @@ return {
     local buf, row, col = position(opts)
 
     if #vim.lsp.get_clients({ bufnr = buf, method = method }) == 0 then
-      vim.schedule(function()
+      Timer.schedule(function()
         done('no language server attached to this buffer supports ' .. method)
       end)
       return function() end
@@ -65,12 +69,7 @@ return {
               line = entry.lnum,
               col = entry.col,
               text = entry.text,
-              label = string.format(
-                '%s:%d  %s',
-                vim.fn.fnamemodify(entry.filename, ':~:.'),
-                entry.lnum,
-                vim.trim(entry.text or '')
-              ),
+              label = string.format('%s:%d  %s', fs.display(entry.filename), entry.lnum, vim.trim(entry.text or '')),
             }
           end
         end

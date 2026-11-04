@@ -47,6 +47,10 @@ function text.truncate(value, width)
   return ''
 end
 
+function text.fuzzy(items, query, key)
+  return vim.fn.matchfuzzy(items, query, { text_cb = key })
+end
+
 function text.read_file(path)
   return vim.fn.readfile(path)
 end

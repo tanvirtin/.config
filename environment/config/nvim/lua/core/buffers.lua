@@ -13,6 +13,22 @@ function buffers.list()
   return result
 end
 
+function buffers.listed()
+  local result = {}
+
+  for _, info in ipairs(vim.fn.getbufinfo({ buflisted = 1 })) do
+    result[#result + 1] = {
+      bufnr = info.bufnr,
+      name = info.name,
+      line = info.lnum,
+      changed = info.changed == 1,
+      lastused = info.lastused,
+    }
+  end
+
+  return result
+end
+
 function buffers.load(path)
   local bufnr = vim.fn.bufadd(path)
 

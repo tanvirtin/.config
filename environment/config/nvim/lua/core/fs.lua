@@ -95,6 +95,10 @@ function fs.cwd()
   return vim.fs.normalize(vim.fn.getcwd(-1, 0))
 end
 
+function fs.local_cwd()
+  return vim.fs.normalize(vim.fn.getcwd())
+end
+
 function fs.display(path)
   return vim.fn.fnamemodify(path, ':~:.')
 end

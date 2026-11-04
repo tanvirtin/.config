@@ -1,7 +1,8 @@
+local fs = require('core.fs')
 local sources = require('sources')
 
 local function cwd(opts)
-  return vim.fs.normalize(opts.cwd or vim.fn.getcwd())
+  return fs.normalize(opts.cwd or fs.local_cwd())
 end
 
 return {

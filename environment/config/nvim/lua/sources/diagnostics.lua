@@ -1,3 +1,7 @@
+local fs = require('core.fs')
+local Timer = require('core.Timer')
+local Buffer = require('core.Buffer')
+
 local SEVERITY = { 'ERROR', 'WARN', 'INFO', 'HINT' }
 
 return {
@@ -7,7 +11,7 @@ return {
     local items = {}
 
     for _, d in ipairs(vim.diagnostic.get(opts.buf)) do
-      local path = vim.api.nvim_buf_get_name(d.bufnr)
+      local path = Buffer(d.bufnr):get_name()
       local severity = SEVERITY[d.severity] or tostring(d.severity)
 
       items[#items + 1] = {
@@ -16,7 +20,7 @@ return {
         line = d.lnum + 1,
         col = d.col + 1,
         text = string.format('%s %s%s', severity, d.message, d.source and (' [' .. d.source .. ']') or ''),
-        label = string.format('%s %s:%d  %s', severity, vim.fn.fnamemodify(path, ':~:.'), d.lnum + 1, d.message),
+        label = string.format('%s %s:%d  %s', severity, fs.display(path), d.lnum + 1, d.message),
         data = { severity = d.severity, bufnr = d.bufnr },
       }
     end
@@ -29,7 +33,7 @@ return {
 
     if query ~= '' then items = require('sources').filter(items, query) end
 
-    vim.schedule(function()
+    Timer.schedule(function()
       emit(items)
       done()
     end)

@@ -1,3 +1,5 @@
+local fs = require('core.fs')
+local Timer = require('core.Timer')
 local sources = require('sources')
 
 return {
@@ -6,11 +8,11 @@ return {
   live = true,
   collect = function(query, opts, emit, done)
     if query == '' then
-      vim.schedule(done)
+      Timer.schedule(done)
       return function() end
     end
 
-    local root = vim.fs.normalize(opts.cwd or vim.fn.getcwd())
+    local root = fs.normalize(opts.cwd or fs.local_cwd())
     local cmd = { 'rg', '--vimgrep', '--smart-case', '--max-columns=300', '--max-columns-preview', '--', query }
 
     if opts.path then cmd[#cmd + 1] = opts.path end
