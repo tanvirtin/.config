@@ -93,6 +93,20 @@ function keymap.type_text(text)
   vim.api.nvim_feedkeys(text, 'n', false)
 end
 
+function keymap.lhs_of(command, mode)
+  local leader = vim.g.mapleader or '\\'
+
+  for _, binding in ipairs(vim.api.nvim_get_keymap(mode or 'n')) do
+    if binding.rhs and binding.rhs:find(command, 1, true) then
+      local lhs = binding.lhs
+
+      if lhs:sub(1, #leader) == leader then lhs = '<leader>' .. lhs:sub(#leader + 1) end
+
+      return lhs
+    end
+  end
+end
+
 function keymap.find_by_rhs(command)
   local keybindings = {}
   local modes = { 'n', 'i', 'v', 'x', 's', 'o', 't', 'c' }

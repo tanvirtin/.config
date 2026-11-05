@@ -170,6 +170,109 @@ describe('harness.ui.TranscriptView:', function()
         vim.wait(200)
       end)
 
+      describe('the reader\'s cursor', function()
+        local function last()
+          return vim.api.nvim_buf_line_count(view.bufnr)
+        end
+
+        local function running(fn)
+          session:_to('running')
+          fn()
+          vim.wait(400)
+          session:_to('idle')
+        end
+
+        local function small(from, to)
+          stream(from, to, 1)
+        end
+
+        it('stays where k put it while a turn runs and streams, and the end stays in view', function()
+          small(1, 2)
+          vim.cmd('normal! 3k')
+
+          local placed = row()
+
+          running(function()
+            small(3, 4)
+          end)
+
+          eq(placed, row())
+          eq(true, at_end())
+        end)
+
+        it('stays where j put it after moving back down', function()
+          small(1, 2)
+          vim.cmd('normal! 4k')
+          vim.cmd('normal! j')
+
+          local placed = row()
+
+          running(function()
+            small(3, 3)
+          end)
+
+          eq(placed, row())
+        end)
+
+        it('is not moved by the window being watched or the composer taking rows and giving them back', function()
+          small(1, 2)
+          vim.cmd('normal! 2k')
+
+          local placed = row()
+
+          view:watch()
+          view:hold_end()
+          view:keep_end()
+          vim.wait(300)
+
+          eq(placed, row())
+        end)
+
+        it('is not taken to the end by every kind of update the agent sends', function()
+          small(1, 2)
+          vim.cmd('normal! 3k')
+
+          local placed = row()
+
+          running(function()
+            session:_emit(events.new({ kind = events.KIND.thought, text = 'thinking it over' }))
+            vim.wait(60)
+            session:_emit(events.new({ kind = events.KIND.message, text = 'a reply' }))
+            vim.wait(60)
+            session:_emit(events.new({
+              kind = events.KIND.plan,
+              entries = { { content = 'one', status = 'pending' } },
+            }))
+            vim.wait(60)
+            session:_emit(events.new({ kind = events.KIND.tool_update, id = 's1', status = 'completed' }))
+          end)
+
+          eq(placed, row())
+          eq(true, at_end())
+        end)
+
+        it('rides to the new end when it was on the last line', function()
+          small(1, 2)
+          vim.cmd('normal G')
+          vim.wait(200)
+
+          running(function()
+            small(3, 4)
+          end)
+
+          eq(last(), row())
+        end)
+
+        it('is not sent to the end by folding all tool output', function()
+          small(1, 3)
+          vim.cmd('normal! 2k')
+          vim.cmd('normal zT')
+          vim.wait(200)
+
+          assert.is_true(row() < last(), 'the fold keys sent the cursor to the end')
+        end)
+      end)
+
       it('keeps the end in view across tool output folded and unfolded', function()
         stream(1, 3)
         vim.cmd('normal zT')

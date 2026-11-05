@@ -2,8 +2,8 @@ local lazy = require('core.lazy')
 
 local fs = lazy('core.fs')
 local hub = lazy('harness.hub')
-local console = lazy('core.console')
 local edits = lazy('harness.ui.edits')
+local notice = lazy('harness.ui.notice')
 local display = lazy('harness.ui.display')
 local composer = lazy('harness.ui.composer')
 local TourView = lazy('harness.ui.TourView')
@@ -16,7 +16,7 @@ local tour = {}
 local views, last, dispose, dispose_sessions = {}, {}, nil, nil
 
 local function warn(message)
-  console.notify('Harness: ' .. message, 'warn')
+  notice.warn(message)
 end
 
 local function key_of(session)

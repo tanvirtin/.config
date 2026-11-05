@@ -53,6 +53,15 @@ return Config({
     stop = '<C-q>',
     ask = 'ga',
   },
+  sessions = {
+    fork = '<C-f>',
+    delete = '<C-x>',
+  },
+  permissions = {
+    act = 'd',
+    refresh = 'r',
+    close = 'q',
+  },
   composer = {
     send = '<CR>',
     steer = '<C-s>',

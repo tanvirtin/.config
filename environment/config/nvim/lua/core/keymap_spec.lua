@@ -94,4 +94,13 @@ describe('keymap.count:', function()
 
     assert.are.same({ '<Esc>', 'n', false }, typed)
   end)
+
+  it('names the key a command is mapped to, writing the leader as <leader>', function()
+    vim.keymap.set('n', '<leader>zq', '<Cmd>NoSuchHarnessCommand<CR>')
+
+    assert.are.same('<leader>zq', keymap.lhs_of('NoSuchHarnessCommand'))
+    assert.is_nil(keymap.lhs_of('NothingIsMappedToThis'))
+
+    vim.keymap.del('n', '<leader>zq')
+  end)
 end)

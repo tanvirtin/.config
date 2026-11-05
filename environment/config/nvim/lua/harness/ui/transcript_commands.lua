@@ -300,7 +300,7 @@ function commands.fold_tools(view, close)
     end
   end
 
-  if following and changed > 0 then view:land(window) end
+  if following and changed > 0 then view:follow(window) end
 
   return changed > 0, close and 'no open tool output' or 'no folded tool output'
 end

@@ -7,14 +7,15 @@ local Buffer = lazy('core.Buffer')
 local Window = lazy('core.Window')
 local keymap = lazy('core.keymap')
 local async = lazy('harness.async')
-local console = lazy('core.console')
 local tools = lazy('nvim_mcp.tools')
 local tour = lazy('harness.ui.tour')
 local edits = lazy('harness.ui.edits')
 local context = lazy('harness.context')
+local notice = lazy('harness.ui.notice')
 local display = lazy('harness.ui.display')
 local composer = lazy('harness.ui.composer')
 local transcript = lazy('harness.ui.transcript')
+local global_keys = lazy('harness.ui.global_keys')
 
 local commands = {}
 
@@ -23,7 +24,7 @@ local function choice_hints(action)
 end
 
 local function warn(message)
-  console.notify('Harness: ' .. message, 'warn')
+  notice.warn(message)
 end
 
 function commands.open(session, opts)
@@ -172,7 +173,9 @@ local function choose_session(shown, buf, range)
     end
   end
 
-  if #items == 0 then return transcript.report(false, 'no session to attach this to; start one with <leader>.') end
+  if #items == 0 then
+    return transcript.report(false, 'no session to attach this to; start one with ' .. global_keys.sessions())
+  end
 
   keymap.feed('<Esc>', 'nx')
 
@@ -201,7 +204,7 @@ local function attach_range(buf, range)
   if shown then return choose_session(shown, buf, range) end
 
   if not view or view.session.state == 'closed' then
-    return transcript.report(false, 'no session to attach this to; start one with <leader>.')
+    return transcript.report(false, 'no session to attach this to; start one with ' .. global_keys.sessions())
   end
 
   local session = view.session

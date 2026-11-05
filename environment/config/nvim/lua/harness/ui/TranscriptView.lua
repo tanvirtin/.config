@@ -11,6 +11,7 @@ local keymap = require('core.keymap')
 local hints = lazy('harness.ui.hints')
 local console = require('core.console')
 local asks = require('harness.ui.asks')
+local notice = lazy('harness.ui.notice')
 local links = require('harness.ui.links')
 local winbar = require('harness.ui.winbar')
 local settings = require('harness.settings')
@@ -461,6 +462,11 @@ function TranscriptView:enter(window)
   end
 end
 
+function TranscriptView:follow(window)
+  self.following:follow(window)
+  self.document:decorate_visible()
+end
+
 function TranscriptView:land(window)
   self.following:land(window, function()
     self.document:decorate_visible()
@@ -605,7 +611,7 @@ function TranscriptView:show_permissions()
 end
 
 function TranscriptView.report(ok, why)
-  if not ok and why then console.notify_now('Harness: ' .. why, 'info') end
+  if not ok and why then notice.info(why) end
 
   return ok
 end

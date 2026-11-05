@@ -141,7 +141,12 @@ require('harness').setup({
   sessions = { confirm_ms = 3000 },
   composer = { height = 10, ease_ms = 120 },
   follow = { debounce_ms = 300, grace_ms = 1500, poll_ms = 3000 },
-  keymaps = { transcript = { yank = 'gy', plan = 'gp', diff = 'gd' }, composer = { steer = '<C-s>' } },
+  keymaps = {
+    transcript = { yank = 'gy', plan = 'gp', diff = 'gd' },
+    composer = { steer = '<C-s>' },
+    sessions = { fork = '<C-f>', delete = '<C-x>' },     -- the session picker
+    permissions = { act = 'd', refresh = 'r', close = 'q' }, -- the permissions panel
+  },
   theme = {
     prompt_icon = '>',
     motion = {
@@ -430,6 +435,7 @@ Keys in a transcript:
 | Key | Does |
 | --- | --- |
 | `<CR>` | on a link or a file named in inline code (`lua/a.lua:42`): open it in a new tab. On a diff line: open the file at that line. On a tool: open what it touched. On a fold: open or close it. On a tool group: show or hide its tools. On the earlier-turns line: show them |
+| `G` | go to the end, leaving room under the newest line, and follow the stream again; with a count, go to that line |
 | `gd` | open the edit under the cursor (its diff or its tool line) in vgit's diff view, as the whole file before and after |
 | `gD` | open the git diff of the file under the cursor (a diff, a tool's file, a link): `:VGit diff -- <path>` |
 | `gF` | fork the session from the reply under the cursor (on a prompt, from the reply before it, so you can ask differently). The fork opens with the conversation up to that reply; the original is untouched. Needs an agent with `session/fork` |

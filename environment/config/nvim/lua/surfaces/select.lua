@@ -25,7 +25,7 @@ function select.ui_select(items, opts, on_choice)
   local picker = require('surfaces').pick({
     title = opts.prompt and vim.trim(opts.prompt:gsub(':%s*$', '')) or 'Select',
     items = entries,
-    hints = { { '<CR>', 'choose' }, { '<C-n>/<C-p>', 'move' }, { '<Esc>', 'dismiss' } },
+    hints = { { '<CR>', 'choose' }, { '<C-n>/<C-p>', 'move' }, { '<Esc>', 'close' } },
     on_select = function(entry)
       answer(items[entry.value], entry.value)
     end,

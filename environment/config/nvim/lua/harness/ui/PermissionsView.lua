@@ -144,9 +144,22 @@ function PermissionsView.render(model)
   end
 
   add('')
-  add('d revoke or delete · <S-Tab> mode · r refresh · q close', 'UiMuted')
+  add(PermissionsView.footer(), 'UiMuted')
 
   return lines, highlights, rows
+end
+
+function PermissionsView.footer()
+  local own = settings.keymaps:get('permissions')
+  local mode = settings.keymaps:get('transcript').cycle_mode
+
+  return string.format(
+    '%s revoke or delete · %s mode · %s refresh · %s close',
+    own.act,
+    mode,
+    own.refresh,
+    own.close
+  )
 end
 
 function PermissionsView:refresh()
@@ -221,17 +234,19 @@ function PermissionsView:open()
   })
   self:refresh()
 
-  self._body:set_keymap('n', 'd', function()
+  local own = settings.keymaps:get('permissions')
+
+  self._body:set_keymap('n', own.act, function()
     self:act()
   end, 'Revoke the grant, or delete the saved rule, under the cursor')
-  self._body:set_keymap('n', 'r', function()
+  self._body:set_keymap('n', own.refresh, function()
     self:refresh()
   end, 'Refresh')
   self._body:set_keymap('n', keys.cycle_mode, function()
     self.session:cycle_mode()
   end, 'Next session mode')
 
-  for _, key in ipairs({ 'q', '<Esc>' }) do
+  for _, key in ipairs({ own.close, '<Esc>' }) do
     self._body:set_keymap('n', key, function()
       self:close()
     end, 'Close')

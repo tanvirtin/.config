@@ -5,23 +5,32 @@ local Timer = lazy('core.Timer')
 local surfaces = lazy('surfaces')
 local Object = lazy('core.Object')
 local async = lazy('harness.async')
-local console = lazy('core.console')
+local notice = lazy('harness.ui.notice')
+local keymaps = lazy('harness.settings.keymaps')
 local settings = lazy('harness.settings.sessions')
 
 local SessionsView = Object:extend()
 
 SessionsView.TITLE = 'Sessions'
 
-SessionsView.HINTS = {
-  { '<CR>', 'open / new' },
-  { '<C-f>', 'fork' },
-  { '<C-x>', 'delete (press twice)' },
-  { '<C-n>/<C-p>', 'move' },
-  { '<Esc>', 'close' },
-}
+function SessionsView.keys()
+  return keymaps:get('sessions')
+end
+
+function SessionsView.hints()
+  local keys = SessionsView.keys()
+
+  return {
+    { '<CR>', 'open / new' },
+    { keys.fork, 'fork' },
+    { keys.delete, 'delete (press twice)' },
+    { '<C-n>/<C-p>', 'move' },
+    { '<Esc>', 'close' },
+  }
+end
 
 function SessionsView.warn(message)
-  console.notify('Harness: ' .. message, 'warn')
+  notice.warn(message)
 end
 
 function SessionsView:constructor(opts, rows_of, status_of)
@@ -46,7 +55,7 @@ end
 
 function SessionsView:_confirm(row)
   self.pending = row.id
-  row.description = 'press <C-x> again to delete for good'
+  row.description = 'press ' .. SessionsView.keys().delete .. ' again to delete for good'
   self.picker:set_items(self.rows)
 
   Timer.defer(settings:get('confirm_ms'), function()
@@ -91,8 +100,8 @@ end
 function SessionsView:fork(row)
   local live = row and row.key and hub.session(row.key)
 
-  if not live then return SessionsView.warn('open this session first; only a live session can be forked') end
-  if not live:can('fork') then return SessionsView.warn('this agent cannot fork sessions') end
+  if not live then return notice.info('open this session first; only a live session can be forked') end
+  if not live:can('fork') then return notice.info('this agent cannot fork sessions') end
 
   hub.fork(live):on_complete(function(err, forked)
     Timer.schedule(function()
@@ -162,21 +171,21 @@ function SessionsView:_show(listed)
     end,
     actions = {
       {
-        key = '<C-f>',
+        key = SessionsView.keys().fork,
         desc = 'Fork the session',
         run = function(row)
           self:fork(row)
         end,
       },
       {
-        key = '<C-x>',
+        key = SessionsView.keys().delete,
         desc = 'Delete the session (press twice)',
         run = function(row)
           self:delete(row)
         end,
       },
     },
-    hints = SessionsView.HINTS,
+    hints = SessionsView.hints(),
   })
 
   return self.picker

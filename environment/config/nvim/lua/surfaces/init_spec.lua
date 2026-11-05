@@ -67,6 +67,31 @@ describe('surfaces:', function()
       eq(nil, surfaces.get(picker.id))
     end)
 
+    it('offers split, tab and list keys only when it opens locations', function()
+      local function mapped(picker, lhs)
+        local found = false
+
+        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+          for _, map in ipairs(vim.api.nvim_buf_get_keymap(buf, 'i')) do
+            if map.lhs == lhs then found = true end
+          end
+        end
+
+        return found
+      end
+
+      local choosing = letters()
+
+      eq(false, mapped(choosing, '<C-V>'))
+      eq(false, mapped(choosing, '<C-Q>'))
+      surfaces.close_all()
+
+      local locating = surfaces.pick({ title = 'Places', items = { { label = 'a', path = '/tmp/a' } } })
+
+      eq(true, mapped(locating, '<C-V>'))
+      eq(true, mapped(locating, '<C-Q>'))
+    end)
+
     it('moves the selection', function()
       local picker = letters()
 

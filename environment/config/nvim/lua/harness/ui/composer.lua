@@ -3,6 +3,7 @@ local lazy = require('core.lazy')
 local fs = lazy('core.fs')
 local Window = lazy('core.Window')
 local console = lazy('core.console')
+local notice = lazy('harness.ui.notice')
 local session_store = lazy('harness.session_store')
 local ComposerView = lazy('harness.ui.ComposerView')
 local NOTICE = require('harness.types.events').NOTICE
@@ -240,7 +241,7 @@ function composer.open(session, opts)
     composer.close(false, session)
   end
 
-  if session.state == 'closed' then return ComposerView.warn('this session has ended') end
+  if session.state == 'closed' then return notice.info('this session has ended') end
 
   local view =
     ComposerView(session, store, { display = display, answering = opts.answer, delegate = composer.delegate })

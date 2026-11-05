@@ -163,15 +163,17 @@ function Picker:open()
   self._view = View()
   self._view:_render({ component = self._search, mode = 'popup' })
 
-  for key, how in pairs({ ['<C-v>'] = 'vsplit', ['<C-s>'] = 'split', ['<C-t>'] = 'tab' }) do
-    self._search:set_keymap('i', key, function()
-      self:_choose(how)
-    end, 'Open in ' .. how)
-  end
+  if not self._opts.on_select then
+    for key, how in pairs({ ['<C-v>'] = 'vsplit', ['<C-s>'] = 'split', ['<C-t>'] = 'tab' }) do
+      self._search:set_keymap('i', key, function()
+        self:_choose(how)
+      end, 'Open in ' .. how)
+    end
 
-  self._search:set_keymap('i', '<C-q>', function()
-    self:_send_to_list()
-  end, 'Send matches to a list')
+    self._search:set_keymap('i', '<C-q>', function()
+      self:_send_to_list()
+    end, 'Send matches to a list')
+  end
 
   for _, action in ipairs(self._opts.actions or {}) do
     for _, mode in ipairs({ 'i', 'n' }) do

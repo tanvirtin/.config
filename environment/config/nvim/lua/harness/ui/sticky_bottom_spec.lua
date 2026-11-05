@@ -208,4 +208,20 @@ describe('harness.ui.sticky_bottom:', function()
       sticky_bottom.pin(Window(-1))
     end)
   end)
+
+  it('is pinned only by Following, which keeps a cursor the reader moved', function()
+    local callers = {}
+
+    for _, path in ipairs(vim.fn.globpath('lua/harness', '**/*.lua', false, true)) do
+      if not path:match('_spec%.lua$') and not path:match('/sticky_bottom%.lua$') then
+        for number, line in ipairs(vim.fn.readfile(path)) do
+          if line:find('sticky_bottom.pin(', 1, true) and not path:match('/Following%.lua$') then
+            callers[#callers + 1] = path .. ':' .. number
+          end
+        end
+      end
+    end
+
+    eq({}, callers)
+  end)
 end)

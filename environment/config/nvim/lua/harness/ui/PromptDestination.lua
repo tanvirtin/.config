@@ -3,15 +3,15 @@ local lazy = require('core.lazy')
 local hub = lazy('harness.hub')
 local Buffer = lazy('core.Buffer')
 local Object = lazy('core.Object')
-local console = lazy('core.console')
 local tools = lazy('nvim_mcp.tools')
 local context = lazy('harness.context')
+local notice = lazy('harness.ui.notice')
 local settings = lazy('harness.settings')
 
 local PromptDestination = Object:extend()
 
 function PromptDestination.warn(message)
-  console.notify('Harness: ' .. message, 'warn')
+  notice.warn(message)
 end
 
 function PromptDestination:constructor(session, store, display)

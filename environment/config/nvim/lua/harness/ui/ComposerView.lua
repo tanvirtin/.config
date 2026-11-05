@@ -10,6 +10,7 @@ local Window = lazy('core.Window')
 local keymap = lazy('core.keymap')
 local asks = lazy('harness.ui.asks')
 local context = lazy('harness.context')
+local notice = lazy('harness.ui.notice')
 local settings = lazy('harness.settings')
 local Element = lazy('ui.elements.Element')
 local Animator = lazy('harness.ui.Animator')
@@ -517,7 +518,7 @@ end
 function ComposerView:pick_history()
   local entries = self:_history().entries
 
-  if self.destination:answers() or #entries == 0 then return ComposerView.warn('no earlier prompts to recall') end
+  if self.destination:answers() or #entries == 0 then return notice.info('no earlier prompts to recall') end
 
   local items = {}
 

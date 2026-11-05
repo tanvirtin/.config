@@ -6,6 +6,7 @@ local core_text = lazy('core.text')
 local follow = lazy('harness.follow')
 local theme = lazy('harness.transcript.theme')
 local keymaps = lazy('harness.settings.keymaps')
+local global_keys = lazy('harness.ui.global_keys')
 local EVENT = require('harness.types.events').KIND
 
 local winbar = {}
@@ -16,8 +17,9 @@ function winbar.hints()
   local help = keymaps:get('transcript').help
 
   return string.format(
-    '%%#UiAccent# %s %%#UiMuted#write to this session   %%#UiAccent#<leader>. %%#UiMuted#sessions   %%#UiAccent#%s %%#UiMuted#keys',
+    '%%#UiAccent# %s %%#UiMuted#write to this session   %%#UiAccent#%s %%#UiMuted#sessions   %%#UiAccent#%s %%#UiMuted#keys',
     type(write) == 'table' and write[1] or write,
+    (global_keys.sessions():gsub('%%', '%%%%')),
     help
   )
 end
