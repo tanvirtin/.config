@@ -969,4 +969,81 @@ describe('harness.Session:', function()
       )
     end)
   end)
+
+  describe('submit', function()
+    local events = require('harness.types.events')
+
+    local function submitting(state, admit)
+      local session = session_with()
+      local calls = {}
+
+      session.admit = admit
+      session.prompt = function(_, text)
+        calls[#calls + 1] = 'prompt:' .. text
+
+        return 'task'
+      end
+      session.enqueue = function(_, text)
+        calls[#calls + 1] = 'enqueue:' .. text
+
+        return session
+      end
+      session.steer = function(_, text)
+        calls[#calls + 1] = 'steer:' .. text
+
+        return session._steered
+      end
+
+      if state ~= 'idle' then session:_to(state) end
+
+      return session, calls
+    end
+
+    it('starts a turn when idle and admitted', function()
+      local session, calls = submitting('idle')
+      local sent = session:submit('go')
+
+      eq({ 'started', 'task' }, { sent.how, sent.task })
+      eq({ 'prompt:go' }, calls)
+    end)
+
+    it('queues when the session is loading, or is not admitted a turn slot', function()
+      local loading, loading_calls = submitting('loading')
+      local refused, refused_calls = submitting('idle', function()
+        return false
+      end)
+
+      eq('queued', loading:submit('a').how)
+      eq({ 'enqueue:a' }, loading_calls)
+      eq('queued', refused:submit('b').how)
+      eq({ 'enqueue:b' }, refused_calls)
+    end)
+
+    it('queues behind a running turn unless asked to steer, and then steers when it can', function()
+      local running, calls = submitting('running')
+
+      eq('queued', running:submit('a').how)
+      eq({ 'enqueue:a' }, calls)
+
+      running._steered = 'task'
+      eq('steered', running:submit('b', nil, { steer = true }).how)
+      running._steered = nil
+      eq('queued', running:submit('c', nil, { steer = true }).how)
+      eq({ 'enqueue:a', 'steer:b', 'steer:c' }, calls)
+    end)
+
+    it('says why nothing was sent', function()
+      local session = submitting('idle')
+
+      session.prompt = function()
+        return nil, 'boom'
+      end
+
+      local sent, err = session:submit('go')
+
+      assert.is_nil(sent)
+      eq('boom', err)
+      assert.is_truthy(events.KIND)
+    end)
+  end)
 end)

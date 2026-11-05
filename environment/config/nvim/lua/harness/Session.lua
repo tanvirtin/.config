@@ -29,6 +29,8 @@ local Session = Object:extend()
 
 Session.STATE = dataclass.enum({ 'idle', 'running', 'loading', 'reloading', 'closed' })
 
+Session.SENT = dataclass.enum({ 'started', 'queued', 'steered' })
+
 Session.TRANSITIONS = {
   idle = { running = true, loading = true, reloading = true, closed = true },
   running = { idle = true, closed = true },
@@ -329,6 +331,34 @@ end
 
 function Session:record_edit(diff)
   return self.attribution:record(diff)
+end
+
+function Session:_queued(text, context)
+  local _, err = self:enqueue(text, context)
+
+  if err then return nil, err end
+
+  return { how = Session.SENT.queued }
+end
+
+function Session:submit(text, context, opts)
+  if self:loading() or (self:running() and not (opts and opts.steer)) then return self:_queued(text, context) end
+
+  if self:running() then
+    local task, err = self:steer(text, context)
+
+    if err then return nil, err end
+
+    return { how = task and Session.SENT.steered or Session.SENT.queued, task = task }
+  end
+
+  if self.admit and not self.admit(self) then return self:_queued(text, context) end
+
+  local task, err = self:prompt(text, context)
+
+  if err then return nil, err end
+
+  return { how = Session.SENT.started, task = task }
 end
 
 function Session:enqueue(text, context, opts)

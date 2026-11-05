@@ -41,7 +41,7 @@ local function configure_settings(opts)
   local rest = settings.assign(opts)
 
   hl.override(settings.theme:get('highlights'))
-  hub.config = vim.tbl_extend('force', hub.config, { ask = ask, elicit = elicit }, rest)
+  hub.configure(vim.tbl_extend('force', { ask = ask, elicit = elicit }, rest))
 end
 
 local function register_modules()
