@@ -205,6 +205,24 @@ local function release(view)
   if views[view.session.key] == view then views[view.session.key] = nil end
 end
 
+composer.delegate = {
+  interrupt = composer.interrupt,
+  model = composer.model,
+  slash = composer.slash,
+  reference = composer.reference,
+  accept = composer.accept,
+  next_item = composer.next_item,
+  closed = release,
+  wiped = release,
+  entered = function(view)
+    last = view.session.key
+
+    local shown = view.display and view.display.view_of(view.session)
+
+    if shown then view.display.set_current(shown) end
+  end,
+}
+
 function composer.open(session, opts)
   opts = opts or {}
 
@@ -212,7 +230,7 @@ function composer.open(session, opts)
   local existing = composer.view(session)
 
   if existing then
-    if existing.answering == opts.answer then
+    if existing.destination:answers() == opts.answer then
       last = session.key
       existing:focus(opts.insert)
 
@@ -224,25 +242,8 @@ function composer.open(session, opts)
 
   if session.state == 'closed' then return ComposerView.warn('this session has ended') end
 
-  local view = ComposerView(session, store, {
-    display = display,
-    answering = opts.answer,
-    on_interrupt = composer.interrupt,
-    on_slash = composer.slash,
-    on_reference = composer.reference,
-    on_accept = composer.accept,
-    on_next_item = composer.next_item,
-    on_model = composer.model,
-    on_close = release,
-    on_wipe = release,
-    on_enter = function()
-      last = session.key
-
-      local shown = display and display.view_of(session)
-
-      if shown then display.set_current(shown) end
-    end,
-  })
+  local view =
+    ComposerView(session, store, { display = display, answering = opts.answer, delegate = composer.delegate })
 
   views[session.key] = view
   last = session.key

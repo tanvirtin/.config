@@ -1,6 +1,5 @@
 local lazy = require('core.lazy')
 
-local hub = lazy('harness.hub')
 local Timer = lazy('core.Timer')
 local event = lazy('core.event')
 local motion = lazy('ui.motion')
@@ -9,8 +8,6 @@ local Buffer = lazy('core.Buffer')
 local Object = lazy('core.Object')
 local Window = lazy('core.Window')
 local keymap = lazy('core.keymap')
-local console = lazy('core.console')
-local tools = lazy('nvim_mcp.tools')
 local asks = lazy('harness.ui.asks')
 local context = lazy('harness.context')
 local settings = lazy('harness.settings')
@@ -20,6 +17,8 @@ local Renderer = lazy('ui.markdown.Renderer')
 local tour_store = lazy('harness.tour_store')
 local theme = lazy('harness.transcript.theme')
 local PromptHistory = lazy('harness.ui.PromptHistory')
+local AnswerDestination = lazy('harness.ui.AnswerDestination')
+local PromptDestination = lazy('harness.ui.PromptDestination')
 local composer_geometry = lazy('harness.ui.composer_geometry')
 
 local ComposerView = Object:extend()
@@ -43,7 +42,7 @@ function ComposerView.has_text(lines)
 end
 
 function ComposerView.warn(message)
-  console.notify('Harness: ' .. message, 'warn')
+  PromptDestination.warn(message)
 end
 
 function ComposerView.focus_window(win)
@@ -72,39 +71,47 @@ function ComposerView.anchor_for(view)
   end
 end
 
-function ComposerView:constructor(session, store, callbacks)
-  callbacks = callbacks or {}
+ComposerView.IDLE = {
+  interrupt = function() end,
+  model = function() end,
+  slash = function()
+    return '/'
+  end,
+  reference = function()
+    return '@'
+  end,
+  accept = function(fallback)
+    return fallback
+  end,
+  next_item = function(fallback)
+    return fallback
+  end,
+  closed = function() end,
+  wiped = function() end,
+  entered = function() end,
+}
+
+function ComposerView:constructor(session, store, opts)
+  opts = opts or {}
+
+  local destination = opts.answering and AnswerDestination(session, store, opts.display, opts.answering)
+    or PromptDestination(session, store, opts.display)
 
   return {
     session = session,
     store = store,
-    display = callbacks.display,
+    display = opts.display,
+    destination = destination,
+    delegate = opts.delegate or ComposerView.IDLE,
     element = nil,
     anchor = nil,
     contained = nil,
     height = nil,
     origin = nil,
     source = {},
-    on_send = callbacks.on_send,
-    on_slash = callbacks.on_slash,
-    on_reference = callbacks.on_reference,
-    on_accept = callbacks.on_accept,
-    on_next_item = callbacks.on_next_item,
-    on_model = callbacks.on_model,
-    on_interrupt = callbacks.on_interrupt,
-    on_close = callbacks.on_close,
-    on_wipe = callbacks.on_wipe,
-    on_enter = callbacks.on_enter,
-    answering = callbacks.answering,
     recall = nil,
     shown = nil,
   }
-end
-
-function ComposerView:answer_target()
-  local prompt = self.answering
-
-  return prompt and prompt:is_open() and prompt:writing() and prompt or nil
 end
 
 function ComposerView:is_open()
@@ -147,8 +154,7 @@ function ComposerView:winbar()
 
   if session.external then parts[#parts + 1] = '%#UiWarn#⇄ also driven elsewhere: sending forks it ' end
 
-  local target = self:answer_target()
-  local answering = target and target:writing_label()
+  local answering = self.destination:label()
 
   if answering then
     parts[#parts + 1] = '%#UiWarn#' .. theme.WAITING_ICON[1] .. 'answering: ' .. answering:gsub('%%', '%%%%') .. ' '
@@ -176,8 +182,6 @@ end
 function ComposerView:hints()
   local session = self.session
   local keys = settings.keymaps:get('composer')
-  local target = self:answer_target()
-  local answering = target and target:writing_label()
   local chunks = {}
 
   local function key(lhs, label)
@@ -190,18 +194,10 @@ function ComposerView:hints()
     and Window.inserting()
   local send = inserting and ('<Esc>' .. keys.send) or keys.send
 
-  if answering then
-    key(send, 'answer')
-  elseif session:running() then
-    key(send, 'queue')
-    if session:can('steer') then key(keys.steer, 'steer') end
-    if not inserting then key(keys.interrupt, 'interrupt') end
-  else
-    key(send, 'send')
-  end
+  self.destination:hints(key, { keys = keys, send = send, inserting = inserting })
 
   if #session.commands > 0 then key(keys.slash, 'commands') end
-  if not answering then key(keys.history, 'history') end
+  if self.destination:history_hint() then key(keys.history, 'history') end
   if session:mode() then key(keys.cycle_mode, 'mode') end
   if not inserting and session:choice('model') then key(keys.model, 'model') end
   if not inserting then key(keys.close, 'close') end
@@ -231,11 +227,7 @@ function ComposerView:refresh()
 end
 
 function ComposerView:placeholder()
-  local keys = settings.keymaps:get('composer')
-
-  if self.answering then return 'write your answer' end
-
-  return 'ask anything · ' .. keys.slash .. ' for commands'
+  return self.destination:placeholder()
 end
 
 function ComposerView:_decorate()
@@ -338,7 +330,7 @@ function ComposerView:_keep()
 
   self.element:set_buf_option('modified', false)
 
-  if self.answering then return self end
+  if not self.destination:keeps_draft() then return self end
 
   local lines = self:lines()
 
@@ -399,13 +391,8 @@ function ComposerView:close(discard, opts)
 
   if self.animator then self.animator:close() end
 
-  if self.answering then
-    local target = self:answer_target()
-
-    if target then
-      target:stop_writing()
-      asks.changed(self.session)
-    end
+  if not self.destination:keeps_draft() then
+    self.destination:closing()
 
     discard = false
   end
@@ -414,7 +401,7 @@ function ComposerView:close(discard, opts)
     local lines = self.element:get_lines()
     local view = self.display and self.display.view_of(self.session)
 
-    if not self.answering then self.store:set_draft(key, ComposerView.has_text(lines) and lines or nil) end
+    if self.destination:keeps_draft() then self.store:set_draft(key, ComposerView.has_text(lines) and lines or nil) end
 
     -- the transcript takes the rows back: put its top line back once it has grown
     if view then view:watch() end
@@ -430,7 +417,7 @@ function ComposerView:close(discard, opts)
 
   if discard then self.store:clear(key) end
 
-  if self.on_close then self.on_close(self) end
+  self.delegate.closed(self)
 
   if not (opts and opts.keep_focus) then ComposerView.focus_window(self.origin) end
 
@@ -441,55 +428,8 @@ function ComposerView:_outgoing()
   return { session = self.session, lines = self:lines(), source = self.source, origin = self.origin }
 end
 
-function ComposerView:_answer(text)
-  local target = self:answer_target()
-
-  if not target then return false, 'the question was already answered or withdrawn' end
-  if text == '' then return false, 'write an answer, or close to go back to the choices' end
-
-  local ok, why = target:submit_text(text)
-
-  if not ok then return false, why end
-
-  asks.changed(self.session)
-
-  return true, 'answered'
-end
-
 function ComposerView:_deliver(message, opts)
-  local session, source, store = message.session, message.source, self.store
-  local text = vim.trim(table.concat(message.lines, '\n'))
-
-  if self.answering then return self:_answer(text) end
-  if text == '' then return true end
-  if session.state == 'closed' then return false, 'this session has ended; your text is kept' end
-
-  local where = Buffer.exists(source.buf) and context.capture_buffer(source.buf) or nil
-
-  local problems
-  where, problems =
-    context.attach_tokens(where, text, session.dir, { max_lines = settings.composer:get('reference_lines') })
-
-  if #problems > 0 then ComposerView.warn(table.concat(problems, '; ')) end
-
-  local sent, err = hub.send(session, text, where, opts)
-
-  if err then return false, tostring(err) end
-
-  store:clear(session.key)
-  store:remember(text)
-
-  if source.buf then tools.set_focus(source.win, source.buf) end
-
-  if sent.task then
-    sent.task:on_complete(function(turn_err)
-      if turn_err and not (self.display and self.display.showing(session)) then
-        ComposerView.warn(tostring(turn_err))
-      end
-    end)
-  end
-
-  return true, sent.how
+  return self.destination:submit(vim.trim(table.concat(message.lines, '\n')), message, opts)
 end
 
 function ComposerView:send(opts)
@@ -512,7 +452,7 @@ function ComposerView:_send_after_write()
     local sent, why = self:_deliver(message)
 
     if not sent then
-      if not self.answering then self.store:set_draft(message.session.key, message.lines) end
+      if self.destination:keeps_draft() then self.store:set_draft(message.session.key, message.lines) end
       return ComposerView.warn(why)
     end
 
@@ -558,7 +498,7 @@ function ComposerView:_replace(text)
 end
 
 function ComposerView:recall_step(direction)
-  if self.answering then return false end
+  if self.destination:answers() then return false end
 
   local history = self:_history()
   local current = table.concat(self:lines(), '\n')
@@ -577,7 +517,7 @@ end
 function ComposerView:pick_history()
   local entries = self:_history().entries
 
-  if self.answering or #entries == 0 then return ComposerView.warn('no earlier prompts to recall') end
+  if self.destination:answers() or #entries == 0 then return ComposerView.warn('no earlier prompts to recall') end
 
   local items = {}
 
@@ -654,7 +594,7 @@ function ComposerView:_bind(keys)
   end
 
   element:set_keymap('n', keys.interrupt, function()
-    self.on_interrupt(session)
+    self.delegate.interrupt(session)
   end, 'Interrupt the running turn')
   element:set_keymap('i', keys.interrupt, function()
     Window.stop_insert()
@@ -667,26 +607,24 @@ function ComposerView:_bind(keys)
   end
 
   element:set_keymap('n', keys.model, function()
-    self.on_model(session, self.display)
+    self.delegate.model(session, self.display)
   end, 'Session model')
 
   element:set_buf_var('completion', false)
   element:set_buf_option('omnifunc', ComposerView.OMNIFUNC)
   element:set_buf_option('completeopt', 'menuone,noinsert')
-  element:set_keymap({ mode = 'i', key = keys.slash, desc = 'Slash commands', expr = true }, self.on_slash)
-
-  if self.on_reference then
-    element:set_keymap({ mode = 'i', key = keys.reference, desc = 'Reference a file', expr = true }, self.on_reference)
-  end
-
-  if self.on_accept then
-    element:set_keymap({ mode = 'i', key = '<CR>', desc = 'Take the completion', expr = true }, function()
-      return self.on_accept('<CR>')
-    end)
-    element:set_keymap({ mode = 'i', key = '<Tab>', desc = 'Next completion', expr = true }, function()
-      return self.on_next_item('<Tab>')
-    end)
-  end
+  element:set_keymap({ mode = 'i', key = keys.slash, desc = 'Slash commands', expr = true }, function()
+    return self.delegate.slash()
+  end)
+  element:set_keymap({ mode = 'i', key = keys.reference, desc = 'Reference a file', expr = true }, function()
+    return self.delegate.reference()
+  end)
+  element:set_keymap({ mode = 'i', key = '<CR>', desc = 'Take the completion', expr = true }, function()
+    return self.delegate.accept('<CR>')
+  end)
+  element:set_keymap({ mode = 'i', key = '<Tab>', desc = 'Next completion', expr = true }, function()
+    return self.delegate.next_item('<Tab>')
+  end)
 
   element:set_keymap('n', keys.close, function()
     self:close()
@@ -710,7 +648,7 @@ function ComposerView:_listen()
   end)
 
   element:on('BufEnter', function()
-    if self.on_enter then self.on_enter(self) end
+    self.delegate.entered(self)
   end)
 
   self.group = event.augroup('harness.composer.view.' .. self.session.key)
@@ -748,7 +686,7 @@ function ComposerView:_listen()
       end)
     end
 
-    if self.on_wipe then self.on_wipe(self) end
+    self.delegate.wiped(self)
   end)
 
   return self
@@ -797,7 +735,7 @@ function ComposerView:mount(insert)
   self:_ease_open()
 
   element:set_name(ComposerView.NAME .. '/' .. session.key)
-  local draft = (not self.answering and self.store:draft(session.key)) or { '' }
+  local draft = (self.destination:keeps_draft() and self.store:draft(session.key)) or { '' }
 
   element:set_lines(draft)
   element:set_buf_option('modified', false)

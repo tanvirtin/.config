@@ -2,7 +2,6 @@ local lazy = require('core.lazy')
 
 local vgit = lazy('harness.vgit')
 local Timer = require('core.Timer')
-local core_text = lazy('core.text')
 local event = require('core.event')
 local Buffer = require('core.Buffer')
 local Object = require('core.Object')
@@ -10,26 +9,25 @@ local Window = require('core.Window')
 local follow = lazy('harness.follow')
 local keymap = require('core.keymap')
 local hints = lazy('harness.ui.hints')
-local Toast = lazy('harness.ui.Toast')
 local console = require('core.console')
 local asks = require('harness.ui.asks')
 local links = require('harness.ui.links')
 local winbar = require('harness.ui.winbar')
 local settings = require('harness.settings')
-local theme = lazy('harness.transcript.theme')
 local Document = require('harness.ui.Document')
 local Animator = require('harness.ui.Animator')
 local ASK = require('harness.types.events').ASK
+local FoldText = require('harness.ui.FoldText')
 local PlanPanel = require('harness.ui.PlanPanel')
 local Block = require('harness.transcript.Block')
 local Following = require('harness.ui.Following')
 local motion = lazy('harness.ui.transcript_motion')
 local commands = lazy('harness.ui.transcript_commands')
 local bindings = lazy('harness.ui.transcript_bindings')
+local WaitingNotice = require('harness.ui.WaitingNotice')
 local sticky_bottom = require('harness.ui.sticky_bottom')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 local Layout = require('harness.transcript.calculators.Layout')
-local fold_summary = require('harness.transcript.fold_summary')
 local elicitation_actions = lazy('harness.ui.elicitation_actions')
 local EVENT, NOTICE = require('harness.types.events').KIND, require('harness.types.events').NOTICE
 
@@ -100,6 +98,8 @@ function TranscriptView:constructor(session, opts)
     pacer = Timer(),
     animator = animator,
     plan = PlanPanel(animator),
+    folds = FoldText(document),
+    notice = WaitingNotice(session, buffer.bufnr),
     frame = 1,
     cache = {},
     layout = nil,
@@ -114,7 +114,7 @@ function TranscriptView:constructor(session, opts)
   motion.attach(view)
 
   view.following = Following(function(window)
-    return TranscriptView.reserve(view, window)
+    return view:reserve(window)
   end)
 
   return view
@@ -304,8 +304,8 @@ function TranscriptView:write(history, state)
   )
 end
 
-function TranscriptView.reserve(view, window)
-  if view.composer and view.composer.is_open(view.session) then return 0 end
+function TranscriptView:reserve(window)
+  if self.composer and self.composer.is_open(self.session) then return 0 end
 
   return sticky_bottom.margin(window)
 end
@@ -364,22 +364,7 @@ function TranscriptView:tick()
 end
 
 function TranscriptView:announce_waiting()
-  local waiting = self.session:waiting()
-
-  if #waiting == 0 then return end
-
-  for _, window in ipairs(Window.list_tab()) do
-    if window:get_buffer().bufnr == self.bufnr then return end
-  end
-
-  local what = waiting[1].title or waiting[1].tool or 'a tool'
-
-  local why = waiting[1].kind == ASK.elicitation and 'waiting for your answer' or 'waiting for permission'
-
-  Toast.show(
-    string.format('Harness %s: %s: %s', self.session.key, why, what),
-    { icon = theme.WAITING_ICON[1]:gsub('%s+$', '') }
-  )
+  self.notice:announce()
 end
 
 -- a window that came to show the transcript without BufWinEnter (a split of it,
@@ -543,62 +528,8 @@ function TranscriptView:resolve(kind, text)
   return target and { icon = links.icon(target) } or nil
 end
 
-TranscriptView.SUMMED = { tool = 'tool', message = 'reply' }
-
-TranscriptView.MANY = { tool = 'tools', reply = 'replies' }
-
-function TranscriptView:_children_in(first, last)
-  local counts = {}
-
-  for _, block in ipairs(self.document.blocks) do
-    if block.start >= first and block.start < last then
-      if not block.depth then return nil end
-
-      local noun = TranscriptView.SUMMED[block.kind]
-
-      if noun then counts[noun] = (counts[noun] or 0) + 1 end
-    end
-  end
-
-  local parts = {}
-
-  for _, noun in ipairs({ 'tool', 'reply' }) do
-    local n = counts[noun]
-
-    if n then parts[#parts + 1] = core_text.plural(n, noun, TranscriptView.MANY[noun]) end
-  end
-
-  return #parts > 0 and table.concat(parts, ' · ') or nil
-end
-
-function TranscriptView:_rails(row, last)
-  local document = self.document
-  local block = document:block_at(row)
-  local depth = block and (block.depth or 0) + (row > block.start and 1 or 0) or 0
-
-  if depth == 0 then return '  ' end
-
-  local tail = document:block_at(last)
-  local closes = tail and tail.last_child and last >= tail.start + #tail.lines and row == block.start
-
-  return string.rep(theme.GUTTER, depth - 1) .. (closes and theme.BRANCH_END or theme.GUTTER)
-end
-
-function TranscriptView:_line_summary(first, last)
-  local block = self.document:block_at(first - 1)
-
-  return fold_summary.text(
-    core_text.plural(last - first + 1, 'more line'),
-    vim.list_slice(self.document.lines, first, last),
-    block ~= nil and block.status == Block.STATUS.failed
-  )
-end
-
 function TranscriptView:fold_text(first, last)
-  local children = self:_children_in(first - 1, last)
-  local text = '⋯ ' .. (children or self:_line_summary(first, last))
-
-  return { { self:_rails(first - 1, last - 1), 'UiMuted' }, { text, 'UiMuted' } }
+  return self.folds:text(first, last)
 end
 
 function TranscriptView:_target_at(window)
