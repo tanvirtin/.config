@@ -214,6 +214,19 @@ function Following:_same(now, wanted)
     and (now.skipcol or 0) == (wanted.skipcol or 0)
 end
 
+function Following:_pin(state, window)
+  local cursor = window:get_cursor()
+  local carried = state.lines == nil or cursor[1] >= state.lines
+
+  sticky_bottom.pin(window, self.reserve(window))
+
+  if carried then return end
+
+  local top = window:get_visible_range()
+
+  window:set_cursor({ math.max(cursor[1], top + 1), cursor[2] })
+end
+
 function Following:sync(window)
   if not window:is_valid() then return end
 
@@ -232,7 +245,7 @@ function Following:sync(window)
 
     if resized then self:_restore(state, window) end
 
-    sticky_bottom.pin(window, self.reserve(window))
+    self:_pin(state, window)
   end
 
   state.applied = window:get_view()

@@ -106,6 +106,46 @@ describe('harness.ui.Following:', function()
     assert.is_true(sticky_bottom.at_end(window()))
   end)
 
+  it('leaves a cursor the reader moved up within the window where it is, while the tail stays pinned', function()
+    land()
+    vim.cmd('normal! 3k')
+    settle()
+
+    eq({ 197, true }, { cursor()[1], following:follows(window()) })
+
+    append(1)
+    redraw()
+
+    eq(197, cursor()[1])
+    assert.is_true(sticky_bottom.at_end(window()))
+
+    vim.cmd('normal! j')
+    settle()
+    append(1)
+    redraw()
+
+    eq(198, cursor()[1])
+  end)
+
+  it('carries a cursor on the last line to the new end as the stream grows', function()
+    land()
+    append(3)
+    redraw()
+
+    eq(203, cursor()[1])
+  end)
+
+  it('keeps a moved cursor in view when the stream pushes past it', function()
+    land()
+    vim.cmd('normal! 5k')
+    settle()
+    append(60)
+    redraw()
+
+    eq(vim.fn.line('w0', win), cursor()[1])
+    assert.is_true(sticky_bottom.at_end(window()))
+  end)
+
   it('stops following once the window scrolls away from the end', function()
     land()
     vim.cmd('normal! gg')
