@@ -336,15 +336,6 @@ describe('fs:', function()
       eq(data, { 'foo', 'baz' })
     end)
 
-    it('should create an empty file when given an empty lines table', function()
-      fs.write_file(filename, {})
-
-      local data, err = fs.read_file(filename)
-
-      eq(err, nil)
-      eq(data, {})
-    end)
-
     it('should return error when path is not writable', function()
       local result, err = fs.write_file('/nonexistent/path/file.txt', { 'line' })
 

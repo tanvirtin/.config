@@ -9,10 +9,6 @@ function Window.get_current()
   return Window(vim.api.nvim_get_current_win())
 end
 
-function Window.set_buf(win_id, bufnr)
-  vim.api.nvim_win_set_buf(win_id, bufnr)
-end
-
 function Window.set_current(win_id)
   vim.api.nvim_set_current_win(win_id)
 end
@@ -211,20 +207,6 @@ function Window:fold_level(lnum)
   return level
 end
 
-function Window:split_above(buffer)
-  self:focus()
-  vim.cmd('aboveleft sbuffer ' .. buffer.bufnr)
-
-  return Window(0)
-end
-
-function Window:move_right()
-  self:focus()
-  vim.cmd('wincmd L')
-
-  return self
-end
-
 function Window:split_left(buffer)
   self:focus()
   vim.cmd('vertical aboveleft sbuffer ' .. buffer.bufnr)
@@ -389,15 +371,6 @@ function Window:assign_options(options)
   return self
 end
 
-function Window:get_options(option_names)
-  local options = {}
-  for _, name in ipairs(option_names) do
-    local ok, value = pcall(vim.api.nvim_get_option_value, name, { win = self.win_id })
-    if ok then options[name] = value end
-  end
-  return options
-end
-
 function Window:is_valid()
   return vim.api.nvim_win_is_valid(self.win_id)
 end
@@ -438,12 +411,6 @@ function Window:scroll_to(placement, offset)
   end)
 end
 
-function Window:set_top(lnum)
-  return self:call(function()
-    vim.fn.winrestview({ topline = lnum })
-  end)
-end
-
 function Window:get_view()
   local ok, view = pcall(vim.api.nvim_win_call, self.win_id, vim.fn.winsaveview)
 
@@ -453,14 +420,6 @@ end
 function Window:set_view(view)
   return self:call(function()
     vim.fn.winrestview(view)
-  end)
-end
-
-function Window:scroll_up(rows)
-  if rows < 1 then return self end
-
-  return self:call(function()
-    vim.cmd(string.format('norm! %d\25', rows))
   end)
 end
 

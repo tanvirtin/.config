@@ -545,9 +545,4 @@ function SearchComponent:render()
   end
 end
 
-function SearchComponent:set_loading(value)
-  self._loading = value
-  if self._mounted then self:render() end
-end
-
 return SearchComponent

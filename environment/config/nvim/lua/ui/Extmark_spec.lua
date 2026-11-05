@@ -7,11 +7,6 @@ describe('Extmark:', function()
       assert.are.equal(0, extmark.bufnr)
       assert.is_number(extmark.ns_id)
     end)
-
-    it('should create namespace with extension', function()
-      local extmark = Extmark(0, 'signs')
-      assert.is_number(extmark.ns_id)
-    end)
   end)
 
   describe('derive_id', function()

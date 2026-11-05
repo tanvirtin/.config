@@ -27,10 +27,6 @@ local function warn(message)
   notice.warn(message)
 end
 
-function commands.open(session, opts)
-  return transcript.open(session, opts)
-end
-
 local function current_view()
   local view = transcript.view() or transcript.last()
 
@@ -66,7 +62,7 @@ function commands.run(prompt, opts, range)
     if err then return nil, err end
 
     tools.set_focus(from.win, from.buf)
-    commands.open(session, { source_win = from.win, source_buf = from.buf })
+    transcript.open(session, { source_win = from.win, source_buf = from.buf })
 
     local sent, send_err = hub.send(session, prompt, where)
 
@@ -90,7 +86,7 @@ function commands.new(agent_name)
 
     if err then return nil, err end
 
-    commands.open(session, { source_win = from.win, source_buf = from.buf })
+    transcript.open(session, { source_win = from.win, source_buf = from.buf })
 
     return session
   end)
@@ -307,7 +303,7 @@ function commands.sessions()
 
   return require('harness.ui.sessions').open({
     on_open = function(session)
-      commands.open(session, { source_win = from.win, source_buf = from.buf })
+      transcript.open(session, { source_win = from.win, source_buf = from.buf })
     end,
     on_new = function(agent_name)
       commands.new(agent_name)
@@ -318,7 +314,7 @@ end
 require('harness.session_store').on('start', function(session)
   if session.parent then
     require('core.Timer').defer(0, function()
-      commands.open(session, { background = true })
+      transcript.open(session, { background = true })
     end)
   end
 end)

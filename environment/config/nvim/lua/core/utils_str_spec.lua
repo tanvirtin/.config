@@ -53,10 +53,6 @@ describe('utils.str:', function()
       eq(utils.str.strip('foo/bar/baz', '/bar'), 'foo/baz')
     end)
 
-    it('should remove "foo/baz" from "foo/bar/baz"', function()
-      eq(utils.str.strip('foo/bar/baz', '/bar'), 'foo/baz')
-    end)
-
     it('should remove "helix-core/src" from "helix-core/src/comment.rs"', function()
       eq(utils.str.strip('helix-core/src/comment.rs', 'helix-core/src'), '/comment.rs')
     end)

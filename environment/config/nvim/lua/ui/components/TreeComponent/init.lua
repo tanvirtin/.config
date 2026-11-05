@@ -3,7 +3,6 @@ local settings = require('core.settings')
 
 local fs = lazy('core.fs')
 local utils = lazy('core.utils')
-local event = lazy('core.event')
 local icons = lazy('core.icons')
 local Component = lazy('ui.Component')
 local LayoutSpec = lazy('ui.layout.LayoutSpec')
@@ -165,26 +164,6 @@ function TreeComponent:find_entry(callback)
     local entry_type = node.entry.type
     return callback(status, entry_type, lnum) == true
   end)
-end
-
-function TreeComponent:each_entry(callback)
-  self:each_list_item(function(node, lnum)
-    local status = node.entry and node.entry.status or nil
-    if not status then return false end
-    local entry_type = node.entry.type
-    callback(status, entry_type, lnum)
-  end)
-end
-
-function TreeComponent:move_to(callback)
-  local status, lnum = self:find_entry(callback)
-  if not status then return end
-
-  self:with_element(function(el)
-    el:set_lnum(lnum)
-  end)
-
-  return status
 end
 
 function TreeComponent:get_current_list_item()
@@ -421,16 +400,6 @@ function TreeComponent:generate_lines()
   self.state.virtual_texts = virtual_texts
 
   return foldable_list_shadow
-end
-
-function TreeComponent:set_on_enter(callback)
-  self._on_enter_callback = event.async(callback)
-  return self
-end
-
-function TreeComponent:set_on_move(callback)
-  self._on_move_callback = event.async(callback)
-  return self
 end
 
 function TreeComponent:paint()

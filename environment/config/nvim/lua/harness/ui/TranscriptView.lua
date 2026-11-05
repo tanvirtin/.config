@@ -327,10 +327,6 @@ function TranscriptView:sync(windows)
   end
 end
 
-function TranscriptView:keep_end()
-  self:sync()
-end
-
 function TranscriptView:hold_end()
   self:sync()
 end

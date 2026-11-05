@@ -432,11 +432,6 @@ function Element:apply_layout_win_plot(win_plot)
   return self
 end
 
-function Element:sync_win_options()
-  if self._mounted and self._window and self._window:is_valid() then self:_apply_win_options() end
-  return self
-end
-
 function Element:update_window_options(new_options)
   if not new_options then return self end
 

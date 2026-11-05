@@ -1,3 +1,4 @@
+local console = require('core.console')
 local schema = require('nvim_mcp.schema')
 local util = require('nvim_mcp.tools.util')
 
@@ -20,8 +21,10 @@ end
 
 local function edited(caller)
   return function(diff)
-    for _, fn in pairs(observers) do
-      pcall(fn, caller, diff)
+    for name, fn in pairs(observers) do
+      local ok, err = pcall(fn, caller, diff)
+
+      if not ok then console.warn(string.format('an edit observer (%s) failed: %s', name, tostring(err))) end
     end
   end
 end

@@ -15,10 +15,31 @@ describe('harness.features.EditCheckTime:', function()
     eq(false, EditCheckTime.applies(events.new({ kind = events.KIND.message, text = 'hi' })))
   end)
 
-  it('registers once and cleans up', function()
+  it('reloads on the store\'s tool updates while registered, and stops after cleanup', function()
+    local buffers = require('core.buffers')
+    local session_store = require('harness.session_store')
+    local original = buffers.checktime
+    local reloads = 0
+    local update = events.new({ kind = events.KIND.tool_update, id = 't1', name = 'Edit', status = 'completed' })
+
+    buffers.checktime = function()
+      reloads = reloads + 1
+    end
+
     local feature = EditCheckTime():register_events()
+
+    session_store.dispatch(session_store.EVENT.event, {}, update)
+    vim.wait(50, function()
+      return reloads > 0
+    end)
+    eq(1, reloads)
 
     feature:cleanup()
     feature:cleanup()
+    session_store.dispatch(session_store.EVENT.event, {}, update)
+    vim.wait(50)
+    eq(1, reloads)
+
+    buffers.checktime = original
   end)
 end)

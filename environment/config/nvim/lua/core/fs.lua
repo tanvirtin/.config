@@ -175,10 +175,6 @@ function fs.resolve(filepath)
   return vim.fn.resolve(filepath)
 end
 
-function fs.chdir(dirpath)
-  vim.cmd('cd ' .. vim.fn.fnameescape(dirpath))
-end
-
 function fs.open(filepath)
   vim.cmd('e ' .. vim.fn.fnameescape(filepath))
 end

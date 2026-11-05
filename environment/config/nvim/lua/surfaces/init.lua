@@ -86,7 +86,7 @@ function surfaces.jump(item, how, win)
     local window = Window.get_current()
     local last = window:get_buffer():get_line_count()
 
-    pcall(window.set_cursor, window, { math.min(item.line, last), math.max((item.col or 1) - 1, 0) })
+    window:set_cursor({ math.min(item.line, last), math.max((item.col or 1) - 1, 0) })
     window:normal('zz')
   end
 end

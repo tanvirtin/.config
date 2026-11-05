@@ -13,8 +13,6 @@ function status.list()
   return ok and (sessions or {}) or {}
 end
 
--- The sessions holding a request the reader has to answer: a tool asking for
--- permission, or a question at the end of a turn.
 function status.waiting(list)
   local waiting = {}
 
@@ -90,8 +88,6 @@ function status.jump()
   return require('harness.ui.sessions').open()
 end
 
--- Opens the session waiting for an answer and lands on the request itself, so
--- the reader can answer it without hunting through the transcript.
 function status.to_waiting()
   local waiting = status.waiting()
 

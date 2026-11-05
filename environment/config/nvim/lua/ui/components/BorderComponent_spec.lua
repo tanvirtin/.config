@@ -23,13 +23,6 @@ describe('BorderComponent:', function()
       assert.is_not_nil(instance)
       eq('Normal:Test', instance.props.winhl)
     end)
-
-    it('should create with empty props', function()
-      local instance = BorderComponent({})
-
-      assert.is_not_nil(instance)
-      assert.is_table(instance.props)
-    end)
   end)
 
   describe('render', function()

@@ -55,10 +55,28 @@ describe('harness.features.SkillSync:', function()
     eq(0, runs())
   end)
 
-  it('registers once and cleans up', function()
-    local feature = SkillSync():register_events()
+  it('syncs on a session start once however often it is registered, and not after cleanup', function()
+    local session_store = require('harness.session_store')
+    local feature = SkillSync()
+
+    feature:register_events():register_events()
+    sync_until(1)
+
+    local before = runs()
+
+    session_store.dispatch(session_store.EVENT.start, {})
+    vim.wait(300)
+    eq(before, runs())
+
+    vim.fn.writefile({ 'description: changed' }, dir .. '/skills/a.yml')
+    session_store.dispatch(session_store.EVENT.start, {})
+    eq(true, sync_until(before + 1))
 
     feature:cleanup()
     feature:cleanup()
+    vim.fn.writefile({ 'description: changed again' }, dir .. '/skills/a.yml')
+    session_store.dispatch(session_store.EVENT.start, {})
+    vim.wait(300)
+    eq(before + 1, runs())
   end)
 end)

@@ -102,18 +102,6 @@ function util.list(buf)
   Buffer(buf):set_listed(true)
 end
 
-function util.describe_buf(buf)
-  local buffer = Buffer(buf)
-
-  return {
-    bufnr = buf,
-    path = util.buf_path(buf),
-    filetype = buffer:get_option('filetype'),
-    modified = buffer:get_option('modified'),
-    line_count = buffer:get_line_count(),
-  }
-end
-
 function util.locations(result)
   local out = {}
 

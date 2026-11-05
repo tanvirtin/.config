@@ -170,6 +170,41 @@ describe('nvim_mcp.tools:', function()
     end)
   end)
 
+  describe('an observer that fails', function()
+    after_each(function()
+      tools.observe_edits('broken', nil)
+      tools.observe_edits('after', nil)
+    end)
+
+    it('is reported, and does not stop the edit or the other observers', function()
+      local console = require('core.console')
+      local original = console.warn
+      local warnings, seen = {}, 0
+
+      vim.api.nvim_buf_set_name(buf, vim.fn.tempname() .. '.lua')
+
+      console.warn = function(message)
+        warnings[#warnings + 1] = message
+      end
+      tools.observe_edits('broken', function()
+        error('boom')
+      end)
+      tools.observe_edits('after', function()
+        seen = seen + 1
+      end)
+
+      local result = run('buffer_edit', { bufnr = buf, old_string = 'return y', new_string = 'return x' })
+
+      console.warn = original
+
+      eq(1, result.replacements)
+      eq(1, seen)
+      eq(1, #warnings)
+      assert.truthy(warnings[1]:find('broken', 1, true))
+      assert.truthy(warnings[1]:find('boom', 1, true))
+    end)
+  end)
+
   describe('buffer_edit', function()
     it('replaces a unique match as one undo step and leaves the buffer unsaved', function()
       local result = run('buffer_edit', { bufnr = buf, old_string = 'local y = x', new_string = 'local y = x + 1' })

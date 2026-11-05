@@ -28,10 +28,6 @@ function M.get_folds(bufnr)
   return folds
 end
 
-function M.get_win_option(win_id, key)
-  return vim.api.nvim_get_option_value(key, { win = win_id })
-end
-
 function M.count_windows_for_buf(bufnr)
   local count = 0
   for _, win_id in ipairs(vim.api.nvim_list_wins()) do

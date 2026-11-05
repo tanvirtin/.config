@@ -2,12 +2,8 @@ local geometry = require('harness.ui.composer_geometry')
 
 local sticky_bottom = {}
 
-function sticky_bottom.composer_rows()
-  return geometry.footprint()
-end
-
 function sticky_bottom.margin(window)
-  return math.min(sticky_bottom.composer_rows(), math.floor(window:get_height() / 3))
+  return math.min(geometry.footprint(), math.floor(window:get_height() / 3))
 end
 
 function sticky_bottom.at_end(window)

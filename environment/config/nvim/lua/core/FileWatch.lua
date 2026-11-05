@@ -105,12 +105,6 @@ function FileWatch:start()
   return self:_arm()
 end
 
-function FileWatch:rearm()
-  if self._stopped then return false end
-
-  return self:_arm()
-end
-
 function FileWatch:is_watching()
   return not self._stopped and self._handle ~= nil
 end

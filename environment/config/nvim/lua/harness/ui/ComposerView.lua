@@ -212,12 +212,8 @@ function ComposerView:hints_text()
   end, self:hints()))
 end
 
-function ComposerView:_signature()
-  return self:hints_text()
-end
-
 function ComposerView:refresh()
-  local signature = self:_signature()
+  local signature = self:hints_text()
 
   if signature ~= self.signature then
     self.signature = signature
@@ -238,7 +234,7 @@ function ComposerView:_decorate()
 
   buffer:clear_namespace(ComposerView.NAMESPACE)
 
-  self.signature = self:_signature()
+  self.signature = self:hints_text()
   self.renderer = self.renderer or Renderer(buffer.bufnr)
 
   local drawn = self:lines()

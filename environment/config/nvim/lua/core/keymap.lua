@@ -1,11 +1,5 @@
 local keymap = {}
 
-function keymap.get_key(config)
-  if type(config) == 'string' then return config end
-  if type(config) == 'table' then return config.key end
-  return nil
-end
-
 local function resolve_opts(opts)
   opts = opts or {}
 
@@ -105,27 +99,6 @@ function keymap.lhs_of(command, mode)
       return lhs
     end
   end
-end
-
-function keymap.find_by_rhs(command)
-  local keybindings = {}
-  local modes = { 'n', 'i', 'v', 'x', 's', 'o', 't', 'c' }
-
-  for _, mode in ipairs(modes) do
-    local keymaps = vim.api.nvim_get_keymap(mode)
-
-    for _, binding in ipairs(keymaps) do
-      if binding.rhs and string.find(binding.rhs, command) then
-        table.insert(keybindings, {
-          mode = mode,
-          lhs = binding.lhs,
-          rhs = binding.rhs,
-        })
-      end
-    end
-  end
-
-  return keybindings
 end
 
 return keymap

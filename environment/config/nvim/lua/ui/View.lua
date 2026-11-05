@@ -337,18 +337,6 @@ function View:get_context()
   return self._context
 end
 
-function View:_register_keymap(component, mode, key, handler)
-  local fn, cleanup = event.debounce_async(handler, self.DEBOUNCE_MS or 100)
-  table.insert(self._debounce_cleanups, cleanup)
-  component:set_keymap({ mode = mode, key = key }, fn)
-end
-
-function View:_make_debounced(fn)
-  local debounced, cleanup = event.debounce_async(fn, self.DEBOUNCE_MS or 100)
-  table.insert(self._debounce_cleanups, cleanup)
-  return debounced
-end
-
 function View:_confirm(prompt)
   local decision = console.input(prompt)
   if not decision then return false end
