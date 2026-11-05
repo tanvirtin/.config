@@ -1,3 +1,5 @@
+local text_utils = require('core.text')
+
 local table_layout = {}
 
 table_layout.ALIGN = require('core.dataclass').enum({ 'left', 'center', 'right' })
@@ -13,7 +15,7 @@ table_layout.BORDER = {
 table_layout.HL = { border = 'UiMuted', header = 'UiMarkdownTableHeader', cell = 'UiMarkdownTableCell' }
 
 local function width(text)
-  return vim.fn.strdisplaywidth(text)
+  return text_utils.width(text)
 end
 
 function table_layout.widths(rows)

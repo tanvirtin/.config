@@ -1,3 +1,7 @@
+local Timer = require('core.Timer')
+local Window = require('core.Window')
+local keymap = require('core.keymap')
+local console = require('core.console')
 local Surface = require('surfaces.Surface')
 local View = require('ui.View')
 local SearchComponent = require('ui.components.SearchComponent')
@@ -76,9 +80,7 @@ function Picker:_collect(query)
   local items, scheduled = {}, false
   local source = sources.get(self._opts.source)
 
-  if not source then
-    return vim.notify('Picker: unknown source ' .. tostring(self._opts.source), vim.log.levels.WARN)
-  end
+  if not source then return console.notify_now('Picker: unknown source ' .. tostring(self._opts.source), 'warn') end
 
   self:set_state('loading')
   self._cancel = source.collect(source.live and query or '', self._opts.source_opts or {}, function(batch)
@@ -87,14 +89,14 @@ function Picker:_collect(query)
     if scheduled then return end
 
     scheduled = true
-    vim.defer_fn(function()
+    Timer.defer(30, function()
       scheduled = false
       self:_show(items, source.live)
-    end, 30)
+    end)
   end, function(err)
     self:_show(items, source.live)
     if self.state == 'loading' then self:set_state('ready') end
-    if err then vim.notify(self.title .. ': ' .. err, vim.log.levels.WARN) end
+    if err then console.notify_now(self.title .. ': ' .. err, 'warn') end
   end)
 end
 
@@ -109,7 +111,7 @@ function Picker:_choose(how)
 
   if not item then return end
 
-  vim.schedule(function()
+  Timer.schedule(function()
     self:emit('select', item, how)
 
     if self._opts.on_select then
@@ -127,7 +129,7 @@ function Picker:_send_to_list()
 
   self:close()
 
-  vim.schedule(function()
+  Timer.schedule(function()
     require('surfaces').list({ title = self.title, items = items, owner = self.owner })
   end)
 end
@@ -135,9 +137,9 @@ end
 function Picker:open()
   local source = self._opts.source and sources.get(self._opts.source)
   local live = source and source.live
-  local delay
+  local delay = Timer()
 
-  self._origin = vim.api.nvim_get_current_win()
+  self._origin = Window.get_current().win_id
   self._search = SearchComponent({
     prompt = (self.title or '') .. ' > ',
     items = self._opts.items and vim.tbl_map(entry, self._opts.items) or {},
@@ -152,10 +154,9 @@ function Picker:open()
       self:close()
     end,
     on_search_async = live and function(query)
-      if delay then delay:stop() end
-      delay = vim.defer_fn(function()
+      delay:after(LIVE_DELAY_MS, function()
         self:_collect(query)
-      end, LIVE_DELAY_MS)
+      end)
     end or nil,
   })
 
@@ -186,7 +187,7 @@ function Picker:open()
 
   if source and not live then self:_collect('') end
 
-  if self._opts.query and self._opts.query ~= '' then vim.api.nvim_feedkeys(self._opts.query, 'n', false) end
+  if self._opts.query and self._opts.query ~= '' then keymap.type_text(self._opts.query) end
 
   return self
 end

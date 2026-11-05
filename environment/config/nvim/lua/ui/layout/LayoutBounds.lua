@@ -1,6 +1,7 @@
 local lazy = require('core.lazy')
 
 local Object = lazy('core.Object')
+local Window = lazy('core.Window')
 
 local LayoutBounds = Object:extend()
 
@@ -27,12 +28,12 @@ function LayoutBounds.convert_dimension(value, parent_dimension)
 
     if value:match('vh$') then
       local n = tonumber(value:sub(1, #value - 2))
-      if n then return math.floor((n / 100) * vim.o.lines) end
+      if n then return math.floor((n / 100) * Window.screen_height()) end
     end
 
     if value:match('vw$') then
       local n = tonumber(value:sub(1, #value - 2))
-      if n then return math.floor((n / 100) * vim.o.columns) end
+      if n then return math.floor((n / 100) * Window.screen_width()) end
     end
   end
 end
@@ -41,8 +42,8 @@ function LayoutBounds.from_viewport()
   return LayoutBounds({
     row = 0,
     col = 0,
-    width = vim.o.columns,
-    height = vim.o.lines,
+    width = Window.screen_width(),
+    height = Window.screen_height(),
   })
 end
 

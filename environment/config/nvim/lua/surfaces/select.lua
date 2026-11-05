@@ -1,3 +1,6 @@
+local Timer = require('core.Timer')
+local console = require('core.console')
+
 local select = {}
 
 function select.ui_select(items, opts, on_choice)
@@ -29,7 +32,7 @@ function select.ui_select(items, opts, on_choice)
   })
 
   picker:on('close', function()
-    if picker:chosen() == nil then vim.schedule(function()
+    if picker:chosen() == nil then Timer.schedule(function()
       answer(nil, nil)
     end) end
   end)
@@ -38,7 +41,7 @@ function select.ui_select(items, opts, on_choice)
 end
 
 function select.setup()
-  vim.ui.select = select.ui_select
+  console.set_select(select.ui_select)
 end
 
 return select

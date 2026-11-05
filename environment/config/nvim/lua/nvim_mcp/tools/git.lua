@@ -1,3 +1,8 @@
+local fs = require('core.fs')
+local Buffer = require('core.Buffer')
+local editor = require('core.editor')
+local buffers = require('core.buffers')
+local process = require('core.process')
 local compact = require('compact')
 local schema = require('nvim_mcp.schema')
 local util = require('nvim_mcp.tools.util')
@@ -5,9 +10,9 @@ local util = require('nvim_mcp.tools.util')
 local function git(args, opts)
   opts = opts or {}
 
-  local out = vim
+  local out = process
     .system(vim.list_extend({ 'git' }, args), {
-      cwd = opts.cwd or vim.fn.getcwd(),
+      cwd = opts.cwd or fs.local_cwd(),
       text = true,
       stdin = opts.stdin,
     })
@@ -21,7 +26,7 @@ local function git(args, opts)
 end
 
 local function relative(path)
-  return path and vim.fn.fnamemodify(path, ':.') or nil
+  return path and fs.make_relative(fs.local_cwd(), path) or nil
 end
 
 local function git_status(_, ctx)
@@ -117,9 +122,11 @@ local function vgit(command, args)
   local fargs = vim.list_extend({ command }, vim.deepcopy(args or {}))
 
   if not ok or type(api) ~= 'table' or type(api.run) ~= 'function' then
-    if vim.fn.exists(':VGit') ~= 2 then util.fail('this needs vgit: neither require("vgit").run nor :VGit exists') end
+    if not editor.command_exists('VGit') then
+      util.fail('this needs vgit: neither require("vgit").run nor :VGit exists')
+    end
 
-    local ran, err = pcall(vim.api.nvim_cmd, { cmd = 'VGit', args = fargs }, {})
+    local ran, err = editor.run('VGit', fargs)
 
     if not ran then util.fail(string.format('VGit %s: %s', command, tostring(err))) end
 
@@ -196,7 +203,7 @@ end
 local function apply_hunk(args, cached, flags)
   local buf, path = file_of(args)
 
-  if vim.bo[buf].modified then
+  if Buffer(buf):get_option('modified') then
     util.fail(path .. ' has unsaved changes; save it first (buffer_save) so git sees them')
   end
 
@@ -228,7 +235,8 @@ local function git_stage(args, ctx)
 
   git(args.unstage and { 'restore', '--staged', '--', path } or { 'add', '--', path })
 
-  local note = vim.bo[buf].modified and 'note: the buffer has unsaved changes, which were not staged\n' or ''
+  local note = Buffer(buf):get_option('modified') and 'note: the buffer has unsaved changes, which were not staged\n'
+    or ''
 
   return note .. git_status({}, ctx)
 end
@@ -242,7 +250,7 @@ local function git_discard(args, ctx)
     git({ 'restore', '--', path })
   end
 
-  vim.cmd('checktime')
+  buffers.checktime()
 
   return git_status({}, ctx)
 end

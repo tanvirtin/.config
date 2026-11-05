@@ -1,4 +1,5 @@
 local tone = require('ui.tone')
+local highlight = require('core.highlight')
 local motion = require('ui.motion')
 
 local hl = {}
@@ -49,7 +50,7 @@ hl.GROUPS = {
 }
 
 local function color(group, key)
-  local ok, spec = pcall(vim.api.nvim_get_hl, 0, { name = group, link = false })
+  local ok, spec = pcall(highlight.get_hl_by_name, group)
 
   return ok and spec[key] or nil
 end
@@ -153,7 +154,7 @@ hl.ANSI = {
 
 local function ansi(n)
   return function()
-    local terminal = vim.g['terminal_color_' .. n]
+    local terminal = highlight.terminal_color(n)
 
     if type(terminal) == 'string' and terminal ~= '' then return { fg = terminal } end
 
@@ -340,19 +341,19 @@ end
 
 local function apply(group, spec)
   if spec == false then
-    vim.api.nvim_set_hl(0, group, {})
+    highlight.set(group, {})
   elseif type(spec) == 'string' then
-    vim.api.nvim_set_hl(0, group, { link = spec })
+    highlight.set(group, { link = spec })
   elseif type(spec) == 'function' then
-    vim.api.nvim_set_hl(0, group, spec())
+    highlight.set(group, spec())
   elseif type(spec) == 'table' then
-    vim.api.nvim_set_hl(0, group, spec)
+    highlight.set(group, spec)
   end
 end
 
 function hl.define()
   for group, link in pairs(hl.GROUPS) do
-    vim.api.nvim_set_hl(0, group, { link = link, default = true })
+    highlight.set(group, { link = link, default = true })
   end
 
   local picked = pick_working()
@@ -360,13 +361,13 @@ function hl.define()
   for slot = 1, hl.WORKING_SLOTS do
     local fg = #picked > 0 and picked[(slot - 1) % #picked + 1] or nil
 
-    vim.api.nvim_set_hl(0, 'UiWorking' .. slot, fg and { fg = fg } or { link = hl.WORKING[slot], default = true })
+    highlight.set('UiWorking' .. slot, fg and { fg = fg } or { link = hl.WORKING[slot], default = true })
   end
 
-  if #picked > 0 then vim.api.nvim_set_hl(0, 'UiWorking', { fg = picked[1] }) end
+  if #picked > 0 then highlight.set('UiWorking', { fg = picked[1] }) end
 
   for group, compute in pairs(hl.COMPUTED) do
-    vim.api.nvim_set_hl(0, group, compute())
+    highlight.set(group, compute())
   end
 
   for group, spec in pairs(overrides) do
@@ -376,9 +377,6 @@ end
 
 hl.define()
 
-vim.api.nvim_create_autocmd('ColorScheme', {
-  group = vim.api.nvim_create_augroup('ui.hl', { clear = true }),
-  callback = hl.define,
-})
+highlight.on_colorscheme('ui.hl', hl.define)
 
 return hl

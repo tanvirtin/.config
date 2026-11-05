@@ -48,7 +48,7 @@ function LayoutContext.capture_window_options()
   return {
     options = win_options,
     win_id = win.win_id,
-    bufnr = vim.api.nvim_win_get_buf(win.win_id),
+    bufnr = Window(win.win_id):get_buffer().bufnr,
   }
 end
 
@@ -106,7 +106,7 @@ function LayoutContext:create_parent_bounds()
 end
 
 function LayoutContext:create_lens_bounds(viewport_bounds)
-  local cursor_row = vim.fn.winline() - 1
+  local cursor_row = Window.get_current():get_screen_line() - 1
 
   local lens_start_row = cursor_row + 1
 
@@ -143,7 +143,7 @@ function LayoutContext:restore_window_options()
   end
   if not win or not win:is_valid() then return end
 
-  if self.original_bufnr and vim.api.nvim_win_get_buf(win.win_id) ~= self.original_bufnr then return self end
+  if self.original_bufnr and Window(win.win_id):get_buffer().bufnr ~= self.original_bufnr then return self end
 
   pcall(function()
     win:assign_options(self.original_win_options)

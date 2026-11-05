@@ -1,3 +1,4 @@
+local Window = require('core.Window')
 local Surface = require('surfaces.Surface')
 local View = require('ui.View')
 local LinesComponent = require('ui.components.LinesComponent')
@@ -67,7 +68,7 @@ function List:open()
   local lines, highlights, rows, lnums = self:render()
 
   self._rows, self._lnums = rows, lnums
-  self._origin = vim.api.nvim_get_current_win()
+  self._origin = Window.get_current().win_id
   self._body = LinesComponent({ lines = lines, highlights = highlights, filetype = 'surface_list' })
   self._view = View()
   self._view:_render({

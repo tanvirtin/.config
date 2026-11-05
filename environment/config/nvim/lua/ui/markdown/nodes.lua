@@ -1,3 +1,4 @@
+local treesitter = require('core.treesitter')
 local MarkSpec = require('ui.MarkSpec')
 local table_layout = require('ui.markdown.table')
 
@@ -74,7 +75,7 @@ function Source:last_line()
 end
 
 function Source:node_text(node)
-  return vim.treesitter.get_node_text(node, self.text)
+  return treesitter.node_text(node, self.text)
 end
 
 local NODES = {}

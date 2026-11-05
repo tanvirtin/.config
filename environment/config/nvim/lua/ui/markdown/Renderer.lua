@@ -1,4 +1,7 @@
 local Buffer = require('core.Buffer')
+local Timer = require('core.Timer')
+local text_utils = require('core.text')
+local treesitter = require('core.treesitter')
 local MarkSpec = require('ui.MarkSpec')
 local Object = require('core.Object')
 local nodes = require('ui.markdown.nodes')
@@ -19,7 +22,7 @@ Renderer.NODES = nodes.NODES
 Renderer.HIGHLIGHT_PRIORITY = 100
 Renderer.LINK_PRIORITY = 190
 
-local QUERY = vim.treesitter.query.parse(
+local QUERY = treesitter.parse_query(
   'markdown',
   [[
   (atx_heading) @heading
@@ -33,7 +36,7 @@ local QUERY = vim.treesitter.query.parse(
 ]]
 )
 
-local INLINE_QUERY = vim.treesitter.query.parse(
+local INLINE_QUERY = treesitter.parse_query(
   'markdown_inline',
   [[
   (inline_link (link_destination) @link)
@@ -67,11 +70,11 @@ function Renderer.highlights(lang)
     local ok, query = pcall(function()
       local sources = {}
 
-      for _, file in ipairs(vim.treesitter.query.get_files(lang, 'highlights')) do
-        sources[#sources + 1] = table.concat(vim.fn.readfile(file), '\n')
+      for _, file in ipairs(treesitter.query_files(lang, 'highlights')) do
+        sources[#sources + 1] = table.concat(text_utils.read_file(file), '\n')
       end
 
-      return #sources > 0 and vim.treesitter.query.parse(lang, table.concat(sources, '\n')) or false
+      return #sources > 0 and treesitter.parse_query(lang, table.concat(sources, '\n')) or false
     end)
 
     queries[lang] = ok and query or false
@@ -88,9 +91,9 @@ function Renderer.alias(label)
   if known ~= nil then return known end
 
   local lang = label:match('^%w+_(%w+)$')
-  local ok = lang ~= nil and pcall(vim.treesitter.language.add, lang)
+  local ok = lang ~= nil and pcall(treesitter.add_language, lang)
 
-  if ok then vim.treesitter.language.register(lang, label) end
+  if ok then treesitter.register_language(lang, label) end
 
   aliases[label] = ok and lang or false
 
@@ -117,8 +120,8 @@ function Renderer.ready(lang, on_ready)
     if not waiting[lang] then
       waiting[lang] = {}
 
-      vim.schedule(function()
-        pcall(vim.treesitter.query.get, lang, 'highlights')
+      Timer.schedule(function()
+        pcall(treesitter.query, lang, 'highlights')
         warm[lang] = true
 
         local callbacks = waiting[lang]
@@ -144,8 +147,8 @@ function Renderer.syntax(text, lang)
   if cached then return cached end
 
   local spans = {}
-  local found, query = pcall(vim.treesitter.query.get, lang, 'highlights')
-  local ok, parser = pcall(vim.treesitter.get_string_parser, text, lang, { injections = { [lang] = '' } })
+  local found, query = pcall(treesitter.query, lang, 'highlights')
+  local ok, parser = pcall(treesitter.string_parser, text, lang, { injections = { [lang] = '' } })
 
   if found and query and ok and parser then
     local tree = parser:parse(true)[1]
@@ -155,7 +158,7 @@ function Renderer.syntax(text, lang)
         local name = query.captures[id]
 
         if name:sub(1, 1) ~= '_' and name ~= 'spell' and name ~= 'nospell' and name ~= 'conceal' then
-          local range = vim.treesitter.get_range(node, text, metadata[id])
+          local range = treesitter.range(node, text, metadata[id])
 
           if range[1] == 0 then
             spans[#spans + 1] = {
@@ -241,7 +244,7 @@ local function highlight(out, parser, src, first, last)
       local name = query.captures[id]
 
       if name:sub(1, 1) ~= '_' and name ~= 'spell' and name ~= 'nospell' then
-        local range = vim.treesitter.get_range(node, src.text, metadata[id])
+        local range = treesitter.range(node, src.text, metadata[id])
         local opts = {
           end_row = range[4] + src.offset,
           end_col = range[5],
@@ -304,7 +307,7 @@ function Renderer:annotate(lines, offset, from)
   register_aliases(lines)
 
   local src = nodes.source(lines, offset)
-  local ok, parser = pcall(vim.treesitter.get_string_parser, src.text, 'markdown')
+  local ok, parser = pcall(treesitter.string_parser, src.text, 'markdown')
 
   if not ok or not parser then return out end
 
@@ -337,7 +340,7 @@ function Renderer:inline_at(row, col)
 
   if not line or line == '' then return nil end
 
-  local parser = vim.treesitter.get_string_parser(line, 'markdown')
+  local parser = treesitter.string_parser(line, 'markdown')
 
   parser:parse(true)
 
@@ -354,11 +357,11 @@ function Renderer:inline_at(row, col)
       if type == 'inline_link' then
         for part in node:iter_children() do
           if part:type() == 'link_destination' then
-            return Renderer.INLINE.link, inline_text(vim.treesitter.get_node_text(part, line), Renderer.INLINE.link)
+            return Renderer.INLINE.link, inline_text(treesitter.node_text(part, line), Renderer.INLINE.link)
           end
         end
       elseif type == 'code_span' then
-        return Renderer.INLINE.code, inline_text(vim.treesitter.get_node_text(node, line), Renderer.INLINE.code)
+        return Renderer.INLINE.code, inline_text(treesitter.node_text(node, line), Renderer.INLINE.code)
       end
 
       node = node:parent()

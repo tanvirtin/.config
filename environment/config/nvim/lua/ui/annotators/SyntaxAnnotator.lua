@@ -1,6 +1,7 @@
 local lazy = require('core.lazy')
 
 local Object = lazy('core.Object')
+local treesitter = lazy('core.treesitter')
 
 local SyntaxAnnotator = Object:extend()
 
@@ -46,14 +47,14 @@ end
 
 function SyntaxAnnotator:_parse_highlights(source, filetype)
   local highlights = {}
-  local lang = vim.treesitter.language.get_lang(filetype) or filetype
+  local lang = treesitter.language_of(filetype) or filetype
 
-  if not pcall(vim.treesitter.language.add, lang) then return highlights end
+  if not pcall(treesitter.add_language, lang) then return highlights end
 
-  local ok, parser = pcall(vim.treesitter.get_string_parser, source, lang)
+  local ok, parser = pcall(treesitter.string_parser, source, lang)
   if not ok or not parser then return highlights end
 
-  local query_ok, query = pcall(vim.treesitter.query.get, lang, 'highlights')
+  local query_ok, query = pcall(treesitter.query, lang, 'highlights')
   if not query_ok or not query then return highlights end
 
   local tree = parser:parse()[1]

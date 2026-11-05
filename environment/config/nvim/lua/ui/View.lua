@@ -162,8 +162,7 @@ function View:_create_screen_splits(layout)
     local child_wins = {}
     child_wins[1] = Window.get_current()
     for i = 2, #children do
-      vim.cmd(split_cmd)
-      child_wins[i] = Window.get_current()
+      child_wins[i] = Window.split(split_cmd)
     end
 
     for i, child in ipairs(children) do
@@ -286,12 +285,12 @@ function View:_render(layout_config)
   self:_prepare_layout(layout_config)
   local scratch_buffer
   if self._context:is_screen_mode() then
-    vim.api.nvim_command('tabnew')
+    Window.new_tab()
     scratch_buffer = Buffer(0)
   elseif self._context:is_split_mode() then
     local height = layout_config.split_height or 20
     local direction = layout_config.split_direction or 'botright'
-    vim.cmd(string.format('%s %dsplit', direction, height))
+    Window.split(string.format('%s %dsplit', direction, height))
   end
   self:_mount_components()
   self:_render_layout()

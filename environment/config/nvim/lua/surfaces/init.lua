@@ -1,3 +1,6 @@
+local Buffer = require('core.Buffer')
+local Window = require('core.Window')
+
 local surfaces = {}
 
 local open = {}
@@ -64,26 +67,27 @@ function surfaces.close_all()
   end
 end
 
-local OPEN = { edit = 'edit', split = 'split', vsplit = 'vsplit', tab = 'tabedit' }
-
 function surfaces.jump(item, how, win)
-  if win and vim.api.nvim_win_is_valid(win) then vim.api.nvim_set_current_win(win) end
+  local origin = win and Window(win)
+
+  if origin and origin:is_valid() then origin:focus() end
 
   local bufnr = item.data and item.data.bufnr
 
-  if bufnr and vim.api.nvim_buf_is_valid(bufnr) and (how or 'edit') == 'edit' then
-    vim.api.nvim_set_current_buf(bufnr)
+  if Buffer.exists(bufnr) and (how or 'edit') == 'edit' then
+    Window.get_current():set_buffer(Buffer(bufnr))
   elseif item.path then
-    vim.cmd((OPEN[how or 'edit'] or 'edit') .. ' ' .. vim.fn.fnameescape(item.path))
+    Window.open_path(item.path, how)
   else
     return
   end
 
   if item.line then
-    local last = vim.api.nvim_buf_line_count(0)
+    local window = Window.get_current()
+    local last = window:get_buffer():get_line_count()
 
-    pcall(vim.api.nvim_win_set_cursor, 0, { math.min(item.line, last), math.max((item.col or 1) - 1, 0) })
-    vim.cmd('normal! zz')
+    pcall(window.set_cursor, window, { math.min(item.line, last), math.max((item.col or 1) - 1, 0) })
+    window:normal('zz')
   end
 end
 

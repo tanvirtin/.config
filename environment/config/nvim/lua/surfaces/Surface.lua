@@ -1,4 +1,5 @@
 local Object = require('core.Object')
+local console = require('core.console')
 local schema = require('nvim_mcp.schema')
 
 local Surface = Object:extend()
@@ -127,7 +128,7 @@ function Surface:emit(event, ...)
     local ok, err = pcall(fn, ...)
 
     if not ok then
-      vim.notify('surface ' .. tostring(self.id) .. ' ' .. event .. ': ' .. tostring(err), vim.log.levels.WARN)
+      console.notify_now('surface ' .. tostring(self.id) .. ' ' .. event .. ': ' .. tostring(err), 'warn')
     end
   end
 end

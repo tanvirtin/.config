@@ -1,3 +1,4 @@
+local editor = require('core.editor')
 local schema = require('nvim_mcp.schema')
 local script = require('nvim_mcp.script')
 
@@ -20,7 +21,7 @@ return {
     summary = 'Run an Ex command (for example "messages" or "%s/a/b/g") and return its output.',
     params = { { name = 'command', type = schema.str() } },
     fn = function(args)
-      return vim.api.nvim_exec2(args.command, { output = true }).output
+      return editor.exec(args.command)
     end,
   },
 }

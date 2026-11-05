@@ -1,3 +1,5 @@
+local Buffer = require('core.Buffer')
+local fs = require('core.fs')
 local schema = require('nvim_mcp.schema')
 local util = require('nvim_mcp.tools.util')
 
@@ -5,24 +7,25 @@ local MAX_READ_LINES = 2000
 
 local function buffer_read(args)
   local buf = util.resolve(args)
-  local total = vim.api.nvim_buf_line_count(buf)
+  local buffer = Buffer(buf)
+  local total = buffer:get_line_count()
   local first = math.max(args.start_line or 1, 1)
   local last = math.min(args.end_line or total, total, first + MAX_READ_LINES - 1)
   local out = {}
 
-  for i, line in ipairs(vim.api.nvim_buf_get_lines(buf, first - 1, last, false)) do
+  for i, line in ipairs(buffer:get_lines(first - 1, last)) do
     out[i] = string.format('%6d\t%s', first + i - 1, line)
   end
 
   local path = util.buf_path(buf)
   local header = string.format(
     '%s (bufnr %d, lines %d-%d of %d%s)',
-    path and vim.fn.fnamemodify(path, ':~:.') or '[No Name]',
+    path and fs.display(path) or '[No Name]',
     buf,
     first,
     last,
     total,
-    vim.bo[buf].modified and ', unsaved changes' or ''
+    buffer:get_option('modified') and ', unsaved changes' or ''
   )
 
   return header .. '\n' .. table.concat(out, '\n')
@@ -30,7 +33,7 @@ end
 
 local function treesitter_node(args)
   local buf = util.resolve(args)
-  local node = vim.treesitter.get_node({ bufnr = buf, pos = { args.line - 1, (args.col or 1) - 1 } })
+  local node = Buffer(buf):node_at(args.line - 1, (args.col or 1) - 1)
 
   if not node then return vim.NIL end
 
@@ -76,7 +79,7 @@ local function buffer_edit(args, ctx)
   if args.old_string == args.new_string then util.fail('old_string and new_string are identical') end
 
   local buf = util.resolve(args)
-  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local lines = Buffer(buf):get_lines()
   local text = table.concat(lines, '\n')
   local found = occurrences(text, args.old_string)
 
@@ -94,7 +97,7 @@ local function buffer_edit(args, ctx)
 
   util.break_undo(buf)
   util.list(buf)
-  vim.api.nvim_buf_set_lines(buf, first - 1, last, false, new_lines)
+  Buffer(buf):replace_lines(first - 1, last, new_lines)
   report(ctx, { path = util.buf_path(buf), old = args.old_string, new = args.new_string })
 
   return {
@@ -113,11 +116,11 @@ local function buffer_write(args, ctx)
 
   if #new_lines > 1 and new_lines[#new_lines] == '' then new_lines[#new_lines] = nil end
 
-  local old = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+  local old = table.concat(Buffer(buf):get_lines(), '\n')
 
   util.break_undo(buf)
   util.list(buf)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, new_lines)
+  Buffer(buf):replace_lines(0, -1, new_lines)
   report(ctx, { path = util.buf_path(buf), old = old, new = table.concat(new_lines, '\n') })
 
   return { path = util.buf_path(buf), bufnr = buf, line_count = #new_lines, saved = false }
@@ -128,9 +131,7 @@ local function buffer_save(args)
 
   if not util.buf_path(buf) then util.fail('bufnr ' .. buf .. ' has no file name to save to') end
 
-  vim.api.nvim_buf_call(buf, function()
-    vim.cmd('silent write ++p')
-  end)
+  Buffer(buf):write()
 
   return { path = util.buf_path(buf), bufnr = buf, saved = true }
 end

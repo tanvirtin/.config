@@ -1,3 +1,4 @@
+local Window = require('core.Window')
 local Surface = require('surfaces.Surface')
 local View = require('ui.View')
 local LinesComponent = require('ui.components.LinesComponent')
@@ -40,7 +41,7 @@ function Panel:open()
     component = self._body,
     mode = 'popup',
     width = self._width,
-    height = self._height or math.min(#lines + 2, math.floor(vim.o.lines * 0.7)),
+    height = self._height or math.min(#lines + 2, math.floor(Window.screen_height() * 0.7)),
   })
 
   for _, key in ipairs({ 'q', '<Esc>' }) do

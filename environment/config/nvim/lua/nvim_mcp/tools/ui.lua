@@ -1,3 +1,7 @@
+local fs = require('core.fs')
+local Timer = require('core.Timer')
+local Window = require('core.Window')
+local editor = require('core.editor')
 local compact = require('compact')
 local schema = require('nvim_mcp.schema')
 local sources = require('sources')
@@ -31,7 +35,7 @@ local function source_opts(args)
 
   if args.source == 'diagnostics' then return { buf = (args.path or args.bufnr) and util.resolve(args) or nil } end
 
-  return { cwd = args.path and vim.fs.normalize(vim.fn.fnamemodify(args.path, ':p')) or nil }
+  return { cwd = args.path and fs.normalize(fs.full_path(args.path)) or nil }
 end
 
 local function render(items, args)
@@ -123,7 +127,7 @@ local function ui_command(args)
   local target = surface(args.surface)
   local result = target:command(args.command, args.args or {})
 
-  vim.wait(args.wait_ms or WAIT_MS, function()
+  Timer.wait(args.wait_ms or WAIT_MS, function()
     return target.state ~= 'loading'
   end, 10)
 
@@ -141,9 +145,9 @@ local function ui_screen(args, ctx)
 end
 
 local function ui_keys(args, ctx)
-  if args.win then vim.api.nvim_set_current_win(args.win) end
+  if args.win then Window(args.win):focus() end
 
-  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(args.keys, true, false, true), 'mx', false)
+  editor.press(args.keys)
 
   return ui_screen({ budget = args.budget }, ctx)
 end

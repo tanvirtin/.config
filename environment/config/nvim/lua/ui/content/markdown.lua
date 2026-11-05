@@ -1,3 +1,4 @@
+local treesitter = require('core.treesitter')
 local hit_test = require('harness.ui.hit_test')
 
 local function cell(block, row, col)
@@ -11,7 +12,7 @@ local function cell(block, row, col)
   if relative < 0 or relative >= #lines then return nil end
 
   local text = table.concat(lines, '\n')
-  local ok, parser = pcall(vim.treesitter.get_string_parser, text, 'markdown')
+  local ok, parser = pcall(treesitter.string_parser, text, 'markdown')
 
   if not ok or not parser then return nil end
 
@@ -27,7 +28,7 @@ local function cell(block, row, col)
 
   if not node then return nil end
 
-  return { text = vim.trim(vim.treesitter.get_node_text(node, text)), kind = 'cell' }
+  return { text = vim.trim(treesitter.node_text(node, text)), kind = 'cell' }
 end
 
 hit_test.bind('markdown', cell)
