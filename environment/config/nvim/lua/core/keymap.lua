@@ -89,6 +89,10 @@ function keymap.feed(keys, mode)
   vim.api.nvim_feedkeys(vim.keycode(keys), mode or 'n', false)
 end
 
+function keymap.type_text(text)
+  vim.api.nvim_feedkeys(text, 'n', false)
+end
+
 function keymap.find_by_rhs(command)
   local keybindings = {}
   local modes = { 'n', 'i', 'v', 'x', 's', 'o', 't', 'c' }

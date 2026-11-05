@@ -241,6 +241,40 @@ function Buffer:save()
   return self
 end
 
+function Buffer:node_at(row, col)
+  return vim.treesitter.get_node({ bufnr = self.bufnr, pos = { row, col } })
+end
+
+function Buffer:write()
+  self:call(function()
+    vim.cmd('silent write ++p')
+  end)
+
+  return self
+end
+
+function Buffer:load()
+  vim.fn.bufload(self.bufnr)
+
+  return self
+end
+
+function Buffer:is_listed()
+  return self:get_option('buflisted')
+end
+
+function Buffer:set_listed(listed)
+  vim.api.nvim_set_option_value('buflisted', listed, { buf = self.bufnr })
+
+  return self
+end
+
+function Buffer:replace_lines(top, bot, lines)
+  vim.api.nvim_buf_set_lines(self.bufnr, top, bot, false, lines)
+
+  return self
+end
+
 function Buffer:delete(opts)
   opts = opts or {}
   opts = vim.tbl_extend('keep', opts, { force = true })

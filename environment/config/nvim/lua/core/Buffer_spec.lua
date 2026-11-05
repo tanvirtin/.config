@@ -464,4 +464,37 @@ describe('Buffer:', function()
       vim.api.nvim_buf_delete(listed.bufnr, { force = true })
     end)
   end)
+
+  describe('strict edits', function()
+    it('replaces lines, and raises where set_lines would stay quiet', function()
+      local buffer = Buffer():create(true, true)
+
+      buffer:replace_lines(0, -1, { 'a', 'b' })
+      eq({ 'a', 'b' }, buffer:get_lines())
+
+      buffer:set_option('modifiable', false)
+      assert.has_error(function()
+        buffer:replace_lines(0, -1, { 'c' })
+      end)
+
+      buffer:delete()
+    end)
+
+    it('lists, loads and writes a file buffer, making missing directories', function()
+      local dir = vim.fn.tempname()
+      local path = dir .. '/deep/file.txt'
+      local buffer = Buffer(vim.fn.bufadd(path))
+
+      buffer:load():set_listed(true)
+      eq(true, buffer:is_listed())
+      buffer:set_listed(false)
+      eq(false, buffer:is_listed())
+
+      buffer:replace_lines(0, -1, { 'saved' }):write()
+      eq({ 'saved' }, vim.fn.readfile(path))
+
+      buffer:delete()
+      vim.fn.delete(dir, 'rf')
+    end)
+  end)
 end)

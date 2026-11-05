@@ -81,4 +81,17 @@ describe('keymap.count:', function()
 
     assert.are.same({ 3, 1 }, counts)
   end)
+
+  it('types text as it is, without reading it as key names', function()
+    local original = vim.api.nvim_feedkeys
+    local typed
+
+    vim.api.nvim_feedkeys = function(...)
+      typed = { ... }
+    end
+    keymap.type_text('<Esc>')
+    vim.api.nvim_feedkeys = original
+
+    assert.are.same({ '<Esc>', 'n', false }, typed)
+  end)
 end)

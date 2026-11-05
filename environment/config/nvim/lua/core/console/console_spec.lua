@@ -155,4 +155,19 @@ describe('console:', function()
       assert.are.same('b', picked)
     end)
   end)
+
+  describe('set_select', function()
+    it('replaces what asks the user to choose', function()
+      local original = vim.ui.select
+      local asked
+
+      console.set_select(function(items)
+        asked = items
+      end)
+      console.select({ 'a' }, {}, function() end)
+      vim.ui.select = original
+
+      assert.are.same({ 'a' }, asked)
+    end)
+  end)
 end)

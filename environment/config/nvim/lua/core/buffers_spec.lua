@@ -92,4 +92,16 @@ describe('core.buffers:', function()
       os.remove(path)
     end)
   end)
+
+  describe('add', function()
+    it('makes a buffer for a path without listing it', function()
+      local path = vim.fn.tempname()
+      local buffer = buffers.add(path)
+
+      eq(false, buffer:is_listed())
+      eq(vim.fn.resolve(path), vim.fn.resolve(buffer:get_name()))
+
+      buffer:delete()
+    end)
+  end)
 end)

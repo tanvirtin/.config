@@ -10,6 +10,25 @@ function highlight.get_hl_by_name(name)
   return vim.api.nvim_get_hl(0, { name = name, link = false })
 end
 
+function highlight.set(group, spec)
+  vim.api.nvim_set_hl(0, group, spec)
+
+  return highlight
+end
+
+function highlight.terminal_color(n)
+  return vim.g['terminal_color_' .. n]
+end
+
+function highlight.on_colorscheme(name, callback)
+  vim.api.nvim_create_autocmd('ColorScheme', {
+    group = vim.api.nvim_create_augroup(name, { clear = true }),
+    callback = callback,
+  })
+
+  return highlight
+end
+
 function highlight.define(group, color, force)
   if type(color) == 'string' then
     vim.api.nvim_exec2(string.format('highlight default link %s %s', group, color), {})

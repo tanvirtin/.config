@@ -31,6 +31,18 @@ function Window.redraw_bars()
   vim.cmd('redrawstatus!')
 end
 
+function Window.screen_height()
+  return vim.o.lines
+end
+
+Window.OPEN = { edit = 'edit', split = 'split', vsplit = 'vsplit', tab = 'tabedit' }
+
+function Window.open_path(path, how)
+  vim.cmd((Window.OPEN[how or 'edit'] or 'edit') .. ' ' .. vim.fn.fnameescape(path))
+
+  return Window.get_current()
+end
+
 function Window.screen_width()
   return vim.o.columns
 end
@@ -56,6 +68,22 @@ end
 
 function Window.list_tab()
   return vim.tbl_map(Window, vim.api.nvim_tabpage_list_wins(0))
+end
+
+function Window.new_tab()
+  vim.cmd('tabnew')
+
+  return Window.get_current()
+end
+
+function Window.split(command)
+  vim.cmd(command)
+
+  return Window.get_current()
+end
+
+function Window:get_screen_line()
+  return vim.fn.winline()
 end
 
 function Window.split_top()
@@ -266,6 +294,12 @@ function Window:get_cursor()
   if not ok or not cursor then return { 1, 0 } end
 
   return cursor
+end
+
+function Window:move_cursor(row, col)
+  vim.api.nvim_win_set_cursor(self.win_id, { row, col })
+
+  return self
 end
 
 function Window:get_lnum()

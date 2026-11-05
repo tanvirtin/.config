@@ -522,4 +522,41 @@ describe('Window:', function()
       eq(Window.current_tab(), Window(0):get_tab())
     end)
   end)
+
+  describe('opening a path', function()
+    it('opens it the way it is asked to, and reports the screen height', function()
+      local path = vim.fn.tempname()
+
+      vim.fn.writefile({ 'a', 'b' }, path)
+
+      local before = #vim.api.nvim_tabpage_list_wins(0)
+      local window = Window.open_path(path, 'split')
+
+      eq(before + 1, #vim.api.nvim_tabpage_list_wins(0))
+      local buffer = window:get_buffer()
+
+      eq(vim.fn.resolve(path), vim.fn.resolve(buffer:get_name()))
+      eq(vim.o.lines, Window.screen_height())
+
+      window:close()
+      buffer:delete()
+      os.remove(path)
+    end)
+  end)
+
+  describe('move_cursor', function()
+    it('moves the cursor, and raises for a window that is gone', function()
+      local buffer = Buffer():create(true, true)
+
+      buffer:set_lines({ 'one', 'two' })
+      Window.get_current():set_buffer(buffer)
+
+      local window = Window.get_current():move_cursor(2, 1)
+
+      eq({ 2, 1 }, window:get_cursor())
+      assert.has_error(function()
+        Window(99999):move_cursor(1, 0)
+      end)
+    end)
+  end)
 end)

@@ -29,6 +29,10 @@ function buffers.listed()
   return result
 end
 
+function buffers.add(path)
+  return Buffer(vim.fn.bufadd(path))
+end
+
 function buffers.load(path)
   local bufnr = vim.fn.bufadd(path)
 

@@ -72,6 +72,10 @@ function console.select(items, opts, on_choice)
   return vim.ui.select(items, opts, on_choice)
 end
 
+function console.set_select(fn)
+  vim.ui.select = fn
+end
+
 function console.open_url(url)
   return vim.ui.open(url)
 end
