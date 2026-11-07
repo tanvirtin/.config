@@ -1,4 +1,4 @@
-local tour_scope = require('harness.tour_scope')
+local walkthrough_scope = require('harness.walkthrough_scope')
 
 local eq = assert.are.same
 
@@ -10,7 +10,7 @@ local function sh(dir, ...)
   return vim.trim(result.stdout)
 end
 
-describe('harness.tour_scope:', function()
+describe('harness.walkthrough_scope:', function()
   local dir, first, second, third
 
   before_each(function()
@@ -46,7 +46,7 @@ describe('harness.tour_scope:', function()
   end)
 
   it('reads the commits and the changed hunks between two commits', function()
-    local scope = assert(tour_scope.compute(dir, first, second))
+    local scope = assert(walkthrough_scope.compute(dir, first, second))
 
     eq(
       { 'second: touch a, add b' },
@@ -73,7 +73,7 @@ describe('harness.tour_scope:', function()
   end)
 
   it('defaults to the branch\'s changes against main, ending at what is checked out', function()
-    local scope = assert(tour_scope.compute(dir))
+    local scope = assert(walkthrough_scope.compute(dir))
 
     eq(first, scope.base)
     eq(third, scope.head)
@@ -83,7 +83,7 @@ describe('harness.tour_scope:', function()
   end)
 
   it('lists a deleted file without hunks, since it has no lines at the end', function()
-    local scope = assert(tour_scope.compute(dir, second, third))
+    local scope = assert(walkthrough_scope.compute(dir, second, third))
 
     eq(
       { 'a.lua' },
@@ -94,7 +94,7 @@ describe('harness.tour_scope:', function()
   end)
 
   it('says when a commit does not exist here, instead of guessing', function()
-    local scope, err = tour_scope.compute(dir, 'deadbeef00', 'HEAD')
+    local scope, err = walkthrough_scope.compute(dir, 'deadbeef00', 'HEAD')
 
     eq(nil, scope)
     eq('no commit "deadbeef00" in this repository', err)
@@ -103,17 +103,17 @@ describe('harness.tour_scope:', function()
   it('asks for a base when there is nothing to compare with', function()
     sh(dir, 'branch', '-m', 'main', 'trunk')
 
-    local scope, err = tour_scope.compute(dir)
+    local scope, err = walkthrough_scope.compute(dir)
 
     eq(nil, scope)
     assert.truthy(err:find('give a base commit', 1, true))
   end)
 
   it('finds the hunks no step touches', function()
-    local scope = assert(tour_scope.compute(dir, first, second))
+    local scope = assert(walkthrough_scope.compute(dir, first, second))
     local a = scope.files[1].absolute
 
-    local missing = tour_scope.uncovered(scope, {
+    local missing = walkthrough_scope.uncovered(scope, {
       { path = a, line = 1, end_line = 3 },
       { path = scope.files[2].absolute, line = 1, end_line = 1 },
     })
@@ -121,7 +121,7 @@ describe('harness.tour_scope:', function()
     eq({ { path = 'a.lua', absolute = a, first = 7, last = 7 } }, missing)
     eq(
       {},
-      tour_scope.uncovered(scope, {
+      walkthrough_scope.uncovered(scope, {
         { path = a, line = 2, end_line = 7 },
         { path = scope.files[2].absolute, line = 2, end_line = 2 },
       })
@@ -129,11 +129,11 @@ describe('harness.tour_scope:', function()
   end)
 
   it('counts a hunk covered by any range of a step that spans several', function()
-    local scope = assert(tour_scope.compute(dir, first, second))
+    local scope = assert(walkthrough_scope.compute(dir, first, second))
 
     eq(
       {},
-      tour_scope.uncovered(scope, {
+      walkthrough_scope.uncovered(scope, {
         {
           ranges = {
             { path = scope.files[1].absolute, line = 2, end_line = 7 },
@@ -145,8 +145,8 @@ describe('harness.tour_scope:', function()
   end)
 
   it('reads a file as it was at a commit', function()
-    eq({ 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', '' }, tour_scope.show(dir, first, 'a.lua'))
-    eq(true, tour_scope.exists_at(dir, second, 'b.lua'))
-    eq(false, tour_scope.exists_at(dir, third, 'b.lua'))
+    eq({ 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', '' }, walkthrough_scope.show(dir, first, 'a.lua'))
+    eq(true, walkthrough_scope.exists_at(dir, second, 'b.lua'))
+    eq(false, walkthrough_scope.exists_at(dir, third, 'b.lua'))
   end)
 end)

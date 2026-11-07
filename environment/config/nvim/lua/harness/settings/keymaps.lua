@@ -47,7 +47,7 @@ return Config({
     quickfix = 'gl',
     quickfix_session = 'gL',
   },
-  tour = {
+  walkthrough = {
     next = ']]',
     previous = '[[',
     stop = '<C-q>',

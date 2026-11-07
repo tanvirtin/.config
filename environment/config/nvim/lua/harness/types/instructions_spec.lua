@@ -15,7 +15,7 @@ describe('harness.types.instructions:', function()
     local text = instructions.text()
 
     assert.is_truthy(text:find('buffer_save', 1, true))
-    assert.is_truthy(text:find('tour_start', 1, true))
+    assert.is_truthy(text:find('walkthrough_start', 1, true))
     assert.is_truthy(text:find('leave its configuration alone', 1, true))
   end)
 

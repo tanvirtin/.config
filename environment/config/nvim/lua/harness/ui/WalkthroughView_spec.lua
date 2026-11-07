@@ -1,5 +1,5 @@
-local TourView = require('harness.ui.TourView')
-local tour_type = require('harness.types.tour')
+local WalkthroughView = require('harness.ui.WalkthroughView')
+local walkthrough_type = require('harness.types.walkthrough')
 
 local eq = assert.are.same
 
@@ -17,7 +17,7 @@ local function marks(buf, namespace)
   return vim.api.nvim_buf_get_extmarks(buf, namespace, 0, -1, { details = true })
 end
 
-describe('harness.ui.TourView:', function()
+describe('harness.ui.WalkthroughView:', function()
   local dir, view, data
 
   before_each(function()
@@ -35,7 +35,7 @@ describe('harness.ui.TourView:', function()
     vim.fn.writefile(lines, dir .. '/a.lua')
     vim.fn.writefile({ 'alpha', 'beta' }, dir .. '/b.lua')
 
-    data = assert(tour_type.parse({
+    data = assert(walkthrough_type.parse({
       title = 'Walk',
       summary = 'Two places.',
       steps = {
@@ -61,7 +61,7 @@ describe('harness.ui.TourView:', function()
   end
 
   it('opens the first step\'s file at its lines, centres it and marks the range', function()
-    view = TourView(data)
+    view = WalkthroughView(data)
 
     assert.is_true(view:start())
 
@@ -70,14 +70,14 @@ describe('harness.ui.TourView:', function()
     eq(real(dir .. '/a.lua'), real(vim.api.nvim_buf_get_name(buf)))
     eq(10, vim.api.nvim_win_get_cursor(0)[1])
 
-    local shown = marks(buf, TourView.SHOW)
+    local shown = marks(buf, WalkthroughView.SHOW)
 
     eq({ 9, 12 }, { shown[1][2], shown[1][4].end_row })
     assert.truthy(shown[2][4].virt_text[1][1]:find('1/3 · First', 1, true))
   end)
 
-  it('starts at a given step, so a stopped tour can come back where it was', function()
-    view = TourView(data)
+  it('starts at a given step, so a stopped walkthrough can come back where it was', function()
+    view = WalkthroughView(data)
 
     assert.is_true(view:start(2))
     eq(2, view.index)
@@ -85,7 +85,7 @@ describe('harness.ui.TourView:', function()
   end)
 
   it('shows the note beside the code, with the summary on the first step only', function()
-    view = TourView(data)
+    view = WalkthroughView(data)
     view:start()
 
     eq(1, #floats())
@@ -105,7 +105,7 @@ describe('harness.ui.TourView:', function()
   end)
 
   it('goes to the next and previous step, across files, and clears the last range as it goes', function()
-    view = TourView(data)
+    view = WalkthroughView(data)
     view:start()
 
     local first = vim.api.nvim_get_current_buf()
@@ -114,8 +114,8 @@ describe('harness.ui.TourView:', function()
 
     eq(real(dir .. '/b.lua'), real(vim.api.nvim_buf_get_name(0)))
     eq(2, vim.api.nvim_win_get_cursor(0)[1])
-    eq({}, marks(first, TourView.SHOW))
-    assert.is_true(#marks(0, TourView.SHOW) > 0)
+    eq({}, marks(first, WalkthroughView.SHOW))
+    assert.is_true(#marks(0, WalkthroughView.SHOW) > 0)
 
     view:previous()
 
@@ -127,8 +127,8 @@ describe('harness.ui.TourView:', function()
     eq(1, view.index)
   end)
 
-  it('skips steps by a count, stopping at the ends without ending the tour', function()
-    view = TourView(data)
+  it('skips steps by a count, stopping at the ends without ending the walkthrough', function()
+    view = WalkthroughView(data)
     view:start()
 
     view:next(99)
@@ -140,10 +140,10 @@ describe('harness.ui.TourView:', function()
   end)
 
   it('offers back only after the first step, and finish on the last', function()
-    view = TourView(data)
+    view = WalkthroughView(data)
     view:start()
 
-    local keys = require('harness.settings').keymaps:get('tour')
+    local keys = require('harness.settings').keymaps:get('walkthrough')
 
     assert.is_nil(view:_footer(1):find(keys.previous .. ' back', 1, true))
     assert.is_truthy(view:_footer(2):find(keys.previous .. ' back', 1, true))
@@ -153,7 +153,7 @@ describe('harness.ui.TourView:', function()
   it('ends after the last step, taking the note, the marks and the keys with it', function()
     local stopped = 0
 
-    view = TourView(data, {
+    view = WalkthroughView(data, {
       on_stop = function()
         stopped = stopped + 1
       end,
@@ -168,14 +168,14 @@ describe('harness.ui.TourView:', function()
 
     eq(0, view.index)
     eq(0, #floats())
-    eq({}, marks(buf, TourView.SHOW))
+    eq({}, marks(buf, WalkthroughView.SHOW))
     eq(1, stopped)
     eq(false, view:stop())
     eq(1, stopped)
   end)
 
   it('ends itself, note and all, when the code buffer is closed under it', function()
-    view = TourView(data)
+    view = WalkthroughView(data)
     view:start()
 
     vim.cmd('bwipeout! ' .. vim.api.nvim_get_current_buf())
@@ -191,7 +191,7 @@ describe('harness.ui.TourView:', function()
   it('ends itself, note and all, when its code window is closed', function()
     vim.cmd('split')
 
-    view = TourView(data)
+    view = WalkthroughView(data)
     view:start()
 
     eq(1, #floats())
@@ -207,7 +207,7 @@ describe('harness.ui.TourView:', function()
   end)
 
   it('binds next, previous and stop on the code it shows, and unbinds them when it ends', function()
-    view = TourView(data)
+    view = WalkthroughView(data)
     view:start()
 
     local buf = vim.api.nvim_get_current_buf()
@@ -230,21 +230,21 @@ describe('harness.ui.TourView:', function()
   end)
 
   it('moves its current step to a selection attached to the composer', function()
-    view = TourView(data)
+    view = WalkthroughView(data)
 
     view:start()
 
     eq(true, view:select(dir .. '/a.lua', 14, 16))
-    eq({ 14, 16 }, { view.tour.steps[1].line, view.tour.steps[1].end_line })
+    eq({ 14, 16 }, { view.walkthrough.steps[1].line, view.walkthrough.steps[1].end_line })
 
-    local shown = marks(vim.api.nvim_get_current_buf(), TourView.SHOW)
+    local shown = marks(vim.api.nvim_get_current_buf(), WalkthroughView.SHOW)
 
     eq({ 13, 16 }, { shown[1][2], shown[1][4].end_row })
     eq(false, view:select(dir .. '/elsewhere.lua', 1, 1))
   end)
 
   it('follows the code when lines are added above it, so coming back lands on the same place', function()
-    view = TourView(data)
+    view = WalkthroughView(data)
     view:start()
 
     local a = vim.api.nvim_get_current_buf()
@@ -265,7 +265,7 @@ describe('harness.ui.TourView:', function()
 
     local harness_win = vim.api.nvim_get_current_win()
 
-    view = TourView(data)
+    view = WalkthroughView(data)
 
     assert.is_true(view:start())
 
@@ -290,32 +290,32 @@ describe('harness.ui.TourView:', function()
     eq(2, #vim.api.nvim_tabpage_list_wins(0) - #floats())
   end)
 
-  describe('when the agent changes the tour', function()
+  describe('when the agent changes the walkthrough', function()
     local function step(fields)
-      return assert(tour_type.step(vim.tbl_extend('force', { path = dir .. '/b.lua', line = 1 }, fields), dir))
+      return assert(walkthrough_type.step(vim.tbl_extend('force', { path = dir .. '/b.lua', line = 1 }, fields), dir))
     end
 
     it('inserts steps after the current one and moves to the first of them', function()
-      view = TourView(data)
+      view = WalkthroughView(data)
       view:start()
 
       assert.is_true(view:insert({ step({ title = 'Aside', note = 'extra' }), step({ line = 2, title = 'Aside 2' }) }))
 
       eq(2, view.index)
       eq({ 'First', 'Aside', 'Aside 2', nil, 'Back again' }, {
-        view.tour.steps[1].title,
-        view.tour.steps[2].title,
-        view.tour.steps[3].title,
+        view.walkthrough.steps[1].title,
+        view.walkthrough.steps[2].title,
+        view.walkthrough.steps[3].title,
         nil,
-        view.tour.steps[5].title,
+        view.walkthrough.steps[5].title,
       })
-      eq(5, #view.tour.steps)
+      eq(5, #view.walkthrough.steps)
       eq(real(dir .. '/b.lua'), real(vim.api.nvim_buf_get_name(0)))
       assert.truthy(note_text():find('extra', 1, true))
     end)
 
     it('keeps the later steps tracking their code after an insert shifts them', function()
-      view = TourView(data)
+      view = WalkthroughView(data)
       view:start()
       view:next()
       view:next()
@@ -326,23 +326,23 @@ describe('harness.ui.TourView:', function()
       view:previous()
       view:insert({ step({}) })
       vim.api.nvim_buf_set_lines(a, 0, 0, false, { 'x', 'y' })
-      view:show(#view.tour.steps)
+      view:show(#view.walkthrough.steps)
 
       eq(32, vim.api.nvim_win_get_cursor(0)[1])
     end)
 
     it('replaces everything after the current step', function()
-      view = TourView(data)
+      view = WalkthroughView(data)
       view:start()
 
       assert.is_true(view:replace_rest({ step({ title = 'New path' }) }))
 
-      eq(2, #view.tour.steps)
-      eq({ 2, 'New path' }, { view.index, view.tour.steps[2].title })
+      eq(2, #view.walkthrough.steps)
+      eq({ 2, 'New path' }, { view.index, view.walkthrough.steps[2].title })
     end)
 
     it('rewrites the current step\'s note and stays on it', function()
-      view = TourView(data)
+      view = WalkthroughView(data)
       view:start()
       view:next()
 
@@ -352,10 +352,10 @@ describe('harness.ui.TourView:', function()
       eq('A clearer note.', note_text())
     end)
 
-    it('applies an update by its mode, and refuses one when the tour is not showing', function()
-      view = TourView(data)
+    it('applies an update by its mode, and refuses one when the walkthrough is not showing', function()
+      view = WalkthroughView(data)
 
-      eq({ false, 'the tour is not showing' }, { view:apply({ mode = 'note', note = 'x' }) })
+      eq({ false, 'the walkthrough is not showing' }, { view:apply({ mode = 'note', note = 'x' }) })
 
       view:start()
       view:apply({ mode = 'note', note = 'via apply' })
@@ -366,7 +366,7 @@ describe('harness.ui.TourView:', function()
     it('asks about the step on its key, through the callback it was given', function()
       local asked
 
-      view = TourView(data, {
+      view = WalkthroughView(data, {
         on_ask = function(shown)
           asked = shown.index
         end,
@@ -379,7 +379,7 @@ describe('harness.ui.TourView:', function()
     end)
   end)
 
-  describe('a tour of a commit that is not checked out', function()
+  describe('a walkthrough of a commit that is not checked out', function()
     local repo, old
 
     local function sh(...)
@@ -411,7 +411,7 @@ describe('harness.ui.TourView:', function()
     end)
 
     it('shows the file as it was at that commit, read-only, and says which commit', function()
-      local parsed = assert(tour_type.parse({ steps = { { path = 'a.lua', line = 2, title = 'Then' } } }, repo, {
+      local parsed = assert(walkthrough_type.parse({ steps = { { path = 'a.lua', line = 2, title = 'Then' } } }, repo, {
         rev = old,
         root = repo,
         check = function()
@@ -419,7 +419,7 @@ describe('harness.ui.TourView:', function()
         end,
       }))
 
-      view = TourView(parsed)
+      view = WalkthroughView(parsed)
       assert.is_true(view:start())
 
       local buf = vim.api.nvim_get_current_buf()
@@ -429,7 +429,7 @@ describe('harness.ui.TourView:', function()
       eq(false, vim.bo[buf].modifiable)
       eq('lua', vim.bo[buf].filetype)
       eq(2, vim.api.nvim_win_get_cursor(0)[1])
-      assert.truthy(marks(buf, TourView.SHOW)[2][4].virt_text[1][1]:find('@' .. old:sub(1, 7), 1, true))
+      assert.truthy(marks(buf, WalkthroughView.SHOW)[2][4].virt_text[1][1]:find('@' .. old:sub(1, 7), 1, true))
 
       view:stop()
 
@@ -438,7 +438,7 @@ describe('harness.ui.TourView:', function()
 
     local function review()
       return assert(
-        tour_type.parse({ steps = { { path = 'a.lua', line = 1, end_line = 4, title = 'All of it' } } }, repo, {
+        walkthrough_type.parse({ steps = { { path = 'a.lua', line = 1, end_line = 4, title = 'All of it' } } }, repo, {
           base = old,
           root = repo,
         })
@@ -446,13 +446,13 @@ describe('harness.ui.TourView:', function()
     end
 
     it('shows a step of a review as a diff against the base, in the code itself', function()
-      view = TourView(review())
+      view = WalkthroughView(review())
       assert.is_true(view:start())
 
       local buf = vim.api.nvim_get_current_buf()
       local added, removed = 0, {}
 
-      for _, mark in ipairs(marks(buf, TourView.SHOW)) do
+      for _, mark in ipairs(marks(buf, WalkthroughView.SHOW)) do
         if mark[4].line_hl_group then added = added + 1 end
 
         for _, line in ipairs(mark[4].virt_lines or {}) do
@@ -467,12 +467,12 @@ describe('harness.ui.TourView:', function()
     end)
 
     it('lays the base beside the code in diff mode when split fits, and takes it away at the end', function()
-      local spec = require('harness.settings').tour
+      local spec = require('harness.settings').walkthrough
       local saved = { spec:get('diff_layout'), spec:get('split_min_width') }
 
       spec:assign({ diff_layout = 'split', split_min_width = 0 })
 
-      view = TourView(review())
+      view = WalkthroughView(review())
       assert.is_true(view:start())
 
       local code = vim.api.nvim_get_current_win()
@@ -498,7 +498,7 @@ describe('harness.ui.TourView:', function()
 
   describe('a step over several ranges', function()
     before_each(function()
-      data = assert(tour_type.parse({
+      data = assert(walkthrough_type.parse({
         title = 'Sections',
         steps = {
           {
@@ -512,7 +512,7 @@ describe('harness.ui.TourView:', function()
     end)
 
     it('walks each range, then into the next step, and back again', function()
-      view = TourView(data)
+      view = WalkthroughView(data)
       view:start()
 
       eq('Core', data.steps[1].title)
@@ -536,7 +536,7 @@ describe('harness.ui.TourView:', function()
 
     it('lists every step in the outline, marking the ones seen and the hunks no step covers', function()
       data.uncovered = { { path = 'a.lua', absolute = dir .. '/a.lua', first = 38, last = 39 } }
-      view = TourView(data)
+      view = WalkthroughView(data)
       view:start()
       view:next()
 

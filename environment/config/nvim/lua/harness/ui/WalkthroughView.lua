@@ -11,27 +11,27 @@ local buffers = require('core.buffers')
 local Panel = require('surfaces.Panel')
 local settings = require('harness.settings')
 local Renderer = require('ui.markdown.Renderer')
-local tour_scope = require('harness.tour_scope')
+local walkthrough_scope = require('harness.walkthrough_scope')
 
-local TourView = Object:extend()
+local WalkthroughView = Object:extend()
 
 local instances = 0
 
-TourView.TRACK = Buffer.namespace('harness.tour.track')
-TourView.SHOW = Buffer.namespace('harness.tour.show')
-TourView.PRIORITY = 90
-TourView.HARNESS_PREFIX = 'harness://'
-TourView.BAR = '▎'
-TourView.LAYOUT = { unified = 'unified', split = 'split' }
-TourView.MARK = { seen = '✓', current = '▸', unseen = ' ', uncovered = '○' }
+WalkthroughView.TRACK = Buffer.namespace('harness.walkthrough.track')
+WalkthroughView.SHOW = Buffer.namespace('harness.walkthrough.show')
+WalkthroughView.PRIORITY = 90
+WalkthroughView.HARNESS_PREFIX = 'harness://'
+WalkthroughView.BAR = '▎'
+WalkthroughView.LAYOUT = { unified = 'unified', split = 'split' }
+WalkthroughView.MARK = { seen = '✓', current = '▸', unseen = ' ', uncovered = '○' }
 
-function TourView:constructor(tour, opts)
+function WalkthroughView:constructor(walkthrough, opts)
   opts = opts or {}
 
   instances = instances + 1
 
   return {
-    tour = tour,
+    walkthrough = walkthrough,
     index = 0,
     part = 1,
     source = opts.source_win,
@@ -49,27 +49,27 @@ function TourView:constructor(tour, opts)
     bases = {},
     on_stop = opts.on_stop,
     on_ask = opts.on_ask,
-    group = event.augroup('harness.tour.' .. instances),
+    group = event.augroup('harness.walkthrough.' .. instances),
     stopped = false,
   }
 end
 
-function TourView:is_open()
+function WalkthroughView:is_open()
   return self.index > 0
 end
 
-function TourView.ranges(step)
+function WalkthroughView.ranges(step)
   return step.ranges and #step.ranges > 0 and step.ranges or { step }
 end
 
-function TourView:_foreign(window)
+function WalkthroughView:_foreign(window)
   if not window:is_valid() or window:get_config().relative ~= '' then return false end
   if self.split and window:is_same(self.split) then return false end
 
-  return window:get_buffer():get_name():sub(1, #TourView.HARNESS_PREFIX) ~= TourView.HARNESS_PREFIX
+  return window:get_buffer():get_name():sub(1, #WalkthroughView.HARNESS_PREFIX) ~= WalkthroughView.HARNESS_PREFIX
 end
 
-function TourView:_code_window()
+function WalkthroughView:_code_window()
   if self.window and self:_foreign(self.window) then return self.window end
 
   if self.source then
@@ -85,7 +85,7 @@ function TourView:_code_window()
   return nil
 end
 
-function TourView:_open_beside(buffer)
+function WalkthroughView:_open_beside(buffer)
   local base = self.source and Window(self.source) or nil
 
   if not (base and base:is_valid() and base:get_config().relative == '') then
@@ -113,7 +113,7 @@ function TourView:_open_beside(buffer)
   return window
 end
 
-function TourView:_snapshot(key, name, lines, path)
+function WalkthroughView:_snapshot(key, name, lines, path)
   local cached = self.snapshots[key]
 
   if cached and cached:is_valid() then return cached end
@@ -133,28 +133,29 @@ function TourView:_snapshot(key, name, lines, path)
   return buffer
 end
 
-function TourView:_buffer(path)
-  local tour = self.tour
+function WalkthroughView:_buffer(path)
+  local walkthrough = self.walkthrough
 
-  if not tour.rev then return buffers.load(path) end
+  if not walkthrough.rev then return buffers.load(path) end
 
-  local relative = fs.make_relative(tour.root, path)
-  local lines = tour_scope.show(tour.root, tour.rev, relative)
-    or { string.format('(%s is not in %s)', relative, tour.rev:sub(1, 7)) }
+  local relative = fs.make_relative(walkthrough.root, path)
+  local lines = walkthrough_scope.show(walkthrough.root, walkthrough.rev, relative)
+    or { string.format('(%s is not in %s)', relative, walkthrough.rev:sub(1, 7)) }
 
-  return self:_snapshot(path, string.format('rev://%s/%s', tour.rev:sub(1, 7), relative), lines, path)
+  return self:_snapshot(path, string.format('rev://%s/%s', walkthrough.rev:sub(1, 7), relative), lines, path)
 end
 
-function TourView:_base_lines(path)
-  local tour = self.tour
+function WalkthroughView:_base_lines(path)
+  local walkthrough = self.walkthrough
 
-  if not (tour.base and tour.root) then return nil end
+  if not (walkthrough.base and walkthrough.root) then return nil end
 
   local cached = self.bases[path]
 
   if cached then return cached end
 
-  local lines = tour_scope.show(tour.root, tour.base, fs.make_relative(tour.root, path)) or {}
+  local lines = walkthrough_scope.show(walkthrough.root, walkthrough.base, fs.make_relative(walkthrough.root, path))
+    or {}
 
   if lines[#lines] == '' then lines[#lines] = nil end
 
@@ -163,39 +164,39 @@ function TourView:_base_lines(path)
   return lines
 end
 
-function TourView:_base_buffer(path)
-  local tour = self.tour
-  local relative = fs.make_relative(tour.root, path)
+function WalkthroughView:_base_buffer(path)
+  local walkthrough = self.walkthrough
+  local relative = fs.make_relative(walkthrough.root, path)
 
   return self:_snapshot(
     'base:' .. path,
-    string.format('rev://%s/%s', tour.base:sub(1, 7), relative),
+    string.format('rev://%s/%s', walkthrough.base:sub(1, 7), relative),
     vim.list_extend({}, self:_base_lines(path)),
     path
   )
 end
 
-function TourView:_layout(window)
-  local spec = settings.tour
+function WalkthroughView:_layout(window)
+  local spec = settings.walkthrough
 
   if
-    vgit.layout(spec:get('diff_layout')) == TourView.LAYOUT.split
+    vgit.layout(spec:get('diff_layout')) == WalkthroughView.LAYOUT.split
     and window:get_width() >= spec:get('split_min_width')
   then
-    return TourView.LAYOUT.split
+    return WalkthroughView.LAYOUT.split
   end
 
-  return TourView.LAYOUT.unified
+  return WalkthroughView.LAYOUT.unified
 end
 
-function TourView:_range(index, part, buffer)
-  local range = TourView.ranges(self.tour.steps[index])[part]
+function WalkthroughView:_range(index, part, buffer)
+  local range = WalkthroughView.ranges(self.walkthrough.steps[index])[part]
   local last = buffer:get_line_count()
   local anchor = self.anchors[index] and self.anchors[index][part]
   local first, finish = range.line - 1, range.end_line - 1
 
   if anchor and anchor.bufnr == buffer.bufnr then
-    local row, end_row = buffer:get_extmark_range(TourView.TRACK, anchor.id)
+    local row, end_row = buffer:get_extmark_range(WalkthroughView.TRACK, anchor.id)
 
     if row then
       first, finish = row, math.max(end_row, row)
@@ -207,7 +208,7 @@ function TourView:_range(index, part, buffer)
   return first, math.min(math.max(finish, first), last - 1)
 end
 
-function TourView:_track(index, part, buffer, first, finish)
+function WalkthroughView:_track(index, part, buffer, first, finish)
   local anchors = self.anchors[index] or {}
   local anchor = anchors[part]
 
@@ -215,42 +216,43 @@ function TourView:_track(index, part, buffer, first, finish)
 
   if anchor and anchor.bufnr == buffer.bufnr then return end
 
-  local id = buffer:set_extmark(TourView.TRACK, first, 0, { end_row = finish, end_col = 0, right_gravity = false })
+  local id =
+    buffer:set_extmark(WalkthroughView.TRACK, first, 0, { end_row = finish, end_col = 0, right_gravity = false })
 
   anchors[part] = { bufnr = buffer.bufnr, id = id }
 end
 
-function TourView:_clear()
+function WalkthroughView:_clear()
   for bufnr in pairs(self.shown) do
-    if Buffer.exists(bufnr) then Buffer(bufnr):clear_namespace(TourView.SHOW) end
+    if Buffer.exists(bufnr) then Buffer(bufnr):clear_namespace(WalkthroughView.SHOW) end
   end
 
   self.shown = {}
 end
 
-function TourView:_mark(buffer, first, finish, label, diffed)
+function WalkthroughView:_mark(buffer, first, finish, label, diffed)
   if diffed then
     for row = first, finish do
-      buffer:set_extmark(TourView.SHOW, row, 0, {
-        sign_text = TourView.BAR,
+      buffer:set_extmark(WalkthroughView.SHOW, row, 0, {
+        sign_text = WalkthroughView.BAR,
         sign_hl_group = 'UiAccent',
-        priority = TourView.PRIORITY,
+        priority = WalkthroughView.PRIORITY,
       })
     end
   else
-    buffer:set_extmark(TourView.SHOW, first, 0, {
+    buffer:set_extmark(WalkthroughView.SHOW, first, 0, {
       end_row = finish + 1,
       end_col = 0,
       hl_group = 'UiSurfaceAccent',
       hl_eol = true,
-      priority = TourView.PRIORITY,
+      priority = WalkthroughView.PRIORITY,
     })
   end
 
-  buffer:set_extmark(TourView.SHOW, first, 0, {
+  buffer:set_extmark(WalkthroughView.SHOW, first, 0, {
     virt_text = { { label, 'UiSurfaceRaised' } },
     virt_text_pos = 'right_align',
-    priority = TourView.PRIORITY,
+    priority = WalkthroughView.PRIORITY,
   })
   self.shown[buffer.bufnr] = true
 end
@@ -270,7 +272,7 @@ local function removed_lines(hunk, width, tabstop)
   return out
 end
 
-function TourView:_draw_diff(buffer, window, path)
+function WalkthroughView:_draw_diff(buffer, window, path)
   local old = self:_base_lines(path)
 
   if not old then return nil end
@@ -287,26 +289,26 @@ function TourView:_draw_diff(buffer, window, path)
       if #removed > 0 then
         local above = hunk.top < 1
 
-        buffer:set_extmark(TourView.SHOW, math.min(math.max(hunk.top - 1, 0), last - 1), 0, {
+        buffer:set_extmark(WalkthroughView.SHOW, math.min(math.max(hunk.top - 1, 0), last - 1), 0, {
           virt_lines = removed,
           virt_lines_above = above,
-          priority = TourView.PRIORITY,
+          priority = WalkthroughView.PRIORITY,
         })
       end
     else
       for row = hunk.top, math.min(hunk.bot, last) do
-        buffer:set_extmark(TourView.SHOW, row - 1, 0, {
+        buffer:set_extmark(WalkthroughView.SHOW, row - 1, 0, {
           line_hl_group = vgit.BACKGROUND_HL.add,
           number_hl_group = vgit.NUMBER_HL.add,
-          priority = TourView.PRIORITY - 1,
+          priority = WalkthroughView.PRIORITY - 1,
         })
       end
 
       if #removed > 0 then
-        buffer:set_extmark(TourView.SHOW, math.max(hunk.top - 1, 0), 0, {
+        buffer:set_extmark(WalkthroughView.SHOW, math.max(hunk.top - 1, 0), 0, {
           virt_lines = removed,
           virt_lines_above = true,
-          priority = TourView.PRIORITY,
+          priority = WalkthroughView.PRIORITY,
         })
       end
     end
@@ -317,7 +319,7 @@ function TourView:_draw_diff(buffer, window, path)
   return hunks
 end
 
-function TourView:_close_split()
+function WalkthroughView:_close_split()
   if self.split and self.split:is_valid() then
     self.split:diff_off()
     self.split:close()
@@ -328,7 +330,7 @@ function TourView:_close_split()
   self.split, self.diffing = nil, false
 end
 
-function TourView:_show_split(window, path)
+function WalkthroughView:_show_split(window, path)
   local base = self:_base_buffer(path)
 
   if self.split and self.split:is_valid() then
@@ -348,10 +350,10 @@ function TourView:_show_split(window, path)
   self.diffing = true
 end
 
-function TourView:_diff(window, buffer, path)
+function WalkthroughView:_diff(window, buffer, path)
   if not self:_base_lines(path) then return false end
 
-  if self:_layout(window) == TourView.LAYOUT.split then
+  if self:_layout(window) == WalkthroughView.LAYOUT.split then
     self:_show_split(window, path)
 
     return true
@@ -364,29 +366,29 @@ function TourView:_diff(window, buffer, path)
   return true
 end
 
-function TourView:_keys()
-  local keys = settings.keymaps:get('tour')
+function WalkthroughView:_keys()
+  local keys = settings.keymaps:get('walkthrough')
 
   return {
-    { keys.next, 'next', 'Next step of the tour' },
-    { keys.previous, 'previous', 'Previous step of the tour' },
-    { keys.next_range, 'next_range', 'Next range of the tour' },
-    { keys.previous_range, 'previous_range', 'Previous range of the tour' },
-    { keys.outline, 'outline', 'Every step of the tour' },
-    { keys.stop, 'stop', 'End the tour' },
+    { keys.next, 'next', 'Next step of the walkthrough' },
+    { keys.previous, 'previous', 'Previous step of the walkthrough' },
+    { keys.next_range, 'next_range', 'Next range of the walkthrough' },
+    { keys.previous_range, 'previous_range', 'Previous range of the walkthrough' },
+    { keys.outline, 'outline', 'Every step of the walkthrough' },
+    { keys.stop, 'stop', 'End the walkthrough' },
     { keys.ask, 'ask', 'Ask about this step' },
-    { keys.scroll_down, 'scroll_down', 'Scroll the tour note down', true },
-    { keys.scroll_up, 'scroll_up', 'Scroll the tour note up', true },
+    { keys.scroll_down, 'scroll_down', 'Scroll the walkthrough note down', true },
+    { keys.scroll_up, 'scroll_up', 'Scroll the walkthrough note up', true },
   }
 end
 
-function TourView:_scroll_keys()
+function WalkthroughView:_scroll_keys()
   return vim.tbl_filter(function(key)
     return key[4] == true
   end, self:_keys())
 end
 
-function TourView:_set_keys(buffer, keys)
+function WalkthroughView:_set_keys(buffer, keys)
   for _, key in ipairs(keys) do
     buffer:set_keymap({ key = key[1], mode = 'n', desc = key[3] }, function()
       self[key[2]](self, keymap.count())
@@ -394,7 +396,7 @@ function TourView:_set_keys(buffer, keys)
   end
 end
 
-function TourView:_bind(buffer)
+function WalkthroughView:_bind(buffer)
   if self.bound[buffer.bufnr] then return end
 
   self.bound[buffer.bufnr] = true
@@ -408,7 +410,7 @@ function TourView:_bind(buffer)
   self:_set_keys(buffer, self:_keys())
 end
 
-function TourView:_bind_scroll()
+function WalkthroughView:_bind_scroll()
   local window = self.source and Window(self.source)
 
   if not (window and window:is_valid()) then return end
@@ -421,7 +423,7 @@ function TourView:_bind_scroll()
   self:_set_keys(buffer, self:_scroll_keys())
 end
 
-function TourView:_unbind()
+function WalkthroughView:_unbind()
   for bufnr in pairs(self.scroll_bound) do
     if Buffer.exists(bufnr) then
       for _, key in ipairs(self:_scroll_keys()) do
@@ -443,12 +445,12 @@ function TourView:_unbind()
   self.bound = {}
 end
 
-function TourView:_note_lines(index, part)
-  local step = self.tour.steps[index]
+function WalkthroughView:_note_lines(index, part)
+  local step = self.walkthrough.steps[index]
   local lines = {}
 
-  if index == 1 and part == 1 and self.tour.summary then
-    vim.list_extend(lines, vim.split(self.tour.summary, '\n', { plain = true }))
+  if index == 1 and part == 1 and self.walkthrough.summary then
+    vim.list_extend(lines, vim.split(self.walkthrough.summary, '\n', { plain = true }))
     vim.list_extend(lines, { '', '---', '' })
   end
 
@@ -457,28 +459,28 @@ function TourView:_note_lines(index, part)
   return lines
 end
 
-function TourView:_title(index, part)
-  local step = self.tour.steps[index]
-  local count = #TourView.ranges(step)
+function WalkthroughView:_title(index, part)
+  local step = self.walkthrough.steps[index]
+  local count = #WalkthroughView.ranges(step)
 
   return string.format(
     ' %d/%d%s%s%s ',
     index,
-    #self.tour.steps,
+    #self.walkthrough.steps,
     step.title and (' · ' .. step.title) or '',
     count > 1 and string.format(' · %d/%d', part, count) or '',
     step.supporting and ' · supporting' or ''
   )
 end
 
-function TourView:_footer(index, part)
-  local keys = settings.keymaps:get('tour')
-  local count = index and #TourView.ranges(self.tour.steps[index]) or 0
+function WalkthroughView:_footer(index, part)
+  local keys = settings.keymaps:get('walkthrough')
+  local count = index and #WalkthroughView.ranges(self.walkthrough.steps[index]) or 0
   local parts = {}
 
   if index and (index > 1 or (part or 1) > 1) then parts[#parts + 1] = keys.previous .. ' back' end
 
-  parts[#parts + 1] = keys.next .. ((index or 0) >= #self.tour.steps and ' finish' or ' next')
+  parts[#parts + 1] = keys.next .. ((index or 0) >= #self.walkthrough.steps and ' finish' or ' next')
 
   if count > 1 then parts[#parts + 1] = keys.next_range .. '/' .. keys.previous_range .. ' range' end
 
@@ -489,16 +491,16 @@ function TourView:_footer(index, part)
   return ' ' .. table.concat(parts, ' · ') .. ' '
 end
 
-function TourView:_close_note()
+function WalkthroughView:_close_note()
   if self.note and self.note:is_valid() then self.note:close() end
 
   self.note, self.note_buffer = nil, nil
 end
 
-function TourView:_show_note(window, first, lines, title, footer)
+function WalkthroughView:_show_note(window, first, lines, title, footer)
   self:_close_note()
 
-  local spec = settings.tour
+  local spec = settings.walkthrough
   local width = math.max(math.floor(window:get_width() * spec:get('note_width')), spec:get('note_min_width'))
   local top, bottom = window:get_visible_range()
   local lower = (first + 1 - top) / math.max(bottom - top, 1) > 0.5
@@ -538,7 +540,7 @@ function TourView:_show_note(window, first, lines, title, footer)
   self.note:set_height(math.max(1, math.min(spec:get('note_height'), window:get_height() - 2)))
 end
 
-function TourView:_scroll_note(rows)
+function WalkthroughView:_scroll_note(rows)
   local note = self.note
 
   if not (note and note:is_valid()) then return false end
@@ -558,15 +560,15 @@ function TourView:_scroll_note(rows)
   return true
 end
 
-function TourView:scroll_down()
-  return self:_scroll_note(settings.tour:get('note_scroll'))
+function WalkthroughView:scroll_down()
+  return self:_scroll_note(settings.walkthrough:get('note_scroll'))
 end
 
-function TourView:scroll_up()
-  return self:_scroll_note(-settings.tour:get('note_scroll'))
+function WalkthroughView:scroll_up()
+  return self:_scroll_note(-settings.walkthrough:get('note_scroll'))
 end
 
-function TourView:_present(path, place)
+function WalkthroughView:_present(path, place)
   local buffer = self:_buffer(path)
   local window = self:_code_window() or self:_open_beside(buffer)
 
@@ -603,29 +605,29 @@ function TourView:_present(path, place)
   return window, first
 end
 
-function TourView:_label()
-  local step = self.tour.steps[self.pending]
+function WalkthroughView:_label()
+  local step = self.walkthrough.steps[self.pending]
 
   if not step then return ' not covered ' end
 
-  local count = #TourView.ranges(step)
+  local count = #WalkthroughView.ranges(step)
 
   return string.format(
     ' %d/%d%s%s%s ',
     self.pending,
-    #self.tour.steps,
+    #self.walkthrough.steps,
     step.title and (' · ' .. step.title) or '',
     count > 1 and string.format(' · %d/%d', self.pending_part, count) or '',
-    self.tour.rev and (' @' .. self.tour.rev:sub(1, 7)) or ''
+    self.walkthrough.rev and (' @' .. self.walkthrough.rev:sub(1, 7)) or ''
   )
 end
 
-function TourView:show(index, part)
-  local step = self.tour.steps[index]
+function WalkthroughView:show(index, part)
+  local step = self.walkthrough.steps[index]
 
   if not step then return false end
 
-  local ranges = TourView.ranges(step)
+  local ranges = WalkthroughView.ranges(step)
 
   part = math.min(math.max(part or 1, 1), #ranges)
 
@@ -650,7 +652,7 @@ function TourView:show(index, part)
   return true
 end
 
-function TourView:visit(hunk)
+function WalkthroughView:visit(hunk)
   if not self:is_open() then return false end
 
   self.pending = nil
@@ -666,7 +668,7 @@ function TourView:visit(hunk)
 
   self.visiting = hunk
 
-  local path = fs.make_relative(self.tour.root or fs.cwd(), hunk.absolute)
+  local path = fs.make_relative(self.walkthrough.root or fs.cwd(), hunk.absolute)
 
   self:_show_note(
     window,
@@ -679,13 +681,13 @@ function TourView:visit(hunk)
   return true
 end
 
-function TourView:_entries()
+function WalkthroughView:_entries()
   local entries = {}
 
-  for index, step in ipairs(self.tour.steps) do
-    local mark = index == self.index and TourView.MARK.current
-      or (self.seen[index] and TourView.MARK.seen or TourView.MARK.unseen)
-    local ranges = TourView.ranges(step)
+  for index, step in ipairs(self.walkthrough.steps) do
+    local mark = index == self.index and WalkthroughView.MARK.current
+      or (self.seen[index] and WalkthroughView.MARK.seen or WalkthroughView.MARK.unseen)
+    local ranges = WalkthroughView.ranges(step)
     local where = string.format('%s:%d', fs.basename(step.path), step.line)
 
     if #ranges > 1 then where = where .. string.format(' +%d', #ranges - 1) end
@@ -703,9 +705,15 @@ function TourView:_entries()
     }
   end
 
-  for _, hunk in ipairs(self.tour.uncovered or {}) do
+  for _, hunk in ipairs(self.walkthrough.uncovered or {}) do
     entries[#entries + 1] = {
-      label = string.format('%s not covered · %s:%d-%d', TourView.MARK.uncovered, hunk.path, hunk.first, hunk.last),
+      label = string.format(
+        '%s not covered · %s:%d-%d',
+        WalkthroughView.MARK.uncovered,
+        hunk.path,
+        hunk.first,
+        hunk.last
+      ),
       value = { hunk = hunk },
     }
   end
@@ -713,7 +721,7 @@ function TourView:_entries()
   return entries
 end
 
-function TourView:outline()
+function WalkthroughView:outline()
   if not self:is_open() then return false end
 
   local seen = 0
@@ -722,14 +730,14 @@ function TourView:outline()
     seen = seen + 1
   end
 
-  local uncovered = #(self.tour.uncovered or {})
+  local uncovered = #(self.walkthrough.uncovered or {})
 
   return surfaces.pick({
     title = string.format(
       '%s · %d/%d seen%s',
-      self.tour.title,
+      self.walkthrough.title,
       seen,
-      #self.tour.steps,
+      #self.walkthrough.steps,
       uncovered > 0 and string.format(' · %d not covered', uncovered) or ''
     ),
     items = self:_entries(),
@@ -750,26 +758,26 @@ function TourView:outline()
   })
 end
 
-function TourView:ask()
+function WalkthroughView:ask()
   if self.on_ask then self.on_ask(self) end
 end
 
-function TourView:step()
-  return self.tour.steps[self.index], self.index, self.part
+function WalkthroughView:step()
+  return self.walkthrough.steps[self.index], self.index, self.part
 end
 
-function TourView:_step_for(path)
+function WalkthroughView:_step_for(path)
   if type(path) ~= 'string' or path == '' then return nil end
 
-  local root = self.tour.root
+  local root = self.walkthrough.root
   local relative
 
   if root and path:sub(1, 6) == 'rev://' then relative = path:match('^rev://[^/]+/(.+)$') end
 
   local found, found_part
 
-  for index, step in ipairs(self.tour.steps) do
-    for part, range in ipairs(TourView.ranges(step)) do
+  for index, step in ipairs(self.walkthrough.steps) do
+    for part, range in ipairs(WalkthroughView.ranges(step)) do
       local matches = relative and fs.make_relative(root, range.path) == relative
         or (not relative and fs.normalize(range.path) == fs.normalize(path))
 
@@ -784,15 +792,15 @@ function TourView:_step_for(path)
   return found, found_part
 end
 
-function TourView:select(path, first, last)
+function WalkthroughView:select(path, first, last)
   if not self:is_open() then return false end
 
   local index, part = self:_step_for(path)
 
   if not index then return false end
 
-  local step = self.tour.steps[index]
-  local range = TourView.ranges(step)[part]
+  local step = self.walkthrough.steps[index]
+  local range = WalkthroughView.ranges(step)[part]
 
   range.line = math.max(math.floor(first or range.line), 1)
   range.end_line = math.max(math.floor(last or range.line), range.line)
@@ -806,18 +814,18 @@ function TourView:select(path, first, last)
   return self:show(index, part)
 end
 
-function TourView:_forget(from)
-  for index = #self.tour.steps, from, -1 do
+function WalkthroughView:_forget(from)
+  for index = #self.walkthrough.steps, from, -1 do
     for _, anchor in pairs(self.anchors[index] or {}) do
-      if Buffer.exists(anchor.bufnr) then Buffer(anchor.bufnr):del_extmark(TourView.TRACK, anchor.id) end
+      if Buffer.exists(anchor.bufnr) then Buffer(anchor.bufnr):del_extmark(WalkthroughView.TRACK, anchor.id) end
     end
 
     self.anchors[index] = nil
   end
 end
 
-function TourView:_shift(from, count)
-  for index = #self.tour.steps, from, -1 do
+function WalkthroughView:_shift(from, count)
+  for index = #self.walkthrough.steps, from, -1 do
     self.anchors[index + count], self.anchors[index] = self.anchors[index], nil
 
     if self.seen[index] then
@@ -826,49 +834,49 @@ function TourView:_shift(from, count)
   end
 end
 
-function TourView:insert(steps)
+function WalkthroughView:insert(steps)
   local at = self.index
 
   self:_shift(at + 1, #steps)
 
   for offset, step in ipairs(steps) do
-    table.insert(self.tour.steps, at + offset, step)
+    table.insert(self.walkthrough.steps, at + offset, step)
   end
 
   return self:show(at + 1)
 end
 
-function TourView:replace_rest(steps)
+function WalkthroughView:replace_rest(steps)
   self:_forget(self.index + 1)
 
-  for index = #self.tour.steps, self.index + 1, -1 do
-    table.remove(self.tour.steps, index)
+  for index = #self.walkthrough.steps, self.index + 1, -1 do
+    table.remove(self.walkthrough.steps, index)
     self.seen[index] = nil
   end
 
-  vim.list_extend(self.tour.steps, steps)
+  vim.list_extend(self.walkthrough.steps, steps)
 
-  return self:show(math.min(self.index + 1, #self.tour.steps))
+  return self:show(math.min(self.index + 1, #self.walkthrough.steps))
 end
 
-function TourView:annotate(note)
-  self.tour.steps[self.index].note = note
+function WalkthroughView:annotate(note)
+  self.walkthrough.steps[self.index].note = note
 
   return self:show(self.index, self.part)
 end
 
-TourView.MODE = { insert = 'insert', replace = 'replace', note = 'note' }
+WalkthroughView.MODE = { insert = 'insert', replace = 'replace', note = 'note' }
 
-function TourView:apply(update)
-  if not self:is_open() then return false, 'the tour is not showing' end
+function WalkthroughView:apply(update)
+  if not self:is_open() then return false, 'the walkthrough is not showing' end
 
-  if update.mode == TourView.MODE.note then return self:annotate(update.note or '') end
-  if update.mode == TourView.MODE.replace then return self:replace_rest(update.steps or {}) end
+  if update.mode == WalkthroughView.MODE.note then return self:annotate(update.note or '') end
+  if update.mode == WalkthroughView.MODE.replace then return self:replace_rest(update.steps or {}) end
 
   return self:insert(update.steps or {})
 end
 
-function TourView:start(index)
+function WalkthroughView:start(index)
   local ok, why = self:show(index or 1)
 
   if ok then self.window:focus() end
@@ -876,26 +884,26 @@ function TourView:start(index)
   return ok, why
 end
 
-function TourView:next(count)
+function WalkthroughView:next(count)
   if self.visiting then return self:show(self.index, self.part) end
-  if self.index >= #self.tour.steps then return self:stop() end
+  if self.index >= #self.walkthrough.steps then return self:stop() end
 
-  return self:show(math.min(self.index + math.max(count or 1, 1), #self.tour.steps))
+  return self:show(math.min(self.index + math.max(count or 1, 1), #self.walkthrough.steps))
 end
 
-function TourView:previous(count)
+function WalkthroughView:previous(count)
   if self.visiting then return self:show(self.index, self.part) end
 
   return self:show(math.max(self.index - math.max(count or 1, 1), 1))
 end
 
-function TourView:next_range(count)
+function WalkthroughView:next_range(count)
   local index, part = self.index, self.part
 
   for _ = 1, math.max(count or 1, 1) do
-    if part < #TourView.ranges(self.tour.steps[index]) then
+    if part < #WalkthroughView.ranges(self.walkthrough.steps[index]) then
       part = part + 1
-    elseif index < #self.tour.steps then
+    elseif index < #self.walkthrough.steps then
       index, part = index + 1, 1
     end
   end
@@ -905,7 +913,7 @@ function TourView:next_range(count)
   return self:show(index, part)
 end
 
-function TourView:previous_range(count)
+function WalkthroughView:previous_range(count)
   local index, part = self.index, self.part
 
   for _ = 1, math.max(count or 1, 1) do
@@ -913,7 +921,7 @@ function TourView:previous_range(count)
       part = part - 1
     elseif index > 1 then
       index = index - 1
-      part = #TourView.ranges(self.tour.steps[index])
+      part = #WalkthroughView.ranges(self.walkthrough.steps[index])
     end
   end
 
@@ -922,7 +930,7 @@ function TourView:previous_range(count)
   return self:show(index, part)
 end
 
-function TourView:stop()
+function WalkthroughView:stop()
   if self.stopped then return false end
 
   self.stopped = true
@@ -948,4 +956,4 @@ function TourView:stop()
   return true
 end
 
-return TourView
+return WalkthroughView

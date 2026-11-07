@@ -6,12 +6,12 @@ local edits = lazy('harness.ui.edits')
 local notice = lazy('harness.ui.notice')
 local display = lazy('harness.ui.display')
 local composer = lazy('harness.ui.composer')
-local TourView = lazy('harness.ui.TourView')
-local tour_type = lazy('harness.types.tour')
-local tour_store = lazy('harness.tour_store')
 local session_store = lazy('harness.session_store')
+local WalkthroughView = lazy('harness.ui.WalkthroughView')
+local walkthrough_type = lazy('harness.types.walkthrough')
+local walkthrough_store = lazy('harness.walkthrough_store')
 
-local tour = {}
+local walkthrough = {}
 
 local views, last, dispose, dispose_sessions = {}, {}, nil, nil
 
@@ -60,7 +60,7 @@ local function target(session)
   return running(session) or only_running()
 end
 
-function tour.close(session)
+function walkthrough.close(session)
   local key = key_of(session)
 
   if not key then return end
@@ -72,28 +72,28 @@ function tour.close(session)
   if view then view:stop() end
 end
 
-function tour.start(data, opts)
+function walkthrough.start(data, opts)
   local key = opts and opts.session
 
-  if type(key) ~= 'string' or key == '' then return false, 'a tour belongs to a session' end
+  if type(key) ~= 'string' or key == '' then return false, 'a walkthrough belongs to a session' end
 
-  tour.close(key)
+  walkthrough.close(key)
 
   local session = hub.session(key)
   local view = session and display.view_of(session)
 
-  views[key] = TourView(data, {
+  views[key] = WalkthroughView(data, {
     source_win = view and view.source_win,
     session = key,
     on_ask = function(shown)
-      return tour.ask_step(shown.session)
+      return walkthrough.ask_step(shown.session)
     end,
     on_stop = function(stopped)
       if views[key] == stopped then views[key] = nil end
 
-      last[key] = { tour = data, step = stopped.last_index or 1 }
+      last[key] = { walkthrough = data, step = stopped.last_index or 1 }
 
-      if tour_store.current(key) == data then tour_store.stop(key) end
+      if walkthrough_store.current(key) == data then walkthrough_store.stop(key) end
     end,
   })
 
@@ -103,16 +103,18 @@ function tour.start(data, opts)
     last[key] = nil
   else
     views[key] = nil
-    warn(why or 'the tour could not start')
+    warn(why or 'the walkthrough could not start')
+
+    if walkthrough_store.current(key) == data then walkthrough_store.stop(key) end
   end
 
   return ok
 end
 
-function tour.resume(session)
+function walkthrough.resume(session)
   local key = target(session) or only_last()
 
-  if not key then return false, 'no tour to resume; ask your session for one' end
+  if not key then return false, 'no walkthrough to resume; ask your session for one' end
 
   local view = views[key]
 
@@ -120,53 +122,55 @@ function tour.resume(session)
 
   local saved = last[key]
 
-  if not saved then return false, 'no tour to resume; ask your session for one' end
+  if not saved then return false, 'no walkthrough to resume; ask your session for one' end
 
-  return tour.start(saved.tour, { session = key, step = saved.step })
+  walkthrough_store.start(key, saved.walkthrough, { step = saved.step })
+
+  return running(key) ~= nil
 end
 
 local function active(session, method)
   local key = target(session)
 
   if not key then
-    if tour.resume(session) then return true end
+    if walkthrough.resume(session) then return true end
 
-    return false, 'no tour is running; :HarnessTour resume brings back the last one'
+    return false, 'no walkthrough is running; :HarnessWalkthrough resume brings back the last one'
   end
 
   return views[key][method](views[key])
 end
 
-function tour.next(session)
+function walkthrough.next(session)
   return active(session, 'next')
 end
 
-function tour.previous(session)
+function walkthrough.previous(session)
   return active(session, 'previous')
 end
 
-function tour.outline(session)
+function walkthrough.outline(session)
   return active(session, 'outline')
 end
 
-function tour.stop(session)
+function walkthrough.stop(session)
   local key = target(session)
 
-  if not key then return false, 'no tour is running' end
+  if not key then return false, 'no walkthrough is running' end
 
-  tour.close(key)
+  walkthrough.close(key)
 
   return true
 end
 
-function tour.changes(view, scope)
+function walkthrough.changes(view, scope)
   if not view then return false, 'no session here' end
 
   scope = scope or edits.SCOPE.turn
 
   local items = view.edits:locations(view.session.history, edits.scoped(view, scope))
 
-  if #items == 0 then return false, 'no ' .. scope .. ' edits to tour here' end
+  if #items == 0 then return false, 'no ' .. scope .. ' edits to walkthrough here' end
 
   local steps = {}
 
@@ -187,7 +191,7 @@ function tour.changes(view, scope)
     }
   end
 
-  local data, err = tour_type.parse({
+  local data, err = walkthrough_type.parse({
     title = string.format('Changes: %s', scope),
     summary = string.format(
       '%d change%s the agent made, in the order it made them.',
@@ -200,20 +204,20 @@ function tour.changes(view, scope)
 
   if not data then return false, err end
 
-  tour_store.start(view.session.key, data)
+  walkthrough_store.start(view.session.key, data)
 
   return true
 end
 
-function tour.step_draft(view)
+function walkthrough.step_draft(view)
   local step, index, part = view:step()
-  local ranges = TourView.ranges(step)
+  local ranges = WalkthroughView.ranges(step)
   local lines = {
     string.format(
-      '[Tour "%s", step %d/%d%s]',
-      view.tour.title,
+      '[Walkthrough "%s", step %d/%d%s]',
+      view.walkthrough.title,
       index,
-      #view.tour.steps,
+      #view.walkthrough.steps,
       step.title and (': ' .. step.title) or ''
     ),
   }
@@ -234,7 +238,7 @@ function tour.step_draft(view)
 
   vim.list_extend(lines, {
     '',
-    '(Answer in this session. If the answer needs more than a sentence or two, give it its own steps with tour_update: insert after this step, or replace the rest. Use note only to clarify this step.)',
+    '(Answer in this session. If the answer needs more than a sentence or two, give it its own steps with walkthrough_update: insert after this step, or replace the rest. Use note only to clarify this step.)',
     '',
     'Question: ',
   })
@@ -242,33 +246,33 @@ function tour.step_draft(view)
   return table.concat(lines, '\n')
 end
 
-function tour.ask_step(session)
+function walkthrough.ask_step(session)
   local key = target(session)
 
-  if not key then return false, 'no tour is running' end
+  if not key then return false, 'no walkthrough is running' end
 
   local current = hub.session(key)
 
-  if not current then return false, 'the session that started this tour is gone' end
+  if not current then return false, 'the session that started this walkthrough is gone' end
 
   local view = views[key]
 
-  composer.restore(current, { tour.step_draft(view) })
+  composer.restore(current, { walkthrough.step_draft(view) })
   composer.open(current, { display = display, insert = true })
 
   return true
 end
 
-function tour.register_events()
+function walkthrough.register_events()
   if dispose then dispose() end
   if dispose_sessions then dispose_sessions() end
 
-  dispose = tour_store.on(function(kind, session, data, opts)
-    if kind == tour_store.EVENT.start then
-      tour.start(data, vim.tbl_extend('force', opts or {}, { session = session }))
-    elseif kind == tour_store.EVENT.stop then
-      tour.close(session)
-    elseif kind == tour_store.EVENT.update then
+  dispose = walkthrough_store.on(function(kind, session, data, opts)
+    if kind == walkthrough_store.EVENT.start then
+      walkthrough.start(data, vim.tbl_extend('force', opts or {}, { session = session }))
+    elseif kind == walkthrough_store.EVENT.stop then
+      walkthrough.close(session)
+    elseif kind == walkthrough_store.EVENT.update then
       local view = views[session]
 
       if view then
@@ -276,7 +280,7 @@ function tour.register_events()
 
         if not ok and why then warn(why) end
       end
-    elseif kind == tour_store.EVENT.select then
+    elseif kind == walkthrough_store.EVENT.select then
       local view = views[session]
 
       if view then view:select(opts.path, opts.first, opts.last) end
@@ -284,10 +288,10 @@ function tour.register_events()
   end)
 
   dispose_sessions = session_store.on('close', function(session)
-    tour_store.stop(session.key)
+    walkthrough_store.stop(session.key)
   end)
 
-  return tour
+  return walkthrough
 end
 
-return tour
+return walkthrough

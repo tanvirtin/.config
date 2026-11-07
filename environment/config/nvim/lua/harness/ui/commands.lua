@@ -8,13 +8,13 @@ local Window = lazy('core.Window')
 local keymap = lazy('core.keymap')
 local async = lazy('harness.async')
 local tools = lazy('nvim_mcp.tools')
-local tour = lazy('harness.ui.tour')
 local edits = lazy('harness.ui.edits')
 local context = lazy('harness.context')
 local notice = lazy('harness.ui.notice')
 local display = lazy('harness.ui.display')
 local composer = lazy('harness.ui.composer')
 local transcript = lazy('harness.ui.transcript')
+local walkthrough = lazy('harness.ui.walkthrough')
 local global_keys = lazy('harness.ui.global_keys')
 
 local commands = {}
@@ -226,23 +226,25 @@ function commands.attach_line()
   return attach_range(window:get_buffer().bufnr, { line, line })
 end
 
-local function tour_session()
+local function walkthrough_session()
   local view = transcript.view() or display.last()
 
   return view and view.session.key or nil
 end
 
-function commands.tour(text)
+function commands.walkthrough(text)
   text = vim.trim(text or '')
 
   local word, rest = text:match('^(%S+)%s*(.*)$')
-  local session = tour_session()
+  local session = walkthrough_session()
 
-  if word == 'next' then return transcript.report(tour.next(session)) end
-  if word == 'prev' or word == 'previous' or word == 'back' then return transcript.report(tour.previous(session)) end
-  if word == 'stop' then return transcript.report(tour.stop(session)) end
-  if word == 'resume' then return transcript.report(tour.resume(session)) end
-  if word == 'outline' then return transcript.report(tour.outline(session)) end
+  if word == 'next' then return transcript.report(walkthrough.next(session)) end
+  if word == 'prev' or word == 'previous' or word == 'back' then
+    return transcript.report(walkthrough.previous(session))
+  end
+  if word == 'stop' then return transcript.report(walkthrough.stop(session)) end
+  if word == 'resume' then return transcript.report(walkthrough.resume(session)) end
+  if word == 'outline' then return transcript.report(walkthrough.outline(session)) end
 
   local here = transcript.view()
 
@@ -251,12 +253,12 @@ function commands.tour(text)
 
     if not scope then scope = here and edits.SCOPE.turn or edits.SCOPE.session end
 
-    return transcript.report(tour.changes(here or display.last(), scope))
+    return transcript.report(walkthrough.changes(here or display.last(), scope))
   end
 
   return transcript.report(
     false,
-    'ask for a tour in your session; :HarnessTour takes next, prev, outline, stop, resume or changes'
+    'ask for a walkthrough in your session; :HarnessWalkthrough takes next, prev, outline, stop, resume or changes'
   )
 end
 

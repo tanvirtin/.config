@@ -1,8 +1,8 @@
-local tour = require('harness.types.tour')
+local walkthrough = require('harness.types.walkthrough')
 
 local eq = assert.are.same
 
-describe('harness.types.tour:', function()
+describe('harness.types.walkthrough:', function()
   local dir, file
 
   before_each(function()
@@ -16,8 +16,8 @@ describe('harness.types.tour:', function()
     vim.fn.delete(dir, 'rf')
   end)
 
-  it('turns an agent\'s steps into a tour, resolving paths against the directory', function()
-    local parsed = tour.parse({
+  it('turns an agent\'s steps into a walkthrough, resolving paths against the directory', function()
+    local parsed = walkthrough.parse({
       title = 'How it works',
       summary = 'A short walk.',
       steps = {
@@ -40,36 +40,36 @@ describe('harness.types.tour:', function()
   end)
 
   it('keeps a range from running backwards and a line from being zero', function()
-    local parsed = tour.parse({ steps = { { path = 'a.lua', line = 0, end_line = -4 } } }, dir)
+    local parsed = walkthrough.parse({ steps = { { path = 'a.lua', line = 0, end_line = -4 } } }, dir)
 
     eq({ 1, 1 }, { parsed.steps[1].line, parsed.steps[1].end_line })
-    eq('Tour', parsed.title)
+    eq('Walkthrough', parsed.title)
   end)
 
   it('says which step is wrong, so the agent can fix it', function()
     local parsed, err =
-      tour.parse({ steps = { { path = 'a.lua', line = 1 }, { path = 'missing.lua', line = 1 } } }, dir)
+      walkthrough.parse({ steps = { { path = 'a.lua', line = 1 }, { path = 'missing.lua', line = 1 } } }, dir)
 
     eq(nil, parsed)
     eq('step 2: no file missing.lua', err)
   end)
 
-  it('refuses an empty tour and one too long to follow', function()
-    eq('a tour needs at least one step', select(2, tour.parse({ steps = {} }, dir)))
+  it('refuses an empty walkthrough and one too long to follow', function()
+    eq('a walkthrough needs at least one step', select(2, walkthrough.parse({ steps = {} }, dir)))
 
     local steps = {}
 
-    for i = 1, tour.MAX_STEPS + 1 do
+    for i = 1, walkthrough.MAX_STEPS + 1 do
       steps[i] = { path = 'a.lua', line = 1 }
     end
 
-    assert.truthy(select(2, tour.parse({ steps = steps }, dir)):find('at most', 1, true))
+    assert.truthy(select(2, walkthrough.parse({ steps = steps }, dir)):find('at most', 1, true))
   end)
 
   it('gathers several ranges under one step, the first naming where it starts', function()
     vim.fn.writefile({ 'x' }, dir .. '/b.lua')
 
-    local parsed = tour.parse({
+    local parsed = walkthrough.parse({
       steps = {
         { title = 'Section', ranges = { { path = 'a.lua', line = 2, end_line = 3 }, { path = 'b.lua', line = 1 } } },
       },
@@ -82,14 +82,16 @@ describe('harness.types.tour:', function()
   end)
 
   it('says which range of a step is wrong', function()
-    local _, err =
-      tour.parse({ steps = { { ranges = { { path = 'a.lua', line = 1 }, { path = 'nope.lua', line = 1 } } } } }, dir)
+    local _, err = walkthrough.parse(
+      { steps = { { ranges = { { path = 'a.lua', line = 1 }, { path = 'nope.lua', line = 1 } } } } },
+      dir
+    )
 
     eq('step 1: range 2: no file nope.lua', err)
   end)
 
   it('puts supporting steps after the core ones, keeping each group in order', function()
-    local parsed = tour.parse({
+    local parsed = walkthrough.parse({
       steps = {
         { path = 'a.lua', line = 1, title = 'test', supporting = true },
         { path = 'a.lua', line = 1, title = 'core one' },

@@ -3,14 +3,14 @@ local lazy = require('core.lazy')
 local hl = lazy('ui.hl')
 local hub = lazy('harness.hub')
 local tools = lazy('harness.tools')
-local tour = lazy('harness.ui.tour')
 local router = lazy('harness.cli.router')
 local settings = lazy('harness.settings')
 local composer = lazy('harness.ui.composer')
-local tour_tools = lazy('harness.tour_tools')
 local transcript = lazy('harness.ui.transcript')
+local walkthrough = lazy('harness.ui.walkthrough')
 local SkillSync = lazy('harness.features.SkillSync')
 local instructions = lazy('harness.types.instructions')
+local walkthrough_tools = lazy('harness.walkthrough_tools')
 local EditCheckTime = lazy('harness.features.EditCheckTime')
 local StaleRunNotice = lazy('harness.features.StaleRunNotice')
 
@@ -46,7 +46,7 @@ end
 
 local function register_modules()
   tools.register()
-  tour_tools.register()
+  walkthrough_tools.register()
   instructions.register('harness', instructions.HARNESS)
   router.setup()
 end
@@ -58,7 +58,7 @@ local function register_events()
 
   features = { EditCheckTime():register_events(), SkillSync():register_events(), StaleRunNotice():register_events() }
   composer.register_events()
-  tour.register_events()
+  walkthrough.register_events()
 end
 
 function harness.setup(opts)

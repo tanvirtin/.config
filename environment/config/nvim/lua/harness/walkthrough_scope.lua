@@ -1,10 +1,10 @@
 local fs = require('core.fs')
 local process = require('core.process')
 
-local tour_scope = {}
+local walkthrough_scope = {}
 
-tour_scope.MAX_COMMITS = 200
-tour_scope.BASES = { 'origin/main', 'origin/master', 'main', 'master' }
+walkthrough_scope.MAX_COMMITS = 200
+walkthrough_scope.BASES = { 'origin/main', 'origin/master', 'main', 'master' }
 
 local function git(dir, args)
   local ok, result = pcall(function()
@@ -22,9 +22,9 @@ local function git(dir, args)
   return result.stdout
 end
 
-tour_scope.git = git
+walkthrough_scope.git = git
 
-function tour_scope.root(dir)
+function walkthrough_scope.root(dir)
   local out, err = git(dir, { 'rev-parse', '--show-toplevel' })
 
   if not out then return nil, err end
@@ -32,7 +32,7 @@ function tour_scope.root(dir)
   return fs.normalize(vim.trim(out))
 end
 
-function tour_scope.resolve(dir, ref)
+function walkthrough_scope.resolve(dir, ref)
   local out = git(dir, { 'rev-parse', '--verify', '--quiet', ref .. '^{commit}' })
 
   if not out then return nil, string.format('no commit "%s" in this repository', ref) end
@@ -40,9 +40,9 @@ function tour_scope.resolve(dir, ref)
   return vim.trim(out)
 end
 
-function tour_scope.default_base(dir, head)
-  for _, name in ipairs(tour_scope.BASES) do
-    if tour_scope.resolve(dir, name) then
+function walkthrough_scope.default_base(dir, head)
+  for _, name in ipairs(walkthrough_scope.BASES) do
+    if walkthrough_scope.resolve(dir, name) then
       local out = git(dir, { 'merge-base', name, head })
 
       if out then return vim.trim(out), name end
@@ -52,7 +52,7 @@ function tour_scope.default_base(dir, head)
   return nil, 'no main or master branch to compare with; give a base commit'
 end
 
-function tour_scope.parse_diff(text)
+function walkthrough_scope.parse_diff(text)
   local files, file = {}, nil
 
   for _, line in ipairs(vim.split(text, '\n', { plain = true })) do
@@ -85,21 +85,21 @@ function tour_scope.parse_diff(text)
   return files
 end
 
-function tour_scope.compute(dir, base, head)
-  local root, err = tour_scope.root(dir)
+function walkthrough_scope.compute(dir, base, head)
+  local root, err = walkthrough_scope.root(dir)
 
   if not root then return nil, err end
 
-  local head_sha, head_err = tour_scope.resolve(dir, head or 'HEAD')
+  local head_sha, head_err = walkthrough_scope.resolve(dir, head or 'HEAD')
 
   if not head_sha then return nil, head_err end
 
   local base_sha, base_err
 
   if base then
-    base_sha, base_err = tour_scope.resolve(dir, base)
+    base_sha, base_err = walkthrough_scope.resolve(dir, base)
   else
-    base_sha, base_err = tour_scope.default_base(dir, head_sha)
+    base_sha, base_err = walkthrough_scope.default_base(dir, head_sha)
   end
 
   if not base_sha then return nil, base_err end
@@ -112,7 +112,7 @@ function tour_scope.compute(dir, base, head)
     'log',
     '--format=%H%x09%s',
     '-n',
-    tostring(tour_scope.MAX_COMMITS),
+    tostring(walkthrough_scope.MAX_COMMITS),
     base_sha .. '..' .. head_sha,
   }) or ''
   local commits = {}
@@ -123,7 +123,7 @@ function tour_scope.compute(dir, base, head)
     if sha then commits[#commits + 1] = { sha = sha, subject = subject } end
   end
 
-  local files = tour_scope.parse_diff(diff)
+  local files = walkthrough_scope.parse_diff(diff)
 
   for _, file in ipairs(files) do
     file.absolute = fs.normalize(fs.joinpath(root, file.path))
@@ -153,7 +153,7 @@ local function covers(step, file, hunk)
   return false
 end
 
-function tour_scope.uncovered(scope, steps)
+function walkthrough_scope.uncovered(scope, steps)
   local missing = {}
 
   for _, file in ipairs(scope.files) do
@@ -173,11 +173,11 @@ function tour_scope.uncovered(scope, steps)
   return missing
 end
 
-function tour_scope.exists_at(root, rev, path)
+function walkthrough_scope.exists_at(root, rev, path)
   return git(root, { 'cat-file', '-e', rev .. ':' .. path }) ~= nil
 end
 
-function tour_scope.show(root, rev, path)
+function walkthrough_scope.show(root, rev, path)
   local out = git(root, { 'show', rev .. ':' .. path })
 
   if not out then return nil end
@@ -185,4 +185,4 @@ function tour_scope.show(root, rev, path)
   return vim.split(out, '\n', { plain = true })
 end
 
-return tour_scope
+return walkthrough_scope

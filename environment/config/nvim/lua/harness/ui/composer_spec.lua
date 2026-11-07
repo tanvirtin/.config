@@ -803,13 +803,13 @@ describe('harness.ui.composer:', function()
       composer.close(true)
     end)
 
-    it('moves the session\'s running tour to the selection', function()
-      local tour_store = require('harness.tour_store')
+    it('moves the session\'s running walkthrough to the selection', function()
+      local walkthrough_store = require('harness.walkthrough_store')
       local seen
 
       open_composer(session)
-      tour_store.start(session.key, { title = 'Walk', steps = {} })
-      tour_store.on(function(kind, _, _, update)
+      walkthrough_store.start(session.key, { title = 'Walk', steps = {} })
+      walkthrough_store.on(function(kind, _, _, update)
         if kind == 'select' then seen = update end
       end)
 
@@ -817,7 +817,7 @@ describe('harness.ui.composer:', function()
 
       eq({ path = '/w/a.lua', first = 1, last = 3 }, seen)
 
-      tour_store.reset()
+      walkthrough_store.reset()
     end)
   end)
 

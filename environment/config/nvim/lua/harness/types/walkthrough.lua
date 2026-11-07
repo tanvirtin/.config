@@ -1,19 +1,19 @@
 local fs = require('core.fs')
 local dataclass = require('core.dataclass')
 
-local tour = {}
+local walkthrough = {}
 
-tour.MAX_STEPS = 60
+walkthrough.MAX_STEPS = 60
 
-tour.MAX_RANGES = 12
+walkthrough.MAX_RANGES = 12
 
-tour.Range = dataclass.define('TourRange', {
+walkthrough.Range = dataclass.define('WalkthroughRange', {
   path = { type = 'string', required = true },
   line = { type = 'number', required = true },
   end_line = { type = 'number', required = true },
 })
 
-tour.Step = dataclass.define('TourStep', {
+walkthrough.Step = dataclass.define('WalkthroughStep', {
   path = { type = 'string', required = true },
   line = { type = 'number', required = true },
   end_line = { type = 'number', required = true },
@@ -23,7 +23,7 @@ tour.Step = dataclass.define('TourStep', {
   supporting = { type = 'boolean', default = false },
 })
 
-tour.Tour = dataclass.define('Tour', {
+walkthrough.Walkthrough = dataclass.define('Walkthrough', {
   title = { type = 'string', required = true },
   summary = { type = 'string' },
   steps = { type = 'table', required = true },
@@ -31,6 +31,7 @@ tour.Tour = dataclass.define('Tour', {
   rev = { type = 'string' },
   base = { type = 'string' },
   root = { type = 'string' },
+  scope = { type = 'table' },
   uncovered = { type = 'table' },
 })
 
@@ -44,7 +45,7 @@ local function absolute(path, dir)
   return fs.normalize(fs.joinpath(dir or fs.cwd(), path))
 end
 
-function tour.range(fields, dir, check)
+function walkthrough.range(fields, dir, check)
   if type(fields.path) ~= 'string' or fields.path == '' then return nil, 'a step needs a path' end
 
   local line = math.max(math.floor(tonumber(fields.line) or 1), 1)
@@ -54,24 +55,24 @@ function tour.range(fields, dir, check)
 
   if not found then return nil, 'no file ' .. fields.path end
 
-  return tour.Range({
+  return walkthrough.Range({
     path = path,
     line = line,
     end_line = math.max(math.floor(tonumber(fields.end_line) or line), line),
   })
 end
 
-function tour.step(fields, dir, check)
+function walkthrough.step(fields, dir, check)
   local given = type(fields.ranges) == 'table' and #fields.ranges > 0 and fields.ranges or { fields }
 
-  if #given > tour.MAX_RANGES then
-    return nil, string.format('a step holds at most %d ranges; split it into more steps', tour.MAX_RANGES)
+  if #given > walkthrough.MAX_RANGES then
+    return nil, string.format('a step holds at most %d ranges; split it into more steps', walkthrough.MAX_RANGES)
   end
 
   local ranges = {}
 
   for index, spec in ipairs(given) do
-    local range, err = tour.range({
+    local range, err = walkthrough.range({
       path = spec.path or fields.path,
       line = spec.line,
       end_line = spec.end_line,
@@ -84,7 +85,7 @@ function tour.step(fields, dir, check)
 
   local first = ranges[1]
 
-  return tour.Step({
+  return walkthrough.Step({
     path = first.path,
     line = first.line,
     end_line = first.end_line,
@@ -95,7 +96,7 @@ function tour.step(fields, dir, check)
   })
 end
 
-function tour.ordered(steps)
+function walkthrough.ordered(steps)
   local core, supporting = {}, {}
 
   for _, step in ipairs(steps) do
@@ -107,34 +108,35 @@ function tour.ordered(steps)
   return vim.list_extend(core, supporting)
 end
 
-function tour.parse(args, dir, opts)
+function walkthrough.parse(args, dir, opts)
   if type(args) ~= 'table' or type(args.steps) ~= 'table' or #args.steps == 0 then
-    return nil, 'a tour needs at least one step'
+    return nil, 'a walkthrough needs at least one step'
   end
 
-  if #args.steps > tour.MAX_STEPS then
-    return nil, string.format('a tour holds at most %d steps; split it in two', tour.MAX_STEPS)
+  if #args.steps > walkthrough.MAX_STEPS then
+    return nil, string.format('a walkthrough holds at most %d steps; split it in two', walkthrough.MAX_STEPS)
   end
 
   local steps = {}
 
   for index, fields in ipairs(args.steps) do
-    local step, err = tour.step(fields, dir, opts and opts.check)
+    local step, err = walkthrough.step(fields, dir, opts and opts.check)
 
     if not step then return nil, string.format('step %d: %s', index, err) end
 
     steps[index] = step
   end
 
-  return tour.Tour({
-    title = type(args.title) == 'string' and args.title ~= '' and args.title or 'Tour',
+  return walkthrough.Walkthrough({
+    title = type(args.title) == 'string' and args.title ~= '' and args.title or 'Walkthrough',
     summary = type(args.summary) == 'string' and args.summary ~= '' and args.summary or nil,
-    steps = tour.ordered(steps),
+    steps = walkthrough.ordered(steps),
     source = type(args.source) == 'string' and args.source or nil,
     rev = opts and opts.rev or nil,
     base = opts and opts.base or nil,
     root = opts and opts.root or nil,
+    scope = opts and opts.scope or nil,
   })
 end
 
-return tour
+return walkthrough

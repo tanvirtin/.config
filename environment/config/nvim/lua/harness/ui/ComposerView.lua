@@ -15,9 +15,9 @@ local settings = lazy('harness.settings')
 local Element = lazy('ui.elements.Element')
 local Animator = lazy('harness.ui.Animator')
 local Renderer = lazy('ui.markdown.Renderer')
-local tour_store = lazy('harness.tour_store')
 local theme = lazy('harness.transcript.theme')
 local PromptHistory = lazy('harness.ui.PromptHistory')
+local walkthrough_store = lazy('harness.walkthrough_store')
 local AnswerDestination = lazy('harness.ui.AnswerDestination')
 local PromptDestination = lazy('harness.ui.PromptDestination')
 local composer_geometry = lazy('harness.ui.composer_geometry')
@@ -302,7 +302,7 @@ function ComposerView:attach(buf, range)
   if name == '' or name:match('^%w+://') then return false, 'select lines in a file to reference them' end
 
   self:_insert(context.token(name, range))
-  tour_store.select(self.session.key, name, range[1], range[2])
+  walkthrough_store.select(self.session.key, name, range[1], range[2])
   Window.redraw_bars()
 
   return true

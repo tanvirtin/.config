@@ -3,15 +3,15 @@ local lazy = require('core.lazy')
 local commands = lazy('harness.ui.commands')
 
 return {
-  name = 'HarnessTour',
+  name = 'HarnessWalkthrough',
   opts = {
     nargs = '?',
     complete = function()
       return { 'changes', 'turn', 'session', 'next', 'prev', 'outline', 'stop', 'resume' }
     end,
-    desc = 'Drive a tour (next, prev, outline, stop, resume), or walk through the agent\'s own changes; ask your session for any other tour',
+    desc = 'Drive a walkthrough (next, prev, outline, stop, resume), or walk through the agent\'s own changes; ask your session for any other walkthrough',
   },
   execute = function(args)
-    return commands.tour(args.args)
+    return commands.walkthrough(args.args)
   end,
 }
