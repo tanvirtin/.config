@@ -7,12 +7,13 @@ local schema = lazy('nvim_mcp.schema')
 local walkthrough_type = lazy('harness.types.walkthrough')
 local walkthrough_scope = lazy('harness.walkthrough_scope')
 local walkthrough_store = lazy('harness.walkthrough_store')
+local walkthrough_locate = lazy('harness.walkthrough_locate')
 
 local walkthrough_tools = {}
 
-walkthrough_tools.MAX_FILES = 80
 walkthrough_tools.MAX_COMMITS = 30
-walkthrough_tools.MAX_UNCOVERED = 30
+walkthrough_tools.MAX_DIFF_LINES = 400
+walkthrough_tools.MAX_HUNK_LINES = 40
 
 local function dir_of(ctx)
   local caller = ctx.caller and hub.session(ctx.caller)
@@ -34,73 +35,161 @@ local function session_of(ctx)
   return caller
 end
 
-local function snapshot(dir, rev)
-  if not rev then return {} end
+local function short(sha)
+  return sha:sub(1, 7)
+end
 
-  local sha, err = walkthrough_scope.resolve(dir, rev)
+local function plural(count, word)
+  return string.format('%d %s%s', count, word, count == 1 and '' or 's')
+end
 
-  if not sha then fail(err) end
+local function lines_of(first, last)
+  return first == last and tostring(first) or string.format('%d-%d', first, last)
+end
 
-  local head = walkthrough_scope.git(dir, { 'rev-parse', 'HEAD' })
-
-  if head and vim.trim(head) == sha then return {} end
-
-  local root, root_err = walkthrough_scope.root(dir)
-
-  if not root then fail(root_err) end
+local function env_of(dir, scope, rev, root)
+  local check = rev
+      and function(path)
+        return walkthrough_scope.exists_at(root, rev, fs.make_relative(root, path))
+      end
+    or nil
 
   return {
-    rev = sha,
-    root = root,
-    check = function(path)
-      return walkthrough_scope.exists_at(root, sha, fs.make_relative(root, path))
+    dir = dir,
+    scope = scope,
+    check = check,
+    read = function(path)
+      if rev then return walkthrough_scope.show(root, rev, fs.make_relative(root, path)) end
+
+      return (fs.read_file(path))
     end,
   }
 end
 
-local function scope_for(session, sha)
-  local scope = walkthrough_store.scope(session)
+local function steps_of(list, env)
+  local steps = {}
 
-  if not scope or (sha or (scope.checked_out and scope.head)) ~= scope.head then return nil end
+  for index, fields in ipairs(list or {}) do
+    local ranges, err = walkthrough_locate.ranges(fields.at, env)
 
-  return scope
+    if not ranges then fail(string.format('step %d: %s', index, err)) end
+
+    steps[index] = { ranges = ranges, title = fields.title, note = fields.note, supporting = fields.supporting }
+  end
+
+  return steps
 end
 
-local function uncovered(walkthrough, dir)
-  local scope = walkthrough.scope
+function walkthrough_tools.runs(hunks)
+  local out, first, last = {}, nil, nil
 
-  if not scope then return nil end
+  local function flush()
+    if first then out[#out + 1] = first == last and ('h' .. first) or string.format('h%d-h%d', first, last) end
+  end
 
-  local missing = walkthrough_scope.uncovered(scope, walkthrough.steps)
-  local shown = {}
+  for _, hunk in ipairs(hunks) do
+    local number = tonumber(hunk.id:sub(2))
+
+    if last and number == last + 1 then
+      last = number
+    else
+      flush()
+      first, last = number, number
+    end
+  end
+
+  flush()
+
+  return table.concat(out, ' ')
+end
+
+local function coverage(walkthrough)
+  if not walkthrough.scope then return nil end
+
+  local missing = walkthrough_scope.uncovered(walkthrough.scope, walkthrough.steps)
 
   walkthrough.uncovered = missing
 
-  for index = 1, math.min(#missing, walkthrough_tools.MAX_UNCOVERED) do
-    shown[index] = {
-      path = fs.make_relative(dir, missing[index].absolute),
-      first = missing[index].first,
-      last = missing[index].last,
-    }
+  if #missing == 0 then return 'every hunk covered' end
+
+  return string.format('uncovered: %s (add with walkthrough_update)', walkthrough_tools.runs(missing))
+end
+
+local function reply(verb, walkthrough)
+  local head = string.format('%s "%s" · %s', verb, walkthrough.title, plural(#walkthrough.steps, 'step'))
+  local covered = coverage(walkthrough)
+
+  return covered and (head .. '\n' .. covered) or head
+end
+
+function walkthrough_tools.render_scope(scope, dir)
+  local added, removed, count = 0, 0, 0
+
+  for _, file in ipairs(scope.files) do
+    for _, hunk in ipairs(file.hunks) do
+      added, removed, count = added + hunk.added, removed + hunk.removed, count + 1
+    end
   end
 
-  return {
-    uncovered = #missing > 0 and shown or nil,
-    uncovered_count = #missing > 0 and #missing or nil,
-    note = #missing > 0 and string.format(
-      '%d changed hunk%s no step covers; add them with walkthrough_update.',
-      #missing,
-      #missing == 1 and '' or 's'
-    ) or 'Every changed hunk in the range is covered.',
+  local out = {
+    string.format(
+      '%s..%s%s · %s · %s · %s · +%d -%d',
+      short(scope.base),
+      short(scope.head),
+      scope.checked_out and ' (checked out)' or '',
+      plural(#scope.commits, 'commit'),
+      plural(#scope.files, 'file'),
+      plural(count, 'hunk'),
+      added,
+      removed
+    ),
   }
-end
 
-local function with(result, extra)
-  return extra and vim.tbl_extend('force', result, extra) or result
-end
+  for index = 1, math.min(#scope.commits, walkthrough_tools.MAX_COMMITS) do
+    out[#out + 1] = short(scope.commits[index].sha) .. ' ' .. scope.commits[index].subject
+  end
 
-local function short(sha)
-  return sha:sub(1, 7)
+  if #scope.commits > walkthrough_tools.MAX_COMMITS then
+    out[#out + 1] = string.format('… %d more commits', #scope.commits - walkthrough_tools.MAX_COMMITS)
+  end
+
+  if #scope.deleted > 0 then out[#out + 1] = 'deleted: ' .. table.concat(scope.deleted, ' ') end
+
+  local budget, cut = walkthrough_tools.MAX_DIFF_LINES, nil
+
+  for _, file in ipairs(scope.files) do
+    local path = fs.make_relative(dir, file.absolute)
+
+    for _, hunk in ipairs(file.hunks) do
+      out[#out + 1] = string.format(
+        '%s %s:%s +%d -%d%s',
+        hunk.id,
+        path,
+        lines_of(hunk.first, hunk.last),
+        hunk.added,
+        hunk.removed,
+        hunk.symbol and (' · ' .. hunk.symbol) or ''
+      )
+
+      if budget > 0 then
+        local shown = math.min(#hunk.lines, walkthrough_tools.MAX_HUNK_LINES, budget)
+
+        vim.list_extend(out, hunk.lines, 1, shown)
+
+        if shown < #hunk.lines then out[#out + 1] = string.format('… %d more lines', #hunk.lines - shown) end
+
+        budget = budget - shown
+      elseif not cut then
+        cut = hunk.id
+      end
+    end
+  end
+
+  if cut then out[#out + 1] = string.format('diffs stop before %s; read the files for the rest', cut) end
+
+  out[#out + 1] = 'next: walkthrough_start with steps naming these ids in at'
+
+  return table.concat(out, '\n')
 end
 
 local function walkthrough_scope_tool(args, ctx)
@@ -111,53 +200,40 @@ local function walkthrough_scope_tool(args, ctx)
 
   walkthrough_store.set_scope(session_of(ctx), scope)
 
-  local files = {}
-
-  for index = 1, math.min(#scope.files, walkthrough_tools.MAX_FILES) do
-    files[index] = { path = fs.make_relative(dir, scope.files[index].absolute), hunks = scope.files[index].hunks }
-  end
-
-  local commits = {}
-
-  for index = 1, math.min(#scope.commits, walkthrough_tools.MAX_COMMITS) do
-    commits[index] = { sha = short(scope.commits[index].sha), subject = scope.commits[index].subject }
-  end
-
-  return {
-    base = short(scope.base),
-    head = short(scope.head),
-    rev = scope.head,
-    checked_out = scope.checked_out,
-    commits = commits,
-    commit_count = #scope.commits,
-    files = files,
-    file_count = #scope.files,
-    next = 'Read the changed code, then call walkthrough_start with rev set to the rev above and steps in the order a reviewer should read them, covering every hunk: one step per purpose, its hunks as ranges, the core first and tests, docs and wiring marked supporting.',
-  }
+  return walkthrough_tools.render_scope(scope, dir)
 end
 
 local function walkthrough_start(args, ctx)
   local session = session_of(ctx)
   local dir = dir_of(ctx)
-  local opts = snapshot(dir, args.rev)
-  local sha = args.rev and walkthrough_scope.resolve(dir, args.rev) or nil
-  local scope = scope_for(session, sha)
+  local scope = walkthrough_store.scope(session)
+  local rev = scope and not scope.checked_out and scope.head or nil
+  local env = env_of(dir, scope, rev, scope and scope.root)
 
-  if scope then
-    opts.base = scope.base
-    opts.root = opts.root or scope.root
-    opts.scope = scope
-  end
-
-  local walkthrough, err = walkthrough_type.parse(args, dir, opts)
+  local walkthrough, err = walkthrough_type.parse(
+    {
+      title = args.title,
+      summary = args.summary,
+      steps = steps_of(args.steps, env),
+    },
+    dir,
+    {
+      check = env.check,
+      rev = rev,
+      base = scope and scope.base,
+      root = scope and scope.root,
+      scope = scope,
+    }
+  )
 
   if not walkthrough then fail(err) end
 
-  local coverage = uncovered(walkthrough, dir)
+  local text = reply('started', walkthrough)
 
+  walkthrough_store.set_scope(session, nil)
   walkthrough_store.start(session, walkthrough)
 
-  return with({ title = walkthrough.title, steps = #walkthrough.steps }, coverage)
+  return text
 end
 
 local function walkthrough_update(args, ctx)
@@ -166,20 +242,15 @@ local function walkthrough_update(args, ctx)
 
   if not current then fail('no walkthrough is running; start one with walkthrough_start') end
 
-  local update = { mode = args.mode, note = args.note, steps = {} }
-
   if args.mode == 'note' and (args.note == nil or args.note == '') then fail('mode note needs a note') end
   if args.mode ~= 'note' and #(args.steps or {}) == 0 then fail('mode ' .. args.mode .. ' needs steps') end
 
   local dir = dir_of(ctx)
-  local check = current.rev
-      and function(path)
-        return walkthrough_scope.exists_at(current.root, current.rev, fs.make_relative(current.root, path))
-      end
-    or nil
+  local env = env_of(dir, current.scope, current.rev, current.root)
+  local update = { mode = args.mode, note = args.note, steps = {} }
 
-  for index, fields in ipairs(args.steps or {}) do
-    local step, err = walkthrough_type.step(fields, dir, check)
+  for index, fields in ipairs(steps_of(args.steps, env)) do
+    local step, err = walkthrough_type.step(fields, dir, env.check)
 
     if not step then fail(string.format('step %d: %s', index, err)) end
 
@@ -190,39 +261,19 @@ local function walkthrough_update(args, ctx)
 
   if not ok then fail(why) end
 
-  return with({ title = current.title, steps = #current.steps }, uncovered(current, dir))
+  return reply('updated', current)
 end
-
-local RANGE = schema.model({
-  { name = 'path', type = schema.str({ description = 'File, relative to the project or absolute.' }) },
-  { name = 'line', type = schema.int({ description = 'First line, 1-based.' }) },
-  { name = 'end_line', type = schema.int({ description = 'Last line of the range.' }), optional = true },
-})
 
 local STEP = schema.model({
   {
-    name = 'path',
-    type = schema.str({ description = 'File, relative to the project or absolute (or give ranges).' }),
-    optional = true,
-  },
-  { name = 'line', type = schema.int({ description = 'First line, 1-based.' }), optional = true },
-  { name = 'end_line', type = schema.int({ description = 'Last line of the range.' }), optional = true },
-  {
-    name = 'ranges',
-    type = schema.list(RANGE, {
-      description = 'Several ranges, across files if need be, that one explanation covers (a section). The reader steps through them in this order. Use instead of path and line.',
+    name = 'at',
+    type = schema.list(schema.str(), {
+      description = 'What the step shows, in reading order: hunk ids (h3), path:Symbol, path:10-20 or path.',
     }),
-    optional = true,
   },
-  { name = 'title', type = schema.str({ description = 'A few words.' }), optional = true },
-  { name = 'note', type = schema.str({ description = 'Markdown shown beside the code.' }), optional = true },
-  {
-    name = 'supporting',
-    type = schema.bool({
-      description = 'True for lower-signal changes (tests, docs, generated code, renames, wiring); they are shown after the core steps.',
-    }),
-    optional = true,
-  },
+  { name = 'title', type = schema.str(), optional = true },
+  { name = 'note', type = schema.str({ description = 'Markdown: why this code matters.' }), optional = true },
+  { name = 'supporting', type = schema.bool({ description = 'Tests, docs, wiring: shown last.' }), optional = true },
 })
 
 function walkthrough_tools.definitions()
@@ -230,39 +281,20 @@ function walkthrough_tools.definitions()
     {
       name = 'walkthrough_scope',
       risk = 'read',
-      summary = 'Use first when the user asks you to review or walk through a range of commits or a branch ("review abc123..def456", "what does this branch change"). Works out, from git and without guessing, which commits and which hunks of which files changed between base and head, and remembers it so that walkthrough_start can tell you what you have not covered. Both must be commits that exist in this repository. base defaults to where the branch left main; head defaults to HEAD. Returns the commits, the files with the line ranges of their hunks at head, and the rev to give walkthrough_start.',
+      summary = 'First step of reviewing commits or a branch. Lists from git the commits and every changed hunk as an id (h1, h2…) with its lines, enclosing symbol and diff. base defaults to where the branch left main, head to HEAD.',
       params = {
-        {
-          name = 'base',
-          type = schema.str({ description = 'The commit the range starts after (a sha, branch or tag).' }),
-          optional = true,
-        },
-        {
-          name = 'head',
-          type = schema.str({ description = 'The commit the range ends at (default HEAD).' }),
-          optional = true,
-        },
+        { name = 'base', type = schema.str(), optional = true },
+        { name = 'head', type = schema.str(), optional = true },
       },
       fn = walkthrough_scope_tool,
     },
     {
       name = 'walkthrough_start',
       risk = 'read',
-      summary = 'Walk the user through code in their editor, when they ask to be shown, taken through, or told how something works, or to review changes: opens each step\'s file at the lines it is about, highlights them and shows your note beside them, and the user steps through with keys (they can ask you about a step, and you can change the walkthrough with walkthrough_update). Give a short title, an optional summary, and 3 to 15 steps in the order you want them read: for a review, the order a reviewer should read the change in (entry point, core logic, callers, tests), with what to watch for; for a feature, the order the code runs in. Each step names a file (relative to the project), the line or range it is about, a short title and a note in markdown: say what the code does and why it matters here, not what the line says. Check paths and line numbers by reading the files first. After walkthrough_scope, pass its rev: the steps are then lines of that commit, shown read-only if it is not checked out, each shown as a diff against the base, and the reply lists changed hunks no step covers. For a review, make each step a section: put the hunks that serve one purpose, across files if need be, under one explanation with ranges, and say why that part of the change exists and what it affects. Put the core of the change first and mark tests, docs, generated code, renames and wiring as supporting.',
+      summary = 'Walk the user through code in their editor, for a review (after walkthrough_scope) or to show how something works. Steps in reading order: for a review one step per purpose, core first; for a feature the order the code runs. Point at code by hunk id or symbol rather than reading files for line numbers.',
       params = {
-        { name = 'title', type = schema.str({ description = 'What the walkthrough is about, in a few words.' }) },
-        {
-          name = 'summary',
-          type = schema.str({ description = 'One or two sentences of orientation.' }),
-          optional = true,
-        },
-        {
-          name = 'rev',
-          type = schema.str({
-            description = 'The commit the line numbers refer to (from walkthrough_scope). Omit for the files as they are on disk.',
-          }),
-          optional = true,
-        },
+        { name = 'title', type = schema.str() },
+        { name = 'summary', type = schema.str({ description = 'One or two sentences.' }), optional = true },
         { name = 'steps', type = schema.list(STEP) },
       },
       fn = walkthrough_start,
@@ -270,15 +302,11 @@ function walkthrough_tools.definitions()
     {
       name = 'walkthrough_update',
       risk = 'read',
-      summary = 'Change the walkthrough the user is following, after they ask about a step. mode "insert" adds steps right after the step they are on and moves them to the first new one; "replace" swaps every step after the current one for new steps; "note" rewrites the current step\'s note with a better explanation and keeps them where they are. When a question opens something the step does not cover, prefer "insert" and give the answer its own steps; use "note" only for a sentence or two, and "replace" when the walkthrough should go somewhere else. Steps are as in walkthrough_start, and the reply lists changed hunks still uncovered when a range is being reviewed.',
+      summary = 'Change the running walkthrough after the user asks about a step. insert: new steps after the current one (prefer when an answer needs more than a sentence or two); replace: swap the steps after it; note: rewrite its note.',
       params = {
         { name = 'mode', type = schema.literal({ 'insert', 'replace', 'note' }) },
         { name = 'steps', type = schema.list(STEP), optional = true },
-        {
-          name = 'note',
-          type = schema.str({ description = 'The new note for the current step (mode note).' }),
-          optional = true,
-        },
+        { name = 'note', type = schema.str(), optional = true },
       },
       fn = walkthrough_update,
     },

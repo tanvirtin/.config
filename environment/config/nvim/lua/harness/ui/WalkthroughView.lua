@@ -145,6 +145,14 @@ function WalkthroughView:_buffer(path)
   return self:_snapshot(path, string.format('rev://%s/%s', walkthrough.rev:sub(1, 7), relative), lines, path)
 end
 
+function WalkthroughView:_base_path(path)
+  local walkthrough = self.walkthrough
+
+  if walkthrough.scope then return walkthrough_scope.base_path(walkthrough.scope, path) end
+
+  return fs.make_relative(walkthrough.root, path)
+end
+
 function WalkthroughView:_base_lines(path)
   local walkthrough = self.walkthrough
 
@@ -154,8 +162,7 @@ function WalkthroughView:_base_lines(path)
 
   if cached then return cached end
 
-  local lines = walkthrough_scope.show(walkthrough.root, walkthrough.base, fs.make_relative(walkthrough.root, path))
-    or {}
+  local lines = walkthrough_scope.show(walkthrough.root, walkthrough.base, self:_base_path(path)) or {}
 
   if lines[#lines] == '' then lines[#lines] = nil end
 
@@ -165,12 +172,9 @@ function WalkthroughView:_base_lines(path)
 end
 
 function WalkthroughView:_base_buffer(path)
-  local walkthrough = self.walkthrough
-  local relative = fs.make_relative(walkthrough.root, path)
-
   return self:_snapshot(
     'base:' .. path,
-    string.format('rev://%s/%s', walkthrough.base:sub(1, 7), relative),
+    string.format('rev://%s/%s', self.walkthrough.base:sub(1, 7), self:_base_path(path)),
     vim.list_extend({}, self:_base_lines(path)),
     path
   )
@@ -708,8 +712,9 @@ function WalkthroughView:_entries()
   for _, hunk in ipairs(self.walkthrough.uncovered or {}) do
     entries[#entries + 1] = {
       label = string.format(
-        '%s not covered · %s:%d-%d',
+        '%s %s not covered · %s:%d-%d',
         WalkthroughView.MARK.uncovered,
+        hunk.id or '',
         hunk.path,
         hunk.first,
         hunk.last

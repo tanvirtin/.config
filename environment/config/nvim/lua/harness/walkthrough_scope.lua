@@ -1,9 +1,11 @@
 local fs = require('core.fs')
 local process = require('core.process')
+local symbols = require('harness.symbols')
 
 local walkthrough_scope = {}
 
 walkthrough_scope.MAX_COMMITS = 200
+walkthrough_scope.MAX_LABELLED = 60
 walkthrough_scope.BASES = { 'origin/main', 'origin/master', 'main', 'master' }
 
 local function git(dir, args)
@@ -52,37 +54,76 @@ function walkthrough_scope.default_base(dir, head)
   return nil, 'no main or master branch to compare with; give a base commit'
 end
 
+local function count(text)
+  return text == '' and 1 or tonumber(text)
+end
+
 function walkthrough_scope.parse_diff(text)
-  local files, file = {}, nil
+  local files, deleted, file, hunk, old_path = {}, {}, nil, nil, nil
+  local old_left, new_left = 0, 0
 
   for _, line in ipairs(vim.split(text, '\n', { plain = true })) do
-    local path = line:match('^%+%+%+ b/(.+)$')
+    if hunk and (old_left > 0 or new_left > 0) then
+      local mark = line:sub(1, 1)
 
-    if path then
-      file = { path = path, hunks = {} }
-      files[#files + 1] = file
+      if mark == '-' then
+        old_left = old_left - 1
+        hunk.lines[#hunk.lines + 1] = line
+      elseif mark == '+' then
+        new_left = new_left - 1
+        hunk.lines[#hunk.lines + 1] = line
+      elseif mark == ' ' then
+        old_left, new_left = old_left - 1, new_left - 1
+      end
+    elseif line:match('^diff %-%-git ') then
+      file, hunk, old_path = nil, nil, nil
+    elseif line:match('^%-%-%- ') then
+      old_path = line:match('^%-%-%- a/(.+)$')
     elseif line:match('^%+%+%+ /dev/null') then
-      file = { deleted = true, hunks = {} }
-    elseif line:match('^%-%-%- /dev/null') and file == nil then
+      deleted[#deleted + 1] = old_path
       file = nil
-    end
+    elseif line:match('^%+%+%+ b/') then
+      local path = line:match('^%+%+%+ b/(.+)$')
 
-    local old_count, start, count = line:match('^@@ %-%d+,?(%d*) %+(%d+),?(%d*) @@')
+      file = { path = path, old_path = old_path, hunks = {} }
+      files[#files + 1] = file
+    else
+      local removed, start, added = line:match('^@@ %-%d+,?(%d*) %+(%d+),?(%d*) @@')
 
-    if start and file and not file.deleted then
-      local first = tonumber(start)
-      local added = count == '' and 1 or tonumber(count)
+      if start and file then
+        local first = tonumber(start)
 
-      file.hunks[#file.hunks + 1] = {
-        first = math.max(first, 1),
-        last = math.max(first + added - 1, first, 1),
-        added = added,
-        removed = old_count == '' and 1 or tonumber(old_count),
-      }
+        old_left, new_left = count(removed), count(added)
+        hunk = {
+          first = math.max(first, 1),
+          last = math.max(first + new_left - 1, first, 1),
+          added = new_left,
+          removed = old_left,
+          lines = {},
+        }
+        file.hunks[#file.hunks + 1] = hunk
+      elseif start then
+        hunk = { lines = {} }
+        old_left, new_left = count(removed), count(added)
+      end
     end
   end
 
-  return files
+  return files, deleted
+end
+
+local function label(root, rev, file)
+  local lines = walkthrough_scope.show(root, rev, file.path)
+
+  if not lines then return end
+
+  local list = symbols.parse(lines, file.path)
+
+  for _, hunk in ipairs(file.hunks) do
+    local symbol = symbols.enclosing(list, hunk.first, hunk.last) or symbols.enclosing(list, hunk.first, hunk.first)
+
+    hunk.symbol = symbol and symbol.name or nil
+  end
 end
 
 function walkthrough_scope.compute(dir, base, head)
@@ -104,7 +145,8 @@ function walkthrough_scope.compute(dir, base, head)
 
   if not base_sha then return nil, base_err end
 
-  local diff, diff_err = git(root, { 'diff', '--no-color', '--no-ext-diff', '--no-renames', '-U0', base_sha, head_sha })
+  local diff, diff_err =
+    git(root, { 'diff', '--no-color', '--no-ext-diff', '--find-renames', '-U0', base_sha, head_sha })
 
   if not diff then return nil, diff_err end
 
@@ -123,10 +165,19 @@ function walkthrough_scope.compute(dir, base, head)
     if sha then commits[#commits + 1] = { sha = sha, subject = subject } end
   end
 
-  local files = walkthrough_scope.parse_diff(diff)
+  local files, deleted = walkthrough_scope.parse_diff(diff)
+  local by_id, next_id = {}, 0
 
-  for _, file in ipairs(files) do
+  for index, file in ipairs(files) do
     file.absolute = fs.normalize(fs.joinpath(root, file.path))
+
+    if index <= walkthrough_scope.MAX_LABELLED then label(root, head_sha, file) end
+
+    for _, hunk in ipairs(file.hunks) do
+      next_id = next_id + 1
+      hunk.id = 'h' .. next_id
+      by_id[hunk.id] = { file = file, hunk = hunk }
+    end
   end
 
   local current = git(root, { 'rev-parse', 'HEAD' })
@@ -137,8 +188,18 @@ function walkthrough_scope.compute(dir, base, head)
     head = head_sha,
     commits = commits,
     files = files,
+    deleted = deleted,
+    by_id = by_id,
     checked_out = current ~= nil and vim.trim(current) == head_sha,
   }
+end
+
+function walkthrough_scope.base_path(scope, absolute)
+  for _, file in ipairs(scope and scope.files or {}) do
+    if file.absolute == absolute then return file.old_path end
+  end
+
+  return fs.make_relative(scope and scope.root, absolute)
 end
 
 local function overlaps(range, hunk)
@@ -165,7 +226,8 @@ function walkthrough_scope.uncovered(scope, steps)
       end
 
       if not covered then
-        missing[#missing + 1] = { path = file.path, absolute = file.absolute, first = hunk.first, last = hunk.last }
+        missing[#missing + 1] =
+          { id = hunk.id, path = file.path, absolute = file.absolute, first = hunk.first, last = hunk.last }
       end
     end
   end

@@ -30,26 +30,23 @@ describe('harness.walkthrough_tools:', function()
     assert.truthy(definition.summary:find('Walk the user through', 1, true))
   end)
 
-  it('hands a valid walkthrough to the store and says how many steps it holds', function()
+  it('hands a valid walkthrough to the store and replies in one line', function()
     local seen
 
     walkthrough_store.on(function(kind, session, walkthrough)
       seen = { kind, session, walkthrough.title, #walkthrough.steps }
     end)
 
-    local result = run('walkthrough_start', {
-      title = 'Config',
-      steps = { { path = 'init.lua', line = 1, note = 'Start here.' } },
-    })
+    local reply = run('walkthrough_start', { title = 'Config', steps = { { at = { 'init.lua:1' }, note = 'Here.' } } })
 
     eq({ 'start', SESSION, 'Config', 1 }, seen)
-    eq({ title = 'Config', steps = 1 }, result)
+    eq('started "Config" · 1 step', reply)
   end)
 
-  it('tells the agent which step has a path that does not exist', function()
+  it('tells the agent which step points at a file that does not exist', function()
     local ok, err = pcall(run, 'walkthrough_start', {
       title = 'Bad',
-      steps = { { path = 'init.lua', line = 1 }, { path = 'no/such/file.lua', line = 3 } },
+      steps = { { at = { 'init.lua:1' } }, { at = { 'no/such/file.lua:3' } } },
     })
 
     eq(false, ok)
@@ -58,16 +55,13 @@ describe('harness.walkthrough_tools:', function()
   end)
 
   it('ties a walkthrough to the session that asked for it, and keeps sessions apart', function()
-    local ok, err = pcall(tools.run, 'walkthrough_start', {
-      title = 'Loose',
-      steps = { { path = 'init.lua', line = 1 } },
-    })
+    local ok, err = pcall(tools.run, 'walkthrough_start', { title = 'Loose', steps = { { at = { 'init.lua:1' } } } })
 
     eq(false, ok)
     assert.truthy(tostring(err):find('a walkthrough belongs to a session', 1, true))
 
-    run('walkthrough_start', { title = 'One', steps = { { path = 'init.lua', line = 1 } } })
-    tools.run('walkthrough_start', { title = 'Two', steps = { { path = 'init.lua', line = 1 } } }, 's2')
+    run('walkthrough_start', { title = 'One', steps = { { at = { 'init.lua:1' } } } })
+    tools.run('walkthrough_start', { title = 'Two', steps = { { at = { 'init.lua:1' } } } }, 's2')
 
     eq('One', walkthrough_store.current(SESSION).title)
     eq('Two', walkthrough_store.current('s2').title)
@@ -78,12 +72,20 @@ describe('harness.walkthrough_tools:', function()
     eq('Two', walkthrough_store.current('s2').title)
   end)
 
+  it('names uncovered hunks in runs', function()
+    local hunks = vim.tbl_map(function(id)
+      return { id = id }
+    end, { 'h1', 'h2', 'h3', 'h5', 'h7', 'h8' })
+
+    eq('h1-h3 h5 h7-h8', walkthrough_tools.runs(hunks))
+  end)
+
   describe('walkthrough_update', function()
     local function start()
       walkthrough_store.start(SESSION, { title = 'Config', steps = { { title = 'one' } } })
     end
 
-    it('passes parsed steps to whoever follows the walkthrough', function()
+    it('passes resolved steps to whoever follows the walkthrough', function()
       local seen
 
       start()
@@ -91,15 +93,13 @@ describe('harness.walkthrough_tools:', function()
         if kind == 'update' then seen = update end
       end)
 
-      local result = run('walkthrough_update', {
-        mode = 'insert',
-        steps = { { path = 'init.lua', line = 2, note = 'More.' } },
-      })
+      local reply =
+        run('walkthrough_update', { mode = 'insert', steps = { { at = { 'init.lua:2' }, note = 'More.' } } })
 
       eq('insert', seen.mode)
       eq(1, #seen.steps)
       eq(2, seen.steps[1].line)
-      eq({ title = 'Config', steps = 1 }, result)
+      eq('updated "Config" · 1 step', reply)
     end)
 
     it('rewrites a note without needing steps', function()
@@ -126,7 +126,7 @@ describe('harness.walkthrough_tools:', function()
       assert.truthy(message({ mode = 'insert' }):find('needs steps', 1, true))
       assert.truthy(message({ mode = 'note' }):find('needs a note', 1, true))
       assert.truthy(
-        message({ mode = 'insert', steps = { { path = 'nope.lua', line = 1 } } }):find('step 1: no file', 1, true)
+        message({ mode = 'insert', steps = { { at = { 'nope.lua:1' } } } }):find('step 1: no file', 1, true)
       )
     end)
   end)
@@ -172,20 +172,6 @@ describe('harness.walkthrough_tools:', function()
       vim.fn.delete(repo, 'rf')
     end)
 
-    it('works the range out from git and hands back the rev to walkthrough', function()
-      local scope = run('walkthrough_scope', { base = base, head = middle })
-
-      eq({ base:sub(1, 7), middle:sub(1, 7), middle, false }, { scope.base, scope.head, scope.rev, scope.checked_out })
-      eq(
-        { 'a.lua', 'b.lua' },
-        vim.tbl_map(function(file)
-          return file.path
-        end, scope.files)
-      )
-      eq(1, scope.commit_count)
-      assert.truthy(scope.next:find('walkthrough_start', 1, true))
-    end)
-
     it('names files relative to a session that runs below the repository root, so its steps resolve', function()
       vim.fn.mkdir(repo .. '/sub', 'p')
       vim.fn.writefile({ 'c1' }, repo .. '/sub/c.lua')
@@ -193,17 +179,50 @@ describe('harness.walkthrough_tools:', function()
       sh('commit', '-q', '-m', 'add c')
       vim.cmd('cd ' .. vim.fn.fnameescape(repo .. '/sub'))
 
-      local scope = run('walkthrough_scope', { base = base })
-      local paths = vim.tbl_map(function(file)
-        return file.path
-      end, scope.files)
+      local text = run('walkthrough_scope', { base = base })
 
-      eq({ repo .. '/a.lua', repo .. '/b.lua', 'c.lua' }, paths)
+      assert.truthy(text:find('h1 ' .. repo .. '/a.lua:2 +1 -1', 1, true))
+      assert.truthy(text:find('h4 c.lua:1 +1 -0', 1, true))
 
-      local reply = run('walkthrough_start', { title = 'Review', steps = { { path = 'c.lua', line = 1 } } })
+      eq(
+        'started "Review" · 1 step\nuncovered: h1-h3 (add with walkthrough_update)',
+        run('walkthrough_start', {
+          title = 'Review',
+          steps = { { at = { 'c.lua:1' } } },
+        })
+      )
+    end)
 
-      eq(3, reply.uncovered_count)
-      eq(repo .. '/a.lua', reply.uncovered[1].path)
+    it('lists the range in a few lines: commits, then each hunk by id with its diff', function()
+      local text = run('walkthrough_scope', { base = base, head = middle })
+
+      eq({
+        string.format('%s..%s · 1 commit · 2 files · 3 hunks · +4 -2', base:sub(1, 7), middle:sub(1, 7)),
+        middle:sub(1, 7) .. ' change a, add b',
+        'h1 a.lua:2 +1 -1',
+        '-a2',
+        '+A2',
+        'h2 a.lua:6 +1 -1',
+        '-a6',
+        '+A6',
+        'h3 b.lua:1-2 +2 -0',
+        '+b1',
+        '+b2',
+        'next: walkthrough_start with steps naming these ids in at',
+      }, vim.split(text, '\n', { plain = true }))
+    end)
+
+    it('stops the diffs at a budget and says where', function()
+      local saved_budget = walkthrough_tools.MAX_DIFF_LINES
+
+      walkthrough_tools.MAX_DIFF_LINES = 2
+
+      local text = run('walkthrough_scope', { base = base, head = middle })
+
+      walkthrough_tools.MAX_DIFF_LINES = saved_budget
+
+      assert.truthy(text:find('h2 a.lua:6 +1 -1\nh3', 1, true))
+      assert.truthy(text:find('diffs stop before h2', 1, true))
     end)
 
     it('names a commit that is not here, instead of reviewing nothing', function()
@@ -213,59 +232,50 @@ describe('harness.walkthrough_tools:', function()
       assert.truthy(tostring(err):find('no commit "nope1234"', 1, true))
     end)
 
-    it('walks a commit that is not checked out from git, and says what the steps leave out', function()
+    it('walks a commit that is not checked out, from hunk ids, and names the hunks left out', function()
       run('walkthrough_scope', { base = base, head = middle })
 
-      local reply = run('walkthrough_start', {
-        title = 'Review',
-        rev = middle,
-        steps = { { path = 'a.lua', line = 2, note = 'a2 changed.' } },
-      })
+      local reply = run('walkthrough_start', { title = 'Review', steps = { { at = { 'h1' }, note = 'a2 changed.' } } })
       local walkthrough = walkthrough_store.current(SESSION)
 
       eq(middle, walkthrough.rev)
+      eq(base, walkthrough.base)
       eq(vim.fs.normalize(repo), walkthrough.root)
-      eq(2, reply.uncovered_count)
-      eq({ 'a.lua', 6, 6 }, { reply.uncovered[1].path, reply.uncovered[1].first, reply.uncovered[1].last })
-      assert.truthy(reply.note:find('walkthrough_update', 1, true))
+      eq({ 2, 2 }, { walkthrough.steps[1].line, walkthrough.steps[1].end_line })
+      eq('started "Review" · 1 step\nuncovered: h2-h3 (add with walkthrough_update)', reply)
     end)
 
-    it('gives a review walkthrough its base and its uncovered hunks, and takes sections', function()
+    it('takes sections across files and puts supporting steps last', function()
       run('walkthrough_scope', { base = base, head = middle })
 
       local reply = run('walkthrough_start', {
         title = 'Review',
-        rev = middle,
         steps = {
-          { path = 'a.lua', line = 2, title = 'Tests', supporting = true },
-          { title = 'Core', ranges = { { path = 'a.lua', line = 6 }, { path = 'b.lua', line = 1, end_line = 2 } } },
+          { at = { 'h1' }, title = 'Tests', supporting = true },
+          { at = { 'h2', 'h3' }, title = 'Core' },
         },
       })
       local walkthrough = walkthrough_store.current(SESSION)
 
-      eq(base, walkthrough.base)
       eq({ 'Core', 'Tests' }, { walkthrough.steps[1].title, walkthrough.steps[2].title })
-      eq(nil, reply.uncovered)
+      eq(2, #walkthrough.steps[1].ranges)
+      eq('started "Review" · 2 steps\nevery hunk covered', reply)
       eq({}, walkthrough.uncovered)
     end)
 
     it('says it is complete once every hunk has a step, and checks added steps against the commit', function()
       run('walkthrough_scope', { base = base, head = middle })
-      run('walkthrough_start', { title = 'Review', rev = middle, steps = { { path = 'a.lua', line = 2 } } })
+      run('walkthrough_start', { title = 'Review', steps = { { at = { 'h1' } } } })
       walkthrough_store.on(function(kind, _, walkthrough, update)
         if kind == 'update' then vim.list_extend(walkthrough.steps, update.steps) end
       end)
 
-      local reply = run('walkthrough_update', {
-        mode = 'insert',
-        steps = { { path = 'a.lua', line = 6 }, { path = 'b.lua', line = 1, end_line = 2 } },
-      })
+      eq(
+        'updated "Review" · 3 steps\nevery hunk covered',
+        run('walkthrough_update', { mode = 'insert', steps = { { at = { 'h2' } }, { at = { 'b.lua:1-2' } } } })
+      )
 
-      eq(3, reply.steps)
-      eq(nil, reply.uncovered)
-      assert.truthy(reply.note:find('Every changed hunk', 1, true))
-
-      local ok, err = pcall(run, 'walkthrough_update', { mode = 'insert', steps = { { path = 'c.lua', line = 1 } } })
+      local ok, err = pcall(run, 'walkthrough_update', { mode = 'insert', steps = { { at = { 'c.lua:1' } } } })
 
       eq(false, ok)
       assert.truthy(tostring(err):find('step 1: no file c.lua', 1, true))
@@ -274,23 +284,19 @@ describe('harness.walkthrough_tools:', function()
     it('keeps a review range to the session that worked it out', function()
       run('walkthrough_scope', { base = base, head = middle })
 
-      local reply = tools.run('walkthrough_start', {
-        title = 'Elsewhere',
-        rev = middle,
-        steps = { { path = 'a.lua', line = 2 } },
-      }, 's2')
+      local ok, err =
+        pcall(tools.run, 'walkthrough_start', { title = 'Elsewhere', steps = { { at = { 'h1' } } } }, 's2')
 
-      eq(nil, reply.uncovered)
-      eq(nil, reply.note)
+      eq(false, ok)
+      assert.truthy(tostring(err):find('call it first', 1, true))
     end)
 
-    it('does not claim coverage for files on disk when the range ends somewhere else', function()
+    it('uses a range once, so a later walkthrough of the code on disk is not taken for a review', function()
       run('walkthrough_scope', { base = base, head = middle })
+      run('walkthrough_start', { title = 'Review', steps = { { at = { 'h1' } } } })
 
-      local reply = run('walkthrough_start', { title = 'Disk', steps = { { path = 'a.lua', line = 1 } } })
-
-      eq(nil, reply.uncovered)
-      eq(nil, reply.note)
+      eq('started "Disk" · 1 step', run('walkthrough_start', { title = 'Disk', steps = { { at = { 'a.lua:1' } } } }))
+      eq(nil, walkthrough_store.current(SESSION).rev)
     end)
   end)
 end)

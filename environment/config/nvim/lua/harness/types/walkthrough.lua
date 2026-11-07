@@ -35,7 +35,7 @@ walkthrough.Walkthrough = dataclass.define('Walkthrough', {
   uncovered = { type = 'table' },
 })
 
-local function absolute(path, dir)
+function walkthrough.absolute(path, dir)
   local first = path:sub(1, 1)
 
   if first == '~' or first == '$' then path = fs.expand(path) end
@@ -49,7 +49,7 @@ function walkthrough.range(fields, dir, check)
   if type(fields.path) ~= 'string' or fields.path == '' then return nil, 'a step needs a path' end
 
   local line = math.max(math.floor(tonumber(fields.line) or 1), 1)
-  local path = absolute(fields.path, dir)
+  local path = walkthrough.absolute(fields.path, dir)
 
   local found = check and check(path) or (not check and fs.exists(path) and not fs.is_dir(path))
 

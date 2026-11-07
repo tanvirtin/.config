@@ -93,6 +93,65 @@ describe('harness.walkthrough_scope:', function()
     )
   end)
 
+  it('numbers every hunk, keeps its changed lines, and names the function it is in', function()
+    vim.fn.writefile({ 'local M = {}', '', 'function M.run()', '  return 1', 'end' }, dir .. '/m.lua')
+    sh(dir, 'add', '.')
+    sh(dir, 'commit', '-q', '-m', 'add m')
+    local before = sh(dir, 'rev-parse', 'HEAD')
+    vim.fn.writefile({ 'local M = {}', '', 'function M.run()', '  return 2', 'end' }, dir .. '/m.lua')
+    sh(dir, 'commit', '-q', '-am', 'change m')
+
+    local scope = assert(walkthrough_scope.compute(dir, before, 'HEAD'))
+    local hunk = scope.files[1].hunks[1]
+
+    eq({ 'h1', 4, 4, 'M.run' }, { hunk.id, hunk.first, hunk.last, hunk.symbol })
+    eq({ '-  return 1', '+  return 2' }, hunk.lines)
+    eq(hunk, scope.by_id.h1.hunk)
+  end)
+
+  it('reads a removed line that looks like a file header as a removed line', function()
+    local files = walkthrough_scope.parse_diff(table.concat({
+      'diff --git a/a.lua b/a.lua',
+      '--- a/a.lua',
+      '+++ b/a.lua',
+      '@@ -1,2 +1 @@',
+      '--- a/comment.lua',
+      '-+++ b/comment.lua',
+      '+kept',
+    }, '\n'))
+
+    eq(1, #files)
+    eq({ '--- a/comment.lua', '-+++ b/comment.lua', '+kept' }, files[1].hunks[1].lines)
+  end)
+
+  it('follows a renamed file to its old path, so it is reviewed as a change and not as all new', function()
+    local lines = {}
+
+    for index = 1, 20 do
+      lines[index] = 'line ' .. index
+    end
+
+    vim.fn.writefile(lines, dir .. '/old.lua')
+    sh(dir, 'add', '.')
+    sh(dir, 'commit', '-q', '-m', 'add old')
+    local before = sh(dir, 'rev-parse', 'HEAD')
+    sh(dir, 'mv', 'old.lua', 'new.lua')
+    lines[5] = 'changed'
+    vim.fn.writefile(lines, dir .. '/new.lua')
+    sh(dir, 'commit', '-q', '-am', 'rename')
+
+    local scope = assert(walkthrough_scope.compute(dir, before, 'HEAD'))
+
+    eq({ 'new.lua', 'old.lua', 1 }, { scope.files[1].path, scope.files[1].old_path, #scope.files[1].hunks })
+    eq('old.lua', walkthrough_scope.base_path(scope, scope.files[1].absolute))
+  end)
+
+  it('lists the files a range deletes', function()
+    local scope = assert(walkthrough_scope.compute(dir, second, third))
+
+    eq({ 'b.lua' }, scope.deleted)
+  end)
+
   it('says when a commit does not exist here, instead of guessing', function()
     local scope, err = walkthrough_scope.compute(dir, 'deadbeef00', 'HEAD')
 
@@ -118,7 +177,7 @@ describe('harness.walkthrough_scope:', function()
       { path = scope.files[2].absolute, line = 1, end_line = 1 },
     })
 
-    eq({ { path = 'a.lua', absolute = a, first = 7, last = 7 } }, missing)
+    eq({ { id = 'h2', path = 'a.lua', absolute = a, first = 7, last = 7 } }, missing)
     eq(
       {},
       walkthrough_scope.uncovered(scope, {
