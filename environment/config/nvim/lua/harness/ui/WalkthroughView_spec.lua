@@ -163,6 +163,50 @@ describe('harness.ui.WalkthroughView:', function()
     eq(false, data.steps[1].understood)
   end)
 
+  it('draws the step\'s function with what calls it and what it calls, and opens one from the diagram', function()
+    vim.fn.writefile({
+      'local M = {}',
+      '',
+      'function M.refresh()',
+      '  return M.expiry()',
+      'end',
+      '',
+      'function M.expiry()',
+      '  return 1',
+      'end',
+      '',
+      'function M.login()',
+      '  return M.refresh()',
+      'end',
+    }, dir .. '/m.lua')
+
+    view = WalkthroughView(assert(walkthrough_type.parse({
+      title = 'Calls',
+      steps = { { path = 'm.lua', line = 4, title = 'Refresh', note = 'Refreshes.' } },
+    }, dir)))
+    view:start()
+
+    assert.is_true(view:diagram())
+
+    local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+    local drawn = table.concat(lines, '\n')
+
+    assert.truthy(drawn:find('│ M.refresh │', 1, true))
+    assert.truthy(drawn:find('M.login', 1, true))
+    assert.truthy(drawn:find('└─▶ M.expiry', 1, true))
+    eq('M.login  m.lua:12 ─┐', lines[1])
+    eq(1, vim.api.nvim_win_get_cursor(0)[1])
+
+    vim.api.nvim_win_set_cursor(0, { vim.fn.match(lines, 'M.expiry') + 1, 0 })
+    vim.api.nvim_feedkeys(vim.keycode('<CR>'), 'x', false)
+
+    eq(7, vim.api.nvim_win_get_cursor(0)[1])
+    assert.truthy(note_text():find('From the diagram of `M.refresh`', 1, true))
+
+    view:next()
+    eq(4, vim.api.nvim_win_get_cursor(0)[1])
+  end)
+
   it('goes to the next and previous step, across files, and clears the last range as it goes', function()
     view = WalkthroughView(data)
     view:start()

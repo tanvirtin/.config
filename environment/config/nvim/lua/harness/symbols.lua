@@ -51,12 +51,20 @@ function symbols.parse(lines, path)
       local owner = parent
 
       if child:named() and is_symbol(child) then
-        local name = treesitter.node_text(child:field('name')[1], text)
+        local name_node = child:field('name')[1]
+        local name = treesitter.node_text(name_node, text)
         local start_row, _, end_row, end_col = child:range()
+        local name_row, name_col = name_node:range()
 
         if end_col == 0 and end_row > start_row then end_row = end_row - 1 end
 
-        owner = { name = parent and (parent.name .. '.' .. name) or name, first = start_row + 1, last = end_row + 1 }
+        owner = {
+          name = parent and (parent.name .. '.' .. name) or name,
+          first = start_row + 1,
+          last = end_row + 1,
+          name_line = name_row + 1,
+          name_col = name_col + 1,
+        }
         found[#found + 1] = owner
       end
 
@@ -65,6 +73,46 @@ function symbols.parse(lines, path)
   end
 
   walk(parser:parse()[1]:root(), nil)
+
+  return found
+end
+
+local function call_name(node, text)
+  local target = node:field('name')[1] or node:field('function')[1] or node:named_child(0)
+
+  if not target then return nil end
+
+  local name = treesitter.node_text(target, text):gsub('%s+', '')
+
+  return name ~= '' and name or nil
+end
+
+function symbols.calls(lines, path)
+  local lang = language(path)
+
+  if not lang then return {} end
+
+  local text = table.concat(lines, '\n')
+  local ok, parser = pcall(treesitter.string_parser, text, lang)
+
+  if not ok or not parser then return {} end
+
+  local found = {}
+
+  local function walk(node)
+    for child in node:iter_children() do
+      if child:named() and child:type():find('call', 1, true) then
+        local name = call_name(child, text)
+        local row = child:range()
+
+        if name then found[#found + 1] = { name = name, line = row + 1 } end
+      end
+
+      walk(child)
+    end
+  end
+
+  walk(parser:parse()[1]:root())
 
   return found
 end

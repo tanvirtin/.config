@@ -20,9 +20,9 @@ local SOURCE = {
 describe('harness.symbols:', function()
   it('names the functions in a file and the lines each spans', function()
     eq({
-      { name = 'Session:refresh', first = 3, last = 5 },
-      { name = 'helper', first = 7, last = 9 },
-      { name = 'Session.close', first = 11, last = 12 },
+      { name = 'Session:refresh', first = 3, last = 5, name_line = 3, name_col = 10 },
+      { name = 'helper', first = 7, last = 9, name_line = 7, name_col = 16 },
+      { name = 'Session.close', first = 11, last = 12, name_line = 11, name_col = 10 },
     }, symbols.parse(SOURCE, 'a.lua'))
   end)
 
@@ -53,6 +53,10 @@ describe('harness.symbols:', function()
     eq('Outer.inner', symbols.enclosing(list, 6, 7).name)
     eq('Outer', symbols.enclosing(list, 4, 7).name)
     eq(nil, symbols.enclosing(list, 30, 31))
+  end)
+
+  it('lists the calls in a file with the name called and its line', function()
+    eq({ { name = 'token.expiry', line = 4 } }, symbols.calls(SOURCE, 'a.lua'))
   end)
 
   it('has nothing to say about a file it cannot parse', function()

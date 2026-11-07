@@ -59,6 +59,7 @@ return Config({
     overview = 'gO',
     open = '<CR>',
     understood = 'g.',
+    diagram = 'gh',
   },
   side_chat = {
     keep = 'gk',

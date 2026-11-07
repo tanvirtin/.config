@@ -1,4 +1,5 @@
 local fs = require('core.fs')
+local text = require('core.text')
 local Timer = require('core.Timer')
 local event = require('core.event')
 local vgit = require('harness.vgit')
@@ -8,9 +9,11 @@ local Window = require('core.Window')
 local keymap = require('core.keymap')
 local buffers = require('core.buffers')
 local Panel = require('surfaces.Panel')
+local notice = require('harness.ui.notice')
 local settings = require('harness.settings')
 local Renderer = require('ui.markdown.Renderer')
 local walkthrough_scope = require('harness.walkthrough_scope')
+local walkthrough_diagram = require('harness.walkthrough_diagram')
 local walkthrough_overview = require('harness.walkthrough_overview')
 
 local WalkthroughView = Object:extend()
@@ -386,6 +389,7 @@ function WalkthroughView:_keys()
     { keys.previous_range, 'previous_range', 'Previous range of the walkthrough' },
     { keys.overview, 'overview', 'The walkthrough\'s overview' },
     { keys.understood, 'toggle_understood', 'Mark this step understood, or not' },
+    { keys.diagram, 'diagram', 'Draw what calls this step\'s function and what it calls' },
     { keys.stop, 'stop', 'End the walkthrough' },
     { keys.ask, 'ask', 'Ask about this step' },
     { keys.scroll_down, 'scroll_down', 'Scroll the walkthrough note down', true },
@@ -593,6 +597,8 @@ function WalkthroughView:scroll_up()
 end
 
 function WalkthroughView:_present(path, place)
+  self:_close_diagram()
+
   local buffer = self:_buffer(path)
   local window = self:_code_window() or self:_open_beside(buffer)
 
@@ -636,7 +642,7 @@ end
 function WalkthroughView:_label()
   local step = self.walkthrough.steps[self.pending]
 
-  if not step then return ' not covered ' end
+  if not step then return self.visit_label or ' not covered ' end
 
   local count = #WalkthroughView.ranges(step)
 
@@ -715,10 +721,12 @@ function WalkthroughView:_refresh_note(step)
   )
 end
 
-function WalkthroughView:visit(hunk)
+function WalkthroughView:visit(hunk, opts)
   if not self:is_open() then return false end
 
+  opts = opts or {}
   self.pending = nil
+  self.visit_label = opts.label
 
   local window, first = self:_present(hunk.absolute, function(buffer)
     local last = buffer:get_line_count() - 1
@@ -736,8 +744,8 @@ function WalkthroughView:visit(hunk)
   self:_show_note(
     window,
     first,
-    { string.format('No step covers `%s:%d-%d`.', path, hunk.first, hunk.last) },
-    ' not covered ',
+    opts.lines or { string.format('No step covers `%s:%d-%d`.', path, hunk.first, hunk.last) },
+    opts.title or ' not covered ',
     self:_footer(nil)
   )
 
@@ -910,6 +918,113 @@ function WalkthroughView:replace_rest(steps)
   return self:show(math.min(self.index + 1, #self.walkthrough.steps))
 end
 
+function WalkthroughView:diagram()
+  if self.index == 0 or self.overviewing or self.visiting then return false end
+  if not (self.window and self.window:is_valid()) then return false end
+
+  local range = WalkthroughView.ranges(self.walkthrough.steps[self.index])[self.part]
+  local buffer = self.window:get_buffer()
+  local first, finish = self:_range(self.index, self.part, buffer)
+
+  walkthrough_diagram.collect({
+    bufnr = not self.walkthrough.rev and buffer.bufnr or nil,
+    lines = buffer:get_lines(),
+    path = range.path,
+    first = first + 1,
+    last = finish + 1,
+  }, function(result, err)
+    if self.stopped then return end
+    if not result then return notice.info(err) end
+
+    local view = walkthrough_diagram.render(
+      walkthrough_diagram.center_of(result, range.path),
+      result.callers,
+      result.callees,
+      { note = result.note }
+    )
+
+    self:_show_diagram(view, result.center.name)
+  end)
+
+  return true
+end
+
+function WalkthroughView:_close_diagram()
+  if self.diagram_window and self.diagram_window:is_valid() then self.diagram_window:close() end
+
+  self.diagram_window = nil
+end
+
+function WalkthroughView:_show_diagram(view, name)
+  self:_close_diagram()
+
+  local window = self.window
+  local buffer = Buffer():create(false, true)
+  local widest = 0
+
+  for _, line in ipairs(view.lines) do
+    widest = math.max(widest, text.width(line))
+  end
+
+  local width = math.max(math.min(widest + 2, window:get_width() - 4), 10)
+  local height = math.max(math.min(#view.lines, window:get_height() - 4), 1)
+
+  buffer:set_lines(view.lines)
+  buffer:set_option('bufhidden', 'wipe')
+  buffer:set_option('modifiable', false)
+
+  self.diagram_window = window:open(buffer, {
+    relative = 'win',
+    win = window.win_id,
+    row = math.floor((window:get_height() - height) / 2),
+    col = math.floor((window:get_width() - width) / 2),
+    width = width,
+    height = height,
+    style = 'minimal',
+    border = 'rounded',
+    zindex = 70,
+    title = ' ' .. name .. ' ',
+    title_pos = 'left',
+    footer = ' <CR> open · q close ',
+    footer_pos = 'right',
+  })
+  self.diagram_window:assign_options({
+    wrap = false,
+    winhl = 'Normal:UiComposer,FloatBorder:UiMuted,FloatTitle:UiTitle,FloatFooter:UiMuted',
+  })
+
+  local close = function()
+    self:_close_diagram()
+
+    if self.window and self.window:is_valid() then self.window:focus() end
+  end
+
+  buffer:set_keymap({ key = '<CR>', mode = 'n', desc = 'Open this function' }, function()
+    local target = view.targets[self.diagram_window:get_cursor()[1]]
+
+    if not target then return end
+
+    close()
+    self:visit({ absolute = target.path, first = target.line, last = target.last }, {
+      lines = { string.format('From the diagram of `%s`.', name) },
+      title = ' ' .. name .. ' ',
+      label = ' from the diagram ',
+    })
+  end)
+  buffer:set_keymap({ key = 'q', mode = 'n', desc = 'Close the diagram' }, close)
+  buffer:set_keymap({ key = '<Esc>', mode = 'n', desc = 'Close the diagram' }, close)
+
+  self.diagram_window:focus()
+
+  local first
+
+  for row in pairs(view.targets) do
+    first = math.min(first or row, row)
+  end
+
+  if first then self.diagram_window:set_cursor({ first, 0 }) end
+end
+
 function WalkthroughView:toggle_understood()
   local step = self.walkthrough.steps[self.index]
 
@@ -1033,6 +1148,7 @@ function WalkthroughView:stop()
 
   self:_clear()
   self:_close_note()
+  self:_close_diagram()
   self:_close_split()
   self:_unbind()
 
