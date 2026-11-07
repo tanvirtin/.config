@@ -95,6 +95,7 @@ function walkthrough_scope.parse_diff(text)
 
         old_left, new_left = count(removed), count(added)
         hunk = {
+          path = file.path,
           first = math.max(first, 1),
           last = math.max(first + new_left - 1, first, 1),
           added = new_left,
@@ -249,6 +250,16 @@ end
 
 function walkthrough_scope.exists_at(root, rev, path)
   return git(root, { 'cat-file', '-e', rev .. ':' .. path }) ~= nil
+end
+
+function walkthrough_scope.lines(root, rev, path)
+  if not rev then return (fs.read_file(path)) end
+
+  local lines = walkthrough_scope.show(root, rev, fs.make_relative(root, path))
+
+  if lines and lines[#lines] == '' then lines[#lines] = nil end
+
+  return lines
 end
 
 function walkthrough_scope.show(root, rev, path)

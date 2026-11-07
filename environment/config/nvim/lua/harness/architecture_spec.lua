@@ -80,6 +80,7 @@ local LAYERS = {
   { 'harness.Admission', 5 },
   { 'harness.tools', 6 },
   { 'harness.walkthrough_tools', 6 },
+  { 'harness.WalkthroughReader', 6 },
   { 'harness.follow', 6 },
   { 'harness.features', 6 },
   { 'harness.transcript', 6 },

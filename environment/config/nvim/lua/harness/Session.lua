@@ -57,6 +57,7 @@ function Session:constructor(opts)
     admit = opts.admit,
     parent = opts.parent,
     depth = opts.depth or 0,
+    hidden = opts.hidden == true,
     title = opts.title,
     state = Session.STATE.idle,
     options = {},

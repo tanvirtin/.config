@@ -7,4 +7,6 @@ return Config({
   note_scroll = 3,
   diff_layout = 'auto',
   split_min_width = 140,
+  reader_model = { claude = 'claude-haiku-5-5' },
+  reader_lines = 160,
 })

@@ -22,6 +22,7 @@ WalkthroughView.SHOW = Buffer.namespace('harness.walkthrough.show')
 WalkthroughView.PRIORITY = 90
 WalkthroughView.HARNESS_PREFIX = 'harness://'
 WalkthroughView.BAR = '▎'
+WalkthroughView.WRITING = '_Writing a note…_'
 WalkthroughView.LAYOUT = { unified = 'unified', split = 'split' }
 
 function WalkthroughView:constructor(walkthrough, opts)
@@ -52,6 +53,8 @@ function WalkthroughView:constructor(walkthrough, opts)
     bases = {},
     on_stop = opts.on_stop,
     on_ask = opts.on_ask,
+    write_note = opts.write_note,
+    note_errors = {},
     group = event.augroup('harness.walkthrough.' .. instances),
     stopped = false,
   }
@@ -461,7 +464,14 @@ function WalkthroughView:_note_lines(index, part)
     vim.list_extend(lines, { '', '---', '' })
   end
 
-  vim.list_extend(lines, vim.split(step.note ~= '' and step.note or (step.title or ''), '\n', { plain = true }))
+  local note = step.note
+
+  if note == '' and self.write_note then
+    note = self.note_errors[step] and ('_Could not write a note: ' .. self.note_errors[step] .. '_')
+      or WalkthroughView.WRITING
+  end
+
+  vim.list_extend(lines, vim.split(note ~= '' and note or (step.title or ''), '\n', { plain = true }))
 
   return lines
 end
@@ -659,9 +669,43 @@ function WalkthroughView:show(index, part)
   self.visiting = nil
   self.started, self.overviewing = true, false
 
+  self.note_first = first
   self:_show_note(window, first, self:_note_lines(index, part), self:_title(index, part), self:_footer(index, part))
+  self:_write_notes(index)
 
   return true
+end
+
+function WalkthroughView:_write_notes(index)
+  if not self.write_note then return end
+
+  local step = self.walkthrough.steps[index]
+
+  if step.note == '' and not self.note_errors[step] then
+    self.write_note(index, function(_, err)
+      if err then self.note_errors[step] = err end
+
+      self:_refresh_note(step)
+    end)
+  end
+
+  local following = self.walkthrough.steps[index + 1]
+
+  if following and following.note == '' then self.write_note(index + 1) end
+end
+
+function WalkthroughView:_refresh_note(step)
+  if self.stopped or self.overviewing or self.visiting then return end
+  if self.walkthrough.steps[self.index] ~= step then return end
+  if not (self.window and self.window:is_valid()) then return end
+
+  self:_show_note(
+    self.window,
+    self.note_first,
+    self:_note_lines(self.index, self.part),
+    self:_title(self.index, self.part),
+    self:_footer(self.index, self.part)
+  )
 end
 
 function WalkthroughView:visit(hunk)
@@ -889,7 +933,13 @@ end
 function WalkthroughView:start_overview()
   local ok, why = self:overview()
 
-  if ok then self.window:focus() end
+  if ok then
+    self.window:focus()
+
+    if self.write_note and #self.walkthrough.steps > 0 and self.walkthrough.steps[1].note == '' then
+      self.write_note(1)
+    end
+  end
 
   return ok, why
 end

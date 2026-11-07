@@ -10,6 +10,7 @@ local session_store = lazy('harness.session_store')
 local WalkthroughView = lazy('harness.ui.WalkthroughView')
 local walkthrough_type = lazy('harness.types.walkthrough')
 local walkthrough_store = lazy('harness.walkthrough_store')
+local WalkthroughReader = lazy('harness.WalkthroughReader')
 
 local walkthrough = {}
 
@@ -81,6 +82,7 @@ function walkthrough.start(data, opts)
 
   local session = hub.session(key)
   local view = session and display.view_of(session)
+  local reader = session and WalkthroughReader(data, { dir = session.dir, agent = session.agent.name })
 
   views[key] = WalkthroughView(data, {
     source_win = view and view.source_win,
@@ -88,7 +90,12 @@ function walkthrough.start(data, opts)
     on_ask = function(shown)
       return walkthrough.ask_step(shown.session)
     end,
+    write_note = reader and function(index, done)
+      reader:note(index, done)
+    end,
     on_stop = function(stopped)
+      if reader then reader:close() end
+
       if views[key] == stopped then views[key] = nil end
 
       last[key] = { walkthrough = data, step = stopped.last_index or 1 }
@@ -111,6 +118,8 @@ function walkthrough.start(data, opts)
   else
     views[key] = nil
     warn(why or 'the walkthrough could not start')
+
+    if reader then reader:close() end
 
     if walkthrough_store.current(key) == data then walkthrough_store.stop(key) end
   end

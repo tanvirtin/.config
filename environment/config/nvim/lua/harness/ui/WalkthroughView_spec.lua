@@ -104,6 +104,42 @@ describe('harness.ui.WalkthroughView:', function()
     eq('The second.', note_text())
   end)
 
+  it('shows that a note is being written for a step without one, fills it in, and fetches the next ahead', function()
+    local asked, pending = {}, {}
+
+    view = WalkthroughView(data, {
+      write_note = function(index, done)
+        asked[#asked + 1] = { index, done ~= nil }
+        if done then pending[index] = done end
+      end,
+    })
+    view:start(3)
+
+    assert.truthy(note_text():find(WalkthroughView.WRITING, 1, true))
+    eq({ { 3, true } }, asked)
+
+    data.steps[3].note = 'Written.'
+    pending[3]('Written.')
+
+    eq('Written.', note_text())
+  end)
+
+  it('says why a note could not be written, and asks for the next step\'s note ahead of time', function()
+    local asked = {}
+
+    data.steps[2].note = ''
+    view = WalkthroughView(data, {
+      write_note = function(index, done)
+        asked[#asked + 1] = index
+        if done then done(nil, 'the reader did not start') end
+      end,
+    })
+    view:start(2)
+
+    eq({ 2, 3 }, asked)
+    assert.truthy(note_text():find('Could not write a note: the reader did not start', 1, true))
+  end)
+
   it('goes to the next and previous step, across files, and clears the last range as it goes', function()
     view = WalkthroughView(data)
     view:start()

@@ -64,7 +64,12 @@ function Agent:constructor(name, spec)
     policy = spec.policy or {},
     transcripts = spec.transcripts,
     permission_rules = spec.permission_rules,
+    editor = spec.editor,
   }
+end
+
+function Agent:derive(overrides)
+  return Agent(self.name, vim.tbl_extend('force', {}, self, overrides))
 end
 
 agent.TRANSCRIPTS = {

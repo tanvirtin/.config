@@ -9,7 +9,7 @@ local session_types = lazy('harness.types.session')
 local Workspace = Object:extend()
 
 function Workspace:constructor(dir, opts)
-  return { dir = dir, sessions = {}, _connections = {}, _opts = opts or {} }
+  return { dir = dir, sessions = {}, _connections = {}, _hidden = {}, _opts = opts or {} }
 end
 
 function Workspace:connection(agent)
@@ -145,7 +145,7 @@ function Workspace:list(agent)
   local out, seen = {}, {}
 
   for _, session in pairs(self.sessions) do
-    if session.agent.name == agent.name and session.state ~= 'closed' then
+    if session.agent.name == agent.name and session.state ~= 'closed' and not session.hidden then
       seen[session.id] = true
       out[#out + 1] = { id = session.id, title = session.title, session = session }
     end
@@ -167,7 +167,9 @@ function Workspace:list(agent)
     end
 
     for _, stored in ipairs(stored_sessions) do
-      if not seen[stored.id] then
+      if self._hidden[stored.id] then
+        seen[stored.id] = true
+      elseif not seen[stored.id] then
         out[#out + 1] = { id = stored.id, title = session_types.title(stored.title), updated_at = stored.updated_at }
       elseif live[stored.id].session:adopt_title(stored.title) then
         live[stored.id].title = stored.title
@@ -191,6 +193,10 @@ function Workspace:delete(agent, id)
   if err then return nil, err end
 
   return connection:delete_session(id)
+end
+
+function Workspace:hide(id)
+  self._hidden[id] = true
 end
 
 function Workspace:forget(key)

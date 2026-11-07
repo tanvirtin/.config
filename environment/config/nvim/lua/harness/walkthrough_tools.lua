@@ -59,9 +59,7 @@ local function env_of(dir, scope, rev, root)
     scope = scope,
     check = check,
     read = function(path)
-      if rev then return walkthrough_scope.show(root, rev, fs.make_relative(root, path)) end
-
-      return (fs.read_file(path))
+      return walkthrough_scope.lines(root, rev, path)
     end,
   }
 end
@@ -272,7 +270,13 @@ local STEP = schema.model({
     }),
   },
   { name = 'title', type = schema.str(), optional = true },
-  { name = 'note', type = schema.str({ description = 'Markdown: why this code matters.' }), optional = true },
+  {
+    name = 'note',
+    type = schema.str({
+      description = 'Leave out: a note is written from the code when the user reaches the step. Give one only for what the code cannot show.',
+    }),
+    optional = true,
+  },
   { name = 'supporting', type = schema.bool({ description = 'Tests, docs, wiring: shown last.' }), optional = true },
 })
 
