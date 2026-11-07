@@ -97,7 +97,14 @@ function walkthrough.start(data, opts)
     end,
   })
 
-  local ok, why = views[key]:start(opts and opts.step)
+  local step = opts and opts.step
+  local ok, why
+
+  if step and step > 0 then
+    ok, why = views[key]:start(step)
+  else
+    ok, why = views[key]:start_overview()
+  end
 
   if ok then
     last[key] = nil
@@ -118,7 +125,11 @@ function walkthrough.resume(session)
 
   local view = views[key]
 
-  if view and view:is_open() then return view:show(view.index) end
+  if view and view:is_open() then
+    if view.index > 0 then return view:show(view.index, view.part) end
+
+    return view:overview()
+  end
 
   local saved = last[key]
 
@@ -149,8 +160,8 @@ function walkthrough.previous(session)
   return active(session, 'previous')
 end
 
-function walkthrough.outline(session)
-  return active(session, 'outline')
+function walkthrough.overview(session)
+  return active(session, 'overview')
 end
 
 function walkthrough.stop(session)
@@ -251,11 +262,13 @@ function walkthrough.ask_step(session)
 
   if not key then return false, 'no walkthrough is running' end
 
+  local view = views[key]
+
+  if view.index == 0 then return false, 'open a step to ask about it' end
+
   local current = hub.session(key)
 
   if not current then return false, 'the session that started this walkthrough is gone' end
-
-  local view = views[key]
 
   composer.restore(current, { walkthrough.step_draft(view) })
   composer.open(current, { display = display, insert = true })

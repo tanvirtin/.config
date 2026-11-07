@@ -214,6 +214,18 @@ local function covers(step, file, hunk)
   return false
 end
 
+function walkthrough_scope.covered(scope, step)
+  local found = {}
+
+  for _, file in ipairs(scope.files) do
+    for _, hunk in ipairs(file.hunks) do
+      if covers(step, file, hunk) then found[#found + 1] = hunk end
+    end
+  end
+
+  return found
+end
+
 function walkthrough_scope.uncovered(scope, steps)
   local missing = {}
 

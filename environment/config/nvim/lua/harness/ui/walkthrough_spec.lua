@@ -52,6 +52,36 @@ describe('harness.ui.walkthrough:', function()
     )
   end)
 
+  it('opens on the overview, where Enter on a step opens it and asking waits for a step', function()
+    local data = assert(walkthrough_type.parse({
+      title = 'Walk',
+      summary = 'Two steps.',
+      steps = {
+        { path = 'a.lua', line = 1, title = 'First' },
+        { path = 'a.lua', line = 3, title = 'Third line' },
+      },
+    }, dir))
+
+    assert.is_true(walkthrough.start(data, { session = 's1' }))
+
+    local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+
+    eq('# Walk', lines[1])
+    assert.truthy(vim.api.nvim_buf_get_name(0):find('^walkthrough://'))
+    eq({ false, 'open a step to ask about it' }, { walkthrough.ask_step('s1') })
+
+    local row = vim.fn.match(lines, 'Third line') + 1
+
+    vim.api.nvim_win_set_cursor(0, { row, 0 })
+    vim.api.nvim_feedkeys(vim.keycode('<CR>'), 'x', false)
+
+    eq({ 3, 0 }, vim.api.nvim_win_get_cursor(0))
+    eq(vim.uv.fs_realpath(dir .. '/a.lua'), vim.uv.fs_realpath(vim.api.nvim_buf_get_name(0)))
+
+    walkthrough.stop('s1')
+    vim.cmd('silent! enew!')
+  end)
+
   it('resumes the last walkthrough at the step it stopped on', function()
     local data = assert(walkthrough_type.parse({
       title = 'Walk',
@@ -62,6 +92,7 @@ describe('harness.ui.walkthrough:', function()
     }, dir))
 
     assert.is_true(walkthrough.start(data, { session = 's1' }))
+    assert.is_true(walkthrough.next('s1'))
     assert.is_true(walkthrough.next('s1'))
     walkthrough.stop('s1')
 
@@ -86,6 +117,7 @@ describe('harness.ui.walkthrough:', function()
 
     assert.is_true(walkthrough.resume('s1'))
     eq(data, walkthrough_store.current('s1'))
+    assert.is_true(walkthrough.next('s1'))
     eq(true, (walkthrough_store.update('s1', { mode = 'note', note = 'After.' })))
     eq('After.', data.steps[1].note)
 
@@ -103,6 +135,7 @@ describe('harness.ui.walkthrough:', function()
     }, dir))
 
     assert.is_true(walkthrough.start(data, { session = 's1' }))
+    assert.is_true(walkthrough.next('s1'))
     assert.is_true(walkthrough.next('s1'))
     walkthrough.stop('s1')
 

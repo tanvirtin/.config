@@ -56,7 +56,8 @@ return Config({
     scroll_up = '<M-k>',
     next_range = ']c',
     previous_range = '[c',
-    outline = 'gO',
+    overview = 'gO',
+    open = '<CR>',
   },
   sessions = {
     fork = '<C-f>',

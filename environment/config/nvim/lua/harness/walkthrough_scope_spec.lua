@@ -203,6 +203,14 @@ describe('harness.walkthrough_scope:', function()
     )
   end)
 
+  it('lists the hunks one step covers', function()
+    local scope = assert(walkthrough_scope.compute(dir, first, second))
+    local covered = walkthrough_scope.covered(scope, { path = scope.files[1].absolute, line = 1, end_line = 3 })
+
+    eq({ 'h1' }, { covered[1].id })
+    eq(1, #covered)
+  end)
+
   it('reads a file as it was at a commit', function()
     eq({ 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', '' }, walkthrough_scope.show(dir, first, 'a.lua'))
     eq(true, walkthrough_scope.exists_at(dir, second, 'b.lua'))

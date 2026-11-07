@@ -1,7 +1,6 @@
 local fs = require('core.fs')
 local Timer = require('core.Timer')
 local event = require('core.event')
-local surfaces = require('surfaces')
 local vgit = require('harness.vgit')
 local Buffer = require('core.Buffer')
 local Object = require('core.Object')
@@ -12,6 +11,7 @@ local Panel = require('surfaces.Panel')
 local settings = require('harness.settings')
 local Renderer = require('ui.markdown.Renderer')
 local walkthrough_scope = require('harness.walkthrough_scope')
+local walkthrough_overview = require('harness.walkthrough_overview')
 
 local WalkthroughView = Object:extend()
 
@@ -23,7 +23,6 @@ WalkthroughView.PRIORITY = 90
 WalkthroughView.HARNESS_PREFIX = 'harness://'
 WalkthroughView.BAR = '▎'
 WalkthroughView.LAYOUT = { unified = 'unified', split = 'split' }
-WalkthroughView.MARK = { seen = '✓', current = '▸', unseen = ' ', uncovered = '○' }
 
 function WalkthroughView:constructor(walkthrough, opts)
   opts = opts or {}
@@ -31,8 +30,12 @@ function WalkthroughView:constructor(walkthrough, opts)
   instances = instances + 1
 
   return {
+    id = instances,
     walkthrough = walkthrough,
     index = 0,
+    started = false,
+    overviewing = false,
+    targets = {},
     part = 1,
     source = opts.source_win,
     window = nil,
@@ -55,7 +58,7 @@ function WalkthroughView:constructor(walkthrough, opts)
 end
 
 function WalkthroughView:is_open()
-  return self.index > 0
+  return self.started and not self.stopped
 end
 
 function WalkthroughView.ranges(step)
@@ -378,7 +381,7 @@ function WalkthroughView:_keys()
     { keys.previous, 'previous', 'Previous step of the walkthrough' },
     { keys.next_range, 'next_range', 'Next range of the walkthrough' },
     { keys.previous_range, 'previous_range', 'Previous range of the walkthrough' },
-    { keys.outline, 'outline', 'Every step of the walkthrough' },
+    { keys.overview, 'overview', 'The walkthrough\'s overview' },
     { keys.stop, 'stop', 'End the walkthrough' },
     { keys.ask, 'ask', 'Ask about this step' },
     { keys.scroll_down, 'scroll_down', 'Scroll the walkthrough note down', true },
@@ -488,7 +491,7 @@ function WalkthroughView:_footer(index, part)
 
   if count > 1 then parts[#parts + 1] = keys.next_range .. '/' .. keys.previous_range .. ' range' end
 
-  parts[#parts + 1] = keys.outline .. ' outline'
+  parts[#parts + 1] = keys.overview .. ' overview'
   parts[#parts + 1] = keys.scroll_down .. '/' .. keys.scroll_up .. ' scroll'
   parts[#parts + 1] = keys.stop .. ' end'
 
@@ -596,6 +599,12 @@ function WalkthroughView:_present(path, place)
   window:set_cursor({ first + 1, 0 })
   window:scroll_to('center')
 
+  self:_watch(window)
+
+  return window, first
+end
+
+function WalkthroughView:_watch(window)
   if not (self.window and self.window:is_same(window)) then
     self.group.on('WinClosed', function()
       Timer.defer(0, function()
@@ -605,8 +614,6 @@ function WalkthroughView:_present(path, place)
   end
 
   self.window = window
-
-  return window, first
 end
 
 function WalkthroughView:_label()
@@ -650,6 +657,7 @@ function WalkthroughView:show(index, part)
   self.index, self.part = index, part
   self.seen[index] = true
   self.visiting = nil
+  self.started, self.overviewing = true, false
 
   self:_show_note(window, first, self:_note_lines(index, part), self:_title(index, part), self:_footer(index, part))
 
@@ -685,82 +693,69 @@ function WalkthroughView:visit(hunk)
   return true
 end
 
-function WalkthroughView:_entries()
-  local entries = {}
+function WalkthroughView:_overview_buffer()
+  local buffer = self.snapshots.overview
 
-  for index, step in ipairs(self.walkthrough.steps) do
-    local mark = index == self.index and WalkthroughView.MARK.current
-      or (self.seen[index] and WalkthroughView.MARK.seen or WalkthroughView.MARK.unseen)
-    local ranges = WalkthroughView.ranges(step)
-    local where = string.format('%s:%d', fs.basename(step.path), step.line)
+  if buffer and buffer:is_valid() then return buffer end
 
-    if #ranges > 1 then where = where .. string.format(' +%d', #ranges - 1) end
+  buffer = Buffer():create(false, true)
+  buffer:set_name(string.format('walkthrough://%d/%s', self.id, self.walkthrough.title))
+  buffer:set_option('filetype', Panel.MARKDOWN)
+  buffer:set_option('bufhidden', 'hide')
+  buffer:set_option('modifiable', false)
+  buffer:set_keymap({ key = settings.keymaps:get('walkthrough').open, mode = 'n', desc = 'Open this step' }, function()
+    self:open_row()
+  end)
 
-    entries[#entries + 1] = {
-      label = string.format(
-        '%s %d. %s%s · %s',
-        mark,
-        index,
-        step.supporting and 'supporting · ' or '',
-        step.title or fs.basename(step.path),
-        where
-      ),
-      value = { index = index },
-    }
-  end
+  self.snapshots.overview = buffer
 
-  for _, hunk in ipairs(self.walkthrough.uncovered or {}) do
-    entries[#entries + 1] = {
-      label = string.format(
-        '%s %s not covered · %s:%d-%d',
-        WalkthroughView.MARK.uncovered,
-        hunk.id or '',
-        hunk.path,
-        hunk.first,
-        hunk.last
-      ),
-      value = { hunk = hunk },
-    }
-  end
-
-  return entries
+  return buffer
 end
 
-function WalkthroughView:outline()
-  if not self:is_open() then return false end
+function WalkthroughView:overview()
+  if self.stopped then return false end
 
-  local seen = 0
+  local keys = settings.keymaps:get('walkthrough')
+  local view = walkthrough_overview.render(self.walkthrough, { index = self.index, seen = self.seen, keys = keys })
+  local buffer = self:_overview_buffer()
+  local window = self:_code_window() or self:_open_beside(buffer)
 
-  for _ in pairs(self.seen) do
-    seen = seen + 1
+  if not window then return false, 'no window to show the walkthrough in' end
+
+  self:_clear()
+  self:_close_note()
+  self:_close_split()
+
+  buffer:set_lines(view.lines)
+  Renderer(buffer.bufnr):render(0)
+
+  if window:get_buffer().bufnr ~= buffer.bufnr then window:set_buffer(buffer) end
+
+  self:_bind(buffer)
+  self:_watch(window)
+
+  local current
+  for row, target in pairs(view.targets) do
+    if target.index == self.index then current = row end
   end
 
-  local uncovered = #(self.walkthrough.uncovered or {})
+  window:set_cursor({ current or walkthrough_overview.first_target(view) or 1, 0 })
 
-  return surfaces.pick({
-    title = string.format(
-      '%s · %d/%d seen%s',
-      self.walkthrough.title,
-      seen,
-      #self.walkthrough.steps,
-      uncovered > 0 and string.format(' · %d not covered', uncovered) or ''
-    ),
-    items = self:_entries(),
-    hints = { { '<CR>', 'go' }, { '<C-n>/<C-p>', 'move' }, { '<Esc>', 'close' } },
-    on_select = function(entry)
-      Timer.schedule(function()
-        if self.stopped then return end
+  self.targets = view.targets
+  self.started, self.overviewing, self.visiting = true, true, nil
 
-        if entry.value.hunk then
-          self:visit(entry.value.hunk)
-        else
-          self:show(entry.value.index)
-        end
+  return true
+end
 
-        if self.window and self.window:is_valid() then self.window:focus() end
-      end)
-    end,
-  })
+function WalkthroughView:open_row()
+  if not (self.overviewing and self.window and self.window:is_valid()) then return false end
+
+  local target = self.targets[self.window:get_cursor()[1]]
+
+  if not target then return false end
+  if target.hunk then return self:visit(target.hunk) end
+
+  return self:show(target.index)
 end
 
 function WalkthroughView:ask()
@@ -865,6 +860,8 @@ function WalkthroughView:replace_rest(steps)
 end
 
 function WalkthroughView:annotate(note)
+  if self.index == 0 then return false, 'no step is open' end
+
   self.walkthrough.steps[self.index].note = note
 
   return self:show(self.index, self.part)
@@ -889,20 +886,34 @@ function WalkthroughView:start(index)
   return ok, why
 end
 
+function WalkthroughView:start_overview()
+  local ok, why = self:overview()
+
+  if ok then self.window:focus() end
+
+  return ok, why
+end
+
+function WalkthroughView:_resume_step()
+  return self:show(math.max(self.index, 1), self.index > 0 and self.part or 1)
+end
+
 function WalkthroughView:next(count)
-  if self.visiting then return self:show(self.index, self.part) end
+  if self.visiting or self.overviewing then return self:_resume_step() end
   if self.index >= #self.walkthrough.steps then return self:stop() end
 
   return self:show(math.min(self.index + math.max(count or 1, 1), #self.walkthrough.steps))
 end
 
 function WalkthroughView:previous(count)
-  if self.visiting then return self:show(self.index, self.part) end
+  if self.visiting or self.overviewing then return self:_resume_step() end
 
   return self:show(math.max(self.index - math.max(count or 1, 1), 1))
 end
 
 function WalkthroughView:next_range(count)
+  if self.index == 0 then return self:_resume_step() end
+
   local index, part = self.index, self.part
 
   for _ = 1, math.max(count or 1, 1) do
@@ -919,6 +930,8 @@ function WalkthroughView:next_range(count)
 end
 
 function WalkthroughView:previous_range(count)
+  if self.index == 0 then return self:_resume_step() end
+
   local index, part = self.index, self.part
 
   for _ = 1, math.max(count or 1, 1) do

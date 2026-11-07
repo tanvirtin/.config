@@ -534,23 +534,26 @@ describe('harness.ui.WalkthroughView:', function()
       eq({ 2, 1 }, { view.index, view.part })
     end)
 
-    it('lists every step in the outline, marking the ones seen and the hunks no step covers', function()
-      data.uncovered = { { path = 'a.lua', absolute = dir .. '/a.lua', first = 38, last = 39 } }
+    it('marks the steps seen in the overview, and opens a hunk no step covers from it', function()
+      data.uncovered = { { id = 'h9', path = 'a.lua', absolute = dir .. '/a.lua', first = 38, last = 39 } }
       view = WalkthroughView(data)
       view:start()
       view:next()
 
-      local labels = vim.tbl_map(function(entry)
-        return entry.label
-      end, view:_entries())
+      assert.is_true(view:overview())
 
-      eq(4, #labels)
-      assert.truthy(labels[1]:find('^✓ 1%. Core · a%.lua:5 %+1'))
-      assert.truthy(labels[2]:find('^▸ 2%. More'))
-      assert.truthy(labels[3]:find('supporting · Tests', 1, true))
-      assert.truthy(labels[4]:find('not covered · a.lua:38-39', 1, true))
+      local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+      local function line(pattern)
+        return lines[vim.fn.match(lines, pattern) + 1]
+      end
 
-      assert.is_true(view:visit(data.uncovered[1]))
+      assert.truthy(line('Core'):find('✓', 1, true))
+      assert.truthy(line('More'):find('▸', 1, true))
+      assert.truthy(line('Tests'):find('supporting', 1, true))
+      eq('- ○ h9 a.lua:38-39', line('h9'))
+
+      vim.api.nvim_win_set_cursor(0, { vim.fn.match(lines, 'h9') + 1, 0 })
+      assert.is_true(view:open_row())
       eq(38, vim.api.nvim_win_get_cursor(0)[1])
       assert.truthy(note_text():find('No step covers', 1, true))
       eq(2, view.index)
