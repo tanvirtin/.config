@@ -145,6 +145,10 @@ function tour.previous(session)
   return active(session, 'previous')
 end
 
+function tour.outline(session)
+  return active(session, 'outline')
+end
+
 function tour.stop(session)
   local key = target(session)
 
@@ -202,7 +206,8 @@ function tour.changes(view, scope)
 end
 
 function tour.step_draft(view)
-  local step, index = view:step()
+  local step, index, part = view:step()
+  local ranges = TourView.ranges(step)
   local lines = {
     string.format(
       '[Tour "%s", step %d/%d%s]',
@@ -211,8 +216,17 @@ function tour.step_draft(view)
       #view.tour.steps,
       step.title and (': ' .. step.title) or ''
     ),
-    string.format('%s:%d-%d', step.path, step.line, step.end_line),
   }
+
+  for at, range in ipairs(ranges) do
+    lines[#lines + 1] = string.format(
+      '%s:%d-%d%s',
+      range.path,
+      range.line,
+      range.end_line,
+      #ranges > 1 and at == part and ' (looking at this one)' or ''
+    )
+  end
 
   for _, line in ipairs(vim.split(step.note, '\n', { plain = true })) do
     if line ~= '' then lines[#lines + 1] = '> ' .. line end

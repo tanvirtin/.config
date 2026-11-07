@@ -127,6 +127,29 @@ describe('harness.ui.TourView:', function()
     eq(1, view.index)
   end)
 
+  it('skips steps by a count, stopping at the ends without ending the tour', function()
+    view = TourView(data)
+    view:start()
+
+    view:next(99)
+    eq(#data.steps, view.index)
+    assert.is_true(view:is_open())
+
+    view:previous(99)
+    eq(1, view.index)
+  end)
+
+  it('offers back only after the first step, and finish on the last', function()
+    view = TourView(data)
+    view:start()
+
+    local keys = require('harness.settings').keymaps:get('tour')
+
+    assert.is_nil(view:_footer(1):find(keys.previous .. ' back', 1, true))
+    assert.is_truthy(view:_footer(2):find(keys.previous .. ' back', 1, true))
+    assert.is_truthy(view:_footer(#data.steps):find(keys.next .. ' finish', 1, true))
+  end)
+
   it('ends after the last step, taking the note, the marks and the keys with it', function()
     local stopped = 0
 
@@ -411,6 +434,130 @@ describe('harness.ui.TourView:', function()
       view:stop()
 
       eq(false, vim.api.nvim_buf_is_valid(buf))
+    end)
+
+    local function review()
+      return assert(
+        tour_type.parse({ steps = { { path = 'a.lua', line = 1, end_line = 4, title = 'All of it' } } }, repo, {
+          base = old,
+          root = repo,
+        })
+      )
+    end
+
+    it('shows a step of a review as a diff against the base, in the code itself', function()
+      view = TourView(review())
+      assert.is_true(view:start())
+
+      local buf = vim.api.nvim_get_current_buf()
+      local added, removed = 0, {}
+
+      for _, mark in ipairs(marks(buf, TourView.SHOW)) do
+        if mark[4].line_hl_group then added = added + 1 end
+
+        for _, line in ipairs(mark[4].virt_lines or {}) do
+          removed[#removed + 1] = vim.trim(line[1][1])
+        end
+      end
+
+      eq({ 'new 1', 'new 2', 'new 3', 'new 4' }, vim.api.nvim_buf_get_lines(buf, 0, -1, false))
+      eq(4, added)
+      eq({ 'old 1', 'old 2', 'old 3' }, removed)
+      eq(true, vim.bo[buf].modifiable)
+    end)
+
+    it('lays the base beside the code in diff mode when split fits, and takes it away at the end', function()
+      local spec = require('harness.settings').tour
+      local saved = { spec:get('diff_layout'), spec:get('split_min_width') }
+
+      spec:assign({ diff_layout = 'split', split_min_width = 0 })
+
+      view = TourView(review())
+      assert.is_true(view:start())
+
+      local code = vim.api.nvim_get_current_win()
+      local wins = vim.tbl_filter(function(win)
+        return vim.api.nvim_win_get_config(win).relative == ''
+      end, vim.api.nvim_tabpage_list_wins(0))
+
+      eq(2, #wins)
+      eq(true, vim.wo[code].diff)
+
+      local other = wins[1] == code and wins[2] or wins[1]
+
+      eq({ 'old 1', 'old 2', 'old 3' }, vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(other), 0, -1, false))
+
+      view:stop()
+      view = nil
+      spec:assign({ diff_layout = saved[1], split_min_width = saved[2] })
+
+      eq(false, vim.api.nvim_win_is_valid(other))
+      eq(false, vim.wo[code].diff)
+    end)
+  end)
+
+  describe('a step over several ranges', function()
+    before_each(function()
+      data = assert(tour_type.parse({
+        title = 'Sections',
+        steps = {
+          {
+            title = 'Core',
+            ranges = { { path = 'a.lua', line = 5 }, { path = 'b.lua', line = 1 } },
+          },
+          { path = 'a.lua', line = 20, title = 'Tests', supporting = true },
+          { path = 'a.lua', line = 30, title = 'More' },
+        },
+      }, dir))
+    end)
+
+    it('walks each range, then into the next step, and back again', function()
+      view = TourView(data)
+      view:start()
+
+      eq('Core', data.steps[1].title)
+      eq('More', data.steps[2].title)
+      eq('Tests', data.steps[3].title)
+
+      view:next_range()
+      eq({ 1, 2 }, { view.index, view.part })
+      eq(real(dir .. '/b.lua'), real(vim.api.nvim_buf_get_name(0)))
+      assert.truthy(vim.api.nvim_win_get_config(floats()[1]).title[1][1]:find('Core · 2/2', 1, true))
+
+      view:next_range()
+      eq({ 2, 1 }, { view.index, view.part })
+
+      view:previous_range()
+      eq({ 1, 2 }, { view.index, view.part })
+
+      view:next()
+      eq({ 2, 1 }, { view.index, view.part })
+    end)
+
+    it('lists every step in the outline, marking the ones seen and the hunks no step covers', function()
+      data.uncovered = { { path = 'a.lua', absolute = dir .. '/a.lua', first = 38, last = 39 } }
+      view = TourView(data)
+      view:start()
+      view:next()
+
+      local labels = vim.tbl_map(function(entry)
+        return entry.label
+      end, view:_entries())
+
+      eq(4, #labels)
+      assert.truthy(labels[1]:find('^✓ 1%. Core · a%.lua:5 %+1'))
+      assert.truthy(labels[2]:find('^▸ 2%. More'))
+      assert.truthy(labels[3]:find('supporting · Tests', 1, true))
+      assert.truthy(labels[4]:find('not covered · a.lua:38-39', 1, true))
+
+      assert.is_true(view:visit(data.uncovered[1]))
+      eq(38, vim.api.nvim_win_get_cursor(0)[1])
+      assert.truthy(note_text():find('No step covers', 1, true))
+      eq(2, view.index)
+
+      view:next()
+      eq(2, view.index)
+      eq(30, vim.api.nvim_win_get_cursor(0)[1])
     end)
   end)
 end)

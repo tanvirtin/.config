@@ -56,13 +56,27 @@ local function snapshot(dir, rev)
   }
 end
 
-local function uncovered(session, steps, sha)
+local function scope_for(session, sha)
   local scope = tour_store.scope(session)
 
   if not scope or (sha or (scope.checked_out and scope.head)) ~= scope.head then return nil end
 
-  local missing = tour_scope.uncovered(scope, steps)
-  local shown = vim.list_slice(missing, 1, tour_tools.MAX_UNCOVERED)
+  return scope
+end
+
+local function uncovered(session, tour, sha)
+  local scope = scope_for(session, sha)
+
+  if not scope then return nil end
+
+  local missing = tour_scope.uncovered(scope, tour.steps)
+  local shown = {}
+
+  tour.uncovered = missing
+
+  for index = 1, math.min(#missing, tour_tools.MAX_UNCOVERED) do
+    shown[index] = { path = missing[index].path, first = missing[index].first, last = missing[index].last }
+  end
 
   return {
     uncovered = #missing > 0 and shown or nil,
@@ -111,7 +125,7 @@ local function tour_scope_tool(args, ctx)
     commit_count = #scope.commits,
     files = files,
     file_count = #scope.files,
-    next = 'Read the changed code, then call tour_start with rev set to the rev above and steps in the order a reviewer should read them, covering every hunk.',
+    next = 'Read the changed code, then call tour_start with rev set to the rev above and steps in the order a reviewer should read them, covering every hunk: one step per purpose, its hunks as ranges, the core first and tests, docs and wiring marked supporting.',
   }
 end
 
@@ -119,15 +133,23 @@ local function tour_start(args, ctx)
   local session = session_of(ctx)
   local dir = dir_of(ctx)
   local opts = snapshot(dir, args.rev)
+  local sha = args.rev and tour_scope.resolve(dir, args.rev) or nil
+  local scope = scope_for(session, sha)
+
+  if scope then
+    opts.base = scope.base
+    opts.root = opts.root or scope.root
+  end
+
   local tour, err = tour_type.parse(args, dir, opts)
 
   if not tour then fail(err) end
 
+  local coverage = uncovered(session, tour, sha)
+
   tour_store.start(session, tour)
 
-  local sha = args.rev and tour_scope.resolve(dir, args.rev) or nil
-
-  return with({ title = tour.title, steps = #tour.steps }, uncovered(session, tour.steps, sha))
+  return with({ title = tour.title, steps = #tour.steps }, coverage)
 end
 
 local function tour_update(args, ctx)
@@ -159,15 +181,39 @@ local function tour_update(args, ctx)
 
   if not ok then fail(why) end
 
-  return with({ title = current.title, steps = #current.steps }, uncovered(session, current.steps, current.rev))
+  return with({ title = current.title, steps = #current.steps }, uncovered(session, current, current.rev))
 end
 
-local STEP = schema.model({
+local RANGE = schema.model({
   { name = 'path', type = schema.str({ description = 'File, relative to the project or absolute.' }) },
   { name = 'line', type = schema.int({ description = 'First line, 1-based.' }) },
   { name = 'end_line', type = schema.int({ description = 'Last line of the range.' }), optional = true },
+})
+
+local STEP = schema.model({
+  {
+    name = 'path',
+    type = schema.str({ description = 'File, relative to the project or absolute (or give ranges).' }),
+    optional = true,
+  },
+  { name = 'line', type = schema.int({ description = 'First line, 1-based.' }), optional = true },
+  { name = 'end_line', type = schema.int({ description = 'Last line of the range.' }), optional = true },
+  {
+    name = 'ranges',
+    type = schema.list(RANGE, {
+      description = 'Several ranges, across files if need be, that one explanation covers (a section). The reader steps through them in this order. Use instead of path and line.',
+    }),
+    optional = true,
+  },
   { name = 'title', type = schema.str({ description = 'A few words.' }), optional = true },
   { name = 'note', type = schema.str({ description = 'Markdown shown beside the code.' }), optional = true },
+  {
+    name = 'supporting',
+    type = schema.bool({
+      description = 'True for lower-signal changes (tests, docs, generated code, renames, wiring); they are shown after the core steps.',
+    }),
+    optional = true,
+  },
 })
 
 function tour_tools.definitions()
@@ -193,7 +239,7 @@ function tour_tools.definitions()
     {
       name = 'tour_start',
       risk = 'read',
-      summary = 'Walk the user through code in their editor, when they ask to be shown, taken through, or told how something works, or to review changes: opens each step\'s file at the lines it is about, highlights them and shows your note beside them, and the user steps through with keys (they can ask you about a step, and you can change the tour with tour_update). Give a short title, an optional summary, and 3 to 15 steps in the order you want them read: for a review, the order a reviewer should read the change in (entry point, core logic, callers, tests), with what to watch for; for a feature, the order the code runs in. Each step names a file (relative to the project), the line or range it is about, a short title and a note in markdown: say what the code does and why it matters here, not what the line says. Check paths and line numbers by reading the files first. After tour_scope, pass its rev: the steps are then lines of that commit, shown read-only if it is not checked out, and the reply lists changed hunks no step covers.',
+      summary = 'Walk the user through code in their editor, when they ask to be shown, taken through, or told how something works, or to review changes: opens each step\'s file at the lines it is about, highlights them and shows your note beside them, and the user steps through with keys (they can ask you about a step, and you can change the tour with tour_update). Give a short title, an optional summary, and 3 to 15 steps in the order you want them read: for a review, the order a reviewer should read the change in (entry point, core logic, callers, tests), with what to watch for; for a feature, the order the code runs in. Each step names a file (relative to the project), the line or range it is about, a short title and a note in markdown: say what the code does and why it matters here, not what the line says. Check paths and line numbers by reading the files first. After tour_scope, pass its rev: the steps are then lines of that commit, shown read-only if it is not checked out, each shown as a diff against the base, and the reply lists changed hunks no step covers. For a review, make each step a section: put the hunks that serve one purpose, across files if need be, under one explanation with ranges, and say why that part of the change exists and what it affects. Put the core of the change first and mark tests, docs, generated code, renames and wiring as supporting.',
       params = {
         { name = 'title', type = schema.str({ description = 'What the tour is about, in a few words.' }) },
         {

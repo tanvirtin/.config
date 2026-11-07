@@ -52,6 +52,11 @@ return Config({
     previous = '[[',
     stop = '<C-q>',
     ask = 'ga',
+    scroll_down = '<M-j>',
+    scroll_up = '<M-k>',
+    next_range = ']c',
+    previous_range = '[c',
+    outline = 'gO',
   },
   sessions = {
     fork = '<C-f>',

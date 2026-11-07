@@ -141,8 +141,16 @@ function tour_scope.compute(dir, base, head)
   }
 end
 
-local function overlaps(step, hunk)
-  return step.line <= hunk.last and step.end_line >= hunk.first
+local function overlaps(range, hunk)
+  return range.line <= hunk.last and range.end_line >= hunk.first
+end
+
+local function covers(step, file, hunk)
+  for _, range in ipairs(step.ranges or { step }) do
+    if range.path == file.absolute and overlaps(range, hunk) then return true end
+  end
+
+  return false
 end
 
 function tour_scope.uncovered(scope, steps)
@@ -153,10 +161,12 @@ function tour_scope.uncovered(scope, steps)
       local covered = false
 
       for _, step in ipairs(steps) do
-        covered = covered or (step.path == file.absolute and overlaps(step, hunk))
+        covered = covered or covers(step, file, hunk)
       end
 
-      if not covered then missing[#missing + 1] = { path = file.path, first = hunk.first, last = hunk.last } end
+      if not covered then
+        missing[#missing + 1] = { path = file.path, absolute = file.absolute, first = hunk.first, last = hunk.last }
+      end
     end
   end
 

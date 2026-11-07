@@ -118,12 +118,28 @@ describe('harness.tour_scope:', function()
       { path = scope.files[2].absolute, line = 1, end_line = 1 },
     })
 
-    eq({ { path = 'a.lua', first = 7, last = 7 } }, missing)
+    eq({ { path = 'a.lua', absolute = a, first = 7, last = 7 } }, missing)
     eq(
       {},
       tour_scope.uncovered(scope, {
         { path = a, line = 2, end_line = 7 },
         { path = scope.files[2].absolute, line = 2, end_line = 2 },
+      })
+    )
+  end)
+
+  it('counts a hunk covered by any range of a step that spans several', function()
+    local scope = assert(tour_scope.compute(dir, first, second))
+
+    eq(
+      {},
+      tour_scope.uncovered(scope, {
+        {
+          ranges = {
+            { path = scope.files[1].absolute, line = 2, end_line = 7 },
+            { path = scope.files[2].absolute, line = 2, end_line = 2 },
+          },
+        },
       })
     )
   end)

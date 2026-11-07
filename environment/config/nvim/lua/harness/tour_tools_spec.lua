@@ -210,6 +210,25 @@ describe('harness.tour_tools:', function()
       assert.truthy(reply.note:find('tour_update', 1, true))
     end)
 
+    it('gives a review tour its base and its uncovered hunks, and takes sections', function()
+      run('tour_scope', { base = base, head = middle })
+
+      local reply = run('tour_start', {
+        title = 'Review',
+        rev = middle,
+        steps = {
+          { path = 'a.lua', line = 2, title = 'Tests', supporting = true },
+          { title = 'Core', ranges = { { path = 'a.lua', line = 6 }, { path = 'b.lua', line = 1, end_line = 2 } } },
+        },
+      })
+      local tour = tour_store.current(SESSION)
+
+      eq(base, tour.base)
+      eq({ 'Core', 'Tests' }, { tour.steps[1].title, tour.steps[2].title })
+      eq(nil, reply.uncovered)
+      eq({}, tour.uncovered)
+    end)
+
     it('says it is complete once every hunk has a step, and checks added steps against the commit', function()
       run('tour_scope', { base = base, head = middle })
       run('tour_start', { title = 'Review', rev = middle, steps = { { path = 'a.lua', line = 2 } } })

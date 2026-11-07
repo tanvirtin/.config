@@ -65,4 +65,45 @@ describe('harness.types.tour:', function()
 
     assert.truthy(select(2, tour.parse({ steps = steps }, dir)):find('at most', 1, true))
   end)
+
+  it('gathers several ranges under one step, the first naming where it starts', function()
+    vim.fn.writefile({ 'x' }, dir .. '/b.lua')
+
+    local parsed = tour.parse({
+      steps = {
+        { title = 'Section', ranges = { { path = 'a.lua', line = 2, end_line = 3 }, { path = 'b.lua', line = 1 } } },
+      },
+    }, dir)
+    local step = parsed.steps[1]
+
+    eq({ vim.fs.normalize(file), 2, 3 }, { step.path, step.line, step.end_line })
+    eq(2, #step.ranges)
+    eq(vim.fs.normalize(dir .. '/b.lua'), step.ranges[2].path)
+  end)
+
+  it('says which range of a step is wrong', function()
+    local _, err =
+      tour.parse({ steps = { { ranges = { { path = 'a.lua', line = 1 }, { path = 'nope.lua', line = 1 } } } } }, dir)
+
+    eq('step 1: range 2: no file nope.lua', err)
+  end)
+
+  it('puts supporting steps after the core ones, keeping each group in order', function()
+    local parsed = tour.parse({
+      steps = {
+        { path = 'a.lua', line = 1, title = 'test', supporting = true },
+        { path = 'a.lua', line = 1, title = 'core one' },
+        { path = 'a.lua', line = 1, title = 'docs', supporting = true },
+        { path = 'a.lua', line = 1, title = 'core two' },
+      },
+    }, dir)
+
+    eq(
+      { 'core one', 'core two', 'test', 'docs' },
+      vim.tbl_map(function(step)
+        return step.title
+      end, parsed.steps)
+    )
+    eq({ false, true }, { parsed.steps[1].supporting, parsed.steps[3].supporting })
+  end)
 end)

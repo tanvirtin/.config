@@ -242,6 +242,7 @@ function commands.tour(text)
   if word == 'prev' or word == 'previous' or word == 'back' then return transcript.report(tour.previous(session)) end
   if word == 'stop' then return transcript.report(tour.stop(session)) end
   if word == 'resume' then return transcript.report(tour.resume(session)) end
+  if word == 'outline' then return transcript.report(tour.outline(session)) end
 
   local here = transcript.view()
 
@@ -255,7 +256,7 @@ function commands.tour(text)
 
   return transcript.report(
     false,
-    'ask for a tour in your session; :HarnessTour takes next, prev, stop, resume or changes'
+    'ask for a tour in your session; :HarnessTour takes next, prev, outline, stop, resume or changes'
   )
 end
 
