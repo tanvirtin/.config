@@ -4,7 +4,7 @@ local walkthrough_scope = require('harness.walkthrough_scope')
 local walkthrough_overview = {}
 
 walkthrough_overview.MAX_FILES = 3
-walkthrough_overview.MARK = { seen = '✓', current = '▸', unseen = ' ', uncovered = '○' }
+walkthrough_overview.MARK = { understood = '✓', seen = '·', current = '▸', unseen = ' ', uncovered = '○' }
 
 local function cell(text)
   return (text:gsub('|', '\\|'))
@@ -81,6 +81,14 @@ function walkthrough_overview.render(walkthrough, state)
 
   if scope then add(header(scope)) end
 
+  local understood = 0
+
+  for _, step in ipairs(walkthrough.steps) do
+    if step.understood then understood = understood + 1 end
+  end
+
+  add(string.format('%d of %d understood', understood, #walkthrough.steps))
+
   if walkthrough.summary then
     add('')
     vim.list_extend(lines, vim.split(walkthrough.summary, '\n', { plain = true }))
@@ -91,7 +99,8 @@ function walkthrough_overview.render(walkthrough, state)
   add(scope and '|---|---|---|---|' or '|---|---|---|')
 
   for index, step in ipairs(walkthrough.steps) do
-    local mark = index == state.index and walkthrough_overview.MARK.current
+    local mark = step.understood and walkthrough_overview.MARK.understood
+      or index == state.index and walkthrough_overview.MARK.current
       or (seen[index] and walkthrough_overview.MARK.seen or walkthrough_overview.MARK.unseen)
     local title =
       string.format('%d. %s%s', index, step.title or fs.basename(step.path), step.supporting and ' · supporting' or '')

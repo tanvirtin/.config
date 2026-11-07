@@ -385,6 +385,7 @@ function WalkthroughView:_keys()
     { keys.next_range, 'next_range', 'Next range of the walkthrough' },
     { keys.previous_range, 'previous_range', 'Previous range of the walkthrough' },
     { keys.overview, 'overview', 'The walkthrough\'s overview' },
+    { keys.understood, 'toggle_understood', 'Mark this step understood, or not' },
     { keys.stop, 'stop', 'End the walkthrough' },
     { keys.ask, 'ask', 'Ask about this step' },
     { keys.scroll_down, 'scroll_down', 'Scroll the walkthrough note down', true },
@@ -486,7 +487,7 @@ function WalkthroughView:_title(index, part)
     #self.walkthrough.steps,
     step.title and (' · ' .. step.title) or '',
     count > 1 and string.format(' · %d/%d', part, count) or '',
-    step.supporting and ' · supporting' or ''
+    (step.supporting and ' · supporting' or '') .. (step.understood and ' · ✓ understood' or '')
   )
 end
 
@@ -502,6 +503,12 @@ function WalkthroughView:_footer(index, part)
   if count > 1 then parts[#parts + 1] = keys.next_range .. '/' .. keys.previous_range .. ' range' end
 
   parts[#parts + 1] = keys.overview .. ' overview'
+
+  if index then
+    parts[#parts + 1] = keys.ask .. ' ask'
+    parts[#parts + 1] = keys.understood .. (self.walkthrough.steps[index].understood and ' not yet' or ' got it')
+  end
+
   parts[#parts + 1] = keys.scroll_down .. '/' .. keys.scroll_up .. ' scroll'
   parts[#parts + 1] = keys.stop .. ' end'
 
@@ -901,6 +908,18 @@ function WalkthroughView:replace_rest(steps)
   vim.list_extend(self.walkthrough.steps, steps)
 
   return self:show(math.min(self.index + 1, #self.walkthrough.steps))
+end
+
+function WalkthroughView:toggle_understood()
+  local step = self.walkthrough.steps[self.index]
+
+  if self.index == 0 or not step or self.overviewing or self.visiting then return false end
+
+  step.understood = not step.understood
+
+  self:_refresh_note(step)
+
+  return true
 end
 
 function WalkthroughView:add_to_note(step, text)

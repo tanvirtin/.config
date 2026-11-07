@@ -140,6 +140,29 @@ describe('harness.ui.WalkthroughView:', function()
     assert.truthy(note_text():find('Could not write a note: the reader did not start', 1, true))
   end)
 
+  it('marks a step understood and back, in its title and the overview', function()
+    view = WalkthroughView(data)
+    view:start()
+
+    assert.is_true(view:toggle_understood())
+    eq(true, data.steps[1].understood)
+    assert.truthy(vim.api.nvim_win_get_config(floats()[1]).title[1][1]:find('✓ understood', 1, true))
+    assert.truthy(vim.api.nvim_win_get_config(floats()[1]).footer[1][1]:find('g. not yet', 1, true))
+
+    view:overview()
+
+    local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+
+    eq('1 of 3 understood', lines[2])
+    assert.truthy(lines[vim.fn.match(lines, 'First') + 1]:find('| ✓ |', 1, true))
+    eq(false, view:toggle_understood())
+
+    view:next()
+    view:previous()
+    view:toggle_understood()
+    eq(false, data.steps[1].understood)
+  end)
+
   it('goes to the next and previous step, across files, and clears the last range as it goes', function()
     view = WalkthroughView(data)
     view:start()
@@ -583,7 +606,7 @@ describe('harness.ui.WalkthroughView:', function()
         return lines[vim.fn.match(lines, pattern) + 1]
       end
 
-      assert.truthy(line('Core'):find('✓', 1, true))
+      assert.truthy(line('Core'):find('| · |', 1, true))
       assert.truthy(line('More'):find('▸', 1, true))
       assert.truthy(line('Tests'):find('supporting', 1, true))
       eq('- ○ h9 a.lua:38-39', line('h9'))

@@ -81,6 +81,17 @@ describe('harness.WalkthroughReader:', function()
       assert.falsy(WalkthroughReader.prompt(walkthrough(), 2, read):find('Steps:', 1, true))
     end)
 
+    it('names the steps the user already understands, so the note builds on them', function()
+      local data = walkthrough()
+
+      data.steps[1].understood = true
+
+      local text = WalkthroughReader.prompt(data, 2, read)
+
+      assert.truthy(text:find('The user already understands 1. Entry; build on them', 1, true))
+      assert.falsy(WalkthroughReader.prompt(data, 1, read):find('already understands', 1, true))
+    end)
+
     it('gives a step of a review as its diff', function()
       local data = walkthrough()
 

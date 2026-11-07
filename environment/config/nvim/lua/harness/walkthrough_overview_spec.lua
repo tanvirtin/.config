@@ -34,7 +34,9 @@ describe('harness.walkthrough_overview:', function()
       summary = 'Refresh before expiry.',
       scope = scope,
       steps = {
-        step('Core | refresh', { { '/r/a.lua', 2, 3 }, { '/r/b.lua', 1, 1 } }),
+        vim.tbl_extend('force', step('Core | refresh', { { '/r/a.lua', 2, 3 }, { '/r/b.lua', 1, 1 } }), {
+          understood = true,
+        }),
         step('Tests', { { '/r/b.lua', 9, 9 } }, true),
       },
       uncovered = {},
@@ -43,6 +45,7 @@ describe('harness.walkthrough_overview:', function()
     eq({
       '# Token refresh',
       '`1111111..2222222` · 1 commit · 2 files · 3 hunks · +4 -2',
+      '1 of 2 understood',
       '',
       'Refresh before expiry.',
       '',
@@ -51,8 +54,18 @@ describe('harness.walkthrough_overview:', function()
       '| ✓ | 1. Core \\| refresh | a.lua, b.lua | +3 -1 |',
       '| ▸ | 2. Tests · supporting | b.lua | +1 -1 |',
     }, view.lines)
-    eq({ [8] = { index = 1 }, [9] = { index = 2 } }, view.targets)
-    eq(8, walkthrough_overview.first_target(view))
+    eq({ [9] = { index = 1 }, [10] = { index = 2 } }, view.targets)
+    eq(9, walkthrough_overview.first_target(view))
+  end)
+
+  it('marks a step seen but not yet understood apart from one understood', function()
+    local view = walkthrough_overview.render({
+      title = 'Walk',
+      steps = { { path = '/w/a.lua', line = 1 }, { path = '/w/b.lua', line = 1 } },
+    }, { index = 2, seen = { true } })
+
+    assert.truthy(view.lines[#view.lines - 1]:find('^| · | 1%.'))
+    assert.truthy(view.lines[#view.lines]:find('^| ▸ | 2%.'))
   end)
 
   it('lists the hunks no step covers, each opening the hunk', function()
@@ -73,8 +86,9 @@ describe('harness.walkthrough_overview:', function()
       steps = { { path = '/w/login.lua', line = 1 } },
     }, { keys = { open = '<CR>', next = ']]', stop = '<C-q>' } })
 
-    eq('|   | Step | Files |', view.lines[3])
-    eq('|   | 1. login.lua | login.lua |', view.lines[5])
+    eq('0 of 1 understood', view.lines[2])
+    eq('|   | Step | Files |', view.lines[4])
+    eq('|   | 1. login.lua | login.lua |', view.lines[6])
     eq('`<CR>` open · `]]` start · `<C-q>` end', view.lines[#view.lines])
   end)
 end)

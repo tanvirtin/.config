@@ -21,6 +21,7 @@ walkthrough.Step = dataclass.define('WalkthroughStep', {
   title = { type = 'string' },
   note = { type = 'string', default = '' },
   supporting = { type = 'boolean', default = false },
+  understood = { type = 'boolean', default = false },
 })
 
 walkthrough.Walkthrough = dataclass.define('Walkthrough', {

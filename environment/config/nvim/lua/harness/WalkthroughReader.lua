@@ -55,6 +55,21 @@ function WalkthroughReader.prompt(walkthrough, index, read, opts)
     out[#out + 1] = ''
   end
 
+  local known = {}
+
+  for at, each in ipairs(steps) do
+    if each.understood and at ~= index then
+      known[#known + 1] = string.format('%d. %s', at, each.title or fs.basename(each.path))
+    end
+  end
+
+  if #known > 0 then
+    out[#out + 1] = string.format(
+      'The user already understands %s; build on them rather than explaining them again.',
+      table.concat(known, ', ')
+    )
+  end
+
   out[#out + 1] = string.format(
     'Step %d/%d: %s%s',
     index,

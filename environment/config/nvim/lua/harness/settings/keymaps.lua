@@ -58,6 +58,7 @@ return Config({
     previous_range = '[c',
     overview = 'gO',
     open = '<CR>',
+    understood = 'g.',
   },
   side_chat = {
     keep = 'gk',
