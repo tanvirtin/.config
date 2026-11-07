@@ -172,6 +172,7 @@ function SessionHub:_open_hidden(key, a, dir, opts)
   local reader = a:derive({ system = opts.system, model = opts.model or a.model, mcp = {}, editor = false })
   local session, err = self:workspace(dir):new_session(reader, {
     key = key,
+    title = opts.title,
     hidden = true,
     approve = permissions.new(),
   })

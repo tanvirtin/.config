@@ -192,7 +192,7 @@ function WalkthroughReader:_start()
 
   self.starting = true
 
-  local model = settings.walkthrough:get('reader_model') or {}
+  local model = settings.walkthrough:get('model') or {}
 
   hub
     .start({

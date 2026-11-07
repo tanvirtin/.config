@@ -6,6 +6,7 @@ local edits = lazy('harness.ui.edits')
 local notice = lazy('harness.ui.notice')
 local display = lazy('harness.ui.display')
 local composer = lazy('harness.ui.composer')
+local SideChats = lazy('harness.ui.SideChats')
 local session_store = lazy('harness.session_store')
 local WalkthroughView = lazy('harness.ui.WalkthroughView')
 local walkthrough_type = lazy('harness.types.walkthrough')
@@ -14,7 +15,7 @@ local WalkthroughReader = lazy('harness.WalkthroughReader')
 
 local walkthrough = {}
 
-local views, last, dispose, dispose_sessions = {}, {}, nil, nil
+local views, chats, last, dispose, dispose_sessions = {}, {}, {}, nil, nil
 
 local function warn(message)
   notice.warn(message)
@@ -83,6 +84,22 @@ function walkthrough.start(data, opts)
   local session = hub.session(key)
   local view = session and display.view_of(session)
   local reader = session and WalkthroughReader(data, { dir = session.dir, agent = session.agent.name })
+  local side = session
+    and SideChats(data, {
+      dir = session.dir,
+      agent = session.agent.name,
+      owner_view = function()
+        return display.view_of(session)
+      end,
+      on_keep = function(step, text)
+        if views[key] then views[key]:add_to_note(step, text) end
+      end,
+      on_share = function(step, text)
+        walkthrough.share(key, data, step, text)
+      end,
+    })
+
+  chats[key] = side
 
   views[key] = WalkthroughView(data, {
     source_win = view and view.source_win,
@@ -95,6 +112,8 @@ function walkthrough.start(data, opts)
     end,
     on_stop = function(stopped)
       if reader then reader:close() end
+      if side then side:close() end
+      if chats[key] == side then chats[key] = nil end
 
       if views[key] == stopped then views[key] = nil end
 
@@ -120,6 +139,7 @@ function walkthrough.start(data, opts)
     warn(why or 'the walkthrough could not start')
 
     if reader then reader:close() end
+    if side then side:close() end
 
     if walkthrough_store.current(key) == data then walkthrough_store.stop(key) end
   end
@@ -229,41 +249,46 @@ function walkthrough.changes(view, scope)
   return true
 end
 
-function walkthrough.step_draft(view)
-  local step, index, part = view:step()
-  local ranges = WalkthroughView.ranges(step)
+function walkthrough.share_draft(data, step, text)
+  local index
+
+  for at, each in ipairs(data.steps) do
+    if each == step then index = at end
+  end
+
   local lines = {
     string.format(
-      '[Walkthrough "%s", step %d/%d%s]',
-      view.walkthrough.title,
-      index,
-      #view.walkthrough.steps,
+      '[Walkthrough "%s", step %s/%d%s, from a side chat]',
+      data.title,
+      index or '?',
+      #data.steps,
       step.title and (': ' .. step.title) or ''
     ),
   }
 
-  for at, range in ipairs(ranges) do
-    lines[#lines + 1] = string.format(
-      '%s:%d-%d%s',
-      range.path,
-      range.line,
-      range.end_line,
-      #ranges > 1 and at == part and ' (looking at this one)' or ''
-    )
-  end
-
-  for _, line in ipairs(vim.split(step.note, '\n', { plain = true })) do
-    if line ~= '' then lines[#lines + 1] = '> ' .. line end
+  for _, line in ipairs(vim.split(text, '\n', { plain = true })) do
+    lines[#lines + 1] = '> ' .. line
   end
 
   vim.list_extend(lines, {
     '',
-    '(Answer in this session. If the answer needs more than a sentence or two, give it its own steps with walkthrough_update: insert after this step, or replace the rest. Use note only to clarify this step.)',
+    '(If this belongs in the walkthrough, add it with walkthrough_update: insert steps after this one, or rewrite its note.)',
     '',
-    'Question: ',
+    '',
   })
 
   return table.concat(lines, '\n')
+end
+
+function walkthrough.share(key, data, step, text)
+  local main = hub.session(key)
+
+  if not main then return false, 'the session that started this walkthrough is gone' end
+
+  composer.restore(main, { walkthrough.share_draft(data, step, text) })
+  composer.open(main, { display = display, insert = true })
+
+  return true
 end
 
 function walkthrough.ask_step(session)
@@ -274,15 +299,9 @@ function walkthrough.ask_step(session)
   local view = views[key]
 
   if view.index == 0 then return false, 'open a step to ask about it' end
+  if not chats[key] then return false, 'the session that started this walkthrough is gone' end
 
-  local current = hub.session(key)
-
-  if not current then return false, 'the session that started this walkthrough is gone' end
-
-  composer.restore(current, { walkthrough.step_draft(view) })
-  composer.open(current, { display = display, insert = true })
-
-  return true
+  return chats[key]:open(view.index)
 end
 
 function walkthrough.register_events()

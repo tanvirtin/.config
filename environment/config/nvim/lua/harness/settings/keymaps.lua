@@ -59,6 +59,10 @@ return Config({
     overview = 'gO',
     open = '<CR>',
   },
+  side_chat = {
+    keep = 'gk',
+    share = 'gs',
+  },
   sessions = {
     fork = '<C-f>',
     delete = '<C-x>',

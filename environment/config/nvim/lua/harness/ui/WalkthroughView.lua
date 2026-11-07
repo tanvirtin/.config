@@ -903,6 +903,14 @@ function WalkthroughView:replace_rest(steps)
   return self:show(math.min(self.index + 1, #self.walkthrough.steps))
 end
 
+function WalkthroughView:add_to_note(step, text)
+  step.note = step.note ~= '' and (step.note .. '\n\n---\n\n' .. text) or text
+
+  self:_refresh_note(step)
+
+  return true
+end
+
 function WalkthroughView:annotate(note)
   if self.index == 0 then return false, 'no step is open' end
 

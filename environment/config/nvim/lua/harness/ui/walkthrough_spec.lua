@@ -20,25 +20,16 @@ describe('harness.ui.walkthrough:', function()
     vim.fn.delete(dir, 'rf')
   end)
 
-  it('drafts a question that names the step, its code and its note, and ends where you type', function()
+  it('drafts an answer from a side chat for the main session, quoted, with how to add it', function()
     local data = assert(walkthrough_type.parse({
       title = 'Walk',
-      steps = {
-        { path = 'a.lua', line = 1 },
-        { path = 'a.lua', line = 2, end_line = 3, title = 'Second', note = 'First line.\n\nSecond line.' },
-      },
+      steps = { { path = 'a.lua', line = 1 }, { path = 'a.lua', line = 2, title = 'Second' } },
     }, dir))
-    local view = WalkthroughView(data)
+    local lines = vim.split(walkthrough.share_draft(data, data.steps[2], 'It caches.\nTwice.'), '\n', { plain = true })
 
-    view.index = 2
-
-    local lines = vim.split(walkthrough.step_draft(view), '\n', { plain = true })
-
-    eq('[Walkthrough "Walk", step 2/2: Second]', lines[1])
-    eq(vim.fs.normalize(dir .. '/a.lua') .. ':2-3', lines[2])
-    eq({ '> First line.', '> Second line.' }, { lines[3], lines[4] })
+    eq('[Walkthrough "Walk", step 2/2: Second, from a side chat]', lines[1])
+    eq({ '> It caches.', '> Twice.' }, { lines[2], lines[3] })
     assert.truthy(table.concat(lines, '\n'):find('walkthrough_update', 1, true))
-    eq('Question: ', lines[#lines])
   end)
 
   it('has nothing to ask about without a walkthrough', function()

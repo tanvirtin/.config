@@ -214,6 +214,13 @@ function Window:split_left(buffer)
   return Window(0)
 end
 
+function Window:split_below(buffer)
+  self:focus()
+  vim.cmd('belowright sbuffer ' .. buffer.bufnr)
+
+  return Window(0)
+end
+
 function Window:split_right(buffer)
   self:focus()
   vim.cmd('vertical rightbelow sbuffer ' .. buffer.bufnr)
