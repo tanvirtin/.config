@@ -53,6 +53,12 @@ describe('harness.walkthrough_note:', function()
     eq('│ Calls git diff once.', trimmed({ row })[1])
   end)
 
+  it('wraps punctuation and the code it touches together', function()
+    local virt = walkthrough_note.render({ 'Each hunk gets an id (`h1`, `h2`).' }, { width = 26 })
+
+    eq({ '│ Each hunk gets an id', '│ (h1, h2).' }, vim.list_slice(trimmed(virt), 2, 3))
+  end)
+
   it('keeps a fenced block as written, draws rules, bullets and headings', function()
     local virt = walkthrough_note.render({ '## Flow', '- first', '---', '```', 'a ──▶ b', '```' }, { width = 30 })
 

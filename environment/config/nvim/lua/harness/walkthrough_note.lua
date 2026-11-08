@@ -67,22 +67,38 @@ local function words(line)
   return out
 end
 
+local function units(line)
+  local out = {}
+
+  for _, word in ipairs(words(line)) do
+    local last = out[#out]
+
+    if word.glued and last then
+      last.parts[#last.parts + 1] = { word[1], word[2] }
+      last.width = last.width + width(word[1])
+    else
+      out[#out + 1] = { parts = { { word[1], word[2] } }, width = width(word[1]) }
+    end
+  end
+
+  return out
+end
+
 local function wrap(line, size, lead)
   local rows, row, used = {}, {}, 0
 
-  for _, word in ipairs(words(line)) do
-    local gap = (used > 0 and not word.glued) and 1 or 0
-    local need = width(word[1]) + gap
+  for _, unit in ipairs(units(line)) do
+    local gap = used > 0 and 1 or 0
 
-    if used > 0 and used + need > size then
+    if used > 0 and used + gap + unit.width > size then
       rows[#rows + 1] = row
       row, used, gap = {}, 0, 0
     end
 
     if gap > 0 then row[#row + 1] = { ' ', 'surface' } end
 
-    row[#row + 1] = { word[1], word[2] }
-    used = used + width(word[1]) + gap
+    vim.list_extend(row, unit.parts)
+    used = used + gap + unit.width
   end
 
   rows[#rows + 1] = row
