@@ -20,7 +20,11 @@ end
 describe('harness.ui.WalkthroughView:', function()
   local dir, view, data
 
+  local note_mode
+
   before_each(function()
+    note_mode = require('harness.settings').walkthrough:get('note')
+    require('harness.settings').walkthrough:assign({ note = 'float' })
     vim.cmd('silent! only!')
     vim.cmd('enew!')
     dir = vim.fn.tempname()
@@ -49,6 +53,8 @@ describe('harness.ui.WalkthroughView:', function()
   after_each(function()
     if view then view:stop() end
 
+    require('harness.settings').walkthrough:assign({ note = note_mode })
+
     vim.cmd('silent! only!')
     vim.cmd('enew!')
     vim.fn.delete(dir, 'rf')
@@ -59,6 +65,59 @@ describe('harness.ui.WalkthroughView:', function()
 
     return win and table.concat(vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(win), 0, -1, false), '\n')
   end
+
+  describe('with the note inline', function()
+    before_each(function()
+      require('harness.settings').walkthrough:assign({ note = 'inline' })
+    end)
+
+    local function note_rows(buf)
+      local rows = {}
+
+      for _, mark in ipairs(marks(buf, WalkthroughView.NOTE)) do
+        for _, line in ipairs(mark[4].virt_lines or {}) do
+          rows[#rows + 1] = table.concat(vim.tbl_map(function(chunk)
+            return chunk[1]
+          end, line))
+        end
+      end
+
+      return rows
+    end
+
+    it('draws the note above the step\'s lines, with no float, and puts both at the top of the window', function()
+      view = WalkthroughView(data)
+      view:start()
+
+      local buf = vim.api.nvim_get_current_buf()
+      local rows = note_rows(buf)
+      local shown = marks(buf, WalkthroughView.NOTE)[1]
+
+      eq(0, #floats())
+      eq(9, shown[2])
+      assert.truthy(rows[1]:find('1/3 · First', 1, true))
+      assert.truthy(table.concat(rows, '\n'):find('The first place.', 1, true))
+      eq(10, vim.fn.line('w0'))
+      eq(#rows, vim.fn.winsaveview().topfill)
+    end)
+
+    it('moves the note with the step and takes it away when the walkthrough ends', function()
+      view = WalkthroughView(data)
+      view:start()
+
+      local first = vim.api.nvim_get_current_buf()
+
+      view:next()
+
+      eq(0, #marks(first, WalkthroughView.NOTE))
+      assert.truthy(table.concat(note_rows(vim.api.nvim_get_current_buf()), '\n'):find('The second.', 1, true))
+
+      view:stop()
+      view = nil
+
+      eq(0, #marks(vim.api.nvim_get_current_buf(), WalkthroughView.NOTE))
+    end)
+  end)
 
   it('opens the first step\'s file at its lines, centres it and marks the range', function()
     view = WalkthroughView(data)

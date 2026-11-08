@@ -12,6 +12,7 @@ local Panel = require('surfaces.Panel')
 local notice = require('harness.ui.notice')
 local settings = require('harness.settings')
 local Renderer = require('ui.markdown.Renderer')
+local walkthrough_note = require('harness.walkthrough_note')
 local walkthrough_scope = require('harness.walkthrough_scope')
 local walkthrough_diagram = require('harness.walkthrough_diagram')
 local walkthrough_overview = require('harness.walkthrough_overview')
@@ -22,6 +23,8 @@ local instances = 0
 
 WalkthroughView.TRACK = Buffer.namespace('harness.walkthrough.track')
 WalkthroughView.SHOW = Buffer.namespace('harness.walkthrough.show')
+WalkthroughView.NOTE = Buffer.namespace('harness.walkthrough.note')
+WalkthroughView.NOTE_MODE = { inline = 'inline', float = 'float' }
 WalkthroughView.PRIORITY = 90
 WalkthroughView.HARNESS_PREFIX = 'harness://'
 WalkthroughView.BAR = '▎'
@@ -518,19 +521,57 @@ function WalkthroughView:_footer(index, part)
     parts[#parts + 1] = keys.understood .. (self.walkthrough.steps[index].understood and ' not yet' or ' got it')
   end
 
-  parts[#parts + 1] = keys.scroll_down .. '/' .. keys.scroll_up .. ' scroll'
+  if not self:_inline() then parts[#parts + 1] = keys.scroll_down .. '/' .. keys.scroll_up .. ' scroll' end
   parts[#parts + 1] = keys.stop .. ' end'
 
   return ' ' .. table.concat(parts, ' · ') .. ' '
 end
 
+function WalkthroughView:_inline()
+  return settings.walkthrough:get('note') ~= WalkthroughView.NOTE_MODE.float
+end
+
 function WalkthroughView:_close_note()
   if self.note and self.note:is_valid() then self.note:close() end
 
-  self.note, self.note_buffer = nil, nil
+  if self.note_mark and Buffer.exists(self.note_mark.bufnr) then
+    Buffer(self.note_mark.bufnr):clear_namespace(WalkthroughView.NOTE)
+  end
+
+  self.note, self.note_buffer, self.note_mark = nil, nil, nil
 end
 
 function WalkthroughView:_show_note(window, first, lines, title, footer)
+  if self:_inline() then return self:_show_inline_note(window, first, lines, title, footer) end
+
+  return self:_show_float_note(window, first, lines, title, footer)
+end
+
+function WalkthroughView:_show_inline_note(window, first, lines, title, footer)
+  self:_close_note()
+
+  local buffer = window:get_buffer()
+  local virt = walkthrough_note.render(lines, {
+    width = window:get_text_width() - 1,
+    title = vim.trim(title),
+    footer = vim.trim(footer),
+  })
+
+  buffer:set_extmark(WalkthroughView.NOTE, first, 0, {
+    virt_lines = virt,
+    virt_lines_above = true,
+    priority = WalkthroughView.PRIORITY + 10,
+  })
+
+  self.note_mark = { bufnr = buffer.bufnr }
+
+  local view = window:get_view()
+
+  view.topline, view.topfill, view.lnum, view.col = first + 1, #virt, first + 1, 0
+  window:set_view(view)
+end
+
+function WalkthroughView:_show_float_note(window, first, lines, title, footer)
   self:_close_note()
 
   local spec = settings.walkthrough

@@ -1,6 +1,7 @@
 local Config = require('core.Config')
 
 return Config({
+  note = 'inline',
   note_width = 0.42,
   note_min_width = 36,
   note_height = 18,

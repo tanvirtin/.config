@@ -76,6 +76,7 @@ local LAYERS = {
   { 'harness.walkthrough_locate', 4 },
   { 'harness.walkthrough_overview', 4 },
   { 'harness.walkthrough_diagram', 4 },
+  { 'harness.walkthrough_note', 4 },
   { 'harness.hub', 5 },
   { 'harness.SessionHub', 5 },
   { 'harness.Admission', 5 },
