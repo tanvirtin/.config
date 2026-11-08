@@ -171,7 +171,8 @@ function WalkthroughView:_base_lines(path)
 
   if cached then return cached end
 
-  local lines = walkthrough_scope.show(walkthrough.root, walkthrough.base, self:_base_path(path)) or {}
+  local relative = self:_base_path(path)
+  local lines = relative and walkthrough_scope.show(walkthrough.root, walkthrough.base, relative) or {}
 
   if lines[#lines] == '' then lines[#lines] = nil end
 
@@ -183,7 +184,11 @@ end
 function WalkthroughView:_base_buffer(path)
   return self:_snapshot(
     'base:' .. path,
-    string.format('rev://%s/%s', self.walkthrough.base:sub(1, 7), self:_base_path(path)),
+    string.format(
+      'rev://%s/%s',
+      self.walkthrough.base:sub(1, 7),
+      self:_base_path(path) or fs.make_relative(self.walkthrough.root, path)
+    ),
     vim.list_extend({}, self:_base_lines(path)),
     path
   )

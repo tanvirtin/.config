@@ -146,6 +146,14 @@ describe('harness.walkthrough_scope:', function()
     eq('old.lua', walkthrough_scope.base_path(scope, scope.files[1].absolute))
   end)
 
+  it('has no base path for a file the range adds', function()
+    local scope = assert(walkthrough_scope.compute(dir, first, second))
+
+    eq('b.lua', scope.files[2].path)
+    eq(nil, walkthrough_scope.base_path(scope, scope.files[2].absolute))
+    eq('a.lua', walkthrough_scope.base_path(scope, scope.files[1].absolute))
+  end)
+
   it('lists the files a range deletes', function()
     local scope = assert(walkthrough_scope.compute(dir, second, third))
 

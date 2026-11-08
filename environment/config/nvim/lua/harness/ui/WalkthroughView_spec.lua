@@ -548,6 +548,31 @@ describe('harness.ui.WalkthroughView:', function()
       )
     end
 
+    it('shows a file the range adds as all added lines, instead of failing to read its base', function()
+      vim.fn.writefile({ 'new 1', 'new 2' }, repo .. '/n.lua')
+      sh('add', '.')
+      sh('commit', '-q', '-m', 'add n')
+
+      local scope = assert(require('harness.walkthrough_scope').compute(repo, old, 'HEAD'))
+      local data = assert(walkthrough_type.parse({ steps = { { path = 'n.lua', line = 1, end_line = 2 } } }, repo, {
+        base = old,
+        root = repo,
+        scope = scope,
+      }))
+
+      view = WalkthroughView(data)
+      assert.is_true(view:start())
+
+      local added = 0
+
+      for _, mark in ipairs(marks(vim.api.nvim_get_current_buf(), WalkthroughView.SHOW)) do
+        if mark[4].line_hl_group then added = added + 1 end
+      end
+
+      eq(2, added)
+      eq(1, #floats())
+    end)
+
     it('shows a step of a review as a diff against the base, in the code itself', function()
       view = WalkthroughView(review())
       assert.is_true(view:start())
