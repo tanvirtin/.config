@@ -97,8 +97,42 @@ describe('harness.ui.WalkthroughView:', function()
       eq(9, shown[2])
       assert.truthy(rows[1]:find('1/3 · First', 1, true))
       assert.truthy(table.concat(rows, '\n'):find('The first place.', 1, true))
-      eq(10, vim.fn.line('w0'))
-      eq(#rows, vim.fn.winsaveview().topfill)
+      eq(8, vim.fn.line('w0'))
+      eq(0, vim.fn.winsaveview().topfill)
+    end)
+
+    it('keeps the card on screen whole: two lines of context above it, never scrolled sideways', function()
+      vim.cmd('vsplit')
+      vim.wo.wrap = false
+      vim.cmd('wincmd p')
+      view = WalkthroughView(data)
+      view:start(3)
+      vim.wo.wrap = false
+      vim.fn.winrestview({ leftcol = 4 })
+
+      view:show(1)
+
+      local saved = vim.fn.winsaveview()
+
+      eq({ 8, 0, 10, 0 }, { saved.topline, saved.topfill, saved.lnum, saved.leftcol })
+
+      local rows = note_rows(vim.api.nvim_get_current_buf())
+      local top = vim.fn.win_screenpos(0)[1]
+      local header =
+        vim.fn.screenstring(top + 2, vim.fn.win_screenpos(0)[2] + vim.fn.getwininfo(vim.fn.win_getid())[1].textoff)
+
+      eq('╭', header)
+      assert.truthy(#rows > 2)
+      vim.cmd('only')
+    end)
+
+    it('fills above the first line when the step starts there, since nothing is above it', function()
+      view = WalkthroughView(
+        assert(walkthrough_type.parse({ steps = { { path = 'b.lua', line = 1, note = 'Top.' } } }, dir))
+      )
+      view:start()
+
+      eq({ 1, #note_rows(vim.api.nvim_get_current_buf()) }, { vim.fn.line('w0'), vim.fn.winsaveview().topfill })
     end)
 
     it('moves the note with the step and takes it away when the walkthrough ends', function()

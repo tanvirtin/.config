@@ -30,6 +30,7 @@ WalkthroughView.NOTE = Buffer.namespace('harness.walkthrough.note')
 WalkthroughView.FINDINGS = Buffer.namespace('harness.walkthrough.findings')
 WalkthroughView.COMMENTS = Buffer.namespace('harness.walkthrough.comments')
 WalkthroughView.MAX_QUOTED = 6
+WalkthroughView.NOTE_CONTEXT = 2
 WalkthroughView.SOURCE = 'review'
 WalkthroughView.NOTE_MODE = { inline = 'inline', float = 'float' }
 WalkthroughView.PRIORITY = 90
@@ -932,8 +933,10 @@ function WalkthroughView:_show_inline_note(window, first, lines, title, footer)
   self.note_mark = { bufnr = buffer.bufnr }
 
   local view = window:get_view()
+  local top = math.max(first + 1 - WalkthroughView.NOTE_CONTEXT, 1)
 
-  view.topline, view.topfill, view.lnum, view.col = first + 1, #virt, first + 1, 0
+  view.topline, view.topfill = top, top == first + 1 and #virt or 0
+  view.lnum, view.col, view.curswant, view.leftcol = first + 1, 0, 0, 0
   window:set_view(view)
 end
 
