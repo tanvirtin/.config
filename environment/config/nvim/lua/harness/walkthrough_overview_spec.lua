@@ -68,6 +68,23 @@ describe('harness.walkthrough_overview:', function()
     assert.truthy(view.lines[#view.lines]:find('^| ▸ | 2%.'))
   end)
 
+  it('lists the findings, counted by kind, each opening its lines', function()
+    local issue =
+      { kind = 'issue', path = '/r/a.lua', line = 4, end_line = 4, message = 'Nil when empty.', fix = { 'x' } }
+    local nit = { kind = 'nitpick', path = '/r/b.lua', line = 9, end_line = 9, message = 'Typo.' }
+    local core = step('Core', { { '/r/a.lua', 2, 3 } })
+
+    core.findings = { issue, nit }
+
+    local view = walkthrough_overview.render({ title = 'Review', steps = { core } })
+    local at = vim.fn.index(view.lines, '## Findings · 1 issue, 1 nitpick') + 1
+
+    assert.is_true(at > 0)
+    eq('- ⚠ issue · a.lua:4 · fix · Nil when empty.', view.lines[at + 1])
+    eq('- · nitpick · b.lua:9 · Typo.', view.lines[at + 2])
+    eq({ finding = issue }, view.targets[at + 1])
+  end)
+
   it('lists the hunks no step covers one row a file, opening the first of them', function()
     local view = walkthrough_overview.render({
       title = 'Review',

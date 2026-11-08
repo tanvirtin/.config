@@ -9,10 +9,13 @@ local Window = require('core.Window')
 local keymap = require('core.keymap')
 local buffers = require('core.buffers')
 local Panel = require('surfaces.Panel')
+local quickfix = require('core.quickfix')
 local notice = require('harness.ui.notice')
 local settings = require('harness.settings')
+local diagnostic = require('core.diagnostic')
 local Renderer = require('ui.markdown.Renderer')
 local walkthrough_note = require('harness.walkthrough_note')
+local walkthrough_type = require('harness.types.walkthrough')
 local walkthrough_scope = require('harness.walkthrough_scope')
 local walkthrough_diagram = require('harness.walkthrough_diagram')
 local walkthrough_overview = require('harness.walkthrough_overview')
@@ -24,6 +27,8 @@ local instances = 0
 WalkthroughView.TRACK = Buffer.namespace('harness.walkthrough.track')
 WalkthroughView.SHOW = Buffer.namespace('harness.walkthrough.show')
 WalkthroughView.NOTE = Buffer.namespace('harness.walkthrough.note')
+WalkthroughView.FINDINGS = Buffer.namespace('harness.walkthrough.findings')
+WalkthroughView.SOURCE = 'review'
 WalkthroughView.NOTE_MODE = { inline = 'inline', float = 'float' }
 WalkthroughView.PRIORITY = 90
 WalkthroughView.HARNESS_PREFIX = 'harness://'
@@ -398,6 +403,7 @@ function WalkthroughView:_keys()
     { keys.overview, 'overview', 'The walkthrough\'s overview' },
     { keys.understood, 'toggle_understood', 'Mark this step understood, or not' },
     { keys.diagram, 'diagram', 'Draw what calls this step\'s function and what it calls' },
+    { keys.fix, 'fix', 'Preview the suggested fix under the cursor' },
     { keys.stop, 'stop', 'End the walkthrough' },
     { keys.ask, 'ask', 'Ask about this step' },
     { keys.scroll_down, 'scroll_down', 'Scroll the walkthrough note down', true },
@@ -486,7 +492,171 @@ function WalkthroughView:_note_lines(index, part)
 
   vim.list_extend(lines, vim.split(note ~= '' and note or (step.title or ''), '\n', { plain = true }))
 
+  if #(step.findings or {}) > 0 then
+    vim.list_extend(lines, { '', '**Findings**' })
+
+    for _, finding in ipairs(step.findings) do
+      lines[#lines + 1] = string.format(
+        '- %s %s · `%s:%d`%s: %s',
+        walkthrough_type.MARK[finding.kind],
+        finding.kind,
+        fs.basename(finding.path),
+        finding.line,
+        finding.fix and ' (fix)' or '',
+        finding.message
+      )
+    end
+  end
+
   return lines
+end
+
+WalkthroughView.SEVERITY = {
+  issue = diagnostic.SEVERITY.WARN,
+  suggestion = diagnostic.SEVERITY.INFO,
+  nitpick = diagnostic.SEVERITY.HINT,
+}
+
+function WalkthroughView:findings()
+  local out = {}
+
+  for index, step in ipairs(self.walkthrough.steps) do
+    for _, finding in ipairs(step.findings or {}) do
+      out[#out + 1] = { finding = finding, index = index }
+    end
+  end
+
+  return out
+end
+
+function WalkthroughView:_publish(buffer, path)
+  local items = {}
+
+  for _, entry in ipairs(self:findings()) do
+    local finding = entry.finding
+
+    if finding.path == path then
+      items[#items + 1] = {
+        lnum = finding.line - 1,
+        end_lnum = finding.end_line - 1,
+        col = 0,
+        severity = WalkthroughView.SEVERITY[finding.kind],
+        message = finding.message
+          .. (finding.fix and '  (fix: ' .. settings.keymaps:get('walkthrough').fix .. ')' or ''),
+        source = WalkthroughView.SOURCE,
+      }
+    end
+  end
+
+  self.published = self.published or {}
+  self.published[buffer.bufnr] = true
+  diagnostic.set(WalkthroughView.FINDINGS, buffer.bufnr, items)
+end
+
+function WalkthroughView:_unpublish()
+  for bufnr in pairs(self.published or {}) do
+    if Buffer.exists(bufnr) then diagnostic.reset(WalkthroughView.FINDINGS, bufnr) end
+  end
+
+  self.published = {}
+end
+
+function WalkthroughView:_finding_at(path, line)
+  local best
+
+  for _, entry in ipairs(self:findings()) do
+    local finding = entry.finding
+
+    if finding.path == path and finding.fix and line >= finding.line and line <= finding.end_line then
+      best = finding
+    end
+  end
+
+  return best
+end
+
+function WalkthroughView:fix()
+  if not (self.window and self.window:is_valid()) then return false end
+
+  local buffer = self.window:get_buffer()
+  local range = self.visiting
+    or (self.index > 0 and WalkthroughView.ranges(self.walkthrough.steps[self.index])[self.part])
+  local path = range and (range.absolute or range.path)
+  local finding = path and self:_finding_at(path, self.window:get_cursor()[1])
+
+  if not finding then
+    notice.info('No suggested fix on this line')
+    return false
+  end
+
+  if self.walkthrough.rev then
+    notice.info(string.format('Check out %s to apply fixes; this is a read-only copy', self.walkthrough.rev:sub(1, 7)))
+    return false
+  end
+
+  local old = buffer:get_lines()
+  local new = vim.list_extend(vim.list_slice(old, 1, finding.line - 1), finding.fix)
+
+  vim.list_extend(new, vim.list_slice(old, finding.end_line + 1))
+
+  local confirm = settings.keymaps:get('walkthrough').fix_confirm
+
+  return vgit.show({ { filename = finding.path, old_lines = old, new_lines = new } }, {
+    keymaps = {
+      {
+        mode = 'n',
+        key = confirm,
+        handler = function(diff_view)
+          buffer:break_undo()
+          buffer:set_lines(new)
+          diff_view:destroy()
+          notice.info('Applied the fix; the buffer is unsaved')
+        end,
+      },
+    },
+  })
+end
+
+function WalkthroughView:quickfix()
+  local items = {}
+
+  for _, entry in ipairs(self:findings()) do
+    local finding = entry.finding
+    local snapshot = self.walkthrough.rev and self:_buffer(finding.path)
+
+    items[#items + 1] = {
+      path = finding.path,
+      bufnr = snapshot and snapshot.bufnr or nil,
+      line = finding.line,
+      text = string.format('%s %s: %s', walkthrough_type.MARK[finding.kind], finding.kind, finding.message),
+    }
+  end
+
+  if #items == 0 then return false, 'no findings in this walkthrough' end
+
+  quickfix.set(items, { title = 'Review findings: ' .. self.walkthrough.title, open = true })
+
+  return true
+end
+
+function WalkthroughView:open_finding(finding)
+  local lines = {
+    string.format('%s **%s**: %s', walkthrough_type.MARK[finding.kind], finding.kind, finding.message),
+  }
+
+  if finding.fix then
+    vim.list_extend(
+      lines,
+      { '', 'Suggested fix (`' .. settings.keymaps:get('walkthrough').fix .. '` to preview):', '```' }
+    )
+    vim.list_extend(lines, finding.fix)
+    lines[#lines + 1] = '```'
+  end
+
+  return self:visit(
+    { absolute = finding.path, first = finding.line, last = finding.end_line },
+    { lines = lines, title = ' ' .. finding.kind .. ' ', label = ' ' .. finding.kind .. ' ' }
+  )
 end
 
 function WalkthroughView:_title(index, part)
@@ -517,6 +687,13 @@ function WalkthroughView:_footer(index, part)
   parts[#parts + 1] = keys.overview .. ' overview'
 
   if index then
+    for _, finding in ipairs(self.walkthrough.steps[index].findings or {}) do
+      if finding.fix then
+        parts[#parts + 1] = keys.fix .. ' fix'
+        break
+      end
+    end
+
     parts[#parts + 1] = keys.ask .. ' ask'
     parts[#parts + 1] = keys.understood .. (self.walkthrough.steps[index].understood and ' not yet' or ' got it')
   end
@@ -662,6 +839,7 @@ function WalkthroughView:_present(path, place)
   local first, finish = place(buffer)
 
   self:_mark(buffer, first, finish, self:_label(first, finish), diffed)
+  self:_publish(buffer, path)
   self:_bind(buffer)
   self:_bind_scroll()
 
@@ -858,6 +1036,7 @@ function WalkthroughView:open_row()
   local target = self.targets[self.window:get_cursor()[1]]
 
   if not target then return false end
+  if target.finding then return self:open_finding(target.finding) end
   if target.hunk then return self:visit(target.hunk) end
 
   return self:show(target.index)
@@ -1235,6 +1414,7 @@ function WalkthroughView:stop()
   self:_close_note()
   self:_close_diagram()
   self:_close_split()
+  self:_unpublish()
   self:_unbind()
 
   self:_forget(1)

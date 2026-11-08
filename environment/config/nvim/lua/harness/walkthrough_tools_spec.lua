@@ -80,6 +80,30 @@ describe('harness.walkthrough_tools:', function()
     eq('h1-h3 h5 h7-h8', require('harness.walkthrough_scope').runs(hunks))
   end)
 
+  it('resolves a step\'s findings like its code, and counts them in the reply', function()
+    local reply = run('walkthrough_start', {
+      title = 'Review',
+      steps = {
+        {
+          at = { 'init.lua:1' },
+          findings = { { at = 'init.lua:2', kind = 'suggestion', message = 'Name it.', fix = 'local x = 1' } },
+        },
+      },
+    })
+    local finding = walkthrough_store.current(SESSION).steps[1].findings[1]
+
+    eq('started "Review" · 1 step · 1 finding', reply)
+    eq({ 2, 'suggestion', { 'local x = 1' } }, { finding.line, finding.kind, finding.fix })
+
+    local ok, err = pcall(run, 'walkthrough_start', {
+      title = 'Bad',
+      steps = { { at = { 'init.lua:1' }, findings = { { at = 'nope.lua:1', kind = 'issue', message = 'x' } } } },
+    })
+
+    eq(false, ok)
+    assert.truthy(tostring(err):find('step 1: finding 1: no file nope.lua', 1, true))
+  end)
+
   describe('walkthrough_update', function()
     local function start()
       walkthrough_store.start(SESSION, { title = 'Config', steps = { { title = 'one' } } })

@@ -7,7 +7,8 @@ function quickfix.set(items, opts)
 
   for _, item in ipairs(items) do
     entries[#entries + 1] = {
-      filename = item.path,
+      bufnr = item.bufnr,
+      filename = not item.bufnr and item.path or nil,
       lnum = item.line or 1,
       col = item.col or 1,
       text = item.text or '',

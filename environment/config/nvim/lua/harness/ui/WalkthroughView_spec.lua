@@ -266,6 +266,86 @@ describe('harness.ui.WalkthroughView:', function()
     eq(4, vim.api.nvim_win_get_cursor(0)[1])
   end)
 
+  describe('findings', function()
+    local function with_findings()
+      data.steps[1].findings = {
+        assert(
+          walkthrough_type.finding(
+            { path = 'a.lua', line = 11, kind = 'issue', message = 'Off by one.', fix = 'fixed 11' },
+            dir
+          )
+        ),
+        assert(walkthrough_type.finding({ path = 'b.lua', line = 1, kind = 'nitpick', message = 'Typo.' }, dir)),
+      }
+    end
+
+    it('puts them in the code as diagnostics, by kind, and lists the step\'s in its note', function()
+      with_findings()
+      view = WalkthroughView(data)
+      view:start()
+
+      local found = vim.diagnostic.get(0, { namespace = WalkthroughView.FINDINGS })
+
+      eq(1, #found)
+      eq({ 10, vim.diagnostic.severity.WARN, 'review' }, { found[1].lnum, found[1].severity, found[1].source })
+      assert.truthy(found[1].message:find('Off by one.', 1, true))
+      assert.truthy(note_text():find('⚠ issue · `a.lua:11` (fix): Off by one.', 1, true))
+
+      view:next()
+
+      eq(vim.diagnostic.severity.HINT, vim.diagnostic.get(0, { namespace = WalkthroughView.FINDINGS })[1].severity)
+
+      view:stop()
+      view = nil
+
+      eq({}, vim.diagnostic.get(nil, { namespace = WalkthroughView.FINDINGS }))
+    end)
+
+    it('fills the quickfix list with every finding', function()
+      with_findings()
+      view = WalkthroughView(data)
+      view:start()
+
+      assert.is_true(view:quickfix())
+
+      local list = vim.fn.getqflist({ title = 1, items = 1 })
+
+      eq('Review findings: Walk', list.title)
+      eq(2, #list.items)
+      eq('⚠ issue: Off by one.', list.items[1].text)
+      vim.cmd('cclose')
+    end)
+
+    it('previews a fix in vgit and applies it on the confirm key, leaving the buffer unsaved', function()
+      local vgit = require('harness.vgit')
+      local saved, shown = vgit.show, nil
+
+      vgit.show = function(files, opts)
+        shown = { files = files, opts = opts }
+        return true
+      end
+
+      with_findings()
+      view = WalkthroughView(data)
+      view:start()
+      vim.api.nvim_win_set_cursor(0, { 11, 0 })
+
+      assert.is_true(view:fix())
+      eq('line 11', shown.files[1].old_lines[11])
+      eq('fixed 11', shown.files[1].new_lines[11])
+
+      shown.opts.keymaps[1].handler({ destroy = function() end })
+      vgit.show = saved
+
+      eq('fixed 11', vim.api.nvim_buf_get_lines(0, 10, 11, false)[1])
+      eq(true, vim.bo.modified)
+      vim.cmd('silent! edit!')
+
+      vim.api.nvim_win_set_cursor(0, { 12, 0 })
+      eq(false, view:fix())
+    end)
+  end)
+
   it('goes to the next and previous step, across files, and clears the last range as it goes', function()
     view = WalkthroughView(data)
     view:start()

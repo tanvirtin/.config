@@ -108,4 +108,40 @@ describe('harness.types.walkthrough:', function()
     )
     eq({ false, true }, { parsed.steps[1].supporting, parsed.steps[3].supporting })
   end)
+
+  it('takes findings on a step, each an issue, a suggestion or a nitpick at lines of a file there', function()
+    local dir = vim.fn.tempname()
+
+    vim.fn.mkdir(dir, 'p')
+    vim.fn.writefile({ 'one', 'two' }, dir .. '/a.lua')
+
+    local step = assert(walkthrough.step({
+      path = 'a.lua',
+      line = 1,
+      findings = { { path = 'a.lua', line = 2, kind = 'issue', message = ' Off by one. ', fix = 'two\nthree' } },
+    }, dir))
+
+    eq({ 'issue', 'Off by one.', 2, { 'two', 'three' } }, {
+      step.findings[1].kind,
+      step.findings[1].message,
+      step.findings[1].line,
+      step.findings[1].fix,
+    })
+    eq({}, assert(walkthrough.step({ path = 'a.lua', line = 1 }, dir)).findings)
+
+    local _, err = walkthrough.step(
+      { path = 'a.lua', line = 1, findings = { { path = 'a.lua', line = 1, kind = 'bug', message = 'x' } } },
+      dir
+    )
+
+    eq('finding 1: a finding is an issue, a suggestion or a nitpick, not bug', err)
+
+    _, err = walkthrough.step(
+      { path = 'a.lua', line = 1, findings = { { path = 'nope.lua', line = 1, kind = 'issue', message = 'x' } } },
+      dir
+    )
+
+    eq('finding 1: no file nope.lua', err)
+    vim.fn.delete(dir, 'rf')
+  end)
 end)

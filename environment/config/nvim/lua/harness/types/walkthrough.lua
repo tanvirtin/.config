@@ -13,6 +13,19 @@ walkthrough.Range = dataclass.define('WalkthroughRange', {
   end_line = { type = 'number', required = true },
 })
 
+walkthrough.KIND = dataclass.enum({ 'issue', 'suggestion', 'nitpick' })
+walkthrough.MARK = { issue = '⚠', suggestion = '✎', nitpick = '·' }
+walkthrough.MAX_FINDINGS = 20
+
+walkthrough.Finding = dataclass.define('WalkthroughFinding', {
+  path = { type = 'string', required = true },
+  line = { type = 'number', required = true },
+  end_line = { type = 'number', required = true },
+  kind = { type = 'string', required = true, enum = walkthrough.KIND },
+  message = { type = 'string', required = true },
+  fix = { type = 'table' },
+})
+
 walkthrough.Step = dataclass.define('WalkthroughStep', {
   path = { type = 'string', required = true },
   line = { type = 'number', required = true },
@@ -22,6 +35,7 @@ walkthrough.Step = dataclass.define('WalkthroughStep', {
   note = { type = 'string', default = '' },
   supporting = { type = 'boolean', default = false },
   understood = { type = 'boolean', default = false },
+  findings = { type = 'table', required = true },
 })
 
 walkthrough.Walkthrough = dataclass.define('Walkthrough', {
@@ -85,6 +99,9 @@ function walkthrough.step(fields, dir, check)
   end
 
   local first = ranges[1]
+  local findings, err = walkthrough.findings(fields.findings, dir, check)
+
+  if not findings then return nil, err end
 
   return walkthrough.Step({
     path = first.path,
@@ -94,7 +111,51 @@ function walkthrough.step(fields, dir, check)
     title = type(fields.title) == 'string' and fields.title ~= '' and fields.title or nil,
     note = type(fields.note) == 'string' and fields.note or '',
     supporting = fields.supporting == true,
+    findings = findings,
   })
+end
+
+function walkthrough.finding(fields, dir, check)
+  if not dataclass.is_member(walkthrough.KIND, fields.kind) then
+    return nil, string.format('a finding is an issue, a suggestion or a nitpick, not %s', tostring(fields.kind))
+  end
+
+  if type(fields.message) ~= 'string' or vim.trim(fields.message) == '' then return nil, 'a finding needs a message' end
+
+  local range, err = walkthrough.range(fields, dir, check)
+
+  if not range then return nil, err end
+
+  local fix = type(fields.fix) == 'string' and vim.split(fields.fix, '\n', { plain = true }) or nil
+
+  return walkthrough.Finding({
+    path = range.path,
+    line = range.line,
+    end_line = range.end_line,
+    kind = fields.kind,
+    message = vim.trim(fields.message),
+    fix = fix,
+  })
+end
+
+function walkthrough.findings(list, dir, check)
+  list = type(list) == 'table' and list or {}
+
+  if #list > walkthrough.MAX_FINDINGS then
+    return nil, string.format('a step holds at most %d findings', walkthrough.MAX_FINDINGS)
+  end
+
+  local out = {}
+
+  for index, fields in ipairs(list) do
+    local finding, err = walkthrough.finding(fields, dir, check)
+
+    if not finding then return nil, string.format('finding %d: %s', index, err) end
+
+    out[index] = finding
+  end
+
+  return out
 end
 
 function walkthrough.ordered(steps)

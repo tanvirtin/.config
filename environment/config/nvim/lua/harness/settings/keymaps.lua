@@ -60,6 +60,8 @@ return Config({
     open = '<CR>',
     understood = 'g.',
     diagram = 'gh',
+    fix = 'gA',
+    fix_confirm = '<C-y>',
   },
   side_chat = {
     keep = 'gk',

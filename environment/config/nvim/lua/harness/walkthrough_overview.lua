@@ -4,6 +4,8 @@ local walkthrough_scope = require('harness.walkthrough_scope')
 local walkthrough_overview = {}
 
 walkthrough_overview.MAX_FILES = 3
+walkthrough_overview.MAX_MESSAGE = 90
+walkthrough_overview.FINDING = { issue = '⚠', suggestion = '✎', nitpick = '·' }
 walkthrough_overview.MARK = { understood = '✓', seen = '·', current = '▸', unseen = ' ', uncovered = '○' }
 
 local function cell(text)
@@ -127,6 +129,52 @@ function walkthrough_overview.render(walkthrough, state)
     if scope then row[#row + 1] = change(scope, step) end
 
     add('| ' .. table.concat(row, ' | ') .. ' |', { index = index })
+  end
+
+  local findings = {}
+
+  for _, step in ipairs(walkthrough.steps) do
+    vim.list_extend(findings, step.findings or {})
+  end
+
+  if #findings > 0 then
+    local counts = {}
+
+    for _, finding in ipairs(findings) do
+      counts[finding.kind] = (counts[finding.kind] or 0) + 1
+    end
+
+    local parts = {}
+
+    for _, kind in ipairs({ 'issue', 'suggestion', 'nitpick' }) do
+      if counts[kind] then
+        parts[#parts + 1] = string.format('%d %s%s', counts[kind], kind, counts[kind] == 1 and '' or 's')
+      end
+    end
+
+    add('')
+    add(string.format('## Findings · %s', table.concat(parts, ', ')))
+
+    for _, finding in ipairs(findings) do
+      local message = finding.message
+
+      if #message > walkthrough_overview.MAX_MESSAGE then
+        message = message:sub(1, walkthrough_overview.MAX_MESSAGE) .. '…'
+      end
+
+      add(
+        string.format(
+          '- %s %s · %s:%d%s · %s',
+          walkthrough_overview.FINDING[finding.kind] or '•',
+          finding.kind,
+          fs.basename(finding.path),
+          finding.line,
+          finding.fix and ' · fix' or '',
+          message
+        ),
+        { finding = finding }
+      )
+    end
   end
 
   local uncovered = walkthrough.uncovered or {}

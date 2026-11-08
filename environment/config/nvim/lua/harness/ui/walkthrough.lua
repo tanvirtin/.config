@@ -193,6 +193,10 @@ function walkthrough.overview(session)
   return active(session, 'overview')
 end
 
+function walkthrough.findings(session)
+  return active(session, 'quickfix')
+end
+
 function walkthrough.stop(session)
   local key = target(session)
 

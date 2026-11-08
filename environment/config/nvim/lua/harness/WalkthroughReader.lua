@@ -78,6 +78,10 @@ function WalkthroughReader.prompt(walkthrough, index, read, opts)
     step.supporting and ' (supporting: tests, docs or wiring)' or ''
   )
 
+  for _, finding in ipairs(step.findings or {}) do
+    out[#out + 1] = string.format('Flagged at line %d (%s): %s', finding.line, finding.kind, finding.message)
+  end
+
   local hunks = walkthrough.scope and walkthrough_scope.covered(walkthrough.scope, step) or {}
 
   if #hunks > 0 then

@@ -80,7 +80,24 @@ local function steps_of(list, env)
 
     if not ranges then fail(string.format('step %d: %s', index, err)) end
 
-    steps[index] = { ranges = ranges, title = fields.title, note = fields.note, supporting = fields.supporting }
+    local findings = {}
+
+    for at, finding in ipairs(fields.findings or {}) do
+      local range, why = walkthrough_locate.resolve(finding.at, env)
+
+      if not range then fail(string.format('step %d, finding %d: %s', index, at, why)) end
+
+      findings[at] =
+        vim.tbl_extend('force', range, { kind = finding.kind, message = finding.message, fix = finding.fix })
+    end
+
+    steps[index] = {
+      ranges = ranges,
+      title = fields.title,
+      note = fields.note,
+      supporting = fields.supporting,
+      findings = findings,
+    }
   end
 
   return steps
@@ -99,7 +116,14 @@ local function coverage(walkthrough)
 end
 
 local function reply(verb, walkthrough)
+  local findings = 0
+
+  for _, step in ipairs(walkthrough.steps) do
+    findings = findings + #(step.findings or {})
+  end
+
   local head = string.format('%s "%s" · %s', verb, walkthrough.title, plural(#walkthrough.steps, 'step'))
+    .. (findings > 0 and (' · ' .. plural(findings, 'finding')) or '')
   local covered = coverage(walkthrough)
 
   return covered and (head .. '\n' .. covered) or head
@@ -252,6 +276,17 @@ local function walkthrough_update(args, ctx)
   return reply('updated', current)
 end
 
+local FINDING = schema.model({
+  { name = 'at', type = schema.str({ description = 'The exact lines: path:42, path:40-44 or a hunk id.' }) },
+  { name = 'kind', type = schema.literal({ 'issue', 'suggestion', 'nitpick' }) },
+  { name = 'message', type = schema.str({ description = 'One sentence: what is wrong and why.' }) },
+  {
+    name = 'fix',
+    type = schema.str({ description = 'Replacement for exactly those lines, when the fix is that local.' }),
+    optional = true,
+  },
+})
+
 local STEP = schema.model({
   {
     name = 'at',
@@ -268,6 +303,7 @@ local STEP = schema.model({
     optional = true,
   },
   { name = 'supporting', type = schema.bool({ description = 'Tests, docs, wiring: shown last.' }), optional = true },
+  { name = 'findings', type = schema.list(FINDING), optional = true },
 })
 
 function walkthrough_tools.definitions()
@@ -285,7 +321,7 @@ function walkthrough_tools.definitions()
     {
       name = 'walkthrough_start',
       risk = 'read',
-      summary = 'Walk the user through code in their editor, for a review (after walkthrough_scope) or to show how something works. Steps in reading order: for a review one step per purpose, core first; for a feature the order the code runs. Point at code by hunk id or symbol rather than reading files for line numbers.',
+      summary = 'Walk the user through code in their editor, for a review (after walkthrough_scope) or to show how something works. Steps in reading order: for a review one step per purpose, core first; for a feature the order the code runs. Point at code by hunk id or symbol rather than reading files for line numbers. In a review, give a step findings for what the user should act on: real bugs as issues, better ways as suggestions, style as nitpicks; none when the code is fine.',
       params = {
         { name = 'title', type = schema.str() },
         { name = 'summary', type = schema.str({ description = 'One or two sentences.' }), optional = true },
