@@ -85,6 +85,20 @@ describe('harness.walkthrough_overview:', function()
     eq({ finding = issue }, view.targets[at + 1])
   end)
 
+  it('lists your comments, each opening its lines, and how to send them', function()
+    local comment = { path = '/r/a.lua', line = 7, end_line = 7, text = 'Rename this.\nIt is unclear.' }
+    local view = walkthrough_overview.render({
+      title = 'Review',
+      steps = { step('Core', { { '/r/a.lua', 2, 3 } }) },
+      comments = { comment },
+    })
+    local at = vim.fn.index(view.lines, '## Your comments · 1') + 1
+
+    eq('- ✎ a.lua:7 · Rename this.', view.lines[at + 1])
+    eq({ comment = comment }, view.targets[at + 1])
+    assert.truthy(view.lines[at + 2]:find('HarnessWalkthrough submit', 1, true))
+  end)
+
   it('lists the hunks no step covers one row a file, opening the first of them', function()
     local view = walkthrough_overview.render({
       title = 'Review',

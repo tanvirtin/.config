@@ -346,6 +346,103 @@ describe('harness.ui.WalkthroughView:', function()
     end)
   end)
 
+  describe('your comments', function()
+    local function drawn(buf)
+      local rows = {}
+
+      for _, mark in ipairs(marks(buf, WalkthroughView.COMMENTS)) do
+        rows[#rows + 1] = {
+          mark[2],
+          table.concat(
+            vim.tbl_map(function(line)
+              return table.concat(vim.tbl_map(function(chunk)
+                return chunk[1]
+              end, line))
+            end, mark[4].virt_lines),
+            '\n'
+          ),
+        }
+      end
+
+      return rows
+    end
+
+    local function type_comment(text)
+      vim.api.nvim_feedkeys(text .. vim.keycode('<Esc>'), 'x', false)
+      vim.api.nvim_feedkeys(vim.keycode('<CR>'), 'x', false)
+    end
+
+    it('writes a comment on a line in a float under it, and draws it there once saved', function()
+      view = WalkthroughView(data)
+      view:start()
+
+      local code = vim.api.nvim_get_current_buf()
+
+      local before = #floats()
+
+      vim.api.nvim_win_set_cursor(0, { 11, 0 })
+      assert.is_true(view:comment())
+      eq(before + 1, #floats())
+      type_comment('Why not cache this?')
+
+      eq(before, #floats())
+      eq(
+        { { path = real(dir .. '/a.lua'), line = 11, end_line = 11, text = 'Why not cache this?' } },
+        vim.tbl_map(function(c)
+          return { path = real(c.path), line = c.line, end_line = c.end_line, text = c.text }
+        end, data.comments)
+      )
+
+      local rows = drawn(code)
+
+      eq(10, rows[1][1])
+      assert.truthy(rows[1][2]:find('your comment · line 11', 1, true))
+      assert.truthy(rows[1][2]:find('Why not cache this?', 1, true))
+    end)
+
+    it('edits a comment where it was, and deletes it when saved empty', function()
+      view = WalkthroughView(data)
+      view:start()
+      view:save_comment(data.steps[1].path, 11, 11, 'First.')
+
+      vim.api.nvim_win_set_cursor(0, { 11, 0 })
+      view:comment()
+      eq('First.', vim.api.nvim_get_current_line())
+      type_comment(' Second.')
+      eq('First. Second.', data.comments[1].text)
+
+      view:comment()
+      vim.api.nvim_feedkeys(vim.keycode('<Esc>') .. 'ggdG', 'x', false)
+      vim.api.nvim_feedkeys(vim.keycode('<CR>'), 'x', false)
+
+      eq({}, data.comments)
+      eq({}, drawn(vim.api.nvim_get_current_buf()))
+    end)
+
+    it('takes a range from a visual selection', function()
+      view = WalkthroughView(data)
+      view:start()
+
+      vim.api.nvim_win_set_cursor(0, { 10, 0 })
+      vim.api.nvim_feedkeys('VjgC', 'x', false)
+      type_comment('iThese two.')
+
+      eq({ 10, 11 }, { data.comments[1].line, data.comments[1].end_line })
+    end)
+
+    it('drafts every comment for the main session with the lines it is about', function()
+      data.comments = {
+        { path = data.steps[1].path, line = 10, end_line = 11, text = 'Two lines.' },
+      }
+
+      local draft = WalkthroughView.comments_draft(data)
+
+      assert.truthy(draft:find('My review comments on "Walk":', 1, true))
+      assert.truthy(draft:find('a.lua:10-11`: Two lines.\n  ```lua\n  line 10\n  line 11\n  ```', 1, true))
+      eq(nil, WalkthroughView.comments_draft({ title = 'Empty', steps = {} }))
+    end)
+  end)
+
   it('goes to the next and previous step, across files, and clears the last range as it goes', function()
     view = WalkthroughView(data)
     view:start()

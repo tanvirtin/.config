@@ -48,6 +48,7 @@ walkthrough.Walkthrough = dataclass.define('Walkthrough', {
   root = { type = 'string' },
   scope = { type = 'table' },
   uncovered = { type = 'table' },
+  comments = { type = 'table' },
 })
 
 function walkthrough.absolute(path, dir)

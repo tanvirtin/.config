@@ -28,6 +28,8 @@ WalkthroughView.TRACK = Buffer.namespace('harness.walkthrough.track')
 WalkthroughView.SHOW = Buffer.namespace('harness.walkthrough.show')
 WalkthroughView.NOTE = Buffer.namespace('harness.walkthrough.note')
 WalkthroughView.FINDINGS = Buffer.namespace('harness.walkthrough.findings')
+WalkthroughView.COMMENTS = Buffer.namespace('harness.walkthrough.comments')
+WalkthroughView.MAX_QUOTED = 6
 WalkthroughView.SOURCE = 'review'
 WalkthroughView.NOTE_MODE = { inline = 'inline', float = 'float' }
 WalkthroughView.PRIORITY = 90
@@ -404,6 +406,7 @@ function WalkthroughView:_keys()
     { keys.understood, 'toggle_understood', 'Mark this step understood, or not' },
     { keys.diagram, 'diagram', 'Draw what calls this step\'s function and what it calls' },
     { keys.fix, 'fix', 'Preview the suggested fix under the cursor' },
+    { keys.comment, 'comment', 'Comment on these lines', false, true },
     { keys.stop, 'stop', 'End the walkthrough' },
     { keys.ask, 'ask', 'Ask about this step' },
     { keys.scroll_down, 'scroll_down', 'Scroll the walkthrough note down', true },
@@ -422,6 +425,12 @@ function WalkthroughView:_set_keys(buffer, keys)
     buffer:set_keymap({ key = key[1], mode = 'n', desc = key[3] }, function()
       self[key[2]](self, keymap.count())
     end)
+
+    if key[5] then
+      buffer:set_keymap({ key = key[1], mode = 'x', desc = key[3] }, function()
+        self[key[2]](self)
+      end)
+    end
   end
 end
 
@@ -467,6 +476,8 @@ function WalkthroughView:_unbind()
     if Buffer.exists(bufnr) then
       for _, key in ipairs(self:_keys()) do
         Buffer(bufnr):del_keymap({ key = key[1], mode = 'n' })
+
+        if key[5] then Buffer(bufnr):del_keymap({ key = key[1], mode = 'x' }) end
       end
     end
   end
@@ -615,6 +626,184 @@ function WalkthroughView:fix()
       },
     },
   })
+end
+
+function WalkthroughView:comments()
+  self.walkthrough.comments = self.walkthrough.comments or {}
+
+  return self.walkthrough.comments
+end
+
+function WalkthroughView:_comment_at(path, first, last)
+  for index, comment in ipairs(self:comments()) do
+    if comment.path == path and comment.line == first and comment.end_line == last then return comment, index end
+  end
+end
+
+function WalkthroughView:_clear_comments()
+  for bufnr in pairs(self.commented or {}) do
+    if Buffer.exists(bufnr) then Buffer(bufnr):clear_namespace(WalkthroughView.COMMENTS) end
+  end
+
+  self.commented = {}
+end
+
+function WalkthroughView:_draw_comments(buffer, path)
+  buffer:clear_namespace(WalkthroughView.COMMENTS)
+
+  local width = self.window and self.window:is_valid() and self.window:get_text_width() - 1 or 80
+
+  for _, comment in ipairs(self:comments()) do
+    if comment.path == path and comment.end_line <= buffer:get_line_count() then
+      local where = comment.line == comment.end_line and tostring(comment.line)
+        or string.format('%d-%d', comment.line, comment.end_line)
+
+      buffer:set_extmark(WalkthroughView.COMMENTS, comment.end_line - 1, 0, {
+        virt_lines = walkthrough_note.render(vim.split(comment.text, '\n', { plain = true }), {
+          width = math.min(width, walkthrough_note.MAX_WIDTH),
+          title = '✎ your comment · line ' .. where,
+          footer = settings.keymaps:get('walkthrough').comment .. ' on these lines to edit',
+        }),
+        priority = WalkthroughView.PRIORITY,
+      })
+    end
+  end
+
+  self.commented = self.commented or {}
+  self.commented[buffer.bufnr] = true
+end
+
+function WalkthroughView:_close_comment_editor()
+  if self.comment_window and self.comment_window:is_valid() then self.comment_window:close() end
+
+  self.comment_window = nil
+end
+
+function WalkthroughView:comment()
+  if not (self.window and self.window:is_valid()) or self.overviewing or not self.shown_path then return false end
+
+  local selected = self.window:visual_lines()
+
+  if selected then keymap.feed('<Esc>', 'nx') end
+
+  local cursor = self.window:get_cursor()[1]
+  local first, last = selected and selected[1] or cursor, selected and selected[2] or cursor
+
+  return self:edit_comment(self.shown_path, first, last)
+end
+
+function WalkthroughView:save_comment(path, first, last, text)
+  local existing, index = self:_comment_at(path, first, last)
+
+  text = vim.trim(text or '')
+
+  if text == '' then
+    if index then table.remove(self:comments(), index) end
+  elseif existing then
+    existing.text = text
+  else
+    table.insert(self:comments(), { path = path, line = first, end_line = last, text = text })
+  end
+
+  if self.window and self.window:is_valid() then self:_draw_comments(self.window:get_buffer(), path) end
+
+  return true
+end
+
+function WalkthroughView:edit_comment(path, first, last)
+  self:_close_comment_editor()
+
+  local existing = self:_comment_at(path, first, last)
+  local window = self.window
+  local keys = settings.keymaps:get('walkthrough')
+  local buffer = Buffer():create(false, true)
+  local width = math.max(math.min(window:get_text_width() - 4, 90), 20)
+
+  buffer:set_option('filetype', Panel.MARKDOWN)
+  buffer:set_option('bufhidden', 'wipe')
+  buffer:set_lines(existing and vim.split(existing.text, '\n', { plain = true }) or { '' })
+
+  self.comment_window = window:open(buffer, {
+    relative = 'win',
+    win = window.win_id,
+    bufpos = { last - 1, 0 },
+    row = 1,
+    col = 0,
+    width = width,
+    height = 5,
+    style = 'minimal',
+    border = 'rounded',
+    zindex = 70,
+    title = string.format(' Comment on line %s ', first == last and first or (first .. '-' .. last)),
+    title_pos = 'left',
+    footer = string.format(' %s save · %s cancel · empty deletes ', keys.comment_save, keys.comment_cancel),
+    footer_pos = 'right',
+  })
+  self.comment_window:assign_options({
+    wrap = true,
+    linebreak = true,
+    winhl = 'Normal:UiComposer,FloatBorder:UiAccent,FloatTitle:UiTitle,FloatFooter:UiMuted',
+  })
+
+  local function close()
+    self:_close_comment_editor()
+
+    if window:is_valid() then window:focus() end
+  end
+
+  buffer:set_keymap({ key = keys.comment_save, mode = 'n', desc = 'Save the comment' }, function()
+    local text = table.concat(buffer:get_lines(), '\n')
+
+    close()
+    self:save_comment(path, first, last, text)
+  end)
+  buffer:set_keymap({ key = keys.comment_cancel, mode = 'n', desc = 'Close without saving' }, close)
+
+  self.comment_window:focus()
+  keymap.feed(existing and 'GA' or 'i', 'n')
+
+  return true
+end
+
+function WalkthroughView.comments_draft(walkthrough)
+  local comments = walkthrough.comments or {}
+
+  if #comments == 0 then return nil end
+
+  local root = walkthrough.root or fs.cwd()
+  local lines = { string.format('My review comments on "%s":', walkthrough.title), '' }
+
+  for _, comment in ipairs(comments) do
+    local where = comment.line == comment.end_line and tostring(comment.line)
+      or string.format('%d-%d', comment.line, comment.end_line)
+    local code = walkthrough_scope.lines(walkthrough.root, walkthrough.rev, comment.path) or {}
+    local quoted =
+      vim.list_slice(code, comment.line, math.min(comment.end_line, comment.line + WalkthroughView.MAX_QUOTED - 1))
+
+    lines[#lines + 1] =
+      string.format('- `%s:%s`: %s', fs.make_relative(root, comment.path), where, (comment.text:gsub('\n', '\n  ')))
+
+    if #quoted > 0 then
+      lines[#lines + 1] = '  ```' .. (fs.detect_filetype(comment.path) or '')
+
+      for _, line in ipairs(quoted) do
+        lines[#lines + 1] = '  ' .. line
+      end
+
+      lines[#lines + 1] = '  ```'
+    end
+  end
+
+  lines[#lines + 1] = ''
+
+  return table.concat(lines, '\n')
+end
+
+function WalkthroughView:open_comment(comment)
+  return self:visit(
+    { absolute = comment.path, first = comment.line, last = comment.end_line },
+    { lines = vim.split(comment.text, '\n', { plain = true }), title = ' your comment ', label = ' your comment ' }
+  )
 end
 
 function WalkthroughView:quickfix()
@@ -840,6 +1029,8 @@ function WalkthroughView:_present(path, place)
 
   self:_mark(buffer, first, finish, self:_label(first, finish), diffed)
   self:_publish(buffer, path)
+  self:_draw_comments(buffer, path)
+  self.shown_path = path
   self:_bind(buffer)
   self:_bind_scroll()
 
@@ -1037,6 +1228,7 @@ function WalkthroughView:open_row()
 
   if not target then return false end
   if target.finding then return self:open_finding(target.finding) end
+  if target.comment then return self:open_comment(target.comment) end
   if target.hunk then return self:visit(target.hunk) end
 
   return self:show(target.index)
@@ -1415,6 +1607,8 @@ function WalkthroughView:stop()
   self:_close_diagram()
   self:_close_split()
   self:_unpublish()
+  self:_close_comment_editor()
+  self:_clear_comments()
   self:_unbind()
 
   self:_forget(1)

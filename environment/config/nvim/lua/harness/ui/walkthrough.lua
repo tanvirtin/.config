@@ -197,6 +197,27 @@ function walkthrough.findings(session)
   return active(session, 'quickfix')
 end
 
+function walkthrough.submit(session)
+  local key = target(session) or only_last()
+  local view = key and views[key]
+  local data = view and view.walkthrough or (key and last[key] and last[key].walkthrough)
+
+  if not data then return false, 'no walkthrough to send comments from' end
+
+  local draft = WalkthroughView.comments_draft(data)
+
+  if not draft then return false, 'no comments to send; gC on code adds one' end
+
+  local main = hub.session(key)
+
+  if not main then return false, 'the session that started this walkthrough is gone' end
+
+  composer.restore(main, { draft })
+  composer.open(main, { display = display, insert = true })
+
+  return true
+end
+
 function walkthrough.stop(session)
   local key = target(session)
 

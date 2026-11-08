@@ -246,6 +246,7 @@ function commands.walkthrough(text)
   if word == 'resume' then return transcript.report(walkthrough.resume(session)) end
   if word == 'overview' then return transcript.report(walkthrough.overview(session)) end
   if word == 'findings' then return transcript.report(walkthrough.findings(session)) end
+  if word == 'submit' then return transcript.report(walkthrough.submit(session)) end
 
   local here = transcript.view()
 
@@ -259,7 +260,7 @@ function commands.walkthrough(text)
 
   return transcript.report(
     false,
-    'ask for a walkthrough in your session; :HarnessWalkthrough takes next, prev, overview, findings, stop, resume or changes'
+    'ask for a walkthrough in your session; :HarnessWalkthrough takes next, prev, overview, findings, submit, stop, resume or changes'
   )
 end
 

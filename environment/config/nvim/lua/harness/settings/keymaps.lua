@@ -62,6 +62,9 @@ return Config({
     diagram = 'gh',
     fix = 'gA',
     fix_confirm = '<C-y>',
+    comment = 'gC',
+    comment_save = '<CR>',
+    comment_cancel = 'q',
   },
   side_chat = {
     keep = 'gk',

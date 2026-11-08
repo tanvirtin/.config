@@ -177,6 +177,25 @@ function walkthrough_overview.render(walkthrough, state)
     end
   end
 
+  local comments = walkthrough.comments or {}
+
+  if #comments > 0 then
+    add('')
+    add(string.format('## Your comments · %d', #comments))
+
+    for _, comment in ipairs(comments) do
+      local first = vim.split(comment.text, '\n', { plain = true })[1]
+
+      if #first > walkthrough_overview.MAX_MESSAGE then
+        first = first:sub(1, walkthrough_overview.MAX_MESSAGE) .. '…'
+      end
+
+      add(string.format('- ✎ %s:%d · %s', fs.basename(comment.path), comment.line, first), { comment = comment })
+    end
+
+    add('Send them to the session with `:HarnessWalkthrough submit`.')
+  end
+
   local uncovered = walkthrough.uncovered or {}
 
   if #uncovered > 0 then
