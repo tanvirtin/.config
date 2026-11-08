@@ -68,7 +68,7 @@ describe('harness.walkthrough_overview:', function()
     assert.truthy(view.lines[#view.lines]:find('^| ▸ | 2%.'))
   end)
 
-  it('lists the hunks no step covers, each opening the hunk', function()
+  it('lists the hunks no step covers one row a file, opening the first of them', function()
     local view = walkthrough_overview.render({
       title = 'Review',
       scope = scope,
@@ -76,8 +76,11 @@ describe('harness.walkthrough_overview:', function()
       uncovered = { b, c },
     })
 
-    eq({ '## Not covered', '- ○ h2 b.lua:1-1', '- ○ h3 b.lua:9-9' }, vim.list_slice(view.lines, #view.lines - 2))
-    eq({ hunk = c }, view.targets[#view.lines])
+    eq(
+      { '## Not covered · 2 in 1 file', '- ○ b.lua · 2 hunks · h2-h3' },
+      vim.list_slice(view.lines, #view.lines - 1)
+    )
+    eq({ hunk = b }, view.targets[#view.lines])
   end)
 
   it('leaves out the change column when the walkthrough is not a review, and shows the keys', function()

@@ -749,7 +749,7 @@ function WalkthroughView:visit(hunk, opts)
   self:_show_note(
     window,
     first,
-    opts.lines or { string.format('No step covers `%s:%d-%d`.', path, hunk.first, hunk.last) },
+    opts.lines or { self:_uncovered_note(hunk, path) },
     opts.title or ' not covered ',
     self:_footer(nil)
   )
@@ -1108,7 +1108,45 @@ function WalkthroughView:previous(count)
   return self:show(math.max(self.index - math.max(count or 1, 1), 1))
 end
 
+function WalkthroughView:_uncovered_note(hunk, path)
+  local keys = settings.keymaps:get('walkthrough')
+  local total = #(self.walkthrough.uncovered or {})
+  local at
+
+  for index, each in ipairs(self.walkthrough.uncovered or {}) do
+    if each == hunk then at = index end
+  end
+
+  local text = string.format('No step covers `%s:%d-%d`.', path, hunk.first, hunk.last)
+
+  if not at then return text end
+
+  return string.format(
+    '%s %d of %d not covered; `%s`/`%s` for the others, `%s` back to the walkthrough.',
+    text,
+    at,
+    total,
+    keys.next_range,
+    keys.previous_range,
+    keys.next
+  )
+end
+
+function WalkthroughView:_uncovered_index()
+  for index, hunk in ipairs(self.walkthrough.uncovered or {}) do
+    if hunk == self.visiting then return index end
+  end
+end
+
+function WalkthroughView:_step_uncovered(offset)
+  local uncovered = self.walkthrough.uncovered
+  local at = math.min(math.max(self:_uncovered_index() + offset, 1), #uncovered)
+
+  return self:visit(uncovered[at])
+end
+
 function WalkthroughView:next_range(count)
+  if self:_uncovered_index() then return self:_step_uncovered(math.max(count or 1, 1)) end
   if self.index == 0 then return self:_resume_step() end
 
   local index, part = self.index, self.part
@@ -1127,6 +1165,7 @@ function WalkthroughView:next_range(count)
 end
 
 function WalkthroughView:previous_range(count)
+  if self:_uncovered_index() then return self:_step_uncovered(-math.max(count or 1, 1)) end
   if self.index == 0 then return self:_resume_step() end
 
   local index, part = self.index, self.part

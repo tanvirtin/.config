@@ -12,7 +12,8 @@ local walkthrough_locate = lazy('harness.walkthrough_locate')
 local walkthrough_tools = {}
 
 walkthrough_tools.MAX_COMMITS = 30
-walkthrough_tools.MAX_DIFF_LINES = 400
+walkthrough_tools.MAX_DIFF_CHARS = 16000
+walkthrough_tools.MAX_LINE = 160
 walkthrough_tools.MAX_HUNK_LINES = 40
 
 local function dir_of(ctx)
@@ -41,6 +42,13 @@ end
 
 local function plural(count, word)
   return string.format('%d %s%s', count, word, count == 1 and '' or 's')
+end
+
+local function clip(line)
+  if #line <= walkthrough_tools.MAX_LINE then return line end
+
+  return line:sub(1, walkthrough_tools.MAX_LINE)
+    .. string.format('… (%d more characters)', #line - walkthrough_tools.MAX_LINE)
 end
 
 local function lines_of(first, last)
@@ -78,29 +86,6 @@ local function steps_of(list, env)
   return steps
 end
 
-function walkthrough_tools.runs(hunks)
-  local out, first, last = {}, nil, nil
-
-  local function flush()
-    if first then out[#out + 1] = first == last and ('h' .. first) or string.format('h%d-h%d', first, last) end
-  end
-
-  for _, hunk in ipairs(hunks) do
-    local number = tonumber(hunk.id:sub(2))
-
-    if last and number == last + 1 then
-      last = number
-    else
-      flush()
-      first, last = number, number
-    end
-  end
-
-  flush()
-
-  return table.concat(out, ' ')
-end
-
 local function coverage(walkthrough)
   if not walkthrough.scope then return nil end
 
@@ -110,7 +95,7 @@ local function coverage(walkthrough)
 
   if #missing == 0 then return 'every hunk covered' end
 
-  return string.format('uncovered: %s (add with walkthrough_update)', walkthrough_tools.runs(missing))
+  return string.format('uncovered: %s (add with walkthrough_update)', walkthrough_scope.runs(missing))
 end
 
 local function reply(verb, walkthrough)
@@ -153,7 +138,7 @@ function walkthrough_tools.render_scope(scope, dir)
 
   if #scope.deleted > 0 then out[#out + 1] = 'deleted: ' .. table.concat(scope.deleted, ' ') end
 
-  local budget, cut = walkthrough_tools.MAX_DIFF_LINES, nil
+  local budget, cut = walkthrough_tools.MAX_DIFF_CHARS, nil
 
   for _, file in ipairs(scope.files) do
     local path = fs.make_relative(dir, file.absolute)
@@ -170,13 +155,18 @@ function walkthrough_tools.render_scope(scope, dir)
       )
 
       if budget > 0 then
-        local shown = math.min(#hunk.lines, walkthrough_tools.MAX_HUNK_LINES, budget)
+        local shown = 0
 
-        vim.list_extend(out, hunk.lines, 1, shown)
+        for index = 1, math.min(#hunk.lines, walkthrough_tools.MAX_HUNK_LINES) do
+          if budget <= 0 then break end
+
+          local line = clip(hunk.lines[index])
+
+          out[#out + 1] = line
+          budget, shown = budget - #line - 1, index
+        end
 
         if shown < #hunk.lines then out[#out + 1] = string.format('… %d more lines', #hunk.lines - shown) end
-
-        budget = budget - shown
       elseif not cut then
         cut = hunk.id
       end

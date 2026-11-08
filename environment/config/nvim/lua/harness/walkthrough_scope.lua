@@ -147,7 +147,7 @@ function walkthrough_scope.compute(dir, base, head)
   if not base_sha then return nil, base_err end
 
   local diff, diff_err =
-    git(root, { 'diff', '--no-color', '--no-ext-diff', '--find-renames', '-U0', base_sha, head_sha })
+    git(root, { 'diff', '--no-color', '--no-ext-diff', '--find-renames=30%', '-U0', base_sha, head_sha })
 
   if not diff then return nil, diff_err end
 
@@ -246,6 +246,29 @@ function walkthrough_scope.uncovered(scope, steps)
   end
 
   return missing
+end
+
+function walkthrough_scope.runs(hunks)
+  local out, first, last = {}, nil, nil
+
+  local function flush()
+    if first then out[#out + 1] = first == last and ('h' .. first) or string.format('h%d-h%d', first, last) end
+  end
+
+  for _, hunk in ipairs(hunks) do
+    local number = tonumber(hunk.id:sub(2))
+
+    if last and number == last + 1 then
+      last = number
+    else
+      flush()
+      first, last = number, number
+    end
+  end
+
+  flush()
+
+  return table.concat(out, ' ')
 end
 
 function walkthrough_scope.exists_at(root, rev, path)

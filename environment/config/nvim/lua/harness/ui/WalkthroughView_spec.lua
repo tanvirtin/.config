@@ -678,7 +678,7 @@ describe('harness.ui.WalkthroughView:', function()
       assert.truthy(line('Core'):find('| · |', 1, true))
       assert.truthy(line('More'):find('▸', 1, true))
       assert.truthy(line('Tests'):find('supporting', 1, true))
-      eq('- ○ h9 a.lua:38-39', line('h9'))
+      eq('- ○ a.lua · 1 hunk · h9', line('h9'))
 
       vim.api.nvim_win_set_cursor(0, { vim.fn.match(lines, 'h9') + 1, 0 })
       assert.is_true(view:open_row())
@@ -689,6 +689,31 @@ describe('harness.ui.WalkthroughView:', function()
       view:next()
       eq(2, view.index)
       eq(30, vim.api.nvim_win_get_cursor(0)[1])
+    end)
+
+    it('steps through the hunks no step covers with ]c and [c, saying which one of how many', function()
+      data.uncovered = {
+        { id = 'h8', path = 'a.lua', absolute = dir .. '/a.lua', first = 34, last = 34 },
+        { id = 'h9', path = 'a.lua', absolute = dir .. '/a.lua', first = 38, last = 39 },
+      }
+      view = WalkthroughView(data)
+      view:start()
+
+      assert.is_true(view:visit(data.uncovered[1]))
+      assert.truthy(note_text():find('1 of 2 not covered', 1, true))
+
+      view:next_range()
+      eq(38, vim.api.nvim_win_get_cursor(0)[1])
+      assert.truthy(note_text():find('2 of 2 not covered', 1, true))
+
+      view:next_range()
+      eq(38, vim.api.nvim_win_get_cursor(0)[1])
+
+      view:previous_range()
+      eq(34, vim.api.nvim_win_get_cursor(0)[1])
+
+      view:next()
+      eq(1, view.index)
     end)
   end)
 end)

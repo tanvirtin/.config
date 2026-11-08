@@ -66,6 +66,24 @@ local function header(scope)
   )
 end
 
+function walkthrough_overview.by_file(hunks)
+  local groups, by_path = {}, {}
+
+  for _, hunk in ipairs(hunks) do
+    local group = by_path[hunk.path]
+
+    if not group then
+      group = { path = hunk.path, hunks = {} }
+      by_path[hunk.path] = group
+      groups[#groups + 1] = group
+    end
+
+    group.hunks[#group.hunks + 1] = hunk
+  end
+
+  return groups
+end
+
 function walkthrough_overview.render(walkthrough, state)
   state = state or {}
 
@@ -114,20 +132,22 @@ function walkthrough_overview.render(walkthrough, state)
   local uncovered = walkthrough.uncovered or {}
 
   if #uncovered > 0 then
-    add('')
-    add('## Not covered')
+    local groups = walkthrough_overview.by_file(uncovered)
 
-    for _, hunk in ipairs(uncovered) do
+    add('')
+    add(string.format('## Not covered · %d in %d', #uncovered, #groups) .. (#groups == 1 and ' file' or ' files'))
+
+    for _, group in ipairs(groups) do
       add(
         string.format(
-          '- %s %s %s:%d-%d',
+          '- %s %s · %d hunk%s · %s',
           walkthrough_overview.MARK.uncovered,
-          hunk.id or '',
-          hunk.path,
-          hunk.first,
-          hunk.last
+          group.path,
+          #group.hunks,
+          #group.hunks == 1 and '' or 's',
+          walkthrough_scope.runs(group.hunks)
         ),
-        { hunk = hunk }
+        { hunk = group.hunks[1] }
       )
     end
   end

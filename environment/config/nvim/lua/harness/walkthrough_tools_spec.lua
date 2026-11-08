@@ -77,7 +77,7 @@ describe('harness.walkthrough_tools:', function()
       return { id = id }
     end, { 'h1', 'h2', 'h3', 'h5', 'h7', 'h8' })
 
-    eq('h1-h3 h5 h7-h8', walkthrough_tools.runs(hunks))
+    eq('h1-h3 h5 h7-h8', require('harness.walkthrough_scope').runs(hunks))
   end)
 
   describe('walkthrough_update', function()
@@ -212,17 +212,29 @@ describe('harness.walkthrough_tools:', function()
       }, vim.split(text, '\n', { plain = true }))
     end)
 
-    it('stops the diffs at a budget and says where', function()
-      local saved_budget = walkthrough_tools.MAX_DIFF_LINES
+    it('stops the diffs at a budget of characters and says where', function()
+      local saved_budget = walkthrough_tools.MAX_DIFF_CHARS
 
-      walkthrough_tools.MAX_DIFF_LINES = 2
+      walkthrough_tools.MAX_DIFF_CHARS = 8
 
       local text = run('walkthrough_scope', { base = base, head = middle })
 
-      walkthrough_tools.MAX_DIFF_LINES = saved_budget
+      walkthrough_tools.MAX_DIFF_CHARS = saved_budget
 
       assert.truthy(text:find('h2 a.lua:6 +1 -1\nh3', 1, true))
       assert.truthy(text:find('diffs stop before h2', 1, true))
+    end)
+
+    it('cuts a very long changed line short, saying how much it left out', function()
+      local saved = walkthrough_tools.MAX_LINE
+
+      walkthrough_tools.MAX_LINE = 2
+
+      local text = run('walkthrough_scope', { base = base, head = middle })
+
+      walkthrough_tools.MAX_LINE = saved
+
+      assert.truthy(text:find('\n-a… (1 more characters)\n', 1, true))
     end)
 
     it('names a commit that is not here, instead of reviewing nothing', function()
