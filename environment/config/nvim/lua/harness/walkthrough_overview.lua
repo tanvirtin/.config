@@ -193,7 +193,7 @@ function walkthrough_overview.render(walkthrough, state)
       add(string.format('- ✎ %s:%d · %s', fs.basename(comment.path), comment.line, first), { comment = comment })
     end
 
-    add('Send them to the session with `:HarnessWalkthrough submit`.')
+    add('Send them to the session with `:Harness walkthrough submit`.')
   end
 
   local uncovered = walkthrough.uncovered or {}

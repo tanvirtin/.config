@@ -201,7 +201,7 @@ local function active(session, method)
   if not key then
     if walkthrough.resume(session) then return true end
 
-    return false, 'no walkthrough is running; :HarnessWalkthrough resume brings back the last one'
+    return false, 'no walkthrough is running; :Harness walkthrough resume brings back the last one'
   end
 
   views[key]:focus()

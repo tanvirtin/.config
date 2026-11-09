@@ -11,13 +11,14 @@ local tools = lazy('nvim_mcp.tools')
 local edits = lazy('harness.ui.edits')
 local context = lazy('harness.context')
 local notice = lazy('harness.ui.notice')
+local status = lazy('harness.ui.status')
 local display = lazy('harness.ui.display')
 local composer = lazy('harness.ui.composer')
 local transcript = lazy('harness.ui.transcript')
 local walkthrough = lazy('harness.ui.walkthrough')
 local global_keys = lazy('harness.ui.global_keys')
 
-local commands = {}
+local actions = {}
 
 local function choice_hints(action)
   return { { '<CR>', action }, { '<C-n>/<C-p>', 'move' }, { '<Esc>', 'close' } }
@@ -45,13 +46,13 @@ local function source()
   return { win = window.win_id, buf = window:get_buffer().bufnr }
 end
 
-function commands.run(prompt, opts, range)
+function actions.ask(prompt, opts)
   opts = opts or {}
 
   local view = current_view()
   local from = source()
 
-  local where = context.capture_buffer(from.buf, range)
+  local where = context.capture_buffer(from.buf, opts.range)
 
   local task = async.run(function()
     local session, err = view and view.session, nil
@@ -79,7 +80,7 @@ function commands.run(prompt, opts, range)
   return task
 end
 
-function commands.new(agent_name)
+local function start(agent_name)
   local from = source()
   local task = async.run(function()
     local session, err = async.await(hub.start({ agent = agent_name }))
@@ -98,7 +99,7 @@ function commands.new(agent_name)
   return task
 end
 
-function commands.cancel()
+function actions.cancel()
   local view = transcript.view()
   local session = view and view.session
 
@@ -111,7 +112,7 @@ function commands.cancel()
   if session then require('harness.ui.composer').interrupt(session) end
 end
 
-function commands.fork()
+function actions.fork()
   local view = transcript.view()
 
   if not view then return transcript.report(false, 'no session here') end
@@ -119,7 +120,7 @@ function commands.fork()
   return transcript.report(view:fork())
 end
 
-function commands.changes()
+function actions.changes()
   return transcript.report(edits.show_changes(transcript.view() or display.last()))
 end
 
@@ -136,11 +137,11 @@ local function scoped(action, scope)
   return edits[action](display.last(), edits.SCOPE.session)
 end
 
-function commands.revert(scope)
+function actions.revert(scope)
   return transcript.report(scoped('revert', scope))
 end
 
-function commands.quickfix(scope)
+function actions.quickfix(scope)
   return transcript.report(scoped('quickfix', scope))
 end
 
@@ -210,20 +211,17 @@ local function attach_range(buf, range)
   return composer.attach(buf, range, session)
 end
 
-function commands.attach_visual()
+function actions.attach()
   local window = Window.get_current()
   local range = window:visual_lines()
 
-  if not range then return false end
+  if not range then
+    local line = window:get_cursor()[1]
+
+    range = { line, line }
+  end
 
   return attach_range(window:get_buffer().bufnr, range)
-end
-
-function commands.attach_line()
-  local window = Window.get_current()
-  local line = window:get_cursor()[1]
-
-  return attach_range(window:get_buffer().bufnr, { line, line })
 end
 
 local function walkthrough_session()
@@ -232,39 +230,27 @@ local function walkthrough_session()
   return view and view.session.key or nil
 end
 
-function commands.walkthrough(text)
-  text = vim.trim(text or '')
+actions.walkthrough = {}
 
-  local word, rest = text:match('^(%S+)%s*(.*)$')
-  local session = walkthrough_session()
-
-  if word == 'next' then return transcript.report(walkthrough.next(session)) end
-  if word == 'prev' or word == 'previous' or word == 'back' then
-    return transcript.report(walkthrough.previous(session))
+for _, name in ipairs({ 'next', 'previous', 'stop', 'resume', 'overview', 'findings', 'submit' }) do
+  actions.walkthrough[name] = function()
+    return transcript.report(walkthrough[name](walkthrough_session()))
   end
-  if word == 'stop' then return transcript.report(walkthrough.stop(session)) end
-  if word == 'resume' then return transcript.report(walkthrough.resume(session)) end
-  if word == 'overview' then return transcript.report(walkthrough.overview(session)) end
-  if word == 'findings' then return transcript.report(walkthrough.findings(session)) end
-  if word == 'submit' then return transcript.report(walkthrough.submit(session)) end
+end
+
+function actions.walkthrough.changes(scope)
+  scope = scope ~= '' and scope or nil
+
+  if scope and not edits.SCOPE[scope] then return transcript.report(false, 'choose edit, turn or session') end
 
   local here = transcript.view()
 
-  if not word or word == 'changes' or edits.SCOPE[word] then
-    local scope = edits.SCOPE[word] or (word == 'changes' and edits.SCOPE[rest]) or nil
-
-    if not scope then scope = here and edits.SCOPE.turn or edits.SCOPE.session end
-
-    return transcript.report(walkthrough.changes(here or display.last(), scope))
-  end
-
   return transcript.report(
-    false,
-    'ask for a walkthrough in your session; :HarnessWalkthrough takes next, prev, overview, findings, submit, stop, resume or changes'
+    walkthrough.changes(here or display.last(), scope or (here and edits.SCOPE.turn or edits.SCOPE.session))
   )
 end
 
-function commands.permissions()
+function actions.permissions()
   local view = transcript.view() or display.last()
 
   if not view then return transcript.report(false, 'no session here') end
@@ -272,12 +258,12 @@ function commands.permissions()
   return view:show_permissions()
 end
 
-function commands.choose_new()
+local function choose_agent()
   local agents = require('harness.agent')
   local default = agents.get().name
   local names = agents.names()
 
-  if #names <= 1 then return commands.new(default) end
+  if #names <= 1 then return start(default) end
 
   table.sort(names, function(a, b)
     if a == default or b == default then return a == default end
@@ -295,7 +281,7 @@ function commands.choose_new()
     max_height = 10,
     on_select = function(item)
       Timer.schedule(function()
-        commands.new(item.agent)
+        start(item.agent)
       end)
     end,
   })
@@ -303,7 +289,19 @@ function commands.choose_new()
   return true
 end
 
-function commands.sessions()
+function actions.waiting()
+  return status.to_waiting()
+end
+
+function actions.new(opts)
+  opts = opts or {}
+
+  if opts.choose then return choose_agent() end
+
+  return start(opts.agent)
+end
+
+function actions.switch()
   local from = source()
 
   return require('harness.ui.sessions').open({
@@ -311,7 +309,7 @@ function commands.sessions()
       transcript.open(session, { source_win = from.win, source_buf = from.buf })
     end,
     on_new = function(agent_name)
-      commands.new(agent_name)
+      start(agent_name)
     end,
   })
 end
@@ -324,4 +322,4 @@ require('harness.session_store').on('start', function(session)
   end
 end)
 
-return commands
+return actions

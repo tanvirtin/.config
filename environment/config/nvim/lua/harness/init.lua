@@ -5,10 +5,11 @@ local hub = lazy('harness.hub')
 local tools = lazy('harness.tools')
 local router = lazy('harness.cli.router')
 local settings = lazy('harness.settings')
+local actions = lazy('harness.ui.actions')
 local composer = lazy('harness.ui.composer')
 local transcript = lazy('harness.ui.transcript')
-local walkthrough = lazy('harness.ui.walkthrough')
 local SkillSync = lazy('harness.features.SkillSync')
+local walkthrough_ui = lazy('harness.ui.walkthrough')
 local instructions = lazy('harness.types.instructions')
 local walkthrough_tools = lazy('harness.walkthrough_tools')
 local EditCheckTime = lazy('harness.features.EditCheckTime')
@@ -26,6 +27,24 @@ harness.load = hub.load
 harness.list = hub.list
 harness.session = hub.session
 harness.sessions = hub.sessions
+
+harness.VERBS =
+  { 'ask', 'new', 'switch', 'cancel', 'attach', 'fork', 'changes', 'revert', 'quickfix', 'permissions', 'waiting' }
+harness.WALKTHROUGH_VERBS = { 'next', 'previous', 'overview', 'findings', 'submit', 'stop', 'resume', 'changes' }
+
+harness.walkthrough = {}
+
+for _, name in ipairs(harness.VERBS) do
+  harness[name] = function(...)
+    return actions[name](...)
+  end
+end
+
+for _, name in ipairs(harness.WALKTHROUGH_VERBS) do
+  harness.walkthrough[name] = function(...)
+    return actions.walkthrough[name](...)
+  end
+end
 
 local features = {}
 
@@ -58,7 +77,7 @@ local function register_events()
 
   features = { EditCheckTime():register_events(), SkillSync():register_events(), StaleRunNotice():register_events() }
   composer.register_events()
-  walkthrough.register_events()
+  walkthrough_ui.register_events()
 end
 
 function harness.setup(opts)

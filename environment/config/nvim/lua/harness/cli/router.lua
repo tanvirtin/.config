@@ -4,18 +4,7 @@ local event = lazy('core.event')
 
 local router = {}
 
-router.COMMANDS = {
-  'prompt',
-  'new',
-  'sessions',
-  'cancel',
-  'changes',
-  'fork',
-  'revert',
-  'quickfix',
-  'permissions',
-  'walkthrough',
-}
+router.COMMANDS = { 'harness' }
 
 local disposers = {}
 

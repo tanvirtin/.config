@@ -38,7 +38,7 @@ describe('harness.ui.walkthrough:', function()
 
   it('says how to bring a stopped walkthrough back', function()
     eq(
-      { false, 'no walkthrough is running; :HarnessWalkthrough resume brings back the last one' },
+      { false, 'no walkthrough is running; :Harness walkthrough resume brings back the last one' },
       { walkthrough.next('s1') }
     )
   end)

@@ -1,6 +1,6 @@
 local async = require('harness.async')
 local composer = require('harness.ui.composer')
-local commands = require('harness.ui.commands')
+local actions = require('harness.ui.actions')
 local ComposerView = require('harness.ui.ComposerView')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local hub = require('harness.hub')
@@ -794,7 +794,7 @@ describe('harness.ui.composer:', function()
       vim.api.nvim_win_set_buf(0, file)
       press('Vj')
 
-      eq(true, commands.attach_visual())
+      eq(true, actions.attach())
       eq(true, composer.is_open())
       eq(session, composer.target())
       assert.is_truthy(table.concat(input(session), '\n'):find('@/w/a.lua:1-2', 1, true))
@@ -832,7 +832,7 @@ describe('harness.ui.composer:', function()
     vim.api.nvim_win_set_buf(0, line_file)
     vim.api.nvim_win_set_cursor(0, { 2, 0 })
 
-    eq(true, commands.attach_line())
+    eq(true, actions.attach())
     assert.is_truthy(table.concat(input(session), '\n'):find('@/w/current.lua:2', 1, true))
 
     vim.api.nvim_buf_delete(line_file, { force = true })
@@ -852,7 +852,7 @@ describe('harness.ui.composer:', function()
       said = message
     end
 
-    local attached = commands.attach_visual()
+    local attached = actions.attach()
 
     console.notify_now = notify
     eq(false, attached)
@@ -1044,7 +1044,7 @@ describe('harness.ui.composer:', function()
       vim.api.nvim_win_set_buf(0, file)
       press('Vj')
 
-      eq(true, commands.attach_visual())
+      eq(true, actions.attach())
       surfaces.pick = pick
 
       assert.is_truthy(asked)
@@ -1083,7 +1083,7 @@ describe('harness.ui.composer:', function()
       vim.cmd('botright vsplit')
       vim.api.nvim_win_set_buf(0, file)
       press('Vj')
-      eq(true, commands.attach_visual())
+      eq(true, actions.attach())
       assert.is_truthy(table.concat(input(other), '\n'):find('@/w/c.lua:1-2', 1, true))
       assert.is_nil(table.concat(input(session), '\n'):find('@', 1, true))
       press('<Esc>')
@@ -1092,7 +1092,7 @@ describe('harness.ui.composer:', function()
       vim.cmd('botright vsplit')
       vim.api.nvim_win_set_buf(0, file)
       press('Vj')
-      eq(true, commands.attach_visual())
+      eq(true, actions.attach())
       assert.is_truthy(table.concat(input(session), '\n'):find('@/w/c.lua:1-2', 1, true))
       press('<Esc>')
     end)

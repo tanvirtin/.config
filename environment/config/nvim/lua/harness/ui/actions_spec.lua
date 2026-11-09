@@ -1,5 +1,5 @@
 local async = require('harness.async')
-local commands = require('harness.ui.commands')
+local actions = require('harness.ui.actions')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local hub = require('harness.hub')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
@@ -40,7 +40,7 @@ local function prompt_text(fake, n)
   end
 end
 
-describe('harness.ui.commands:', function()
+describe('harness.ui.actions:', function()
   before_each(function()
     async.drain()
     hub.shutdown()
@@ -67,7 +67,7 @@ describe('harness.ui.commands:', function()
   it('starts a session and shows its buffer in the current window', function()
     local win = vim.api.nvim_get_current_win()
 
-    commands.run('what is here?'):wait()
+    actions.ask('what is here?'):wait()
 
     local buf = vim.api.nvim_win_get_buf(win)
 
@@ -83,7 +83,7 @@ describe('harness.ui.commands:', function()
   it('tells the agent where the user was, and points the tools there, behind the session buffer', function()
     local source = vim.api.nvim_get_current_buf()
 
-    commands.run('explain', nil, { 2, 4 }):wait()
+    actions.ask('explain', { range = { 2, 4 } }):wait()
 
     local blocks = prompt_text(fakes[1])
 
@@ -97,15 +97,15 @@ describe('harness.ui.commands:', function()
   it('continues the session the user was last in, from their code or from the session', function()
     local code = vim.api.nvim_get_current_buf()
 
-    commands.run('first'):wait()
+    actions.ask('first'):wait()
 
     local buf = vim.api.nvim_get_current_buf()
 
     vim.cmd('buffer ' .. code)
-    commands.run('second'):wait()
+    actions.ask('second'):wait()
     eq(buf, vim.api.nvim_get_current_buf())
 
-    commands.run('third'):wait()
+    actions.ask('third'):wait()
     settle(function()
       return #vim.tbl_filter(function(line)
         return line == '*end_turn*'
@@ -135,7 +135,7 @@ describe('harness.ui.commands:', function()
     end
 
     pcall(function()
-      commands.run('hi'):wait()
+      actions.ask('hi'):wait()
     end)
     settle(function()
       return warned ~= nil
@@ -146,14 +146,14 @@ describe('harness.ui.commands:', function()
   end)
 
   it('opens a session without prompting', function()
-    local session = commands.new():wait()
+    local session = actions.new():wait()
 
     eq(session, transcript.view().session)
     eq(0, fakes[1]:count('session/prompt'))
   end)
 
   it('keeps the session when its buffer is closed, and reopens it from the selector', function()
-    local session = commands.new():wait()
+    local session = actions.new():wait()
 
     vim.api.nvim_buf_delete(0, { force = true })
     async.drain()
@@ -161,7 +161,7 @@ describe('harness.ui.commands:', function()
     eq('idle', session.state)
     eq(session, hub.session(session.key))
 
-    local picker = commands.sessions():wait()
+    local picker = actions.switch():wait()
 
     picker:command('query', { text = 'untitled' })
     assert.is_truthy(picker:snapshot():find('selected: ○ untitled', 1, true))
@@ -180,13 +180,13 @@ describe('harness.ui.commands:', function()
       end,
     })
 
-    local session = commands.new():wait()
+    local session = actions.new():wait()
 
-    commands.run('long')
+    actions.ask('long')
     settle(function()
       return session:running() and fakes[1]:count('session/prompt') == 1
     end)
-    commands.cancel()
+    actions.cancel()
 
     eq('s1', fakes[1]:sent_method('session/cancel').params.sessionId)
   end)

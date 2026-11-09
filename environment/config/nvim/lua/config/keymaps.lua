@@ -147,22 +147,18 @@ map('n', '<leader>sc', '<Cmd>lua require("core.selection").clear()<CR>', { desc 
 
 -- agent: enter a session and housekeeping; the transcript carries the rest
 
-map('n', '<leader>.', '<Cmd>HarnessSessions<CR>', { desc = 'Sessions' })
+map('n', '<leader>.', '<Cmd>lua require("harness").switch()<CR>', { desc = 'Sessions' })
 
-map('n', '<leader>as', '<Cmd>HarnessSessions<CR>', { desc = 'Sessions' })
+map('n', '<leader>as', '<Cmd>lua require("harness").switch()<CR>', { desc = 'Sessions' })
 
 map('n', '<leader>an', function()
-  require('harness.ui.commands').choose_new()
+  require('harness').new({ choose = true })
 end, { desc = 'New session, choosing the agent' })
 
 map('n', '<leader>aw', function()
-  require('harness.ui.status').to_waiting()
+  require('harness').waiting()
 end, { desc = 'Go to the waiting request' })
 
-map('n', '<leader>aa', function()
-  require('harness.ui.commands').attach_line()
-end, { desc = 'Attach the current line' })
-
-map('v', '<leader>aa', function()
-  require('harness.ui.commands').attach_visual()
-end, { desc = 'Attach the selection' })
+map({ 'n', 'v' }, '<leader>aa', function()
+  require('harness').attach()
+end, { desc = 'Attach the current line or the selection' })

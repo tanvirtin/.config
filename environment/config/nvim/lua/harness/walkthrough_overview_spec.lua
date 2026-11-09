@@ -96,7 +96,7 @@ describe('harness.walkthrough_overview:', function()
 
     eq('- ✎ a.lua:7 · Rename this.', view.lines[at + 1])
     eq({ comment = comment }, view.targets[at + 1])
-    assert.truthy(view.lines[at + 2]:find('HarnessWalkthrough submit', 1, true))
+    assert.truthy(view.lines[at + 2]:find('Harness walkthrough submit', 1, true))
   end)
 
   it('lists the hunks no step covers one row a file, opening the first of them', function()

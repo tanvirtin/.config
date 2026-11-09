@@ -22,16 +22,22 @@ describe('keys the harness names on screen:', function()
   end)
 
   it('names the key that opens the sessions as the user mapped it, or the command when it is not mapped', function()
-    eq(':HarnessSessions', global_keys.sessions())
+    eq(':Harness switch', global_keys.sessions())
 
     global_keys.forget()
-    vim.keymap.set('n', '<leader>zq', '<Cmd>HarnessSessions<CR>')
+    vim.keymap.set('n', '<leader>zq', '<Cmd>lua require("harness").switch()<CR>')
+
+    eq('<leader>zq', global_keys.sessions())
+
+    global_keys.forget()
+    vim.keymap.del('n', '<leader>zq')
+    vim.keymap.set('n', '<leader>zq', '<Cmd>Harness switch<CR>')
 
     eq('<leader>zq', global_keys.sessions())
   end)
 
   it('shows that key, and the keys from the settings, in the transcript winbar', function()
-    vim.keymap.set('n', '<leader>zq', '<Cmd>HarnessSessions<CR>')
+    vim.keymap.set('n', '<leader>zq', '<Cmd>lua require("harness").switch()<CR>')
 
     with_keys('transcript', { help = 'g!' }, function()
       local hints = require('harness.ui.winbar').hints()

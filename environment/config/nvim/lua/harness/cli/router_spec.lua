@@ -7,47 +7,36 @@ describe('harness.cli.router:', function()
     router.setup()
   end)
 
-  it('registers one user command per command module', function()
+  it('registers the one :Harness command', function()
     router.setup()
 
     local registered = vim.api.nvim_get_commands({})
 
-    for _, command in ipairs(router.commands()) do
-      eq(command.name, registered[command.name].name)
-    end
-
     eq(
-      {
-        'Harness',
-        'HarnessNew',
-        'HarnessSessions',
-        'HarnessCancel',
-        'HarnessChanges',
-        'HarnessFork',
-        'HarnessRevert',
-        'HarnessQuickfix',
-        'HarnessPermissions',
-        'HarnessWalkthrough',
-      },
+      { 'Harness' },
       vim.tbl_map(function(command)
         return command.name
       end, router.commands())
     )
+    eq('Harness', registered.Harness.name)
+
+    for name in pairs(registered) do
+      assert.is_false(name ~= 'Harness' and name:find('^Harness') ~= nil, name .. ' should be a subcommand of :Harness')
+    end
   end)
 
-  it('removes its commands and shutdown hook on teardown', function()
+  it('removes its command and shutdown hook on teardown', function()
     router.setup()
     router.teardown()
 
     local registered = vim.api.nvim_get_commands({})
 
     assert.is_nil(registered.Harness)
-    assert.is_nil(registered.HarnessCancel)
     assert.is_false(pcall(vim.api.nvim_get_autocmds, { group = 'harness' }))
   end)
 
   it('runs a command by name, and refuses unknown ones', function()
-    assert.is_nil(router.execute('HarnessCancel'))
+    assert.is_nil(router.execute('Harness', { args = 'cancel', range = 0 }))
 
     assert.has_error(function()
       router.execute('HarnessNope')

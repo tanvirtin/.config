@@ -39,7 +39,7 @@ describe('harness.tools:', function()
       return fake
     end
     require('harness.tools').register()
-    require('harness.ui.commands')
+    require('harness.ui.actions')
     vim.cmd('silent! tabonly!')
   end)
 
