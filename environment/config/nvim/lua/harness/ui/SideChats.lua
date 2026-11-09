@@ -14,6 +14,9 @@ local WalkthroughReader = lazy('harness.WalkthroughReader')
 
 local SideChats = Object:extend()
 
+SideChats.WIDTH = 0.4
+SideChats.MIN_WIDTH = 40
+
 SideChats.SYSTEM = table.concat({
   'You answer the user\'s questions about one step of a code walkthrough they are reading in their editor;',
   'the step, its code and the plan it belongs to follow. Answer briefly and concretely, naming code as',
@@ -30,7 +33,7 @@ function SideChats:constructor(walkthrough, opts)
     agent = opts.agent,
     on_keep = opts.on_keep,
     on_share = opts.on_share,
-    owner_view = opts.owner_view,
+    anchor = opts.anchor,
     chats = {},
     closed = false,
   }
@@ -107,11 +110,18 @@ function SideChats:_place(session)
 
   local view = display.view_of(session)
 
-  if view:is_visible() then return view, view:windows()[1] end
+  local anchor = self.anchor and self.anchor()
+  local tab = anchor and anchor:is_valid() and anchor:get_tab() or Window.current_tab()
 
-  local owner = self.owner_view and self.owner_view()
-  local beside = owner and owner:windows()[1]
-  local window = beside and beside:split_below(view.buffer) or Window.get_current():split_right(view.buffer)
+  for _, window in ipairs(view:windows()) do
+    if window:get_tab() == tab then return view, window end
+  end
+
+  local beside = anchor and anchor:is_valid() and anchor or Window.get_current()
+  local total = beside:get_width()
+  local window = beside:split_right(view.buffer)
+
+  window:set_width(math.max(math.floor(total * SideChats.WIDTH), SideChats.MIN_WIDTH))
 
   return view, window
 end

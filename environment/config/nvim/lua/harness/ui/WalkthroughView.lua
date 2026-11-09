@@ -53,6 +53,7 @@ function WalkthroughView:constructor(walkthrough, opts)
     targets = {},
     part = 1,
     source = opts.source_win,
+    tab = opts.tab,
     window = nil,
     split = nil,
     note = nil,
@@ -74,6 +75,12 @@ function WalkthroughView:constructor(walkthrough, opts)
   }
 end
 
+function WalkthroughView:focus()
+  if self.tab then self.tab:focus() end
+
+  return self
+end
+
 function WalkthroughView:is_open()
   return self.started and not self.stopped
 end
@@ -90,6 +97,16 @@ function WalkthroughView:_foreign(window)
 end
 
 function WalkthroughView:_code_window()
+  if self.tab then
+    if self.window and self.tab:contains(self.window) and self:_foreign(self.window) then return self.window end
+
+    for _, window in ipairs(self.tab:windows()) do
+      if self:_foreign(window) then return window end
+    end
+
+    return nil
+  end
+
   if self.window and self:_foreign(self.window) then return self.window end
 
   if self.source then

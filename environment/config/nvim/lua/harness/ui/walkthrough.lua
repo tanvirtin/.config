@@ -2,6 +2,7 @@ local lazy = require('core.lazy')
 
 local fs = lazy('core.fs')
 local hub = lazy('harness.hub')
+local Tabpage = lazy('core.Tabpage')
 local edits = lazy('harness.ui.edits')
 local notice = lazy('harness.ui.notice')
 local display = lazy('harness.ui.display')
@@ -82,14 +83,17 @@ function walkthrough.start(data, opts)
   walkthrough.close(key)
 
   local session = hub.session(key)
-  local view = session and display.view_of(session)
+  local origin = Tabpage.current()
+  local tab = Tabpage.open({ name = walkthrough.tab_name(data) })
   local reader = session and WalkthroughReader(data, { dir = session.dir, agent = session.agent.name })
   local side = session
     and SideChats(data, {
       dir = session.dir,
       agent = session.agent.name,
-      owner_view = function()
-        return display.view_of(session)
+      anchor = function()
+        local shown = views[key]
+
+        return shown and shown.window
       end,
       on_keep = function(step, text)
         if views[key] then views[key]:add_to_note(step, text) end
@@ -101,8 +105,16 @@ function walkthrough.start(data, opts)
 
   chats[key] = side
 
+  local function leave()
+    local here = tab:is_current()
+
+    tab:close()
+
+    if here and origin:is_valid() then origin:focus() end
+  end
+
   views[key] = WalkthroughView(data, {
-    source_win = view and view.source_win,
+    tab = tab,
     session = key,
     on_ask = function(shown)
       return walkthrough.ask_step(shown.session)
@@ -120,8 +132,16 @@ function walkthrough.start(data, opts)
       last[key] = { walkthrough = data, step = stopped.last_index or 1 }
 
       if walkthrough_store.current(key) == data then walkthrough_store.stop(key) end
+
+      leave()
     end,
   })
+
+  tab:on_close(function()
+    local shown = views[key]
+
+    if shown and shown.tab == tab and not shown.stopped then shown:stop() end
+  end)
 
   local step = opts and opts.step
   local ok, why
@@ -142,9 +162,15 @@ function walkthrough.start(data, opts)
     if side then side:close() end
 
     if walkthrough_store.current(key) == data then walkthrough_store.stop(key) end
+
+    leave()
   end
 
   return ok
+end
+
+function walkthrough.tab_name(data)
+  return (data.scope and 'Review · ' or 'Walkthrough · ') .. data.title
 end
 
 function walkthrough.resume(session)
@@ -177,6 +203,8 @@ local function active(session, method)
 
     return false, 'no walkthrough is running; :HarnessWalkthrough resume brings back the last one'
   end
+
+  views[key]:focus()
 
   return views[key][method](views[key])
 end

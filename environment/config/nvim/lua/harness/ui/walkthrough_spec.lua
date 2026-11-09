@@ -73,6 +73,45 @@ describe('harness.ui.walkthrough:', function()
     vim.cmd('silent! enew!')
   end)
 
+  it('opens in a tab of its own, named after it, and goes back to where you were when it ends', function()
+    local Tabpage = require('core.Tabpage')
+    local data = assert(walkthrough_type.parse({ title = 'Walk', steps = { { path = 'a.lua', line = 1 } } }, dir))
+    local origin = Tabpage.current()
+
+    assert.is_true(walkthrough.start(data, { session = 's1' }))
+
+    local tab = Tabpage.current()
+
+    eq(2, Tabpage.count())
+    eq('Walkthrough · Walk', tab:get_name())
+    assert.truthy(vim.api.nvim_buf_get_name(0):find('^walkthrough://'))
+
+    walkthrough.stop('s1')
+
+    eq(1, Tabpage.count())
+    assert.is_true(origin:is_current())
+  end)
+
+  it('ends when its tab is closed, and brings its tab forward for a command run from another', function()
+    local Tabpage = require('core.Tabpage')
+    local data = assert(walkthrough_type.parse({ title = 'Walk', steps = { { path = 'a.lua', line = 2 } } }, dir))
+    local origin = Tabpage.current()
+
+    walkthrough_store.start('s1', data)
+
+    local tab = Tabpage.current()
+
+    origin:focus()
+    assert.is_true(walkthrough.next('s1'))
+    assert.is_true(tab:is_current())
+    eq(2, vim.api.nvim_win_get_cursor(0)[1])
+
+    vim.cmd('tabclose')
+
+    eq(nil, walkthrough_store.current('s1'))
+    eq({ false, 'no walkthrough is running' }, { walkthrough.stop('s1') })
+  end)
+
   it('resumes the last walkthrough at the step it stopped on', function()
     local data = assert(walkthrough_type.parse({
       title = 'Walk',
