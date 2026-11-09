@@ -23,10 +23,6 @@ describe('harness.cli.commands.harness:', function()
     for _, name in ipairs(harness.VERBS) do
       record(harness, name)
     end
-
-    for _, name in ipairs(harness.WALKTHROUGH_VERBS) do
-      record(harness.walkthrough, name)
-    end
   end)
 
   after_each(function()
@@ -63,22 +59,6 @@ describe('harness.cli.commands.harness:', function()
     eq({ { 'revert', 'turn' }, { 'quickfix', '' }, { 'new', { agent = 'opencode' } } }, called)
   end)
 
-  it('drives a walkthrough by word, with prev and back for previous, and a bare scope for its changes', function()
-    run('walkthrough next')
-    run('walkthrough prev')
-    run('walkthrough back')
-    run('walkthrough overview')
-    run('walkthrough session')
-    run('walkthrough')
-
-    eq({ 'next' }, called[1])
-    eq({ 'previous' }, called[2])
-    eq({ 'previous' }, called[3])
-    eq({ 'overview' }, called[4])
-    eq({ 'changes', 'session' }, called[5])
-    eq({ 'changes', '' }, called[6])
-  end)
-
   it('says which commands there are when the first word is none of them', function()
     local notice = require('harness.ui.notice')
     local warn, said = notice.warn, nil
@@ -90,15 +70,13 @@ describe('harness.cli.commands.harness:', function()
     notice.warn = warn
 
     assert.truthy(said:find('no Harness command "frobnicate"', 1, true))
-    assert.truthy(said:find('walkthrough', 1, true))
+    assert.truthy(said:find('permissions', 1, true))
     eq({}, called)
   end)
 
   it('completes the commands, then the words each one takes', function()
     eq(command.names(), command.complete('', 'Harness '))
-    eq({ 'waiting', 'walkthrough' }, command.complete('wa', 'Harness wa'))
-    eq({ 'walkthrough' }, command.complete('wal', 'Harness wal'))
-    eq({ 'next' }, command.complete('ne', 'Harness walkthrough ne'))
+    eq({ 'waiting' }, command.complete('wa', 'Harness wa'))
     eq({ 'edit', 'session', 'turn' }, command.complete('', 'Harness revert '))
   end)
 
@@ -110,7 +88,7 @@ describe('harness.cli.commands.harness:', function()
     end
 
     for _, name in ipairs(names) do
-      assert.truthy(name == 'walkthrough' or vim.tbl_contains(harness.VERBS, name), name .. ' is not a verb')
+      assert.truthy(vim.tbl_contains(harness.VERBS, name), name .. ' is not a verb')
     end
   end)
 end)

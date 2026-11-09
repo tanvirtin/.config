@@ -7,29 +7,12 @@ local notice = lazy('harness.ui.notice')
 
 local command = {}
 
-command.WALKTHROUGH = { 'next', 'prev', 'overview', 'findings', 'submit', 'stop', 'resume', 'changes' }
-command.ALIAS = { prev = 'previous', back = 'previous' }
-
 local function scopes()
   local names = vim.tbl_keys(edits.SCOPE)
 
   table.sort(names)
 
   return names
-end
-
-local function walkthrough(rest)
-  local word, scope = rest:match('^(%S*)%s*(.*)$')
-
-  word = command.ALIAS[word] or word
-
-  if word == '' or word == 'changes' then return harness.walkthrough.changes(scope) end
-  if edits.SCOPE[word] then return harness.walkthrough.changes(word) end
-  if vim.tbl_contains(harness.WALKTHROUGH_VERBS, word) then return harness.walkthrough[word]() end
-
-  return notice.warn(
-    'ask for a walkthrough in your session; :Harness walkthrough takes ' .. table.concat(command.WALKTHROUGH, ', ')
-  )
 end
 
 command.SUBCOMMANDS = {
@@ -117,14 +100,6 @@ command.SUBCOMMANDS = {
       return harness.permissions()
     end,
   },
-  {
-    name = 'walkthrough',
-    desc = 'Drive a walkthrough, or walk through the agent\'s changes',
-    arguments = function()
-      return command.WALKTHROUGH
-    end,
-    run = walkthrough,
-  },
 }
 
 function command.find(name)
@@ -178,7 +153,7 @@ return {
     nargs = '*',
     range = true,
     complete = command.complete,
-    desc = 'Drive Harness: ask, new, switch, cancel, fork, changes, revert, quickfix, waiting, permissions, walkthrough',
+    desc = 'Drive Harness: ask, new, switch, cancel, fork, changes, revert, quickfix, waiting, permissions',
   },
   execute = command.execute,
   command = command,

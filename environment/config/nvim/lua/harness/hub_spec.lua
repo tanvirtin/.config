@@ -41,51 +41,6 @@ describe('harness.hub:', function()
     eq({ { name = 'HARNESS_SESSION', value = session.key } }, server.env)
   end)
 
-  describe('a hidden session', function()
-    local function open(extra)
-      return hub.start(vim.tbl_extend('force', { dir = '/w', hidden = true }, extra or {})):wait()
-    end
-
-    it('stays out of the store, the session list and the editor tools, with its own system prompt and model', function()
-      local session = assert(open({ system = 'Write notes.', model = 'cheap' }))
-      local fake = spawned[1].fake
-      local new = fake:sent_method('session/new').params
-      local listed = hub.list('/w'):wait()
-
-      eq({}, hub.sessions('/w'))
-      eq(nil, hub.session(session.key))
-      eq(true, session.hidden)
-      eq({}, new.mcpServers)
-      eq('cheap', fake:sent_method('session/set_config_option').params.value)
-      eq({}, listed)
-    end)
-
-    it('is deleted from the agent when discarded', function()
-      local session = assert(open())
-
-      spawned[1].fake.stored = { { sessionId = session.id, cwd = '/w', title = 'notes' } }
-      hub.discard(session):wait()
-
-      eq(session.id, spawned[1].fake:sent_method('session/delete').params.sessionId)
-      eq({}, hub.list('/w'):wait())
-    end)
-
-    it('is kept out of the list when the agent cannot delete it', function()
-      use_fakes({
-        ['session/delete'] = function(message)
-          return { jsonrpc.error(message.id, -32601, 'no') }
-        end,
-      })
-
-      local session = assert(open())
-
-      spawned[1].fake.stored = { { sessionId = session.id, cwd = '/w', title = 'notes' } }
-      hub.discard(session):wait()
-
-      eq({}, hub.list('/w'):wait())
-    end)
-  end)
-
   it('keeps one workspace per directory', function()
     local a = hub.start({ dir = '/a' }):wait()
     local b = hub.start({ dir = '/b' }):wait()

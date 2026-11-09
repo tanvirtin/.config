@@ -336,10 +336,6 @@ function vgit.patch(file, opts)
   return api.patch({ file }, vim.tbl_extend('force', { syntax = false, groups = true }, opts))
 end
 
-function vgit.hunks(old_lines, new_lines)
-  return api.diff(old_lines or {}, new_lines or {}, { layout = 'unified', words = false }).hunks or {}
-end
-
 function vgit.stat(file)
   return api.diff(file.old_lines, file.new_lines, { words = false }).stat or { added = 0, removed = 0 }
 end

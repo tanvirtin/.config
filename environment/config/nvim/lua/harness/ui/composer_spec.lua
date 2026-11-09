@@ -802,23 +802,6 @@ describe('harness.ui.composer:', function()
       press('<Esc>')
       composer.close(true)
     end)
-
-    it('moves the session\'s running walkthrough to the selection', function()
-      local walkthrough_store = require('harness.walkthrough_store')
-      local seen
-
-      open_composer(session)
-      walkthrough_store.start(session.key, { title = 'Walk', steps = {} })
-      walkthrough_store.on(function(kind, _, _, update)
-        if kind == 'select' then seen = update end
-      end)
-
-      composer.attach(file, { 1, 3 })
-
-      eq({ path = '/w/a.lua', first = 1, last = 3 }, seen)
-
-      walkthrough_store.reset()
-    end)
   end)
 
   it('attaches the current line in normal mode', function()

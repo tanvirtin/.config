@@ -35,7 +35,6 @@ function SessionHub:constructor(store)
     store = store or session_store,
     workspaces = {},
     _starting = {},
-    _hidden = {},
     _next_key = 0,
   }
 
@@ -86,8 +85,6 @@ function SessionHub:workspace(dir)
         return self.config.spawn and self.config.spawn(a, d) or nil
       end,
       servers = function(a, key)
-        if a.editor == false then return a:mcp_servers() end
-
         return vim.list_extend({ self:editor_server(key) }, a:mcp_servers())
       end,
     })
@@ -156,8 +153,6 @@ function SessionHub:_open(key, opts)
 
   local dir = opts.dir or (parent and parent.dir) or self:dir()
 
-  if opts.hidden then return self:_open_hidden(key, a, dir, opts) end
-
   local session, start_err = self:workspace(dir):new_session(
     a,
     self:_session_opts(a, { key = key, parent = parent and parent.key, depth = depth })
@@ -166,34 +161,6 @@ function SessionHub:_open(key, opts)
   if start_err then return nil, start_err end
 
   return self.store.add(session)
-end
-
-function SessionHub:_open_hidden(key, a, dir, opts)
-  local reader = a:derive({ system = opts.system, model = opts.model or a.model, mcp = {}, editor = false })
-  local session, err = self:workspace(dir):new_session(reader, {
-    key = key,
-    title = opts.title,
-    hidden = true,
-    approve = permissions.new(),
-  })
-
-  if err then return nil, err end
-
-  self._hidden[key] = session
-
-  return session
-end
-
-function SessionHub:discard(session)
-  return async.run(function()
-    self._hidden[session.key] = nil
-
-    local _, err = self:workspace(session.dir):delete(session.agent, session.id)
-
-    if err then self:workspace(session.dir):hide(session.id) end
-
-    return true
-  end)
 end
 
 function SessionHub:start(opts)

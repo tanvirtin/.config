@@ -77,10 +77,6 @@ function hub.sessions(dir)
   return default:sessions(dir)
 end
 
-function hub.discard(session)
-  return default:discard(session)
-end
-
 function hub.close(key)
   return default:close(key)
 end

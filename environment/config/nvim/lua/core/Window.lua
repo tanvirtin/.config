@@ -229,14 +229,6 @@ function Window:diff_this()
   return self
 end
 
-function Window:diff_off()
-  self:call(function()
-    vim.cmd('diffoff')
-  end)
-
-  return self
-end
-
 function Window:constructor(win_id)
   assertion.assert_number(win_id)
   if win_id == 0 then win_id = vim.api.nvim_get_current_win() end
@@ -428,14 +420,6 @@ end
 function Window:set_view(view)
   return self:call(function()
     vim.fn.winrestview(view)
-  end)
-end
-
-function Window:scroll_up(rows)
-  if rows < 1 then return self end
-
-  return self:call(function()
-    vim.cmd(string.format('norm! %d\25', rows))
   end)
 end
 

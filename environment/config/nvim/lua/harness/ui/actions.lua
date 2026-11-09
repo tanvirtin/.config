@@ -15,7 +15,6 @@ local status = lazy('harness.ui.status')
 local display = lazy('harness.ui.display')
 local composer = lazy('harness.ui.composer')
 local transcript = lazy('harness.ui.transcript')
-local walkthrough = lazy('harness.ui.walkthrough')
 local global_keys = lazy('harness.ui.global_keys')
 
 local actions = {}
@@ -222,32 +221,6 @@ function actions.attach()
   end
 
   return attach_range(window:get_buffer().bufnr, range)
-end
-
-local function walkthrough_session()
-  local view = transcript.view() or display.last()
-
-  return view and view.session.key or nil
-end
-
-actions.walkthrough = {}
-
-for _, name in ipairs({ 'next', 'previous', 'stop', 'resume', 'overview', 'findings', 'submit' }) do
-  actions.walkthrough[name] = function()
-    return transcript.report(walkthrough[name](walkthrough_session()))
-  end
-end
-
-function actions.walkthrough.changes(scope)
-  scope = scope ~= '' and scope or nil
-
-  if scope and not edits.SCOPE[scope] then return transcript.report(false, 'choose edit, turn or session') end
-
-  local here = transcript.view()
-
-  return transcript.report(
-    walkthrough.changes(here or display.last(), scope or (here and edits.SCOPE.turn or edits.SCOPE.session))
-  )
 end
 
 function actions.permissions()

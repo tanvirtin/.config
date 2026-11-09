@@ -3,7 +3,6 @@ local instructions = {}
 instructions.HARNESS = table.concat({
   'The project is the working directory; Neovim is only how the user works on it, so leave its configuration alone unless they ask about it.',
   'Edits you make through the editor tools stay unsaved: save the buffers you changed with buffer_save before running a build, tests, a linter or git, which read the files on disk.',
-  'To walk the user through code step by step (how something works, or a review), use walkthrough_start rather than ui_show.',
   'When you link code, link the project\'s own files, as [parser.rs:42](nvim://file/src/parser.rs#L42).',
 }, '\n')
 
