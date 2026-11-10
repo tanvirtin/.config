@@ -7,8 +7,12 @@ local hl = {}
 hl.PULSE_STEPS = 12
 hl.FLASH_STEPS = 8
 hl.FADE_STEPS = 6
-hl.WORD_FADE_STEPS = 4
+hl.GLINT = { 1, 0.6, 0.25 }
+hl.SPARK = { 1, 0.7, 0.45 }
+hl.STRIKE_REST = 0.5
+hl.STRIKE_LIGHT = 2
 hl.FADE_FLOOR = 0.45
+hl.THOUGHT = 0.62
 hl.FLASH_PEAK = 0.24
 
 hl.GROUPS = {
@@ -213,6 +217,13 @@ hl.COMPUTED = {
     return { fg = foreground, bg = hl.blend(text, background, hl.SURFACE_RAISED) }
   end,
   UiRailMuted = rail('UiMuted', 'Comment'),
+  UiThought = function()
+    local foreground, background = color('Normal', 'fg'), color('Normal', 'bg')
+
+    if not foreground or not background then return { link = 'Comment' } end
+
+    return { fg = hl.blend(foreground, background, hl.THOUGHT) }
+  end,
   UiMarkdownCode = shade(SURFACE, 'ColorColumn'),
   UiToolOutput = function()
     return { bg = color('Normal', 'bg') }
@@ -285,18 +296,34 @@ end, function()
   return 'UiMuted'
 end)
 
+ramp('UiSpark', #hl.SPARK, foreground_of('UiAccent'), function(i)
+  return hl.SPARK[i]
+end, function()
+  return 'UiAccent'
+end)
+
+for i = 1, hl.PULSE_STEPS do
+  hl.COMPUTED['UiStrike' .. i] = function()
+    local accent, foreground, background = color('UiAccent', 'fg'), color('Normal', 'fg'), color('Normal', 'bg')
+
+    if not accent or not foreground or not background then return { link = i <= 3 and 'UiAccent' or 'UiMuted' } end
+
+    local rest = hl.blend(foreground, background, hl.STRIKE_REST)
+
+    return { fg = hl.blend(accent, rest, (1 - along(i, hl.PULSE_STEPS)) ^ 3) }
+  end
+end
+
 for word = 1, 6 do
-  ramp(
-    'UiWorkingFade' .. word .. '_',
-    hl.WORD_FADE_STEPS,
-    foreground_of('UiWorking' .. word, 'UiAccent'),
-    function(step)
-      return step / (hl.WORD_FADE_STEPS + 1)
-    end,
-    function()
-      return 'UiWorking' .. word
+  for step, mix in ipairs(hl.GLINT) do
+    hl.COMPUTED['UiWorkingGlint' .. word .. '_' .. step] = function()
+      local accent, own = color('UiAccent', 'fg'), color('UiWorking' .. word, 'fg')
+
+      if not accent or not own then return { link = 'UiAccent' } end
+
+      return { fg = hl.blend(accent, own, mix), bold = step == 1 }
     end
-  )
+  end
 end
 
 for _, name in ipairs(tone.ALL) do

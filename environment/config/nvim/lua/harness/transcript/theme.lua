@@ -2,7 +2,6 @@ local lazy = require('core.lazy')
 
 local tone = require('ui.tone')
 local text = require('core.text')
-local motion = require('ui.motion')
 local settings = require('harness.settings.theme')
 
 local hl = lazy('ui.hl')
@@ -17,7 +16,6 @@ local FROM_SETTINGS = {
   TOOL_ICONS = 'tool_icons',
   WAITING_ICON = 'waiting_icon',
   QUEUE_ICON = 'queue_icon',
-  RUNNING_ICON = 'running_icon',
   IDLE_ICON = 'idle_icon',
   CURRENT_ICON = 'current_icon',
   MODE_FORMAT = 'mode_format',
@@ -43,15 +41,75 @@ setmetatable(theme, {
   end,
 })
 
-function theme.motion(kind, now)
-  local spec = settings:get('motion')[kind]
+function theme.reduced()
+  return settings:get('motion').reduced == true
+end
 
-  if not spec or not spec.frames or #spec.frames == 0 then return '' end
+function theme.beat()
+  return settings:get('motion').pulse_ms * hl.PULSE_STEPS
+end
 
-  local ms = spec.ms or 180
-  local index = math.floor((now or 0) / ms) % #spec.frames + 1
+local function slot(now, ms)
+  return math.floor((now or 0) % theme.beat() / ms) + 1
+end
 
-  return spec.frames[index]
+local function spark_slot(now)
+  return slot(now, settings:get('motion').working.spark_ms)
+end
+
+function theme.pulse(now, name)
+  if theme.reduced() then return tone.pulse(name, 1) end
+
+  return tone.pulse(name, slot(now, settings:get('motion').pulse_ms))
+end
+
+local function beats(now, started)
+  local beat = theme.beat()
+
+  return math.max(0, math.floor((now or 0) / beat) - math.floor((started or now or 0) / beat))
+end
+
+local function blow(now, started)
+  local light = beats(now, started) % settings:get('motion').working.word_beats ~= 0
+
+  return light and 1 or 0
+end
+
+local function spark(now, started)
+  if theme.reduced() then return ' ' end
+
+  return settings:get('motion').working.spark[spark_slot(now) + blow(now, started)] or ' '
+end
+
+local function strike(now, started)
+  if theme.reduced() then return theme.pulse(now) end
+
+  local pulse = settings:get('motion').pulse_ms
+
+  return 'UiStrike' .. math.min(hl.PULSE_STEPS, slot(now, pulse) + blow(now, started) * hl.STRIKE_LIGHT)
+end
+
+local function spark_hl(now, started)
+  return 'UiSpark' .. math.min(#hl.SPARK, spark_slot(now) + blow(now, started))
+end
+
+function theme.working(now, started)
+  return {
+    { settings:get('motion').working.icon, strike(now, started) },
+    { spark(now, started), spark_hl(now, started) },
+  }
+end
+
+function theme.working_text(now)
+  return settings:get('motion').working.icon .. spark(now)
+end
+
+function theme.badge(now)
+  local frames = settings:get('motion').badge.frames
+
+  if theme.reduced() then return { frames[1] .. ' ', theme.pulse(now) } end
+
+  return { frames[slot(now, theme.beat() / #frames)] .. ' ', theme.pulse(now) }
 end
 
 function theme.working_word(now, started)
@@ -59,47 +117,41 @@ function theme.working_word(now, started)
 
   if not spec or not spec.words or #spec.words == 0 then return nil end
 
-  local elapsed = math.max(0, (now or 0) - (started or now or 0))
-  local ms = spec.word_ms or 3000
-  local index = math.floor(elapsed / ms) % #spec.words + 1
+  local index = math.floor(beats(now, started) / spec.word_beats) % #spec.words + 1
 
   return spec.words[index], 'UiWorking' .. ((index - 1) % 6 + 1)
 end
 
-function theme.word_fade(group, now, started)
-  local ms = settings:get('motion').working.fade_ms
+function theme.glint(group, now, started)
+  local word = group and group:match('^UiWorking(%d)$')
 
-  if theme.reduced() or not ms or ms <= 0 or not group then return group end
+  if theme.reduced() or not word then return group end
 
-  local spec = settings:get('motion').working
-  local into = math.max(0, (now or 0) - (started or now or 0)) % (spec.word_ms or 3000)
+  local step = spark_slot(now) + blow(now, started)
 
-  if into >= ms then return group end
+  if step > #hl.GLINT or step > #settings:get('motion').working.spark then return group end
 
-  local word = group:match('^UiWorking(%d)$')
-
-  if not word then return group end
-
-  return 'UiWorkingFade' .. word .. '_' .. motion.steps(hl.WORD_FADE_STEPS, into / ms)
-end
-
-function theme.pulse(now, name)
-  if theme.reduced() then return tone.pulse(name, 1) end
-
-  local ms = settings:get('motion').pulse_ms or 180
-  local index = math.floor((now or 0) / ms) % hl.PULSE_STEPS + 1
-
-  return tone.pulse(name, index)
-end
-
-function theme.reduced()
-  return settings:get('motion').reduced == true
+  return 'UiWorkingGlint' .. word .. '_' .. step
 end
 
 function theme.spinner(now)
-  if theme.reduced() then return theme.RUNNING_ICON end
+  local frames = settings:get('motion').tool.frames
 
-  return { theme.motion('loading', now) .. ' ', theme.RUNNING_ICON[2] }
+  if theme.reduced() then return theme.TOOL_ICONS.in_progress end
+
+  return { frames[(slot(now, settings:get('motion').pulse_ms) - 1) % #frames + 1] .. ' ', 'UiAccent' }
+end
+
+function theme.sweep(now)
+  local width = settings:get('motion').loading.width
+  local at = theme.reduced() and 1 or slot(now, theme.beat() / width)
+  local out = {}
+
+  for cell = 1, width do
+    out[#out + 1] = cell == at and { '▰', 'UiAccent' } or { '▱', 'UiMuted' }
+  end
+
+  return out
 end
 
 function theme.rule_width(ctx)

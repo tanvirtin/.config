@@ -89,7 +89,7 @@ describe('harness.transcript.decorators:', function()
     local marks = decorators.decorate(block, ctx)
 
     assert.truthy(find(marks, function(opts)
-      return first_chunk(opts) == theme.spinner(nil)[1]
+      return first_chunk(opts) == theme.spinner(3000)[1]
     end))
     assert.truthy(find(marks, function(opts)
       return opts.virt_text_pos == 'eol' and virt(opts) == '  3s'
@@ -98,6 +98,9 @@ describe('harness.transcript.decorators:', function()
     ctx.waiting = { { id = 't' } }
     assert.truthy(find(decorators.decorate(block, ctx), function(opts)
       return virt(opts) == '  waiting for you'
+    end))
+    assert.truthy(find(decorators.decorate(block, ctx), function(opts)
+      return first_chunk(opts) == theme.WAITING_ICON[1] and opts.virt_text[1][2] == theme.pulse(3000, 'Warn')
     end))
   end)
 
@@ -271,22 +274,45 @@ describe('harness.transcript.decorators:', function()
     eq(' done ──', label({ reason = 'end_turn' }))
   end)
 
-  it('peeks at the last line of a live thought, cut to fit, and drops it once finished', function()
-    local lines = { '◇ Thought', 'first idea', '', 'the latest idea ' .. string.rep('x', 100) }
-    local live =
-      decorators.decorate(make(Block.KIND.thought, lines, { live = true }), { running = true, now = 0, width = 60 })
-    local shown = find(live, function(opts)
-      return opts.virt_text_pos == 'eol'
-    end).opts.virt_text[2][1]
+  it('sums up a finished thought by its first line, or its bold heading, cut to fit, and not while it runs', function()
+    local lines = { '> [!thought]', '>', '> the first idea `here` ' .. string.rep('x', 100), '> later' }
+    local function eol(marks)
+      local found = find(marks, function(opts)
+        return opts.virt_text_pos == 'eol'
+      end)
 
-    assert.truthy(shown:find('the latest idea', 1, true))
-    assert.is_true(vim.fn.strchars(shown) <= 40)
+      return found and found.opts.virt_text
+    end
 
-    local done = decorators.decorate(make(Block.KIND.thought, lines, { started = 0, finished = 2000 }), {})
+    local done =
+      eol(decorators.decorate(make(Block.KIND.thought, lines, { started = 0, finished = 2000 }), { width = 60 }))
 
-    eq(1, #find(done, function(opts)
-      return opts.virt_text_pos == 'eol'
-    end).opts.virt_text)
+    eq({ '  2s', 'UiMuted' }, done[1])
+    eq(' · ', done[2][1])
+    eq('UiThought', done[3][2])
+    assert.truthy(done[3][1]:find('^the first idea here'))
+    assert.is_true(vim.fn.strchars(done[3][1]) <= 36)
+
+    local headed =
+      eol(decorators.decorate(make(Block.KIND.thought, { '> [!thought]', '> **Planning the fix**', '> body' }), {}))
+
+    eq({ { '  ', 'UiMuted' }, { 'Planning the fix', 'UiThought' } }, headed)
+
+    local live = eol(
+      decorators.decorate(make(Block.KIND.thought, lines, { live = true, started = 0 }), { running = true, now = 4200 })
+    )
+
+    eq({ { '  4s', 'UiMuted' } }, live)
+  end)
+
+  it('dims the whole body of a thought with one mark beneath the markdown styling, leaving the header alone', function()
+    local marks = decorators.decorate(make(Block.KIND.thought, { '> [!thought]', '> one', '>', '> two' }), {})
+    local dimmed = vim.tbl_filter(function(mark)
+      return mark.opts.hl_group == 'UiThought'
+    end, marks)
+
+    eq(1, #dimmed)
+    eq({ 1, 3, 5, 90 }, { dimmed[1].row, dimmed[1].opts.end_row, dimmed[1].opts.end_col, dimmed[1].opts.priority })
   end)
 
   it('folds an inline plan to its progress while the plan panel shows it', function()
@@ -309,7 +335,7 @@ describe('harness.transcript.decorators:', function()
     end))
   end)
 
-  it('animates a live thought and times a finished one', function()
+  it('breathes a live thought\'s diamond and times a finished one', function()
     local live = decorators.decorate(make(Block.KIND.thought, { 'x' }, { live = true }), { running = true, now = 0 })
     local done = decorators.decorate(make(Block.KIND.thought, { 'x' }, { started = 0, finished = 2000 }), {})
     local function head(marks)
@@ -318,12 +344,6 @@ describe('harness.transcript.decorators:', function()
       end).opts.virt_text
     end
 
-    eq(
-      '  ' .. theme.motion('thinking', 0),
-      virt(find(live, function(opts)
-        return opts.virt_text_pos == 'eol'
-      end).opts)
-    )
     eq({ { '◇ ', theme.pulse(0) }, { 'Thought', 'UiMuted' } }, head(live))
     eq({ { '◇ ', 'UiMuted' }, { 'Thought', 'UiMuted' } }, head(done))
     eq(

@@ -5,19 +5,50 @@ local theme = require('harness.transcript.theme')
 
 local CALLOUT = nodes.CALLOUTS.thought
 
-local PEEK = 60
+local GIST = 72
+local BODY_PRIORITY = 90
 
-local function peek(block, ctx)
-  for index = #block.lines, 2, -1 do
-    local line = vim.trim(block.lines[index])
+local function gist(block, ctx)
+  for index = 2, #block.lines do
+    local line = vim.trim((block.lines[index]:gsub('^[%s>]*', '')))
 
-    if line ~= '' then return compact.line(line, math.min(PEEK, math.max((ctx.width or PEEK + 20) - 24, 12))) end
+    if line ~= '' then
+      local heading = line:match('^%*%*(.-)%*%*')
+      local text = (heading and heading ~= '' and heading or line):gsub('[*`]', '')
+
+      return compact.line(text, math.min(GIST, math.max((ctx.width or GIST + 24) - 24, 12)))
+    end
   end
+end
+
+local function elapsed(block, ctx)
+  local ms = math.max(0, ctx.now - block.started)
+
+  return theme.duration(ms) or math.floor(ms / 1000) .. 's'
+end
+
+local function tail(block, ctx, pulsing)
+  if pulsing then
+    if block.started and ctx.now then return { { '  ' .. elapsed(block, ctx), 'UiMuted' } } end
+
+    return {}
+  end
+
+  local duration = block.started and block.finished and theme.duration(block.finished - block.started)
+  local summary = gist(block, ctx)
+  local out = {}
+
+  if duration then out[#out + 1] = { '  ' .. duration, 'UiMuted' } end
+  if summary then
+    out[#out + 1] = { duration and ' · ' or '  ', 'UiMuted' }
+    out[#out + 1] = { summary, 'UiThought' }
+  end
+
+  return out
 end
 
 return function(block, ctx)
   local out = {}
-  local text
   local first = block.lines[1] or ''
   local pulsing = block.live and ctx.running
   local hl = pulsing and ctx.now and theme.pulse(ctx.now) or CALLOUT.hl
@@ -27,18 +58,19 @@ return function(block, ctx)
     virt_text_pos = 'inline',
   })
 
-  if pulsing then
-    text = { { '  ' .. theme.motion('thinking', ctx.now), 'UiMuted' } }
+  local last = #block.lines
 
-    local last = peek(block, ctx)
-
-    if last then text[#text + 1] = { '  ' .. last, 'UiRailMuted' } end
-  elseif block.started and block.finished then
-    local duration = theme.duration(block.finished - block.started)
-    if duration then text = { { '  ' .. duration, 'UiMuted' } } end
+  if last > 1 then
+    MarkSpec.add(out, block.start + 1, 0, {
+      end_row = block.start + last - 1,
+      end_col = #block.lines[last],
+      hl_group = 'UiThought',
+    }, BODY_PRIORITY)
   end
 
-  if text then MarkSpec.add(out, block.start, 0, { virt_text = text, virt_text_pos = 'eol' }) end
+  local text = tail(block, ctx, pulsing)
+
+  if #text > 0 then MarkSpec.add(out, block.start, 0, { virt_text = text, virt_text_pos = 'eol' }) end
 
   return out
 end

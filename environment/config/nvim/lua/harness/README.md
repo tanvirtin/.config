@@ -142,9 +142,15 @@ require('harness').setup({
     motion = {
       reduced = false, -- true holds spinners and pulses still, skips flashes and shows toasts at once
       pulse_ms = 100, -- one of the 12 UiPulse steps
-      working = { word_ms = 3000, words = { 'smelting', 'alloying', 'annealing' } },
-      thinking = { ms = 300, frames = { 'thinking.', 'thinking..', 'thinking...' } },
-      loading = { ms = 100, frames = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' } },
+      working = {
+        icon = '󰣪', -- the working signature (a Nerd Font hammer); '◆' or '●' without a Nerd Font
+        spark = { '✦', '•', '·' }, -- flies off each strike and cools, spark_ms (100) a frame
+        word_beats = 3, -- a heavy blow and a new word every third beat, light taps between
+        words = { 'kindling', 'smelting', 'tinning' },
+      },
+      badge = { frames = { '◆', '◈', '◇', '·', '◇', '◈' } }, -- the winbar's running badge, one turn a beat
+      tool = { frames = { '⠋', '⠙', '⠸', '⠴', '⠦', '⠇' } }, -- a frame per pulse step
+      loading = { width = 4 }, -- the loading sweep's cells
     },
     highlights = {
       UiWorking1 = 'Special', -- each cycling word has its own role
@@ -161,9 +167,9 @@ require('harness').setup({
 
 ### Surfaces
 
-Cards and rails are derived from the colourscheme, not hardcoded. `UiSurface` and `UiSurfaceRaised` shade `Normal` toward its foreground, `UiSurfaceWarn`/`Error`/`Accent` tint it toward the role colour, and `UiRailAccent`/`Warn`/`Error`/`Info`/`Muted` carry the role colour for a left rail; without a `Normal` background they link to `ColorColumn`. `UiComposer` is the composer's own surface and `UiChip` a chip. Status icons (`running_icon`, `idle_icon`, `queue_icon`, `waiting_icon`) are each `{ text, group }`.
+Cards and rails are derived from the colourscheme, not hardcoded. `UiSurface` and `UiSurfaceRaised` shade `Normal` toward its foreground, `UiSurfaceWarn`/`Error`/`Accent` tint it toward the role colour, and `UiRailAccent`/`Warn`/`Error`/`Info`/`Muted` carry the role colour for a left rail; without a `Normal` background they link to `ColorColumn`. `UiComposer` is the composer's own surface and `UiChip` a chip. Status icons (`idle_icon`, `queue_icon`, `waiting_icon`) are each `{ text, group }`. Each shape means one thing: `○` idle or pending, `✓` done, `✗` failed or refused, `◇` a thought, the hammer the agent working, the braille spinner (still `⠶`) a tool running, `◐` a plan step under way, the `▰▱▱▱` sweep a session loading, and `◆` only a request waiting for you. A thought's text is drawn in `UiThought`, the text colour blended toward the background (`hl.THOUGHT`, 0.62), so replies stand out from reasoning.
 
-The six working-word colours (`UiWorking1`..`6`) are picked from the colourscheme when the groups are defined: the first accent groups (`Special`, `Directory`, `DiagnosticInfo`, `Constant`, `Function`, `Keyword`, then `String`, `Type`, and more) whose colour is clearly not the text colour and not close to one already picked (`hl.WORKING_FROM_TEXT`, `hl.WORKING_APART`). `highlights` overrides still win. The working line cycles metalworking words in keeping with tin; set `motion.working.words` and `word_ms` for your own.
+The six working-word colours (`UiWorking1`..`6`) are picked from the colourscheme when the groups are defined: the first accent groups (`Special`, `Directory`, `DiagnosticInfo`, `Constant`, `Function`, `Keyword`, then `String`, `Type`, and more) whose colour is clearly not the text colour and not close to one already picked (`hl.WORKING_FROM_TEXT`, `hl.WORKING_APART`). `highlights` overrides still win. The working line walks through a forge in keeping with tin (kindling, stoking, fanning, smelting, alloying, casting, forging, tempering, annealing, tinning), so a long turn reaches further along; set `motion.working.words` and `word_beats` for your own.
 
 | Block | Surface |
 | --- | --- |
@@ -179,21 +185,25 @@ The composer sits on `UiComposer`; when empty it shows a muted placeholder. The 
 
 ### Motion
 
-`ui.motion` is pure maths (easing, `lerp`, `steps`, `breath`, `Tween`) and owns no timer. `harness.ui.Animator` is the timer: `animator:add(key, step)` registers a `step(now)` that returns `true` to keep running; it ticks every `animate_ms` (33) only while something is registered, stops itself when the last one finishes, and on an error clears everything and notifies once. Animations update dedicated extmarks by stable id and never re-decorate a block. The 100ms `tick_ms` stays for text (elapsed time, the working word). While a turn runs the one indicator for "the agent is working" is the line under the transcript (pulsing `◆`, the word, elapsed time, the interrupt key); the winbar states the state: `◆ running` with the diamond pulsing in step with the bottom one, or a still `○ idle`.
+`ui.motion` is pure maths (easing, `lerp`, `steps`, `breath`, `Tween`) and owns no timer. `harness.ui.Animator` is the timer: `animator:add(key, step)` registers a `step(now)` that returns `true` to keep running; it ticks every `animate_ms` (33) only while something is registered, stops itself when the last one finishes, and on an error clears everything and notifies once. Animations update dedicated extmarks by stable id and never re-decorate a block. The 100ms `tick_ms` stays for text (elapsed time, the working word). Every motion does one of three jobs, and anything without one holds still. **Working**, one indicator per kind of activity so you can tell them apart: the agent's turn is the working signature, a still hammer breathing in the text colour with a spark flicking beside it in the accent colour as the breath peaks (`theme.working`), on the working line, the subagents line, the session picker and the statusline count; the winbar's badge is a diamond that turns through its facets as its colour fades, `◆ ◈ ◇ · ◇ ◈` (`theme.badge`); a running tool spins the braille spinner on its row (`theme.spinner`); a session loading sweeps `▰` along `▱▱▱▱` (`theme.sweep`). **Arrived**: a one-shot fade or flash of a few hundred ms (new rows, a finished tool, a plan step, a new word, a toast). **Needs you**: the amber `◆` and its warn pulse on a request, held until you answer. Everything that repeats runs on one beat, `theme.beat()`, twelve `pulse_ms` steps (1.2s), so nothing on screen drifts out of step: the spark lands on each beat's brightest step, each spark glints the working word (the accent colour cooling back to the word's own with the spark, `UiWorkingGlint<n>_<step>`, `theme.glint`), and the word changes on a spark, every `word_beats` beats; the spinner turns and the sweep crosses once a beat. While a turn runs the one indicator for "the agent is working" is the line under the transcript (the signature, the word, elapsed time, the interrupt key); the winbar states the state: the diamond badge and `running`, or a still `○ idle`.
 
 | Effect | Where | Setting |
 | --- | --- | --- |
-| spinner on a running tool and in the global statusline count | `theme.spinner` | `motion.loading` |
-| pulse of the running icon and its label (the text colour), a waiting tool, the card rail (amber), a live thought's `◇` | `UiPulse*`, `UiPulseWarn*` | `motion.pulse_ms` |
+| the winbar's running badge, a diamond turning through its facets as its colour fades | `theme.badge` | `motion.badge.frames` |
+| the working signature on the agent's turn (working line, subagents, session picker, statusline count) | `theme.working`, `theme.working_text` | `motion.working.icon`, `spark`, `spark_ms` |
+| the hammer flaring in the accent colour on each strike and settling, the spark cooling as it flies; lighter on the taps between words | `UiStrike*`, `UiSpark*` | `hl.STRIKE_REST`, `hl.STRIKE_LIGHT`, `hl.SPARK` |
+| the spinner on a running tool | `theme.spinner` | `motion.tool.frames` |
+| the sweep on a loading session | `theme.sweep` | `motion.loading.width` |
+| the working word glinting on each spark | `theme.glint`, `UiWorkingGlint*` | `hl.GLINT` |
+| pulse of a working label and a live thought's `◇` (the text colour), a waiting tool's `◆` and the card rail (amber) | `UiPulse*`, `UiPulseWarn*` | `motion.pulse_ms` |
 | flash of a finished tool's head row | `Flashes` | `flash_ms` |
 | answered card flashes then collapses | `transcript_motion.close_card`, `status_line.closing_rows` | `flash_ms` |
 | plan step flash | `PlanPanel` | `flash_ms` |
 | new rows ease in; a fold you open eases in | `Fades`, `Document.touched` | `fade_ms`, `fade_rows` |
-| working word fade | `theme.word_fade` | `motion.working.fade_ms` |
 | toast (waiting for you, out of sight) | `Toast` | `toast.in_ms`, `hold_ms`, `out_ms` |
 | composer grows when it opens | `ComposerView:_ease_open` | `composer.ease_ms` |
 
-The thought peek (the latest line of a live thought, beside `thinking…`) has no animation of its own; the callout's `◇` pulses like the running icon while the thought streams, and holds still once it is done. Tools seen finishing while a session replays never flash, and a rewrite wider than `fade_rows` never fades. `motion.reduced = true` holds spinners and pulses still, skips flashes, fades, the collapse and the grow, and shows toasts at full strength at once. `make bench` reports a running session's tick under `animate`; `TICK_BUDGET_MS` (default 33) gates it when `BENCH_BUDGET_MS` is set.
+A live thought's `◇` breathes on the beat and its header counts the seconds; once done it holds still, and its header gives how long it took and a gist, its first line or its bold heading, cut to fit. Tools seen finishing while a session replays never flash, and a rewrite wider than `fade_rows` never fades. `motion.reduced = true` holds the hammer, its spark, the spinner, the sweep, the glint and the pulses still, skips flashes, fades, the collapse and the grow, and shows toasts at full strength at once. `make bench` reports a running session's tick under `animate`; `TICK_BUDGET_MS` (default 33) gates it when `BENCH_BUDGET_MS` is set.
 
 ## Sessions are buffers, scoped to a directory
 
@@ -426,11 +436,11 @@ In a transcript:
 | `1 line`, `12 results` at the right edge | the result of reads and searches |
 | Output under a `│` rail, the first 5 lines shown and the rest folded | commands show all their output; searches and fetches fold after 5 lines. Output is shown verbatim: its fence is longer than any backtick run in it |
 | `✓ edit    a.lua   +2 −2`, then the change under a `│` rail as vgit lays it out: three lines of context, file line numbers, add and delete backgrounds, changed words marked on top of the file's own syntax colours | edits. ACP sends a snippet; `EditResolver` finds it in the file to rebuild the whole file before and after (from the old text while the edit waits for permission), and `vgit.api.patch` lays that out. An edit it can't find, or one that failed, shows just its snippet with no numbers. A finished edit is frozen, so later changes to the file don't move it. A session opened later finds its edits newest first, each in the file as the edits after it left it, and an edit the agent replays without a diff is rebuilt from its input (`oldString`/`newString` or `old_string`/`new_string`). Past 12 rows the rest of a diff is folded. The layout follows vgit's own `scene.diff_preference`: `unified`, or `split`, which lays the old and new sides in two equal-width numbered columns with each side's add and delete backgrounds, changed words and its own syntax colours (`transcript.diff_layout` overrides it with `unified`/`split`, or `auto` to follow vgit). Split is decided hunk by hunk against the narrowest window showing the session: a hunk too wide for both sides is truncated with `…`, so a session set to split stays split throughout; set `transcript.diff_overflow = 'unified'` to lay that hunk out unified instead (nothing is cut off, but the view can mix), and an edit with no hunk that fits falls back to unified whole. A snippet's split columns carry no numbers, as in unified. Changing either setting, or resizing a window while split is in use, lays the session's edits out again in place; the edits stay frozen, only their layout changes. Agents reading the session get the same change as a classic `+`/`-` diff. A diff shown away from its edit keeps a path line |
-| `[!thought]` callout with how long it took, folded | thoughts |
+| `◇ Thought  4s · <gist>` callout in dimmed text, folded; while live, `◇` breathing and the seconds counting | thoughts |
 | `⠋ agent   List files   2 tools` while it runs, then `✓ agent   List files   6s · 2 tools`, with the sub-agent's tools (`├`) and report (`│`) on a tree closed by `└`, folded as one | sub-agents (Agent/Task calls), from the block's own status and times. Folded, the tree shows what it holds on its rail (`│ ⋯ 2 tools · 1 reply`). Their prose is indented two spaces so wrapped lines keep the rail |
 | `✓ read 3 files, searched 1 pattern` over `└ ⋯ 3 tools` | a run of two or more finished reads and searches in a turn; live and failed tools never group, and agents reading the session still see each tool |
 | `⋯ 120 earlier turns · <CR> to show` | turns older than `live_turns` |
-| `plan` over `✓ read`, `◆ edit`, `○ test` | the turn's latest ACP plan |
+| `plan` over `✓ read`, `◐ edit`, `○ test` | the turn's latest ACP plan |
 | `✗ edit    a.lua   refused` (or `cancelled` when you interrupted) | a permission you refused, on its tool |
 | `✗ bash    sleep 20   interrupted` | a tool the turn ended without finishing |
 | `✗ error: not logged in` | errors, and failures or refusals with no tool to put them on |
@@ -438,7 +448,7 @@ In a transcript:
 | The current turn's prompt in the winbar (`❯ fix the parser`) | once that prompt scrolls out of view |
 | A floating `Plan  2/5` checklist at the top right | the latest ACP plan while any entry is unfinished |
 | `──────── 12s · 3 tools ──` | the end of each turn; `interrupted` or the limit hit is named in the warning colour, and `failed` (a turn the agent could not run) in the error colour |
-| `◆ working · 12s · <C-c> interrupt` under the last line, with the label pulsing and cycling words | a running turn |
+| `󰣪✦ kindling · 12s · <C-c> interrupt` under the last line, the hammer striking on each beat, two light taps then a heavy blow that changes the word | a running turn |
 | `◆ waiting for you: Edit a.lua` on the tool and the working line, and a notification when the transcript is out of sight | a permission request waiting for an answer |
 | `◆ running  [Plan]  ctx 3%  $0.07` in the winbar | the session's state and its latest usage |
 

@@ -14,10 +14,9 @@ function subagents.lines(state, now)
   end
 
   return {
-    {
-      { theme.RUNNING_ICON[1], theme.pulse(now) },
-      { theme.plural(count, 'subagent') .. ' still working', theme.pulse(now) },
-    },
+    vim.list_extend(theme.working(now), {
+      { ' ' .. theme.plural(count, 'subagent') .. ' still working', theme.pulse(now) },
+    }),
   }
 end
 

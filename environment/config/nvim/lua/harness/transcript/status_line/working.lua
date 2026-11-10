@@ -28,17 +28,16 @@ function working.lines(state, now)
   local elapsed = state.started and now and theme.duration(now - state.started)
   local word, word_hl = theme.working_word(now, state.started)
   local label = state.label or word or 'working'
-  local label_hl = state.label and theme.pulse(now) or theme.word_fade(word_hl, now, state.started) or theme.pulse(now)
+  local label_hl = state.label and theme.pulse(now) or theme.glint(word_hl, now, state.started) or theme.pulse(now)
 
   return {
-    {
-      { theme.RUNNING_ICON[1], theme.pulse(now) },
-      { label, label_hl },
+    vim.list_extend(theme.working(now, state.started), {
+      { ' ' .. label, label_hl },
       { elapsed and ' · ' .. elapsed or '', 'UiMuted' },
       { ' · ', 'UiMuted' },
       { keymaps:get('transcript').interrupt, 'UiAccent' },
       { ' interrupt', 'UiMuted' },
-    },
+    }),
   }
 end
 

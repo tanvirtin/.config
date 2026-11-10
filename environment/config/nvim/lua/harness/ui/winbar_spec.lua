@@ -91,8 +91,10 @@ describe('harness.ui.winbar:', function()
   it('shows running and closed states', function()
     local running = winbar.transcript(session({ state = 'running' }))
 
-    assert.truthy(running:find('◆ %#UiAccent#running', 1, true))
-    assert.truthy(running:match('%%#UiPulse%d+#◆ '))
+    local facets = require('harness.settings.theme'):get('motion').badge.frames
+    local facet = running:match('%%#UiPulse%d+#(.-) %%#UiAccent#running')
+
+    assert.truthy(vim.tbl_contains(facets, facet))
     assert.truthy(winbar.transcript(session({ state = 'closed' })):find('○ closed', 1, true))
   end)
 

@@ -599,12 +599,12 @@ describe('harness.ui.Document:', function()
   it('shows a working line only while the turn runs', function()
     local status = function()
       local marks = vim.api.nvim_buf_get_extmarks(buf, Document.STATUS_NAMESPACE, 0, -1, { details = true })
-      return marks[1] and marks[1][4].virt_lines[2][2][1]
+      return marks[1] and marks[1][4].virt_lines[2][3][1]
     end
 
     history = { events.prompt('go') }
     document:write(blocks.build(history), { running = true, started = vim.uv.now() })
-    eq(require('harness.settings.theme'):get('motion').working.words[1], status())
+    eq(' ' .. require('harness.settings.theme'):get('motion').working.words[1], status())
 
     document:write(blocks.build(history), { running = false })
     eq(nil, status())

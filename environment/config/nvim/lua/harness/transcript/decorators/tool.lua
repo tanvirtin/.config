@@ -1,3 +1,4 @@
+local tone = require('ui.tone')
 local text = require('core.text')
 local MarkSpec = require('ui.MarkSpec')
 local Block = require('harness.transcript.Block')
@@ -26,11 +27,13 @@ local SUMMARY = {
 }
 
 local function icon_of(block, live, waiting, ctx)
-  if waiting then return { theme.WAITING_ICON[1], ctx.now and theme.pulse(ctx.now) or theme.WAITING_ICON[2] } end
-  if live then return theme.spinner(ctx.now) end
-  if block.interrupted then return { theme.TOOL_ICONS.failed[1], 'UiMuted' } end
+  if waiting then
+    return { { theme.WAITING_ICON[1], ctx.now and theme.pulse(ctx.now, tone.WARN) or theme.WAITING_ICON[2] } }
+  end
+  if live then return { theme.spinner(ctx.now) } end
+  if block.interrupted then return { { theme.TOOL_ICONS.failed[1], 'UiMuted' } } end
 
-  return theme.TOOL_ICONS[block.status] or theme.TOOL_ICONS[Block.STATUS.pending]
+  return { theme.TOOL_ICONS[block.status] or theme.TOOL_ICONS[Block.STATUS.pending] }
 end
 
 local function verb_of(block)
@@ -114,12 +117,14 @@ return function(block, ctx)
   local surface = block.category == Block.CATEGORY.execute and 'UiTerminal' or 'UiSurface'
 
   MarkSpec.add(out, row, 0, { end_col = math.min(hidden, #block.lines[1]), conceal = '', line_hl_group = surface })
-  MarkSpec.add(out, row, 0, { virt_text = { icon, { verb, 'UiToolName' } }, virt_text_pos = 'inline' })
+  local head_chunks = vim.list_extend(vim.list_slice(icon), { { verb, 'UiToolName' } })
+
+  MarkSpec.add(out, row, 0, { virt_text = head_chunks, virt_text_pos = 'inline' })
 
   local tail = tail_of(block, ctx, live, waiting)
 
   if #tail > 0 then
-    local head = width_of({ icon, { verb } })
+    local head = width_of(head_chunks)
       + text.width(block.argument or '')
       + (block.depth and text.width(theme.GUTTER) or 0)
     local position = tail_position(block, head, tail, ctx)

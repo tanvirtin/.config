@@ -64,6 +64,16 @@ function winbar.turns(session, prompt)
     or string.format('%d turn%s', total, total == 1 and '' or 's')
 end
 
+local function render(chunks)
+  local out = {}
+
+  for _, chunk in ipairs(chunks) do
+    out[#out + 1] = '%#' .. chunk[2] .. '#' .. escape(chunk[1])
+  end
+
+  return table.concat(out)
+end
+
 local function status(session, prompt, target)
   local parts = {}
 
@@ -72,13 +82,7 @@ local function status(session, prompt, target)
   if session.external and follow.is_following(session) then parts[#parts + 1] = '%#UiWarn#⇄ external  ' end
 
   if session:running() then
-    parts[#parts + 1] = '%#'
-      .. theme.pulse(Timer.now())
-      .. '#'
-      .. theme.RUNNING_ICON[1]
-      .. '%#'
-      .. theme.RUNNING_ICON[2]
-      .. '#running'
+    parts[#parts + 1] = render({ theme.badge(Timer.now()) }) .. '%#UiAccent#running'
   elseif session.state == 'closed' then
     parts[#parts + 1] = '%#' .. theme.IDLE_ICON[2] .. '#' .. theme.IDLE_ICON[1] .. 'closed'
   else

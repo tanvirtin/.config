@@ -52,7 +52,9 @@ function status.text(list)
   local counts = status.summary(sessions)
   local parts = {}
 
-  if counts.running > 0 then parts[#parts + 1] = theme.spinner(Timer.now())[1] .. counts.running .. ' running' end
+  if counts.running > 0 then
+    parts[#parts + 1] = theme.working_text(Timer.now()) .. ' ' .. counts.running .. ' running'
+  end
   if counts.agents > 0 then parts[#parts + 1] = theme.plural(counts.agents, 'agent') end
 
   local waiting = status.waiting(sessions)

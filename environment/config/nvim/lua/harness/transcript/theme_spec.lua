@@ -10,21 +10,54 @@ describe('harness.transcript.theme:', function()
     eq('2m 5s', theme.duration(125000))
   end)
 
-  it('cycles motion frames and pulses the working label', function()
-    eq('thinking.', theme.motion('thinking', 0))
-    eq('thinking..', theme.motion('thinking', 300))
-    eq('⠋', theme.motion('loading', 0))
-    eq('⠙', theme.motion('loading', 100))
-    local word, word_hl = theme.working_word(0, 0)
-    local next_word, next_hl = theme.working_word(3000, 0)
-
-    local words = require('harness.settings.theme'):get('motion').working.words
-
-    eq({ words[1], 'UiWorking1' }, { word, word_hl })
-    eq({ words[2], 'UiWorking2' }, { next_word, next_hl })
-    eq(words[1], theme.working_word(5000, 5000))
+  it('keeps every motion on one beat: twelve pulse steps', function()
+    eq(1200, theme.beat())
     eq('UiPulse1', theme.pulse(0))
     eq('UiPulse2', theme.pulse(100))
+    eq('UiPulse1', theme.pulse(1200))
+  end)
+
+  it('strikes once a beat: the hammer flares and settles while its spark flies and cools', function()
+    local icon = require('harness.settings.theme'):get('motion').working.icon
+
+    eq({ { icon, 'UiStrike1' }, { '✦', 'UiSpark1' } }, theme.working(0))
+    eq({ { icon, 'UiStrike2' }, { '•', 'UiSpark2' } }, theme.working(100))
+    eq({ { icon, 'UiStrike3' }, { '·', 'UiSpark3' } }, theme.working(200))
+    eq({ { icon, 'UiStrike4' }, { ' ', 'UiSpark3' } }, theme.working(300))
+    eq('✦', theme.working(1200)[2][1])
+    eq(icon .. ' ', theme.working_text(600))
+  end)
+
+  it('lands a heavy blow as the word changes and lighter taps on the beats between', function()
+    local icon = require('harness.settings.theme'):get('motion').working.icon
+
+    eq({ { icon, 'UiStrike1' }, { '✦', 'UiSpark1' } }, theme.working(0, 0))
+    eq({ { icon, 'UiStrike3' }, { '•', 'UiSpark2' } }, theme.working(1200, 0))
+    eq({ { icon, 'UiStrike4' }, { '·', 'UiSpark3' } }, theme.working(2500, 0))
+    eq({ { icon, 'UiStrike1' }, { '✦', 'UiSpark1' } }, theme.working(3600, 0))
+    eq('UiWorkingGlint2_1', theme.glint('UiWorking2', 3600, 0))
+    eq('UiWorkingGlint1_2', theme.glint('UiWorking1', 1200, 0))
+    eq('UiWorking1', theme.glint('UiWorking1', 1400, 0))
+  end)
+
+  it(
+    'turns the winbar badge through its facets once a beat, brightest at the top of the pulse and dimmest at the trough',
+    function()
+      eq({ '◆ ', 'UiPulse1' }, theme.badge(0))
+      eq({ '◈ ', 'UiPulse3' }, theme.badge(200))
+      eq({ '· ', 'UiPulse7' }, theme.badge(600))
+      eq({ '◈ ', 'UiPulse11' }, theme.badge(1000))
+      eq({ '◆ ', 'UiPulse1' }, theme.badge(1200))
+    end
+  )
+
+  it('changes the working word on a spark, every third beat of the turn', function()
+    local words = require('harness.settings.theme'):get('motion').working.words
+
+    eq({ words[1], 'UiWorking1' }, { theme.working_word(0, 0) })
+    eq(words[1], theme.working_word(3599, 0))
+    eq({ words[2], 'UiWorking2' }, { theme.working_word(3600, 0) })
+    eq(words[1], theme.working_word(5000, 5000))
   end)
 
   describe('reduced motion', function()
@@ -38,9 +71,14 @@ describe('harness.transcript.theme:', function()
       settings:assign({ motion = vim.tbl_extend('force', settings:get('motion'), { reduced = false }) })
     end)
 
-    it('holds the spinner and the pulse still', function()
-      eq(theme.RUNNING_ICON, theme.spinner(0))
-      eq(theme.RUNNING_ICON, theme.spinner(5000))
+    it('holds the hammer, its spark and the pulse still', function()
+      local icon = settings:get('motion').working.icon
+
+      eq({ { icon, 'UiPulse1' }, { ' ', 'UiSpark1' } }, theme.working(0))
+      eq(theme.TOOL_ICONS.in_progress, theme.spinner(500))
+      eq({ '◆ ', 'UiPulse1' }, theme.badge(600))
+      eq('▰', theme.sweep(900)[1][1])
+      eq('UiWorking1', theme.glint('UiWorking1', 0))
       eq('UiPulse1', theme.pulse(700))
       eq('UiPulseWarn1', theme.pulse(700, 'Warn'))
     end)
@@ -61,11 +99,23 @@ describe('harness.transcript.theme:', function()
     end)
   end)
 
-  it('fades a new working word in from the background, then settles on its own colour', function()
-    eq('UiWorkingFade1_1', theme.word_fade('UiWorking1', 3000, 0))
-    eq('UiWorkingFade1_4', theme.word_fade('UiWorking1', 3290, 0))
-    eq('UiWorking1', theme.word_fade('UiWorking1', 3500, 0))
-    eq('UiPulse1', theme.word_fade('UiPulse1', 3000, 0))
+  it('glints the working word on every spark, cooling with it, then lets it rest in its own colour', function()
+    eq('UiWorkingGlint1_1', theme.glint('UiWorking1', 0))
+    eq('UiWorkingGlint1_2', theme.glint('UiWorking1', 130))
+    eq('UiWorkingGlint3_3', theme.glint('UiWorking3', 1450))
+    eq('UiWorking1', theme.glint('UiWorking1', 400))
+    eq('UiPulse1', theme.glint('UiPulse1', 0))
+  end)
+
+  it('spins a running tool a frame per pulse step, and sweeps a loading session once a beat', function()
+    local frames = require('harness.settings.theme'):get('motion').tool.frames
+
+    eq({ frames[1] .. ' ', 'UiAccent' }, theme.spinner(0))
+    eq({ frames[2] .. ' ', 'UiAccent' }, theme.spinner(120))
+    eq({ frames[1] .. ' ', 'UiAccent' }, theme.spinner(#frames * 100))
+    eq({ frames[1] .. ' ', 'UiAccent' }, theme.spinner(1200))
+    eq({ { '▰', 'UiAccent' }, { '▱', 'UiMuted' }, { '▱', 'UiMuted' }, { '▱', 'UiMuted' } }, theme.sweep(0))
+    eq('▰', theme.sweep(900)[4][1])
   end)
 
   it('pluralises counts', function()

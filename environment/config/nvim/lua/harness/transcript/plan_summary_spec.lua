@@ -32,7 +32,7 @@ describe('harness.transcript.plan_summary:', function()
 
     eq(' Plan  1/3 ▰▰▰▱▱▱▱▱', summary.lines[1])
     eq(' ✓ read', summary.lines[2])
-    eq(' ◆ edit', summary.lines[3])
+    eq(' ◐ edit', summary.lines[3])
     eq(' ○ test', summary.lines[4])
     eq('UiTitle', summary.highlights[1].hl)
     eq(2, #vim.tbl_filter(function(highlight)

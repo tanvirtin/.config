@@ -49,7 +49,7 @@ function sessions.rows(listed, current)
     if live and #live:waiting() > 0 then
       mark = theme.WAITING_ICON[1]
     elseif live and live:running() then
-      mark = theme.spinner(Timer.now())[1]
+      mark = theme.working_text(Timer.now())
     elseif live then
       mark = theme.IDLE_ICON[1]
     end
