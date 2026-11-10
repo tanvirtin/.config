@@ -294,6 +294,7 @@ function TranscriptView:write(history, state)
       times = session.times,
       dir = session.dir,
       running = state.running,
+      waiting = state.waiting,
       cache = self.cache,
       index = session.log and session.log.turns,
       edits = self.edits,

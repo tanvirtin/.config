@@ -239,6 +239,14 @@ describe('harness.transcript.BlockBuilder:', function()
     eq(true, blocks.build({ { kind = 'thought', text = 'hmm' } }, nil, { running = true })[2].live)
   end)
 
+  it('marks a tail thought finished while the turn waits for an ask', function()
+    eq(
+      false,
+      blocks.build({ { kind = 'thought', text = 'hmm' } }, nil, { running = true, waiting = { { id = 't' } } })[2].live
+    )
+    eq(true, blocks.build({ { kind = 'thought', text = 'hmm' } }, nil, { running = true })[2].live)
+  end)
+
   it('labels command output with the language it is in, and strips colour codes into spans', function()
     local list = blocks.build({
       {

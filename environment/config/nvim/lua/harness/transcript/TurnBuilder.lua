@@ -390,7 +390,7 @@ function TurnBuilder:_finish()
         block.folds = { { 1, #block.lines - 1 } }
         block.started = times[block.first_event]
         block.finished = times[block.last_event + 1]
-        block.live = tail and opts.running or false
+        block.live = tail and opts.running and not (opts.waiting and #opts.waiting > 0) or false
       else
         block.lines = block_text.split(block.text)
 

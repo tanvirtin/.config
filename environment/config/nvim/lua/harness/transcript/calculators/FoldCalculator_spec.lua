@@ -54,10 +54,10 @@ describe('harness.transcript.calculators.FoldCalculator:', function()
     eq('0', FoldCalculator.level({}, 0))
   end)
 
-  it('leaves a thought at the end unfolded, so the cursor never lands inside a closed fold', function()
+  it('leaves a live thought at the end unfolded, so the cursor never lands inside a closed fold', function()
     local blocks = {
       { start = 0, finish = 3, folds = { { 1, 2 } }, index = 1 },
-      { start = 3, finish = 6, kind = 'thought', folds = { { 1, 2 } }, index = 2 },
+      { start = 3, finish = 6, kind = 'thought', live = true, folds = { { 1, 2 } }, index = 2 },
     }
 
     eq('>1', FoldCalculator.level(blocks, 1))
@@ -65,5 +65,14 @@ describe('harness.transcript.calculators.FoldCalculator:', function()
     eq('0', FoldCalculator.level(blocks, 3))
     eq('0', FoldCalculator.level(blocks, 4))
     eq('0', FoldCalculator.level(blocks, 5))
+  end)
+
+  it('folds a finished thought at the end, so Enter can open and close it', function()
+    local blocks = {
+      { start = 0, finish = 3, kind = 'thought', live = false, folds = { { 1, 2 } }, index = 1 },
+    }
+
+    eq('>1', FoldCalculator.level(blocks, 1))
+    eq('1', FoldCalculator.level(blocks, 2))
   end)
 end)
