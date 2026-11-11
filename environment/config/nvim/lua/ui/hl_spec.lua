@@ -3,6 +3,11 @@ local hl = require('ui.hl')
 local eq = assert.are.same
 
 describe('ui.hl:', function()
+  it('measures contrast the WCAG way', function()
+    eq(21, hl.contrast(0xffffff, 0x000000))
+    eq(1, hl.contrast(0x808080, 0x808080))
+  end)
+
   it('blends two colours channel by channel', function()
     eq(0x000000, hl.blend(0xffffff, 0x000000, 0))
     eq(0xffffff, hl.blend(0xffffff, 0x000000, 1))
@@ -45,6 +50,33 @@ describe('ui.hl:', function()
       vim.api.nvim_set_hl(0, 'DiagnosticError', {})
       hl.clear_overrides()
     end)
+
+    it(
+      'draws the turn rule from the text colour, so a scheme whose separator is the background still shows it',
+      function()
+        vim.api.nvim_set_hl(0, 'WinSeparator', { fg = 0x000000 })
+        hl.define()
+
+        eq(hl.blend(0xffffff, 0x000000, hl.RULE), vim.api.nvim_get_hl(0, { name = 'UiTurnSeparator' }).fg)
+        eq('UiTurnSeparator', vim.api.nvim_get_hl(0, { name = 'UiMarkdownRule' }).link)
+      end
+    )
+
+    it(
+      'lifts a role colour too close to the background toward the text until it reads, and leaves a legible one alone',
+      function()
+        vim.api.nvim_set_hl(0, 'Normal', { fg = 0x000000, bg = 0xffffff })
+        vim.api.nvim_set_hl(0, 'DiagnosticWarn', { fg = 0xffa500 })
+        vim.api.nvim_set_hl(0, 'DiagnosticError', { fg = 0xcc0000 })
+        hl.define()
+
+        local warn = vim.api.nvim_get_hl(0, { name = 'UiWarn', link = false }).fg
+
+        assert.is_true(hl.contrast(warn, 0xffffff) >= hl.LEGIBLE)
+        assert.is_true(math.floor(warn / 0x10000) > warn % 0x100)
+        eq(0xcc0000, vim.api.nvim_get_hl(0, { name = 'UiError', link = false }).fg)
+      end
+    )
 
     it('shares one default block surface with the terminal, and leaves command output on Normal', function()
       hl.define()

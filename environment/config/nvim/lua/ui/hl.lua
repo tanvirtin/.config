@@ -14,6 +14,9 @@ hl.STRIKE_LIGHT = 2
 hl.FADE_FLOOR = 0.45
 hl.THOUGHT = 0.62
 hl.FLASH_PEAK = 0.24
+hl.RULE = 0.3
+hl.LEGIBLE = 3
+hl.LIFT_STEP = 0.1
 
 hl.GROUPS = {
   UiNormal = 'NormalFloat',
@@ -39,13 +42,11 @@ hl.GROUPS = {
   UiMarkdownHeading6 = '@markup.heading.6.markdown',
   UiMarkdownBullet = 'Special',
   UiMarkdownQuote = 'Comment',
-  UiMarkdownRule = 'WinSeparator',
   UiMarkdownLink = 'Underlined',
   UiMarkdownChecked = 'DiagnosticOk',
   UiMarkdownUnchecked = 'Comment',
   UiMarkdownTableHeader = '@markup.heading.markdown',
   UiMarkdownTableCell = 'Normal',
-  UiTurnSeparator = 'WinSeparator',
   UiExternalChange = 'DiffChange',
   UiToolName = 'Function',
   UiToolPending = 'DiagnosticInfo',
@@ -72,6 +73,38 @@ function hl.blend(fg, bg, alpha)
   end
 
   return out
+end
+
+local function luminance(rgb)
+  local total = 0
+
+  for shift, weight in pairs({ [16] = 0.2126, [8] = 0.7152, [0] = 0.0722 }) do
+    local value = (math.floor(rgb / 2 ^ shift) % 256) / 255
+
+    total = total + weight * (value <= 0.03928 and value / 12.92 or ((value + 0.055) / 1.055) ^ 2.4)
+  end
+
+  return total
+end
+
+function hl.contrast(a, b)
+  local x, y = luminance(a), luminance(b)
+
+  if x < y then
+    x, y = y, x
+  end
+
+  return (x + 0.05) / (y + 0.05)
+end
+
+function hl.legible(fg, bg, text)
+  local mix = 0
+
+  while mix < 1 and hl.contrast(hl.blend(text, fg, mix), bg) < hl.LEGIBLE do
+    mix = math.min(1, mix + hl.LIFT_STEP)
+  end
+
+  return hl.blend(text, fg, mix)
 end
 
 local function shade(strength, fallback)
@@ -229,6 +262,16 @@ hl.COMPUTED = {
     return { bg = color('Normal', 'bg') }
   end,
   UiTerminal = shade(SURFACE, 'ColorColumn'),
+  UiTurnSeparator = function()
+    local foreground, background = color('Normal', 'fg'), color('Normal', 'bg')
+
+    if not foreground or not background then return { link = 'WinSeparator' } end
+
+    return { fg = hl.blend(foreground, background, hl.RULE) }
+  end,
+  UiMarkdownRule = function()
+    return { link = 'UiTurnSeparator' }
+  end,
   UiArtifactBorder = function()
     local foreground, background = color('Normal', 'fg'), color('Normal', 'bg')
 
@@ -378,7 +421,54 @@ local function apply(group, spec)
   end
 end
 
+hl.LIFTED = {
+  'UiAccent',
+  'UiWorking',
+  'UiPath',
+  'UiAdded',
+  'UiRemoved',
+  'UiError',
+  'UiWarn',
+  'UiInfo',
+  'UiHint',
+  'UiToolName',
+  'UiToolPending',
+  'UiToolDone',
+  'UiToolFailed',
+  'UiMarkdownBullet',
+  'UiMarkdownLink',
+  'UiMarkdownChecked',
+}
+
+for slot = 1, hl.WORKING_SLOTS do
+  hl.LIFTED[#hl.LIFTED + 1] = 'UiWorking' .. slot
+end
+
+local lifted = {}
+
+local function lift()
+  local text, background = color('Normal', 'fg'), color('Normal', 'bg')
+
+  if not text or not background then return end
+
+  for _, group in ipairs(hl.LIFTED) do
+    local ok, spec = pcall(highlight.get_hl_by_name, group)
+    local fg = ok and spec.fg
+
+    if fg and hl.contrast(fg, background) < hl.LEGIBLE then
+      highlight.set(group, vim.tbl_extend('force', spec, { fg = hl.legible(fg, background, text) }))
+      lifted[group] = true
+    end
+  end
+end
+
 function hl.define()
+  for group in pairs(lifted) do
+    if hl.GROUPS[group] then highlight.set(group, { link = hl.GROUPS[group] }) end
+  end
+
+  lifted = {}
+
   for group, link in pairs(hl.GROUPS) do
     highlight.set(group, { link = link, default = true })
   end
@@ -392,6 +482,8 @@ function hl.define()
   end
 
   if #picked > 0 then highlight.set('UiWorking', { fg = picked[1] }) end
+
+  lift()
 
   for group, compute in pairs(hl.COMPUTED) do
     highlight.set(group, compute())
