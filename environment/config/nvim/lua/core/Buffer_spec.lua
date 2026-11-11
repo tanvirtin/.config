@@ -267,6 +267,18 @@ describe('Buffer:', function()
     end)
   end)
 
+  describe('syntax_root', function()
+    it('returns the root of the syntax tree, or nil without a parser', function()
+      local buf = vim.api.nvim_create_buf(false, true)
+
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'return 1' })
+      assert.is_nil(Buffer(buf):syntax_root())
+
+      vim.bo[buf].filetype = 'lua'
+      assert.equals('chunk', Buffer(buf):syntax_root():type())
+    end)
+  end)
+
   describe('get_line_count', function()
     it('should get buffer line count', function()
       buffer:set_lines({ 'line1', 'line2' })

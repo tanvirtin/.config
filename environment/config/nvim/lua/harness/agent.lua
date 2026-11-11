@@ -16,6 +16,7 @@ local SYSTEM = table.concat({
   'Editor tools default to that buffer when path and bufnr are omitted, so call editor_state only for the open buffers and tabs.',
   'The nvim MCP tools act on the live editor: read and edit files through buffer_read and buffer_edit in place of your own file tools,',
   'because buffers hold unsaved changes and the user watches each edit land. buffer_edit takes several edits in one call.',
+  'In a large file, outline lists the definitions with their lines, and buffer_read with symbol reads just one.',
   'The session_* tools start and follow other agent sessions in this directory; they run in the background, so check on them with session_read.',
   '',
   'The editor\'s UI is yours to drive, but showing is optional: answer fast, show when it helps the user.',

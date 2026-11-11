@@ -245,6 +245,16 @@ function Buffer:node_at(row, col)
   return vim.treesitter.get_node({ bufnr = self.bufnr, pos = { row, col } })
 end
 
+function Buffer:syntax_root()
+  local ok, parser = pcall(vim.treesitter.get_parser, self.bufnr, nil, { error = false })
+
+  if not ok or not parser then return nil end
+
+  local tree = parser:parse()[1]
+
+  return tree and tree:root() or nil
+end
+
 function Buffer:write()
   self:call(function()
     vim.cmd('silent write ++p')

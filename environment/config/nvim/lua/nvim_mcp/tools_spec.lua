@@ -94,8 +94,7 @@ describe('nvim_mcp.tools:', function()
       local out = run('buffer_read', { bufnr = buf, start_line = 2, end_line = 3 })
 
       assert.is_truthy(out:find('lines 2-3 of 3', 1, true))
-      assert.is_truthy(out:find('     2\tlocal y = x', 1, true))
-      assert.is_truthy(out:find('     3\treturn y', 1, true))
+      assert.is_truthy(out:find('\n2\tlocal y = x\n3\treturn y', 1, true))
       assert.is_falsy(out:find('local x = 1', 1, true))
     end)
 
@@ -118,6 +117,50 @@ describe('nvim_mcp.tools:', function()
 
       eq(false, ok)
       assert.is_truthy(err:find('no buffer or file', 1, true))
+    end)
+  end)
+
+  describe('definitions', function()
+    before_each(function()
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+        'local M = {}',
+        '',
+        'local function helper(a)',
+        '  return a',
+        'end',
+        '',
+        'function M.run(a)',
+        '  return helper(a)',
+        'end',
+        '',
+        'return M',
+      })
+      vim.bo[buf].filetype = 'lua'
+    end)
+
+    it('outlines a buffer with the lines of each definition', function()
+      local out = run('outline', { bufnr = buf })
+
+      assert.is_truthy(out:find('(11 lines)\n3-5 local function helper(a)\n7-9 function M.run(a)', 1, true))
+    end)
+
+    it('reads one definition by name', function()
+      local out = run('buffer_read', { bufnr = buf, symbol = 'run' })
+
+      assert.is_truthy(out:find('lines 7-9 of 11', 1, true))
+      assert.is_truthy(vim.endswith(out, '\n7\tfunction M.run(a)\n8\t  return helper(a)\n9\tend'))
+    end)
+
+    it('says when a buffer has no definition of that name, or no syntax tree', function()
+      local ok, err = pcall(run, 'buffer_read', { bufnr = buf, symbol = 'nope' })
+
+      eq(false, ok)
+      assert.is_truthy(err:find('no definition of nope', 1, true))
+
+      ok, err = pcall(run, 'outline', { bufnr = vim.api.nvim_create_buf(false, true) })
+
+      eq(false, ok)
+      assert.is_truthy(err:find('no syntax tree', 1, true))
     end)
   end)
 
@@ -197,7 +240,7 @@ describe('nvim_mcp.tools:', function()
 
       console.warn = original
 
-      eq(1, result.replacements)
+      assert.is_truthy(result:find('1 replacement', 1, true))
       eq(1, seen)
       eq(1, #warnings)
       assert.truthy(warnings[1]:find('broken', 1, true))
@@ -210,8 +253,7 @@ describe('nvim_mcp.tools:', function()
       local result = run('buffer_edit', { bufnr = buf, old_string = 'local y = x', new_string = 'local y = x + 1' })
 
       eq({ 'local x = 1', 'local y = x + 1', 'return y' }, lines(buf))
-      eq(1, result.replacements)
-      eq(2, result.start_line)
+      eq('edited bufnr ' .. buf .. ' lines 2-2 (1 replacement), unsaved', result)
       eq(true, vim.bo[buf].modified)
 
       vim.api.nvim_buf_call(buf, function()
@@ -233,9 +275,12 @@ describe('nvim_mcp.tools:', function()
       eq(false, ok)
       assert.is_truthy(err:find('matches 2 times', 1, true))
 
-      eq(
-        2,
-        run('buffer_edit', { bufnr = buf, old_string = 'local', new_string = 'var', replace_all = true }).replacements
+      assert.is_truthy(
+        run('buffer_edit', { bufnr = buf, old_string = 'local', new_string = 'var', replace_all = true }):find(
+          '2 replacements',
+          1,
+          true
+        )
       )
       eq({ 'var x = 1', 'var y = x', 'return y' }, lines(buf))
     end)
@@ -259,10 +304,7 @@ describe('nvim_mcp.tools:', function()
       })
 
       eq({ 'local x = 3', 'local y = x', 'return y + x' }, lines(buf))
-      eq(3, result.edits)
-      eq(3, result.replacements)
-      eq(1, result.start_line)
-      eq(3, result.end_line)
+      eq('edited bufnr ' .. buf .. ' lines 1-3 (3 replacements, 3 edits), unsaved', result)
 
       vim.api.nvim_buf_call(buf, function()
         vim.cmd('silent undo')
@@ -336,7 +378,8 @@ describe('nvim_mcp.tools:', function()
       local path = vim.fn.tempname() .. '/new.lua'
       local result = run('buffer_write', { path = path, content = 'return 1' })
 
-      eq({ 'return 1' }, lines(result.bufnr))
+      assert.is_truthy(result:find(', 1 lines), unsaved', 1, true))
+      eq({ 'return 1' }, lines(vim.fn.bufnr(path)))
       eq(nil, vim.uv.fs_stat(path))
     end)
   end)
@@ -346,8 +389,8 @@ describe('nvim_mcp.tools:', function()
       local path = vim.fn.tempname() .. '/dir/saved.lua'
 
       run('buffer_write', { path = path, content = 'return 2' })
-      run('buffer_save', { path = path })
 
+      assert.is_truthy(run('buffer_save', { path = path }):find('^saved '))
       eq({ 'return 2' }, vim.fn.readfile(path))
     end)
   end)
@@ -360,12 +403,14 @@ describe('nvim_mcp.tools:', function()
       local result = run('open', { path = path, line = 3 })
 
       eq(tabs + 1, #vim.api.nvim_list_tabpages())
-      eq(3, vim.api.nvim_win_get_cursor(result.win)[1])
-      assert.is_truthy(run('editor_state'):find('bufnr ' .. result.bufnr .. ',', 1, true))
+      local opened, win = result:match('%(bufnr (%d+), win (%d+)%)$')
+
+      eq(3, vim.api.nvim_win_get_cursor(tonumber(win))[1])
+      assert.is_truthy(run('editor_state'):find('bufnr ' .. opened .. ',', 1, true))
     end)
 
     it('moves the cursor 1-based', function()
-      run('cursor_set', { line = 2, col = 3 })
+      assert.is_truthy(run('cursor_set', { line = 2, col = 3 }):find('^cursor 2:3 in win '))
 
       eq({ 2, 2 }, vim.api.nvim_win_get_cursor(0))
     end)

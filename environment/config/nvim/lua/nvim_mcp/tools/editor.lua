@@ -84,7 +84,7 @@ local function open(args)
 
   util.set_focus(window.win_id)
 
-  return { path = util.buf_path(buffer.bufnr), bufnr = buffer.bufnr, win = window.win_id }
+  return string.format('opened %s (bufnr %d, win %d)', buf_name(buffer.bufnr), buffer.bufnr, window.win_id)
 end
 
 local function cursor_set(args)
@@ -97,7 +97,7 @@ local function cursor_set(args)
 
   window:move_cursor(line, (args.col or 1) - 1)
 
-  return { win = window.win_id, line = line, col = args.col or 1 }
+  return string.format('cursor %d:%d in win %d', line, args.col or 1, window.win_id)
 end
 
 return {

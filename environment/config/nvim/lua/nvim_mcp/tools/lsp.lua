@@ -18,10 +18,15 @@ local function lsp_clients(args)
   local out = {}
 
   for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
-    out[#out + 1] = { id = client.id, name = client.name, root_dir = client.root_dir }
+    out[#out + 1] = string.format(
+      '%s (id %d)%s',
+      client.name,
+      client.id,
+      client.root_dir and (' root ' .. compact.path(client.root_dir)) or ''
+    )
   end
 
-  return out
+  return #out > 0 and table.concat(out, '\n') or 'no language servers'
 end
 
 local function request(buf, method, params)
@@ -65,36 +70,6 @@ local function lsp_hover(args)
   return table.concat(out, '\n\n')
 end
 
-local function flatten_symbols(symbols, out, depth)
-  for _, symbol in ipairs(symbols or {}) do
-    local range = symbol.selectionRange or symbol.range or (symbol.location and symbol.location.range)
-
-    out[#out + 1] = {
-      name = symbol.name,
-      kind = vim.lsp.protocol.SymbolKind[symbol.kind] or symbol.kind,
-      line = range and range.start.line + 1 or nil,
-      depth = depth,
-    }
-
-    flatten_symbols(symbol.children, out, depth + 1)
-  end
-
-  return out
-end
-
-local function lsp_symbols(args)
-  local buf = util.resolve(args)
-  local out = {}
-
-  for _, result in
-    ipairs(request(buf, 'textDocument/documentSymbol', { textDocument = { uri = vim.uri_from_bufnr(buf) } }))
-  do
-    flatten_symbols(result, out, 0)
-  end
-
-  return out
-end
-
 local AT = util.params(util.TARGET, util.POSITION)
 local OFFSET = {
   {
@@ -125,12 +100,5 @@ return {
     summary = 'Hover documentation (type, signature, docs) for the symbol at a position.',
     params = AT,
     fn = lsp_hover,
-  },
-  {
-    name = 'lsp_symbols',
-    risk = 'read',
-    summary = 'Document outline from the language server: symbol name, kind, 1-based line, and nesting depth.',
-    params = util.TARGET,
-    fn = lsp_symbols,
   },
 }

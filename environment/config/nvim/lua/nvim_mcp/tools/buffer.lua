@@ -1,34 +1,91 @@
 local Buffer = require('core.Buffer')
+local compact = require('compact')
 local fs = require('core.fs')
+local outline = require('nvim_mcp.outline')
 local schema = require('nvim_mcp.schema')
 local util = require('nvim_mcp.tools.util')
 
 local MAX_READ_LINES = 2000
 
+local function shown(buf)
+  local path = util.buf_path(buf)
+
+  return path and fs.display(path) or ('bufnr ' .. buf)
+end
+
+local function definitions(buf)
+  local buffer = Buffer(buf)
+  local root = buffer:syntax_root()
+
+  if not root then
+    util.fail(
+      string.format(
+        'no syntax tree for %s (filetype "%s"); read it with buffer_read',
+        shown(buf),
+        buffer:get_option('filetype')
+      )
+    )
+  end
+
+  return outline.of(root, buf, buffer:get_lines())
+end
+
+local function symbol_span(buf, symbol)
+  local found = outline.find(definitions(buf), symbol)
+
+  if #found == 0 then
+    util.fail(string.format('no definition of %s in %s; outline lists the ones it has', symbol, shown(buf)))
+  end
+
+  local others = {}
+
+  for i = 2, #found do
+    others[#others + 1] = found[i].first
+  end
+
+  return found[1].first, found[1].last, #others > 0 and ('; also defined at ' .. table.concat(others, ', ')) or ''
+end
+
 local function buffer_read(args)
   local buf = util.resolve(args)
   local buffer = Buffer(buf)
   local total = buffer:get_line_count()
-  local first = math.max(args.start_line or 1, 1)
-  local last = math.min(args.end_line or total, total, first + MAX_READ_LINES - 1)
+  local from, to, note = args.start_line, args.end_line, ''
+
+  if args.symbol then
+    from, to, note = symbol_span(buf, args.symbol)
+  end
+
+  local first = math.max(from or 1, 1)
+  local last = math.min(to or total, total, first + MAX_READ_LINES - 1)
   local out = {}
 
   for i, line in ipairs(buffer:get_lines(first - 1, last)) do
-    out[i] = string.format('%6d\t%s', first + i - 1, line)
+    out[i] = (first + i - 1) .. '\t' .. line
   end
 
   local path = util.buf_path(buf)
   local header = string.format(
-    '%s (bufnr %d, lines %d-%d of %d%s)',
+    '%s (bufnr %d, lines %d-%d of %d%s%s)',
     path and fs.display(path) or '[No Name]',
     buf,
     first,
     last,
     total,
-    buffer:get_option('modified') and ', unsaved changes' or ''
+    buffer:get_option('modified') and ', unsaved changes' or '',
+    note
   )
 
   return header .. '\n' .. table.concat(out, '\n')
+end
+
+local function buffer_outline(args, ctx)
+  local buf = util.resolve(args)
+  local entries = definitions(buf)
+  local header = string.format('%s (%d lines)', shown(buf), Buffer(buf):get_line_count())
+  local text = header .. '\n' .. compact.text(outline.format(entries), args.budget)
+
+  return compact.reply(ctx.caller, entries, text)
 end
 
 local function treesitter_node(args)
@@ -153,15 +210,17 @@ local function buffer_edit(args, ctx)
     report(ctx, { path = util.buf_path(buf), old = item.old_string, new = item.new_string })
   end
 
-  return {
-    path = util.buf_path(buf),
-    bufnr = buf,
-    edits = batch and #list or nil,
-    replacements = replacements,
-    start_line = top + 1,
-    end_line = math.max(top + #middle, top + 1),
-    saved = false,
-  }
+  local counts = { replacements .. (replacements == 1 and ' replacement' or ' replacements') }
+
+  if batch then counts[#counts + 1] = #list .. (#list == 1 and ' edit' or ' edits') end
+
+  return string.format(
+    'edited %s lines %d-%d (%s), unsaved',
+    shown(buf),
+    top + 1,
+    math.max(top + #middle, top + 1),
+    table.concat(counts, ', ')
+  )
 end
 
 local function buffer_write(args, ctx)
@@ -177,7 +236,7 @@ local function buffer_write(args, ctx)
   Buffer(buf):replace_lines(0, -1, new_lines)
   report(ctx, { path = util.buf_path(buf), old = old, new = table.concat(new_lines, '\n') })
 
-  return { path = util.buf_path(buf), bufnr = buf, line_count = #new_lines, saved = false }
+  return string.format('wrote %s (bufnr %d, %d lines), unsaved', shown(buf), buf, #new_lines)
 end
 
 local function buffer_save(args)
@@ -187,19 +246,33 @@ local function buffer_save(args)
 
   Buffer(buf):write()
 
-  return { path = util.buf_path(buf), bufnr = buf, saved = true }
+  return 'saved ' .. shown(buf)
 end
 
 return {
   {
     name = 'buffer_read',
     risk = 'read',
-    summary = 'Read a buffer as numbered lines (1-based, inclusive), including unsaved changes. Prefer this over reading the file from disk.',
+    summary = 'Read a buffer as numbered lines (1-based, inclusive), including unsaved changes. Prefer this over reading the file from disk. Give symbol to read one definition instead of the whole file.',
     params = util.params(util.TARGET, {
       { name = 'start_line', type = schema.int(), optional = true },
       { name = 'end_line', type = schema.int(), optional = true },
+      {
+        name = 'symbol',
+        type = schema.str({ description = 'Name of a function, method, class or type: reads just its lines.' }),
+        optional = true,
+      },
     }),
     fn = buffer_read,
+  },
+  {
+    name = 'outline',
+    risk = 'read',
+    summary = 'The definitions in a buffer (functions, methods, classes, types, markdown sections) with their line ranges, nested, from the syntax tree. Use it to find your way in a large file before reading the part you need.',
+    params = util.params(util.TARGET, {
+      { name = 'budget', type = schema.int({ description = 'Characters of output (default 6000).' }), optional = true },
+    }),
+    fn = buffer_outline,
   },
   {
     name = 'treesitter_node',

@@ -20,6 +20,7 @@ server.INSTRUCTIONS = table.concat({
 local MAX_RESULT_CHARS = { buffer_read = 200000 }
 
 local ALWAYS_LOAD = {
+  outline = true,
   buffer_read = true,
   buffer_edit = true,
   buffer_write = true,
