@@ -1,4 +1,4 @@
-.PHONY: test test-filter test-file bench bench-check bench-tools coverage lint format format-check fix-requires check ci install-deps clean
+.PHONY: test test-filter test-file bench bench-check coverage lint format format-check fix-requires check ci install-deps clean
 
 LUA_VERSION ?= 5.1
 
@@ -19,9 +19,6 @@ test-file:
 
 bench:
 	nvim --headless -c 'luafile bench/harness.lua'
-
-bench-tools:
-	nvim --headless -l bench/tools.lua
 
 bench-check:
 	@test -n "$(BENCH_BUDGET_MS)" || (echo "set BENCH_BUDGET_MS to a millisecond budget" && exit 1)
