@@ -4,10 +4,6 @@ local sticky_bottom = require('harness.ui.sticky_bottom')
 
 local eq = assert.are.same
 
--- The anchoring contract, across intent x event x fold state. These are
--- characterisation tests: they pin what "follow" and "hold" mean before the
--- implementation is simplified, so a refactor cannot quietly change one
--- permutation while fixing another.
 describe('harness.ui.Following permutations:', function()
   local win, bufnr, reserve, following
   local cmdheight = vim.o.cmdheight
@@ -74,13 +70,11 @@ describe('harness.ui.Following permutations:', function()
     following:land(window(), function() end)
   end
 
-  -- the reader moved, or the window changed: read the view, then apply it
   local function settle()
     if not following:resized(window()) then following:observe(window()) end
     following:sync(window())
   end
 
-  -- the stream rewrote the buffer: put the view back, and record it
   local function redraw()
     following:sync(window())
   end
@@ -165,7 +159,6 @@ describe('harness.ui.Following permutations:', function()
     end)
   end
 
-  -- follow: the newest line stays visible as the stream moves
   scenario('follow + append 1', 'follow', {
     action = function()
       append(1)
@@ -276,7 +269,6 @@ describe('harness.ui.Following permutations:', function()
     expect = 'hold',
   })
 
-  -- hold: the reader's row stays put as the stream moves
   scenario('hold + append 1', 'hold', {
     action = function()
       append(1)

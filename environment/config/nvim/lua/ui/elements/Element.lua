@@ -70,8 +70,6 @@ function Element:mount()
   return self
 end
 
--- Drops the window and the refs without deleting the buffer, for the case where
--- the buffer is already going (a BufWipeout): deleting it there is E937.
 function Element:forget()
   if not self._mounted then return self end
 

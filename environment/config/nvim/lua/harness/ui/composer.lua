@@ -69,9 +69,6 @@ function composer.is_open(session)
   return false
 end
 
--- True when this buffer is an open composer's. Nothing else may take over the
--- window it lives in: the buffer is bufhidden=wipe, so replacing it would wipe
--- the composer and leave its split behind.
 function composer.owns(bufnr)
   for _, view in pairs(views) do
     if view:is_open() and view.element:get_buffer().bufnr == bufnr then return true end

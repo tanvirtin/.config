@@ -182,7 +182,6 @@ function NODES.quote(out, node, src, renderer)
 
       mark(out, row, #markers, { end_col = #text, conceal = '' })
 
-      -- a deferred callout is drawn by its owner, which can animate it
       if not (callout.defer and renderer and renderer.defer_callouts) then
         mark(out, row, #markers, {
           virt_text = { { callout.icon .. (title ~= '' and title or label), callout.hl } },

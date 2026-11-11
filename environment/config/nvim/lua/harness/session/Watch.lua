@@ -11,11 +11,6 @@ Watch.KIND = { subagent = 'subagent', tool = 'tool' }
 
 Watch.LABEL = { subagent = 'subagent', tool = 'tool' }
 
--- What a turn left running. A turn that ends while something is still open
--- marks it: if it finishes after the turn ended, nobody was there to read it,
--- so it starts a new turn. Work that finished inside the turn is never marked,
--- which is what keeps an agent that waited for its own subagent from being
--- woken about it.
 function Watch:constructor(session)
   return {
     session = session,
@@ -97,8 +92,6 @@ function Watch:waiting()
   return #self.pending
 end
 
--- A short pause lets several things that finish together become one turn
--- instead of one turn each.
 function Watch:_schedule()
   if self.scheduled then return end
 
@@ -135,7 +128,6 @@ function Watch:_fire()
 
   if #self.pending == 0 then return end
 
-  -- the session refused it; keep the items for the next turn
   for _, item in ipairs(items) do
     self.pending[#self.pending + 1] = item
   end

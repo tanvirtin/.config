@@ -36,8 +36,6 @@ function Subagents:apply(event)
   end
 end
 
--- The parent's turn watches a child from the moment it appears, so a child that
--- is still running when the turn ends can wake the parent when it finishes.
 function Subagents:_watch(child)
   local watch = self.session.watch
 

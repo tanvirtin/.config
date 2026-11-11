@@ -383,7 +383,6 @@ describe('harness.ui.composer:', function()
     vim.wait(100)
 
     eq(true, composer.is_open())
-    -- a wrapped bottom line can cost a row
     assert.is_true(math.abs(vim.fn.line('w0', win) - top) <= 1)
 
     composer.close(true)

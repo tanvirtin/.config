@@ -5,12 +5,8 @@ local function map(mode, key, action, opts)
   vim.keymap.set(mode, key, action, opts)
 end
 
--- prefixes
-
 map('n', '<Space>', '<NOP>')
 map('n', ',', '<NOP>')
-
--- editing
 
 map('v', '<', '<gv', { desc = 'Indent, keeping the selection' })
 map('v', '>', '>gv', { desc = 'Outdent, keeping the selection' })
@@ -35,8 +31,6 @@ map('n', '<leader><leader>', '<Cmd>w<CR>', { desc = 'Write the buffer' })
 map('n', '<leader><ESC>', '<Cmd>q<CR>', { desc = 'Quit' })
 map('v', '<leader><ESC>', '<Cmd>q<CR>', { desc = 'Quit' })
 
--- windows and buffers
-
 map('n', '\\', '<Cmd>winc w<CR>', { desc = 'Next window' })
 
 map('n', '<leader>q', '<Cmd>bp | sp | bn | bd<CR>', { desc = 'Close the buffer, keeping the window' })
@@ -46,8 +40,6 @@ map('n', '<C-l>', '<Cmd>bn<CR>', { desc = 'Next buffer' })
 
 map('n', '<C-w>', '<Cmd>cp<CR>', { desc = 'Previous quickfix entry' })
 map('n', '<C-s>', '<Cmd>cn<CR>', { desc = 'Next quickfix entry' })
-
--- pickers
 
 local function pick(title, source, source_opts)
   return function()
@@ -77,8 +69,6 @@ map('n', '<leader><space>', function()
   end
 end, { desc = 'Toggle the explorer' })
 
--- lsp
-
 map('n', '<leader>ld', pick('Definitions', 'lsp', at_cursor('definition')), { desc = 'Definitions' })
 map('n', '<leader>lr', pick('References', 'lsp', at_cursor('references')), { desc = 'References' })
 map('n', '<leader>lt', pick('Type definitions', 'lsp', at_cursor('type_definition')), { desc = 'Type definitions' })
@@ -103,8 +93,6 @@ map('n', '<leader>lq', function()
 end, { desc = 'Diagnostics to quickfix' })
 map('n', '<leader>lD', pick('Diagnostics', 'diagnostics'), { desc = 'Diagnostics picker' })
 
--- git
-
 map('n', '<leader>gs', '<Cmd>VGit buffer_hunk_stage<CR>', { desc = 'Stage hunk' })
 map('n', '<leader>gr', '<Cmd>VGit buffer_hunk_reset<CR>', { desc = 'Reset hunk' })
 map('n', '<leader>gp', '<Cmd>VGit hunk<CR>', { desc = 'Preview hunk' })
@@ -128,8 +116,6 @@ map('n', '<leader>gcc', '<Cmd>VGit buffer_conflict_accept_current<CR>', { desc =
 map('n', '<leader>gci', '<Cmd>VGit buffer_conflict_accept_incoming<CR>', { desc = 'Conflict: accept incoming' })
 map('n', '<leader>gcb', '<Cmd>VGit buffer_conflict_accept_both<CR>', { desc = 'Conflict: accept both' })
 
--- selection
-
 map(
   'v',
   '<leader>sy',
@@ -144,8 +130,6 @@ map(
 )
 map('n', '<leader>sf', '<Cmd>lua require("core.selection").flush()<CR>', { desc = 'Flush the selection' })
 map('n', '<leader>sc', '<Cmd>lua require("core.selection").clear()<CR>', { desc = 'Clear the selection' })
-
--- agent: enter a session and housekeeping; the transcript carries the rest
 
 map('n', '<leader>.', '<Cmd>lua require("harness").switch()<CR>', { desc = 'Sessions' })
 

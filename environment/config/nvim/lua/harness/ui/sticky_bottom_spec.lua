@@ -158,7 +158,6 @@ describe('harness.ui.sticky_bottom:', function()
     eq(4, room())
     eq(top + 4, vim.fn.line('w0', win))
 
-    -- a smaller reserve is a smaller floor, not a reason to move the text
     sticky_bottom.edge(window(), 2)
     eq(4, room())
     eq(top + 4, vim.fn.line('w0', win))

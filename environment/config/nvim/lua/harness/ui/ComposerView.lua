@@ -398,15 +398,12 @@ function ComposerView:close(discard, opts)
 
     if self.destination:keeps_draft() then self.store:set_draft(key, ComposerView.has_text(lines) and lines or nil) end
 
-    -- the transcript takes the rows back: put its top line back once it has grown
     if view then view:watch() end
 
     self.element:unmount()
 
     if view then view:hold_end() end
   elseif self.element and self.element:is_mounted() then
-    -- the buffer went first (it is bufhidden=wipe), and the split it lived in
-    -- did not: close that too
     self.element:unmount()
   end
 
@@ -668,14 +665,9 @@ function ComposerView:_listen()
   element:on('BufWipeout', function()
     self:_release()
 
-    -- The buffer went on its own (it is bufhidden=wipe): switching buffers in
-    -- the composer window, as <C-l> does, is the usual way. The split must go
-    -- with it, or it is left showing whatever buffer replaced the composer.
     if not self.closing and self.element and self.element:is_mounted() then
       local element = self.element
 
-      -- closing the window inside BufWipeout is too early; the buffer switch
-      -- that caused it is still running
       Timer.defer(0, function()
         if element:is_mounted() then element:forget() end
       end)
@@ -719,8 +711,6 @@ function ComposerView:mount(insert)
   self.source = { win = view and view.source_win, buf = view and view.source_buf }
   self.element = element
 
-  -- the split takes rows from the transcript: note where the reader is first,
-  -- then put the top line back once the window has shrunk
   if view then view:watch() end
 
   element:mount()

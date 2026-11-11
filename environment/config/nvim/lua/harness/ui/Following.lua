@@ -61,8 +61,6 @@ function Following:settled(window)
   return self:of(window).applied ~= nil
 end
 
--- a view difference that comes with a different size is the resize's, not a
--- scroll the reader made
 function Following:resized(window)
   local state = self:of(window)
 
@@ -88,8 +86,6 @@ function Following:_unanchor(state)
   state.anchor, state.anchor_fill, state.anchor_skip = nil, 0, 0
 end
 
--- the reader moved later in the buffer: a lower top line, further into a
--- smoothscrolled line, or one filler row less above it
 function Following:_later(now, was)
   if now.topline ~= was.topline then return now.topline > was.topline end
   if (now.skipcol or 0) ~= (was.skipcol or 0) then return (now.skipcol or 0) > (was.skipcol or 0) end
@@ -103,9 +99,6 @@ function Following:_moved(now, was)
     or (now.topfill or 0) ~= (was.topfill or 0)
 end
 
--- the reader reached the end when the last row they could see is the one the
--- buffer ended on at the last view we wrote, even if the stream has appended
--- since, before their scroll was observed
 function Following:_reached_end(state, window)
   if sticky_bottom.at_end(window) then return true end
 
@@ -116,8 +109,6 @@ function Following:_reached_end(state, window)
   return select(2, window:get_visible_range()) >= math.min(known, window:get_buffer():get_line_count())
 end
 
--- A difference from the view we last wrote is the reader's. Reaching the end
--- from above turns following back on; anything else holds the new position.
 function Following:observe(window)
   if not window:is_valid() then return end
 

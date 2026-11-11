@@ -312,9 +312,6 @@ function TranscriptView:reserve(window)
   return sticky_bottom.margin(window)
 end
 
--- The one place a window is put back where its intent says. A difference from
--- the view we last wrote is the reader's, unless the window's size changed:
--- then the resize moved it, and the intent is simply re-applied.
 function TranscriptView:sync(windows)
   if self.session:loading() then return end
 
@@ -365,8 +362,6 @@ function TranscriptView:announce_waiting()
   self.notice:announce()
 end
 
--- a window that came to show the transcript without BufWinEnter (a split of it,
--- another tab) has never been landed, so nothing would follow the stream in it
 function TranscriptView:adopt(windows)
   for _, window in ipairs(windows) do
     if not self.following:settled(window) then self:land(window) end
@@ -434,8 +429,6 @@ function TranscriptView:on_show()
 
   local window = Window.get_current()
 
-  -- a window the reader left scrolled up keeps their place; anything else
-  -- lands on the end, including one that was following what streamed meanwhile
   if self.following:holds(window) then
     if self.dirty then
       self:render()
@@ -650,8 +643,6 @@ function TranscriptView:mount(callbacks)
     self:update_plan()
     relayout()
   end)
-  -- a view that differs from the one we last wrote is the reader's. Our own
-  -- scrolls are ignored while they happen; a resize is recognised by its height
   self.group.on('WinScrolled', function()
     if not self.disposed and not self.following.applying then self:sync() end
   end)
@@ -679,8 +670,6 @@ function TranscriptView:mount(callbacks)
     end,
   })
 
-  -- WinScrolled is not delivered everywhere, so the window is watched for the
-  -- user's own scrolling instead of waiting for an event
   self.watcher = Timer():every(settings.transcript:get('watch_ms'), function()
     if not self.disposed and self:is_visible() then self:watch() end
   end)

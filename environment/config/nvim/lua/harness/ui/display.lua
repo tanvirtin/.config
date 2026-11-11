@@ -121,11 +121,7 @@ function display.open(session, opts)
   if not opts.background then
     local window = Window.get_current()
 
-    if composer.owns(window:get_buffer().bufnr) then
-      -- the transcript never takes the composer's window: it goes to a window
-      -- already showing it, or into a split of its own
-      window = view:windows()[1] or Window.split_top()
-    end
+    if composer.owns(window:get_buffer().bufnr) then window = view:windows()[1] or Window.split_top() end
 
     view:show_in(window)
     display.set_current(view)

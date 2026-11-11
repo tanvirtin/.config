@@ -48,14 +48,12 @@ describe('harness.ui.Following:', function()
     following:land(window(), function() end)
   end
 
-  -- the reader moved, or the window was resized: read the view, then apply it
   local function settle()
     if not following:resized(window()) then following:observe(window()) end
 
     following:sync(window())
   end
 
-  -- the stream rewrote the buffer: only put the view back, and record it
   local function redraw()
     following:sync(window())
   end
@@ -222,7 +220,6 @@ describe('harness.ui.Following:', function()
     settle()
     eq(false, following:follows(window()))
 
-    -- the rewrite ends the buffer above the row the reader was on
     rewrite_tail(50, 20)
     redraw()
 
@@ -250,8 +247,6 @@ describe('harness.ui.Following:', function()
     eq(false, sticky_bottom.at_end(window()))
     eq(false, following:follows(window()))
 
-    -- the stream rewrites the tail shorter below the reader: the anchor
-    -- survives, but the end comes back into view
     vim.api.nvim_buf_set_lines(bufnr, -3, -1, false, {})
     redraw()
 
@@ -361,7 +356,6 @@ describe('harness.ui.Following:', function()
 
     local before = top()
 
-    -- a shrinking window drags the cursor's line, parked on the bottom row, into view
     vim.api.nvim_win_set_height(win, vim.api.nvim_win_get_height(win) - 6)
     settle()
 
@@ -527,7 +521,6 @@ describe('harness.ui.Following:', function()
     assert.is_nil(state.buffer:get_extmark_row(Following.ANCHOR, state.anchor))
   end)
 
-  -- a subagent writes under its tool call, in the middle of the transcript
   local function insert_at(row, count)
     local lines = {}
 
