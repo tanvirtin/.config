@@ -37,7 +37,6 @@ local function check(set, entry)
   assert(type(entry.summary) == 'string', where .. ': summary must be a string')
   assert(type(entry.params) == 'table', where .. ': params must be a list of fields')
   assert(type(entry.fn) == 'function', where .. ': fn must be a function')
-  assert(entry.name:sub(1, 5) ~= 'nvim_', where .. ': the nvim_ prefix belongs to the raw API')
 end
 
 local function load()

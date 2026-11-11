@@ -460,7 +460,6 @@ describe('nvim_mcp.tools:', function()
 
       eq(false, pcall(tools.register, 'spec', { bad }))
       eq(false, pcall(tools.register, 'spec', { entry('buffer_read') }))
-      eq(false, pcall(tools.register, 'spec', { entry('nvim_spec') }))
       eq(false, pcall(tools.register, 'spec', { entry('spec_x'), entry('spec_x') }))
     end)
 

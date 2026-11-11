@@ -3,7 +3,6 @@ local lazy = require('core.lazy')
 local fs = lazy('core.fs')
 local text = lazy('core.text')
 local Timer = lazy('core.Timer')
-local api = lazy('nvim_mcp.api')
 local async = lazy('harness.async')
 local console = lazy('core.console')
 local tools = lazy('nvim_mcp.tools')
@@ -22,7 +21,7 @@ function permissions.tier(tool_name)
 
   local name = tool_name:sub(#PREFIX + 1)
 
-  return tools.risk(name) or (name:sub(1, 5) == 'nvim_' and api.risk(name)) or 'exec'
+  return tools.risk(name) or 'exec'
 end
 
 permissions.CHOICES = {

@@ -9,17 +9,15 @@ end
 
 describe('harness.permissions:', function()
   describe('tier', function()
-    it('reads the tier of editor tools and raw API tools', function()
+    it('reads the tier of editor tools', function()
       eq('read', permissions.tier('mcp__nvim__buffer_read'))
       eq('write', permissions.tier('mcp__nvim__buffer_edit'))
       eq('exec', permissions.tier('mcp__nvim__lua'))
-      eq('read', permissions.tier('mcp__nvim__nvim_buf_get_lines'))
-      eq('write', permissions.tier('mcp__nvim__nvim_buf_set_lines'))
-      eq('exec', permissions.tier('mcp__nvim__nvim_exec_lua'))
     end)
 
     it('treats unknown names from this server as exec', function()
       eq('exec', permissions.tier('mcp__nvim__mystery'))
+      eq('exec', permissions.tier('mcp__nvim__nvim_buf_get_lines'))
     end)
 
     it('returns nil for tools that are not this editor\'s', function()

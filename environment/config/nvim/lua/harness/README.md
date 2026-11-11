@@ -297,7 +297,7 @@ require('nvim_mcp.tools').register('git', {
 
 The MCP server reads the editor's tool definitions when it connects, so a new toolset needs no server change. A toolset reaches the sessions that start after it is registered. `ctx.caller` names the session that is calling: each session's MCP server carries `HARNESS_SESSION`.
 
-**The raw API** sits underneath the editor tools. Every `nvim_*` RPC function from `api_info()` is listed under its own name and with its real parameter names, at every tier. Unknown argument names are rejected, never defaulted.
+**No raw API.** The server lists only these tools, not the `nvim_*` RPC functions: `lua` reaches all of `vim.api` in one call, and some 180 extra tool names cost every session tokens.
 
 **Sessions that start sessions.** `session_new` starts a child session in the caller's directory, optionally with a first prompt.
 - The child runs in the background, with its transcript in a tab of its own.

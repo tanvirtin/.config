@@ -1,4 +1,3 @@
-local api = require('nvim_mcp.api')
 local schema = require('nvim_mcp.schema')
 
 local server = {}
@@ -15,25 +14,17 @@ server.INSTRUCTIONS = table.concat({
   'Read and edit through buffer_read and buffer_edit rather than the file on disk: buffers can hold unsaved changes, and edits land in the editor as one undo step each.',
   'Editor tools take a path (or bufnr; omit both for the focused buffer) and 1-based, inclusive lines.',
   'Edits stay unsaved, so a command that reads files from disk (a build, tests, a linter, git) would see the old text: save the buffers you changed with buffer_save before running one, and otherwise only when the user asks.',
-  'The nvim_* tools are the raw RPC API: 0-based rows, integer handles, and argument names exactly as their schema lists. Use them for anything the editor tools do not cover.',
-  'Pass handles explicitly on every nvim_* call: 0 means the current buffer, window or tabpage, and an omitted handle is an error rather than a default.',
   'For anything visual or multi-step, write one Lua script with the lua tool instead of many small calls: fill a quickfix list, open a float or scratch buffer, draw extmarks. Present results in the editor when that helps the user explore.',
 }, ' ')
 
 local MAX_RESULT_CHARS = { buffer_read = 200000 }
 
-local function text_result(value, is_error, structured)
+local function text_result(value, is_error)
   if value == nil then value = vim.NIL end
 
   local text = type(value) == 'string' and value or vim.json.encode(value)
 
-  local result = { content = { { type = 'text', text = text } }, isError = is_error == true }
-
-  -- structuredContent must be a JSON object, so scalars are wrapped. Raw API
-  -- results get it so handles and booleans arrive as types, not as text.
-  if structured then result.structuredContent = { result = value } end
-
-  return result
+  return { content = { { type = 'text', text = text } }, isError = is_error == true }
 end
 
 function server.error_text(err)
@@ -68,40 +59,22 @@ end
 local function annotations(entry)
   if entry.risk == 'read' then return { readOnlyHint = true, openWorldHint = false } end
 
-  local destructive = entry.risk == 'exec'
-    or entry.kind == 'rpc'
-    or entry.name == 'buffer_save'
-    or entry.always_ask == true
+  local destructive = entry.risk == 'exec' or entry.name == 'buffer_save' or entry.always_ask == true
 
   return { readOnlyHint = false, destructiveHint = destructive, openWorldHint = false }
 end
 
 function server.tool_definition(entry)
-  local description = entry.summary
-
-  if entry.kind == 'rpc' then description = description .. ' [raw API, ' .. entry.risk .. ']' end
-
-  local definition = {
+  return {
     name = entry.name,
-    description = description,
+    description = entry.summary,
     inputSchema = schema.json_schema(schema.model(entry.params)),
     annotations = annotations(entry),
     _meta = { tier = entry.risk, ['anthropic/maxResultSizeChars'] = MAX_RESULT_CHARS[entry.name] },
   }
-
-  -- Raw API results carry structuredContent, so declare an object output
-  -- schema: clients then require the structured half instead of falling back
-  -- to the text copy, which is where handles used to lose their type.
-  if entry.kind == 'rpc' then definition.outputSchema = { type = 'object' } end
-
-  return definition
 end
 
-function server.entries(editor, functions, docs)
-  return vim.list_extend(vim.deepcopy(editor), api.entries(functions, docs))
-end
-
-function server.new(entries, call_rpc, call_editor)
+function server.new(entries, call_editor)
   local by_name = {}
 
   for _, entry in ipairs(entries) do
@@ -113,21 +86,11 @@ function server.new(entries, call_rpc, call_editor)
 
     if not entry then return text_result('unknown tool: ' .. tostring(name), true) end
 
-    local ok, value
-
-    if entry.kind == 'editor' then
-      ok, value = pcall(call_editor, name, arguments)
-    else
-      local positional, err = api.positional_args(entry, arguments)
-
-      if not positional then return text_result(err, true) end
-
-      ok, value = pcall(call_rpc, name, positional)
-    end
+    local ok, value = pcall(call_editor, name, arguments)
 
     if not ok then return text_result(server.error_text(value), true) end
 
-    return text_result(value, false, entry.kind == 'rpc')
+    return text_result(value, false)
   end
 
   local handlers = {
@@ -189,20 +152,6 @@ function server.connect(addr)
 
   if chan == 0 then error('cannot connect to editor at ' .. tostring(addr)) end
 
-  local info = vim.rpcrequest(chan, 'nvim_call_function', 'api_info', {})
-  local runtime = vim.rpcrequest(chan, 'nvim_eval', '$VIMRUNTIME')
-  local docs = {}
-  local file = io.open(runtime .. '/doc/api.txt', 'r')
-
-  if file then
-    docs = api.parse_docs(file:read('*a'))
-    file:close()
-  end
-
-  local function call_rpc(name, positional)
-    return vim.rpcrequest(chan, name, unpack(positional))
-  end
-
   local editor = vim.rpcrequest(chan, 'nvim_exec_lua', 'return require(\'nvim_mcp.tools\').definitions()', {})
   local caller = vim.env.HARNESS_SESSION or ''
 
@@ -212,7 +161,7 @@ function server.connect(addr)
     return vim.rpcrequest(chan, 'nvim_exec_lua', 'return require(\'nvim_mcp.tools\').run(...)', { name, args, caller })
   end
 
-  return server.entries(editor, info.functions, docs), call_rpc, call_editor
+  return editor, call_editor
 end
 
 function server.main(addr)

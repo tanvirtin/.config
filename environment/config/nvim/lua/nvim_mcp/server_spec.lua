@@ -2,21 +2,10 @@ local server = require('nvim_mcp.server')
 
 local eq = assert.are.same
 
-local FUNCTIONS = {
-  {
-    name = 'nvim_buf_get_lines',
-    method = true,
-    parameters = { { 'Buffer', 'buffer' }, { 'Integer', 'start' } },
-  },
-  { name = 'nvim_get_mode', method = false, parameters = {} },
-  { name = 'nvim_set_thing', method = false, parameters = { { 'Dict', 'opts' } } },
-  { name = 'nvim_command', method = false, parameters = { { 'String', 'command' } } },
-}
-
-local function protocol(call, call_lua)
-  return server.new(server.entries(require('nvim_mcp.tools').definitions(), FUNCTIONS, {}), call or function()
+local function protocol(call_editor)
+  return server.new(require('nvim_mcp.tools').definitions(), call_editor or function()
     return 'called'
-  end, call_lua)
+  end)
 end
 
 local function tools(handler)
@@ -63,15 +52,16 @@ describe('nvim_mcp.server:', function()
   end)
 
   describe('tools/list', function()
-    it('lists the editor tools first, then every raw API function at every tier', function()
+    it('lists the editor tools and none of the raw API', function()
       local by_name, names = tools(protocol())
 
       eq('editor_state', names[1])
       assert.is_truthy(by_name.buffer_edit)
       assert.is_truthy(by_name.lua)
-      assert.is_truthy(by_name.nvim_buf_get_lines)
-      assert.is_truthy(by_name.nvim_set_thing)
-      assert.is_truthy(by_name.nvim_command)
+
+      for _, name in ipairs(names) do
+        assert.is_falsy(name:match('^nvim_'))
+      end
     end)
 
     it('gives every tool a typed schema that rejects unknown arguments', function()
@@ -79,8 +69,8 @@ describe('nvim_mcp.server:', function()
 
       eq(false, by_name.buffer_edit.inputSchema.additionalProperties)
       eq({ 'old_string', 'new_string' }, by_name.buffer_edit.inputSchema.required)
-      eq('integer', by_name.nvim_buf_get_lines.inputSchema.properties.start.type)
-      eq(false, by_name.nvim_buf_get_lines.inputSchema.additionalProperties)
+      eq('integer', by_name.buffer_read.inputSchema.properties.start_line.type)
+      eq(false, by_name.buffer_read.inputSchema.additionalProperties)
     end)
 
     it('marks tiers in annotations and _meta', function()
@@ -92,20 +82,11 @@ describe('nvim_mcp.server:', function()
       eq('write', by_name.buffer_edit._meta.tier)
       eq(true, by_name.buffer_save.annotations.destructiveHint)
       eq(true, by_name.lua.annotations.destructiveHint)
-      eq('exec', by_name.nvim_command._meta.tier)
-      assert.is_truthy(by_name.nvim_command.description:find('[raw API, exec]', 1, true))
+      eq('exec', by_name.lua._meta.tier)
     end)
 
     it('raises the result size limit for buffer_read', function()
       eq(200000, tools(protocol()).buffer_read._meta['anthropic/maxResultSizeChars'])
-    end)
-
-    it('declares an object output schema on raw API tools only', function()
-      local by_name = tools(protocol())
-
-      eq({ type = 'object' }, by_name.nvim_command.outputSchema)
-      eq({ type = 'object' }, by_name.nvim_buf_get_lines.outputSchema)
-      eq(nil, by_name.buffer_edit.outputSchema)
     end)
 
     it('encodes empty schema objects as JSON objects, not arrays', function()
@@ -120,7 +101,7 @@ describe('nvim_mcp.server:', function()
   describe('tools/call', function()
     it('runs an editor tool in the editor with named arguments', function()
       local seen
-      local handler = protocol(nil, function(name, args)
+      local handler = protocol(function(name, args)
         seen = { name, args }
         return { replacements = 1 }
       end)
@@ -134,7 +115,7 @@ describe('nvim_mcp.server:', function()
 
     it('passes a string result through as text', function()
       local result = call(
-        protocol(nil, function()
+        protocol(function()
           return '     1\talpha'
         end),
         'buffer_read',
@@ -146,7 +127,7 @@ describe('nvim_mcp.server:', function()
 
     it('reports an editor-side failure as an error result', function()
       local result = call(
-        protocol(nil, function()
+        protocol(function()
           error('old_string not found', 0)
         end),
         'buffer_edit',
@@ -157,36 +138,9 @@ describe('nvim_mcp.server:', function()
       eq('old_string not found', result.content[1].text)
     end)
 
-    it('calls a raw API function with positional arguments', function()
-      local seen
-      local handler = protocol(function(name, positional)
-        seen = { name = name, positional = positional }
-        return { 'alpha' }
-      end)
-
-      local result = call(handler, 'nvim_buf_get_lines', { buffer = 3, start = 0 })
-
-      eq({ name = 'nvim_buf_get_lines', positional = { 3, 0 } }, seen)
-      eq('["alpha"]', result.content[1].text)
-      eq({ 'alpha' }, result.structuredContent.result)
-    end)
-
-    it('returns a scalar raw result as a typed value, not text', function()
-      local result = call(
-        protocol(function()
-          return 161
-        end),
-        'nvim_buf_get_lines',
-        { buffer = 3, start = 0 }
-      )
-
-      eq(161, result.structuredContent.result)
-      eq('161', result.content[1].text)
-    end)
-
     it('leaves editor tool results as text only, so large reads are not duplicated', function()
       local result = call(
-        protocol(nil, function()
+        protocol(function()
           return '     1\talpha'
         end),
         'buffer_read',
@@ -196,23 +150,8 @@ describe('nvim_mcp.server:', function()
       eq(nil, result.structuredContent)
     end)
 
-    it('encodes a nil raw result as null', function()
-      eq('null', call(protocol(function() end), 'nvim_command', { command = 'echo 1' }).content[1].text)
-    end)
-
-    it('rejects an unknown raw argument instead of defaulting the handle', function()
-      local result = call(protocol(), 'nvim_buf_get_lines', { buf = 3, start = 0 })
-
-      eq(true, result.isError)
-      assert.is_truthy(result.content[1].text:find('buf: unknown argument', 1, true))
-      assert.is_truthy(result.content[1].text:find('(parameters: buffer, start)', 1, true))
-    end)
-
-    it('reports a missing raw argument', function()
-      local result = call(protocol(), 'nvim_buf_get_lines', {})
-
-      eq(true, result.isError)
-      assert.is_truthy(result.content[1].text:find('start: required', 1, true))
+    it('encodes a nil result as null', function()
+      eq('null', call(protocol(function() end), 'ex', { command = 'echo 1' }).content[1].text)
     end)
 
     it('reports an unknown tool', function()
@@ -220,19 +159,6 @@ describe('nvim_mcp.server:', function()
 
       eq(true, result.isError)
       eq('unknown tool: nope', result.content[1].text)
-    end)
-
-    it('reports a raw call failure as an error result', function()
-      local result = call(
-        protocol(function()
-          error('Invalid buffer id: 999')
-        end),
-        'nvim_buf_get_lines',
-        { buffer = 999, start = 0 }
-      )
-
-      eq(true, result.isError)
-      assert.is_truthy(result.content[1].text:find('Invalid buffer id', 1, true))
     end)
   end)
 
