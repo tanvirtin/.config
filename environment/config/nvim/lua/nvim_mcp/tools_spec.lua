@@ -248,6 +248,74 @@ describe('nvim_mcp.tools:', function()
       eq({ 'a%2' }, lines(buf))
     end)
 
+    it('applies a batch in order, as one undo step', function()
+      local result = run('buffer_edit', {
+        bufnr = buf,
+        edits = {
+          { old_string = 'local x = 1', new_string = 'local x = 2' },
+          { old_string = 'return y', new_string = 'return y + x' },
+          { old_string = 'x = 2', new_string = 'x = 3' },
+        },
+      })
+
+      eq({ 'local x = 3', 'local y = x', 'return y + x' }, lines(buf))
+      eq(3, result.edits)
+      eq(3, result.replacements)
+      eq(1, result.start_line)
+      eq(3, result.end_line)
+
+      vim.api.nvim_buf_call(buf, function()
+        vim.cmd('silent undo')
+      end)
+
+      eq({ 'local x = 1', 'local y = x', 'return y' }, lines(buf))
+    end)
+
+    it('applies none of a batch when one edit fails, and says which', function()
+      local ok, err = pcall(run, 'buffer_edit', {
+        bufnr = buf,
+        edits = {
+          { old_string = 'local x = 1', new_string = 'local x = 2' },
+          { old_string = 'nope', new_string = 'x' },
+        },
+      })
+
+      eq(false, ok)
+      assert.is_truthy(err:find('edit 2: old_string not found', 1, true))
+      eq({ 'local x = 1', 'local y = x', 'return y' }, lines(buf))
+      eq(false, vim.bo[buf].modified)
+    end)
+
+    it('tells observers about every edit of a batch', function()
+      local seen = {}
+
+      tools.observe_edits('spec', function(_, diff)
+        seen[#seen + 1] = diff.new
+      end)
+      vim.api.nvim_buf_set_name(buf, vim.fn.tempname() .. '.lua')
+      run('buffer_edit', {
+        bufnr = buf,
+        edits = { { old_string = 'x = 1', new_string = 'x = 2' }, { old_string = 'return y', new_string = 'return x' } },
+      })
+      tools.observe_edits('spec', nil)
+
+      eq({ 'x = 2', 'return x' }, seen)
+    end)
+
+    it('refuses an unclear request', function()
+      for _, args in ipairs({
+        {},
+        { old_string = 'a' },
+        { edits = {} },
+        { old_string = 'a', new_string = 'b', edits = { { old_string = 'x', new_string = 'y' } } },
+      }) do
+        args.bufnr = buf
+        eq(false, (pcall(run, 'buffer_edit', args)))
+      end
+
+      eq({ 'local x = 1', 'local y = x', 'return y' }, lines(buf))
+    end)
+
     it('fails when old_string is missing', function()
       local ok, err = pcall(run, 'buffer_edit', { bufnr = buf, old_string = 'nope', new_string = 'x' })
 

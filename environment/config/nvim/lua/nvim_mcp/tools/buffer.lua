@@ -64,48 +64,102 @@ local function occurrences(text, needle)
   return found
 end
 
-local function line_of(text, offset)
-  local _, newlines = text:sub(1, offset - 1):gsub('\n', '')
-
-  return newlines + 1
-end
-
 local function report(ctx, diff)
   if ctx and ctx.edited and diff.path then ctx.edited(diff) end
 end
 
-local function buffer_edit(args, ctx)
-  if args.old_string == '' then util.fail('old_string is empty; use buffer_write to replace a whole buffer') end
-  if args.old_string == args.new_string then util.fail('old_string and new_string are identical') end
+local function substitute(text, edit, label)
+  if edit.old_string == '' then util.fail('old_string is empty; use buffer_write to replace a whole buffer') end
+  if edit.old_string == edit.new_string then util.fail('old_string and new_string are identical') end
 
-  local buf = util.resolve(args)
-  local lines = Buffer(buf):get_lines()
-  local text = table.concat(lines, '\n')
-  local found = occurrences(text, args.old_string)
+  local found = occurrences(text, edit.old_string)
 
-  if #found == 0 then util.fail('old_string not found in ' .. util.buf_label(buf)) end
+  if #found == 0 then util.fail('old_string not found in ' .. label) end
 
-  if #found > 1 and not args.replace_all then
+  if #found > 1 and not edit.replace_all then
     util.fail(string.format('old_string matches %d times; add surrounding context or set replace_all', #found))
   end
 
-  local first = line_of(text, found[1][1])
-  local last = line_of(text, found[#found][2])
-  local span = table.concat(vim.list_slice(lines, first, last), '\n')
-  local replaced = span:gsub(vim.pesc(args.old_string), (args.new_string:gsub('%%', '%%%%')))
-  local new_lines = vim.split(replaced, '\n', { plain = true })
+  local out, from = {}, 1
 
-  util.break_undo(buf)
-  util.list(buf)
-  Buffer(buf):replace_lines(first - 1, last, new_lines)
-  report(ctx, { path = util.buf_path(buf), old = args.old_string, new = args.new_string })
+  for _, match in ipairs(found) do
+    out[#out + 1] = text:sub(from, match[1] - 1)
+    out[#out + 1] = edit.new_string
+    from = match[2] + 1
+  end
+
+  out[#out + 1] = text:sub(from)
+
+  return table.concat(out), #found
+end
+
+local function requested(args)
+  local single = args.old_string ~= nil or args.new_string ~= nil
+
+  if args.edits and single then util.fail('give old_string and new_string, or edits, not both') end
+  if args.edits then
+    if #args.edits == 0 then util.fail('edits is empty') end
+
+    return args.edits, true
+  end
+  if not single then util.fail('give old_string and new_string, or a list of edits') end
+  if args.old_string == nil or args.new_string == nil then util.fail('old_string and new_string go together') end
+
+  return { { old_string = args.old_string, new_string = args.new_string, replace_all = args.replace_all } }, false
+end
+
+local function changed_span(old, new)
+  local top = 0
+
+  while top < #old and top < #new and old[top + 1] == new[top + 1] do
+    top = top + 1
+  end
+
+  local bottom = 0
+
+  while bottom < #old - top and bottom < #new - top and old[#old - bottom] == new[#new - bottom] do
+    bottom = bottom + 1
+  end
+
+  return top, #old - bottom, vim.list_slice(new, top + 1, #new - bottom)
+end
+
+local function buffer_edit(args, ctx)
+  local list, batch = requested(args)
+  local buf = util.resolve(args)
+  local lines = Buffer(buf):get_lines()
+  local text = table.concat(lines, '\n')
+  local label = util.buf_label(buf)
+  local replacements = 0
+
+  for index, item in ipairs(list) do
+    local ok, result, count = pcall(substitute, text, item, label)
+
+    if not ok then util.fail(batch and string.format('edit %d: %s', index, result) or result) end
+
+    text, replacements = result, replacements + count
+  end
+
+  local new_lines = vim.split(text, '\n', { plain = true })
+  local top, bottom, middle = changed_span(lines, new_lines)
+
+  if bottom > top or #middle > 0 then
+    util.break_undo(buf)
+    util.list(buf)
+    Buffer(buf):replace_lines(top, bottom, middle)
+  end
+
+  for _, item in ipairs(list) do
+    report(ctx, { path = util.buf_path(buf), old = item.old_string, new = item.new_string })
+  end
 
   return {
     path = util.buf_path(buf),
     bufnr = buf,
-    replacements = #found,
-    start_line = first,
-    end_line = first + #new_lines - 1,
+    edits = batch and #list or nil,
+    replacements = replacements,
+    start_line = top + 1,
+    end_line = math.max(top + #middle, top + 1),
     saved = false,
   }
 end
@@ -157,11 +211,20 @@ return {
   {
     name = 'buffer_edit',
     risk = 'write',
-    summary = 'Replace an exact string in a buffer (like Edit, but on the live buffer). old_string must match once unless replace_all. One undo step; the buffer is left unsaved, so save it before running a build or tests.',
+    summary = 'Replace exact strings in a buffer (like Edit, but on the live buffer). Give old_string and new_string, or edits to make several at once: they apply in order, all or none, as one undo step. Each old_string must match once unless replace_all. The buffer is left unsaved, so save it before running a build or tests.',
     params = util.params(util.TARGET, {
-      { name = 'old_string', type = schema.str() },
-      { name = 'new_string', type = schema.str() },
+      { name = 'old_string', type = schema.str(), optional = true },
+      { name = 'new_string', type = schema.str(), optional = true },
       { name = 'replace_all', type = schema.bool(), optional = true },
+      {
+        name = 'edits',
+        type = schema.list(schema.model({
+          { name = 'old_string', type = schema.str() },
+          { name = 'new_string', type = schema.str() },
+          { name = 'replace_all', type = schema.bool(), optional = true },
+        })),
+        optional = true,
+      },
     }),
     fn = buffer_edit,
   },

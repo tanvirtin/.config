@@ -19,6 +19,15 @@ server.INSTRUCTIONS = table.concat({
 
 local MAX_RESULT_CHARS = { buffer_read = 200000 }
 
+local ALWAYS_LOAD = {
+  buffer_read = true,
+  buffer_edit = true,
+  buffer_write = true,
+  search = true,
+  diagnostics = true,
+  lua = true,
+}
+
 local function text_result(value, is_error)
   if value == nil then value = vim.NIL end
 
@@ -70,7 +79,11 @@ function server.tool_definition(entry)
     description = entry.summary,
     inputSchema = schema.json_schema(schema.model(entry.params)),
     annotations = annotations(entry),
-    _meta = { tier = entry.risk, ['anthropic/maxResultSizeChars'] = MAX_RESULT_CHARS[entry.name] },
+    _meta = {
+      tier = entry.risk,
+      ['anthropic/maxResultSizeChars'] = MAX_RESULT_CHARS[entry.name],
+      ['anthropic/alwaysLoad'] = ALWAYS_LOAD[entry.name],
+    },
   }
 end
 
