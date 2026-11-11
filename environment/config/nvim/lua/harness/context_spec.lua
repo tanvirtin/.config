@@ -13,8 +13,29 @@ describe('harness.context:', function()
     local text = context.capture(vim.api.nvim_get_current_win()).where
 
     assert.is_truthy(text:find('^<editor%-context>'))
-    assert.is_truthy(text:find('%[No Name%] %(bufnr ' .. vim.api.nvim_get_current_buf() .. '%), line 2, col 2'))
+    assert.is_truthy(
+      text:find('%[No Name%] %(bufnr ' .. vim.api.nvim_get_current_buf() .. ', unsaved changes%), line 2, col 2')
+    )
     assert.is_truthy(text:find('</editor%-context>$'))
+  end)
+
+  it('leaves unsaved changes out for a saved buffer', function()
+    vim.bo.modified = false
+
+    assert.is_truthy(
+      context
+        .capture(vim.api.nvim_get_current_win()).where
+        :find('(bufnr ' .. vim.api.nvim_get_current_buf() .. '), line 2', 1, true)
+    )
+  end)
+
+  it('says no file is open for an empty unnamed buffer, instead of pointing tools at it', function()
+    vim.cmd('enew!')
+
+    eq(
+      '<editor-context>The user has no file open.</editor-context>',
+      context.capture(vim.api.nvim_get_current_win()).where
+    )
   end)
 
   it('mentions a selected range', function()

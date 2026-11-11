@@ -31,17 +31,35 @@ function context.selection(buffer, range)
   })
 end
 
+local function blank(buffer)
+  return buffer:get_name() == ''
+    and not buffer:is_modified()
+    and buffer:get_line_count() <= 1
+    and buffer:get_lines(0, 1)[1] == ''
+end
+
+local function tagged(text)
+  return string.format('<%s>%s</%s>', context.TAG, text, context.TAG)
+end
+
 local function describe(buffer, line, col, range)
+  if not range and blank(buffer) then return content.context({ where = tagged('The user has no file open.') }) end
+
   local parts = {
-    string.format('The user is in %s (bufnr %d), line %d, col %d.', display_path(buffer), buffer.bufnr, line, col + 1),
+    string.format(
+      'The user is in %s (bufnr %d%s), line %d, col %d.',
+      display_path(buffer),
+      buffer.bufnr,
+      buffer:is_modified() and ', unsaved changes' or '',
+      line,
+      col + 1
+    ),
   }
 
   if range then parts[#parts + 1] = string.format('They selected lines %d-%d.', range[1], range[2]) end
 
-  parts[#parts + 1] = 'Editor tools default to this buffer when path and bufnr are omitted.'
-
   return content.context({
-    where = string.format('<%s>%s</%s>', context.TAG, table.concat(parts, ' '), context.TAG),
+    where = tagged(table.concat(parts, ' ')),
     attachments = range and { context.selection(buffer, range) } or {},
   })
 end

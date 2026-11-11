@@ -896,6 +896,7 @@ describe('harness.ui.composer:', function()
   end)
 
   it('says where the user was, from the session\'s source buffer', function()
+    vim.api.nvim_buf_set_name(code, vim.fn.tempname() .. '.lua')
     open_composer(session)
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'what is this?' })
     press('<CR>')

@@ -97,6 +97,8 @@ describe('harness.ui.actions:', function()
   it('continues the session the user was last in, from their code or from the session', function()
     local code = vim.api.nvim_get_current_buf()
 
+    vim.api.nvim_buf_set_name(code, vim.fn.tempname() .. '.lua')
+
     actions.ask('first'):wait()
 
     local buf = vim.api.nvim_get_current_buf()
