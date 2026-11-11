@@ -19,6 +19,15 @@ function Flashes:constructor(buffer, view)
   return { buffer = buffer, view = view, active = {} }
 end
 
+local function key_of(block)
+  if block.kind == Block.KIND.tool then return block.id end
+  if block.kind == Block.KIND.stop then return 'stop:' .. block.start end
+end
+
+local function failed(block)
+  return block.status == Block.STATUS.failed or (block.kind == Block.KIND.stop and block.reason ~= 'end_turn')
+end
+
 function Flashes:observe()
   return self:scan(self.view.document.blocks, Timer.now())
 end
@@ -31,12 +40,14 @@ function Flashes:scan(blocks, now)
   for index = #blocks, math.max(#blocks - Flashes.LOOKBACK + 1, 1), -1 do
     local block = blocks[index]
 
-    if block.kind == Block.KIND.tool and block.id and block.finished and now - block.finished < ms then
-      local flash = self.active[block.id] or {}
+    local key = key_of(block)
+
+    if key and block.finished and now - block.finished < ms then
+      local flash = self.active[key] or {}
 
       flash.row, flash.started = block.start, block.finished
-      flash.tone = block.status == Block.STATUS.failed and tone.ERROR or tone.ACCENT
-      self.active[block.id] = flash
+      flash.tone = failed(block) and tone.ERROR or tone.ACCENT
+      self.active[key] = flash
     end
   end
 

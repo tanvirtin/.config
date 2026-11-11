@@ -593,7 +593,7 @@ describe('harness.ui.Document:', function()
     events.append(history, events.stop('end_turn'))
     document:write(blocks.build(history, nil, { times = history_times }))
 
-    assert.is_truthy(texts(document.blocks[4].start):find(' 13s · 1 tool |──', 1, true))
+    assert.is_truthy(texts(document.blocks[4].start):find(' 13s · 1 tool| |──', 1, true))
   end)
 
   it('shows a working line only while the turn runs', function()
@@ -693,7 +693,7 @@ describe('harness.ui.Document:', function()
     eq('parent done', document.blocks[#document.blocks].lines[1])
     eq(1, read.depth)
 
-    assert.is_truthy(texts(read.start):find(theme.BRANCH, 1, true))
+    assert.is_truthy(texts(read.start):find(theme.BRANCH_END, 1, true))
     assert.is_truthy(texts(read.start):find('2 lines', 1, true))
 
     eq('>1', document:fold_level(inner.start))

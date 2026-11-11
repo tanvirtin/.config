@@ -79,6 +79,63 @@ describe('harness.transcript.decorators:', function()
     end))
   end)
 
+  it('keeps how long a finished tool took, once it took a second', function()
+    local block = make(Block.KIND.tool, { '-> Bash make' }, {
+      name = 'Bash',
+      argument = 'make',
+      status = Block.STATUS.completed,
+      category = Block.CATEGORY.execute,
+      started = 0,
+      finished = 12000,
+    })
+
+    assert.truthy(find(decorators.decorate(block, { running = false, width = 80 }), function(opts)
+      return opts.virt_text_pos == 'right_align' and virt(opts) == '12s'
+    end))
+
+    block.finished = 400
+    local short = find(decorators.decorate(block, { running = false, width = 80 }), function(opts)
+      return opts.virt_text_pos == 'right_align'
+    end)
+
+    eq(true, short == nil)
+  end)
+
+  it('marks edits, failed tools and troubled notes in the sign column, row by row', function()
+    local function sign_rows(block)
+      local rows = {}
+
+      for _, mark in ipairs(decorators.decorate(block, {})) do
+        if mark.opts.sign_text then rows[#rows + 1] = { mark.row, mark.opts.sign_hl_group } end
+      end
+
+      return rows
+    end
+
+    eq(
+      { { 0, 'UiAdded' }, { 1, 'UiAdded' } },
+      sign_rows(make(Block.KIND.diff, { '```edit', '```' }, { path = 'a', patch = { rows = {} } }))
+    )
+    eq(
+      { { 0, 'UiToolFailed' } },
+      sign_rows(make(Block.KIND.tool, { '-> Bash x' }, { name = 'Bash', status = Block.STATUS.failed }))
+    )
+    eq({}, sign_rows(make(Block.KIND.tool, { '-> Bash x' }, { name = 'Bash', status = Block.STATUS.completed })))
+    eq({ { 0, 'UiError' } }, sign_rows(make(Block.KIND.note, { 'error boom' }, { label = 'error' })))
+  end)
+
+  it('totals a turn\'s edits on its stop rule', function()
+    local block = make(
+      Block.KIND.stop,
+      { '*end_turn*' },
+      { reason = 'end_turn', duration = 3000, added = 4, removed = 2, files = 2 }
+    )
+
+    assert.truthy(find(decorators.decorate(block, { width = 80 }), function(opts)
+      return opts.virt_text_pos == 'right_align' and virt(opts) == ' 3s · +4 −2 in 2 files ──'
+    end))
+  end)
+
   it('shows a live tool as running and times it, or says it waits for you', function()
     local block = make(
       Block.KIND.tool,
@@ -274,35 +331,61 @@ describe('harness.transcript.decorators:', function()
     eq(' done ──', label({ reason = 'end_turn' }))
   end)
 
-  it('sums up a finished thought by its first line, or its bold heading, cut to fit, and not while it runs', function()
-    local lines = { '> [!thought]', '>', '> the first idea `here` ' .. string.rep('x', 100), '> later' }
-    local function eol(marks)
-      local found = find(marks, function(opts)
-        return opts.virt_text_pos == 'eol'
-      end)
+  it(
+    'sums up a finished thought by its first line, or its bold heading, cut to fit, and ticks its latest line while it runs',
+    function()
+      local lines = { '> [!thought]', '>', '> the first idea `here` ' .. string.rep('x', 100), '> later' }
+      local function eol(marks)
+        local found = find(marks, function(opts)
+          return opts.virt_text_pos == 'eol'
+        end)
 
-      return found and found.opts.virt_text
+        return found and found.opts.virt_text
+      end
+
+      local done =
+        eol(decorators.decorate(make(Block.KIND.thought, lines, { started = 0, finished = 2000 }), { width = 60 }))
+
+      eq({ '  2s', 'UiMuted' }, done[1])
+      eq(' · ', done[2][1])
+      eq('UiThought', done[3][2])
+      assert.truthy(done[3][1]:find('^the first idea here'))
+      assert.is_true(vim.fn.strchars(done[3][1]) <= 36)
+
+      local headed =
+        eol(decorators.decorate(make(Block.KIND.thought, { '> [!thought]', '> **Planning the fix**', '> body' }), {}))
+
+      eq({ { '  ', 'UiMuted' }, { 'Planning the fix', 'UiThought' } }, headed)
+
+      local live = eol(
+        decorators.decorate(
+          make(Block.KIND.thought, lines, { live = true, started = 0 }),
+          { running = true, now = 4200 }
+        )
+      )
+
+      eq({ { '  4s', 'UiMuted' }, { ' · ', 'UiMuted' }, { 'later', 'UiThought' } }, live)
+    end
+  )
+
+  it('hides a live thought\'s body, row by row, until it finishes', function()
+    local lines = { '> [!thought]', '> one', '> two' }
+    local function hidden(marks)
+      return vim.tbl_map(
+        function(mark)
+          return mark.row
+        end,
+        vim.tbl_filter(function(mark)
+          return mark.opts.conceal_lines ~= nil
+        end, marks)
+      )
     end
 
-    local done =
-      eol(decorators.decorate(make(Block.KIND.thought, lines, { started = 0, finished = 2000 }), { width = 60 }))
-
-    eq({ '  2s', 'UiMuted' }, done[1])
-    eq(' · ', done[2][1])
-    eq('UiThought', done[3][2])
-    assert.truthy(done[3][1]:find('^the first idea here'))
-    assert.is_true(vim.fn.strchars(done[3][1]) <= 36)
-
-    local headed =
-      eol(decorators.decorate(make(Block.KIND.thought, { '> [!thought]', '> **Planning the fix**', '> body' }), {}))
-
-    eq({ { '  ', 'UiMuted' }, { 'Planning the fix', 'UiThought' } }, headed)
-
-    local live = eol(
-      decorators.decorate(make(Block.KIND.thought, lines, { live = true, started = 0 }), { running = true, now = 4200 })
+    eq(
+      { 1, 2 },
+      hidden(decorators.decorate(make(Block.KIND.thought, lines, { live = true }), { running = true, now = 0 }))
     )
-
-    eq({ { '  4s', 'UiMuted' } }, live)
+    eq({}, hidden(decorators.decorate(make(Block.KIND.thought, lines, {}), {})))
   end)
 
   it('dims the whole body of a thought with one mark beneath the markdown styling, leaving the header alone', function()

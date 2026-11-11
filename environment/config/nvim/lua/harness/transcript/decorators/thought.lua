@@ -8,8 +8,14 @@ local CALLOUT = nodes.CALLOUTS.thought
 local GIST = 72
 local BODY_PRIORITY = 90
 
-local function gist(block, ctx)
-  for index = 2, #block.lines do
+local function gist(block, ctx, latest)
+  local first, last, step = 2, #block.lines, 1
+
+  if latest then
+    first, last, step = #block.lines, 2, -1
+  end
+
+  for index = first, last, step do
     local line = vim.trim((block.lines[index]:gsub('^[%s>]*', '')))
 
     if line ~= '' then
@@ -29,9 +35,16 @@ end
 
 local function tail(block, ctx, pulsing)
   if pulsing then
-    if block.started and ctx.now then return { { '  ' .. elapsed(block, ctx), 'UiMuted' } } end
+    local out = {}
+    local latest = gist(block, ctx, true)
 
-    return {}
+    if block.started and ctx.now then out[#out + 1] = { '  ' .. elapsed(block, ctx), 'UiMuted' } end
+    if latest then
+      out[#out + 1] = { #out > 0 and ' · ' or '  ', 'UiMuted' }
+      out[#out + 1] = { latest, 'UiThought' }
+    end
+
+    return out
   end
 
   local duration = block.started and block.finished and theme.duration(block.finished - block.started)
@@ -60,7 +73,11 @@ return function(block, ctx)
 
   local last = #block.lines
 
-  if last > 1 then
+  if last > 1 and pulsing then
+    for row = block.start + 1, block.start + last - 1 do
+      MarkSpec.add(out, row, 0, { conceal_lines = '' })
+    end
+  elseif last > 1 then
     MarkSpec.add(out, block.start + 1, 0, {
       end_row = block.start + last - 1,
       end_col = #block.lines[last],

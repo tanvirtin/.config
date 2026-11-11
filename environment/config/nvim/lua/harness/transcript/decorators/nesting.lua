@@ -30,13 +30,15 @@ return function(block)
 
   local last = block.start + #block.lines - 1
 
+  local closes = block.last_child and block.kind == Block.KIND.tool and last == block.start
+
   for row = block.start, last do
     local head = block.kind == Block.KIND.tool and row == block.start
 
-    rail(out, row, head and theme.BRANCH or theme.GUTTER, block.indented, group)
+    rail(out, row, closes and theme.BRANCH_END or head and theme.BRANCH or theme.GUTTER, block.indented, group)
   end
 
-  if block.finish > last + 1 then
+  if block.finish > last + 1 and not closes then
     rail(out, last + 1, block.last_child and theme.BRANCH_END or theme.GUTTER, false, group)
   end
 

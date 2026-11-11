@@ -54,6 +54,12 @@ local function subagent_summary(block, live)
   return (duration and duration .. ' · ' or '') .. tools
 end
 
+local function took(block)
+  if block.nested or not block.started or not block.finished then return nil end
+
+  return theme.duration(block.finished - block.started)
+end
+
 local function tail_of(block, ctx, live, waiting)
   local parts = {}
 
@@ -81,9 +87,12 @@ local function tail_of(block, ctx, live, waiting)
   elseif live and block.started and ctx.now then
     local elapsed = theme.duration(ctx.now - block.started)
     if elapsed then add({ elapsed, 'UiMuted' }) end
-  elseif not live and context.FINISHED[block.status] and SUMMARY[block.category] and #block.lines == 1 then
-    local summary = SUMMARY[block.category](block)
+  elseif not live and context.FINISHED[block.status] then
+    local summary = SUMMARY[block.category] and #block.lines == 1 and SUMMARY[block.category](block)
+    local duration = took(block)
+
     if summary then add({ summary, 'UiMuted' }) end
+    if duration then add({ duration, 'UiMuted' }) end
   end
 
   return parts

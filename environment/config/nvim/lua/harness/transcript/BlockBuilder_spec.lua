@@ -53,6 +53,41 @@ describe('harness.transcript.BlockBuilder:', function()
     )
   end)
 
+  it('rules only the first of a run of artifacts', function()
+    local list = blocks.frame({
+      Block.make(Block.KIND.message, { 'text' }),
+      Block.make(Block.KIND.tool, { '-> Bash ls', '```output', 'a', '```' }),
+      Block.make(Block.KIND.tool, { '-> Bash pwd', '```output', 'b', '```' }),
+      Block.make(Block.KIND.tool, { '-> Edit a.lua' }),
+      Block.make(Block.KIND.diff, { '```edit', '--- a.lua', 'x', '```' }, { attached = true }),
+    })
+
+    eq(
+      { { nil, nil }, { true, true }, { nil, true }, { nil, nil }, { nil, true } },
+      vim.tbl_map(function(block)
+        return { block.frame_top, block.frame_bottom }
+      end, list)
+    )
+  end)
+
+  it('totals a turn\'s edits on its stop', function()
+    local list = blocks.build({
+      events.prompt('go'),
+      {
+        kind = 'tool_call',
+        id = 't1',
+        name = 'Edit',
+        diffs = { { path = '/a.lua', old = 'a\nb\n', new = 'a\nc\nd\n' } },
+      },
+      { kind = 'tool_call', id = 't2', name = 'Edit', diffs = { { path = '/a.lua', old = 'x\n', new = 'y\n' } } },
+      { kind = 'tool_call', id = 't3', name = 'Edit', diffs = { { path = '/b.lua', old = '', new = 'z\n' } } },
+      events.stop('end_turn'),
+    }, nil, { times = { 0, 1, 2, 3, 5000 } })
+    local stop = list[#list]
+
+    eq({ 4, 2, 2, 5000 }, { stop.added, stop.removed, stop.files, stop.finished })
+  end)
+
   it('shows thoughts as a callout', function()
     local list = blocks.build({ { kind = 'thought', text = 'first\n\nsecond' } })
 

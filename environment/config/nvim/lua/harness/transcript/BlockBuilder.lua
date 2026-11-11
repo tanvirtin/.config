@@ -195,7 +195,7 @@ function BlockBuilder.frame(list)
       block.frame_bottom = true
       open = block
     elseif BlockBuilder.artifact(block) or heads_diff then
-      block.frame_top, block.frame_bottom = true, true
+      block.frame_top, block.frame_bottom = not open or nil, true
       open = block
     else
       open = nil

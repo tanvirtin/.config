@@ -37,6 +37,17 @@ describe('harness.ui.Flashes:', function()
     eq(false, Flashes(buffer):scan({ tool({}) }, 5000))
   end)
 
+  it('flashes the rule of a turn that just ended, in the error tone when it did not end cleanly', function()
+    flashes:scan({ { kind = Block.KIND.stop, start = 2, reason = 'end_turn', finished = 1000 } }, 1000)
+    flashes:step(1000)
+    eq({ { 2, 'UiFlashAccent1' } }, marks())
+
+    local failed = Flashes(buffer)
+
+    failed:scan({ { kind = Block.KIND.stop, start = 0, reason = 'max_tokens', finished = 1000 } }, 1000)
+    eq('Error', failed.active['stop:0'].tone)
+  end)
+
   it('fades the head row from the accent toward the resting surface, then removes its mark', function()
     flashes:scan({ tool({ finished = 1000 }) }, 1000)
 

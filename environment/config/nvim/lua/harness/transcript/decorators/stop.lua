@@ -21,11 +21,22 @@ return function(block, ctx)
     virt_text_pos = 'overlay',
     priority = theme.GUTTER_PRIORITY,
   })
+  local summary = { { ' ' .. table.concat(parts, ' · '), REASON_HL[block.reason] or 'UiWarn' } }
+
+  if block.files then
+    vim.list_extend(summary, {
+      { ' · ', 'UiMuted' },
+      { '+' .. (block.added or 0), 'UiAdded' },
+      { ' ' },
+      { '−' .. (block.removed or 0), 'UiRemoved' },
+      { ' in ' .. theme.plural(block.files, 'file'), 'UiMuted' },
+    })
+  end
+
+  vim.list_extend(summary, { { ' ' }, { string.rep(theme.RULE, 2), 'UiTurnSeparator' } })
+
   MarkSpec.add(out, block.start, 0, {
-    virt_text = {
-      { ' ' .. table.concat(parts, ' · ') .. ' ', REASON_HL[block.reason] or 'UiWarn' },
-      { string.rep(theme.RULE, 2), 'UiTurnSeparator' },
-    },
+    virt_text = summary,
     virt_text_pos = 'right_align',
   })
 

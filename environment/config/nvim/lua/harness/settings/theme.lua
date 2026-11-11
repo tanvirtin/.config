@@ -46,6 +46,7 @@ return Config({
   path_icon = '󰈔 ',
   verb_width = 8,
   gutter = '│ ',
+  sign = '▎',
   branch = '├ ',
   branch_end = '└ ',
   rule = '─',

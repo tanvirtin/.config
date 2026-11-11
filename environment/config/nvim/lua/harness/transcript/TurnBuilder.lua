@@ -203,6 +203,16 @@ function TurnBuilder:_show_diffs(id, tool)
       depth = state.parent and 1 or nil,
     })
 
+    local turn = self.turn
+
+    turn.added, turn.removed = (turn.added or 0) + added, (turn.removed or 0) + removed
+    turn.paths = turn.paths or {}
+
+    if not turn.paths[diff.path] then
+      turn.paths[diff.path] = true
+      turn.files = (turn.files or 0) + 1
+    end
+
     if tool then
       tool.added = (tool.added or 0) + added
       tool.removed = (tool.removed or 0) + removed
@@ -352,7 +362,15 @@ function TurnBuilder:on_stop(event, i)
   local reason = event.reason or 'end_turn'
 
   turn.stopped = true
-  self:_add(Block.KIND.stop, { '*' .. reason .. '*' }, { reason = reason, duration = duration, tools = turn.tools })
+  self:_add(Block.KIND.stop, { '*' .. reason .. '*' }, {
+    reason = reason,
+    duration = duration,
+    tools = turn.tools,
+    added = turn.added,
+    removed = turn.removed,
+    files = turn.files,
+    finished = times[i],
+  })
 end
 
 function TurnBuilder:on_error(event)

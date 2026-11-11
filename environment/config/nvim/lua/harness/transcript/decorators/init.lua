@@ -51,6 +51,26 @@ function decorators.frame(block, out, ctx)
   return out
 end
 
+local function sign_group(block)
+  if block.kind == Block.KIND.diff then return 'UiAdded' end
+  if block.kind == Block.KIND.tool and block.status == Block.STATUS.failed and not block.interrupted then
+    return 'UiToolFailed'
+  end
+  if block.kind == Block.KIND.note and block.label and not Block.SETTLED_NOTES[block.label] then
+    return block.label == 'error' and 'UiError' or 'UiWarn'
+  end
+end
+
+local function signs(block, out)
+  local group = sign_group(block)
+
+  if not group or theme.SIGN == '' then return end
+
+  for row = block.start, block.start + #block.lines - 1 do
+    MarkSpec.add(out, row, 0, { sign_text = theme.SIGN, sign_hl_group = group })
+  end
+end
+
 function decorators.decorate(block, ctx)
   local decorate = decorators.KIND[block.kind]
   local out = decorate and decorate(block, ctx) or {}
@@ -60,6 +80,7 @@ function decorators.decorate(block, ctx)
   end
 
   decorators.frame(block, out, ctx)
+  signs(block, out)
 
   if block.tight and not block.last_child and block.finish > block.start + #block.lines then
     MarkSpec.add(out, block.finish - 1, 0, { conceal_lines = '' })

@@ -59,7 +59,8 @@ function FoldText:_line_summary(first, last)
   return fold_summary.text(
     core_text.plural(last - first + 1, 'more line'),
     vim.list_slice(self.document.lines, first, last),
-    block ~= nil and block.status == Block.STATUS.failed
+    block ~= nil and block.status == Block.STATUS.failed,
+    block ~= nil and block.category == Block.CATEGORY.execute
   )
 end
 

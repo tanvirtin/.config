@@ -7,6 +7,11 @@ describe('harness.transcript.fold_summary:', function()
     eq('error: boom', fold_summary.preview({ '', '```output', '  error: boom  ', 'next' }))
   end)
 
+  it('previews from the end for command output, where the result is', function()
+    eq('PASSED 3 tests', fold_summary.preview({ 'running', 'PASSED 3 tests', '```' }, nil, true))
+    eq('2 more lines · "ok"', fold_summary.text('2 more lines', { 'running', 'ok' }, false, true))
+  end)
+
   it('has no preview for blank lines', function()
     eq(nil, (fold_summary.preview({ '', '  ' })))
   end)

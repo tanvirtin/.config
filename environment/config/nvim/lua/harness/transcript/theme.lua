@@ -24,6 +24,7 @@ local FROM_SETTINGS = {
   PATH_ICON = 'path_icon',
   VERB_WIDTH = 'verb_width',
   GUTTER = 'gutter',
+  SIGN = 'sign',
   BRANCH = 'branch',
   BRANCH_END = 'branch_end',
   RULE = 'rule',

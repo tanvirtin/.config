@@ -55,6 +55,7 @@ Block = dataclass.define('Block', {
   reason = STRING,
   duration = NUMBER,
   tools = NUMBER,
+  files = NUMBER,
   grouped = NUMBER,
   start = NUMBER,
   finish = NUMBER,
