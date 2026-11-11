@@ -284,7 +284,7 @@ return {
   {
     name = 'buffer_edit',
     risk = 'write',
-    summary = 'Replace exact strings in a buffer (like Edit, but on the live buffer). Give old_string and new_string, or edits to make several at once: they apply in order, all or none, as one undo step. Each old_string must match once unless replace_all. The buffer is left unsaved, so save it before running a build or tests.',
+    summary = 'Replace exact strings in a buffer, like Edit but on the live buffer. Give old_string and new_string, or edits for several at once (in order, all or none, one undo step). Each old_string must match once unless replace_all. Leaves the buffer unsaved.',
     params = util.params(util.TARGET, {
       { name = 'old_string', type = schema.str(), optional = true },
       { name = 'new_string', type = schema.str(), optional = true },

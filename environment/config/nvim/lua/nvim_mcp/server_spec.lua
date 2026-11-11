@@ -91,7 +91,8 @@ describe('nvim_mcp.server:', function()
 
       eq(true, by_name.buffer_edit._meta['anthropic/alwaysLoad'])
       eq(true, by_name.search._meta['anthropic/alwaysLoad'])
-      eq(nil, by_name.buffer_save._meta['anthropic/alwaysLoad'])
+      eq(true, by_name.buffer_save._meta['anthropic/alwaysLoad'])
+      eq(nil, by_name.cursor_set._meta['anthropic/alwaysLoad'])
     end)
 
     it('raises the result size limit for buffer_read', function()

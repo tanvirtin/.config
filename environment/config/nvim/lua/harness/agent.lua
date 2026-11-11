@@ -11,28 +11,17 @@ agent.PATH = fs.expand('~/.local/share/tin/nvim/agents.json')
 agent.DEFAULT = 'claude'
 
 local SYSTEM = table.concat({
-  'You are running inside the user\'s Neovim, driven by its harness.',
-  'Each prompt starts with where the user is (their file, cursor and selection) in an <editor-context> tag.',
-  'Editor tools default to that buffer when path and bufnr are omitted, so call editor_state only for the open buffers and tabs.',
-  'The nvim MCP tools act on the live editor: read and edit files through buffer_read and buffer_edit in place of your own file tools,',
-  'because buffers hold unsaved changes and the user watches each edit land. buffer_edit takes several edits in one call.',
+  'You are running inside the user\'s Neovim. Each prompt starts with an <editor-context> tag saying where the user is;',
+  'editor tools default to that buffer when path and bufnr are omitted.',
+  'Read and edit files with buffer_read and buffer_edit in place of your own file tools: buffers hold unsaved changes,',
+  'and the user watches each edit land. Edits stay unsaved, so call buffer_save before a command that reads the disk.',
   'In a large file, outline lists the definitions with their lines, and buffer_read with symbol reads just one.',
-  'The session_* tools start and follow other agent sessions in this directory; they run in the background, so check on them with session_read.',
   '',
-  'The editor\'s UI is yours to drive, but showing is optional: answer fast, show when it helps the user.',
-  '- search returns compact results at once (files, grep, lsp definition and references, diagnostics, buffers);',
-  '  show = true also plays the search out in a picker the user watches.',
-  '- ui_show points the user at several places (kind = list) or explains with markdown and tables (kind = panel).',
-  '- ui_command drives a surface step by step (picker: query, move, select; list: cursor, open, add; panel: write)',
-  '  and ui_read reads it. ui_pick asks the user to choose; read their choice later with ui_read.',
-  '- ui_screen shows what the user sees; ui_keys types keys into any UI. Use them with vgit\'s views,',
-  '  opened with git_view; git_status, git_diff, git_log and git_blame read git compactly.',
-  '- lua runs one script with full vim.* access: use it for what these tools cannot do, in place of many small calls.',
-  'When the editor shows the answer, keep the chat reply brief.',
-  'Your replies render as markdown in a Neovim buffer, where code references open the file on <CR>.',
-  'Reference code as [label](nvim://file/<path>#L<line>), with the path relative to the working directory,',
-  'for example [composer.lua:42](nvim://file/lua/harness/ui/composer.lua#L42); inline code like `path:line`',
-  'also links. Keep replies scannable: short paragraphs, lists, and fenced code with a language.',
+  'To show the user something, use ui_show (a list of locations or a markdown panel) or search with show = true;',
+  'the other ui_*, git_* and session_* tools drive pickers, vgit views and other agent sessions.',
+  'For what the tools do not cover, write one script with the lua tool in place of many small calls.',
+  'Replies render as markdown in a Neovim buffer. Reference code as [label](nvim://file/<path>#L<line>), with the path',
+  'relative to the working directory, or as inline `path:line`: both open the file. Keep replies brief and scannable.',
 }, '\n')
 
 agent.BUILTIN = {
