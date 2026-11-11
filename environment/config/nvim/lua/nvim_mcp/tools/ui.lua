@@ -1,6 +1,7 @@
 local fs = require('core.fs')
 local Timer = require('core.Timer')
 local Window = require('core.Window')
+local buffers = require('core.buffers')
 local editor = require('core.editor')
 local compact = require('compact')
 local schema = require('nvim_mcp.schema')
@@ -40,6 +41,17 @@ end
 
 local function render(items, args)
   local located = #items > 0 and items[1].line ~= nil
+
+  if located and args.source == 'grep' and (args.context or 0) > 0 then
+    return (
+      compact.excerpts(items, {
+        context = args.context,
+        budget = args.budget,
+        offset = args.offset,
+        lines_of = buffers.lines_of,
+      })
+    )
+  end
 
   if located then return (compact.locations(items, { budget = args.budget, offset = args.offset })) end
 
@@ -167,7 +179,7 @@ return {
   {
     name = 'search',
     risk = 'read',
-    summary = 'Search a source and get compact results at once: files (fuzzy path), grep (regex, smart case), lsp (method: definition, references, type_definition, implementation at line/col, default the cursor), diagnostics, buffers. show = true also plays the search out in a picker the user sees (optional: use it when showing your work helps).',
+    summary = 'Search a source and get compact results at once: files (fuzzy path), grep (regex, smart case; context adds the lines around each match, so no read has to follow), lsp (method: definition, references, type_definition, implementation at line/col, default the cursor), diagnostics, buffers. show = true also plays the search out in a picker the user sees (optional: use it when showing your work helps).',
     params = util.params(
       {
         { name = 'source', type = schema.literal({ 'files', 'grep', 'lsp', 'diagnostics', 'buffers' }) },
@@ -182,6 +194,11 @@ return {
         },
         { name = 'line', type = schema.int(), optional = true },
         { name = 'col', type = schema.int(), optional = true },
+        {
+          name = 'context',
+          type = schema.int({ description = 'grep: lines to include before and after each match.' }),
+          optional = true,
+        },
         {
           name = 'offset',
           type = schema.int({ description = 'Continue from a "… more (offset=N)" line.' }),

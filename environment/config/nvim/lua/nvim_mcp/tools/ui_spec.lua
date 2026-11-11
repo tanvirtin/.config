@@ -45,6 +45,13 @@ describe('nvim_mcp.tools.ui:', function()
       assert.is_true(compact.stats('h1').saved_tokens > 0)
     end)
 
+    it('adds the lines around each grep match when asked for context', function()
+      local out = run('search', { source = 'grep', query = 'greet', path = root, context = 1 })
+
+      assert.is_truthy(out:find('lua/a.lua (1)\n  1- local a = 1\n  2: local greet = 2\n  3- return a', 1, true))
+      assert.is_truthy(out:find('b.lua (1)\n  1: greet()', 1, true))
+    end)
+
     it('lists files as paths', function()
       local out = run('search', { source = 'files', query = 'a.lua', path = root })
 

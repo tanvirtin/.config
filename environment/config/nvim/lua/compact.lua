@@ -117,6 +117,77 @@ function compact.locations(items, opts)
   return table.concat(out, '\n'), { shown = shown, total = total }
 end
 
+local function excerpt_line(number, text, hit, width)
+  text = (text or ''):gsub('%s+$', '')
+
+  if vim.fn.strchars(text) > width then text = vim.fn.strcharpart(text, 0, width - 1) .. '…' end
+
+  return string.format('  %d%s %s', number, hit and ':' or '-', text)
+end
+
+function compact.excerpts(items, opts)
+  local budget = opts.budget or compact.BUDGET
+  local width = opts.width or compact.WIDTH
+  local offset = opts.offset or 0
+  local ordered, groups = compact.order(items)
+  local total = #ordered
+  local out, size, shown = {}, 0, 0
+  local current, lines, hits, covered
+  local stopped_at
+
+  if total == 0 then return opts.empty or 'no results', { shown = 0, total = 0 } end
+
+  for i = offset + 1, total do
+    local item = ordered[i]
+    local key = item.path or '[No Name]'
+    local chunk = {}
+
+    if key ~= current then
+      chunk[#chunk + 1] = string.format('%s (%d)', compact.path(key), #groups[key])
+      lines, hits, covered = opts.lines_of(key) or {}, {}, 0
+
+      for _, hit in ipairs(groups[key]) do
+        hits[hit.line] = true
+      end
+    end
+
+    local first = math.max(item.line - opts.context, covered + 1, 1)
+    local last = math.max(math.min(item.line + opts.context, #lines), item.line)
+
+    if #lines == 0 then first = item.line end
+
+    if covered > 0 and first > covered + 1 then chunk[#chunk + 1] = '  …' end
+
+    for number = first, last do
+      chunk[#chunk + 1] = excerpt_line(number, lines[number] or item.text, hits[number], width)
+    end
+
+    local cost = #table.concat(chunk, '\n') + 1
+
+    if size + cost > budget and shown > 0 then
+      stopped_at = i
+      break
+    end
+
+    vim.list_extend(out, chunk)
+    size = size + cost
+    current, covered = key, math.max(covered, last)
+    shown = shown + 1
+  end
+
+  if stopped_at then
+    local files = {}
+
+    for i = stopped_at, total do
+      files[ordered[i].path or '[No Name]'] = true
+    end
+
+    out[#out + 1] = more(total - stopped_at + 1, vim.tbl_count(files), stopped_at - 1)
+  end
+
+  return table.concat(out, '\n'), { shown = shown, total = total }
+end
+
 function compact.rows(rows, columns, opts)
   opts = opts or {}
 

@@ -58,6 +58,64 @@ describe('compact:', function()
     end)
   end)
 
+  describe('excerpts', function()
+    local FILE = { 'one', '  two', 'three', 'four', 'five', 'six', 'seven', 'eight' }
+
+    local function excerpts(items, opts)
+      return compact.excerpts(
+        items,
+        vim.tbl_extend('force', {
+          context = 1,
+          lines_of = function()
+            return FILE
+          end,
+        }, opts or {})
+      )
+    end
+
+    it('shows the lines around each match, marking the matches and keeping indentation', function()
+      eq(
+        '/x/a.lua (1)\n  1- one\n  2:   two\n  3- three',
+        (excerpts({ { path = '/x/a.lua', line = 2, text = '  two' } }))
+      )
+    end)
+
+    it('joins matches whose lines touch, and marks a gap between ones that do not', function()
+      eq(
+        '/x/a.lua (3)\n  1- one\n  2:   two\n  3: three\n  4- four\n  …\n  6- six\n  7: seven\n  8- eight',
+        (
+          excerpts({
+            { path = '/x/a.lua', line = 2 },
+            { path = '/x/a.lua', line = 3 },
+            { path = '/x/a.lua', line = 7 },
+          })
+        )
+      )
+    end)
+
+    it('stops at the budget and says where to continue', function()
+      local text, counts = excerpts({
+        { path = '/x/a.lua', line = 2 },
+        { path = '/x/a.lua', line = 7 },
+      }, { budget = 40 })
+
+      eq({ shown = 1, total = 2 }, counts)
+      assert.is_truthy(text:find('… 1 more (offset=1)', 1, true))
+      assert.is_truthy(excerpts({
+        { path = '/x/a.lua', line = 2 },
+        { path = '/x/a.lua', line = 7 },
+      }, { offset = 1 }):find('7: seven', 1, true))
+    end)
+
+    it('falls back to the matched text when the file cannot be read', function()
+      eq('/x/a.lua (1)\n  2: found', (excerpts({ { path = '/x/a.lua', line = 2, text = 'found' } }, {
+        lines_of = function()
+          return nil
+        end,
+      })))
+    end)
+  end)
+
   describe('rows', function()
     it('aligns cells under a header and stops at the budget', function()
       eq('name | n\na | 1\nb | ', compact.rows({ { name = 'a', n = 1 }, { name = 'b' } }, { 'name', 'n' }))
