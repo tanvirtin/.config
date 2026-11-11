@@ -49,15 +49,6 @@ local function request_at(args, method, extra)
   return request(buf, method, params)
 end
 
-local function locations(args, ctx, method)
-  local buf = util.resolve(args)
-  local items, err = sources.collect('lsp', '', { method = method, buf = buf, line = args.line, col = args.col })
-
-  if err then util.fail(err) end
-
-  return compact.reply(ctx.caller, items, (compact.locations(items, { empty = 'none found', offset = args.offset })))
-end
-
 local function lsp_hover(args)
   local out = {}
 
@@ -127,24 +118,6 @@ return {
     summary = 'Language servers attached to one buffer, or to any buffer when path and bufnr are omitted.',
     params = util.TARGET,
     fn = lsp_clients,
-  },
-  {
-    name = 'lsp_definition',
-    risk = 'read',
-    summary = 'Where the symbol at a position is defined, grouped by file with 1-based lines.',
-    params = util.params(AT, OFFSET),
-    fn = function(args, ctx)
-      return locations(args, ctx, 'definition')
-    end,
-  },
-  {
-    name = 'lsp_references',
-    risk = 'read',
-    summary = 'Every reference to the symbol at a position, grouped by file with 1-based lines.',
-    params = util.params(AT, OFFSET),
-    fn = function(args, ctx)
-      return locations(args, ctx, 'references')
-    end,
   },
   {
     name = 'lsp_hover',

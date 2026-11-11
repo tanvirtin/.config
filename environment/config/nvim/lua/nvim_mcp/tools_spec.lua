@@ -315,7 +315,7 @@ describe('nvim_mcp.tools:', function()
     end)
 
     it('fails clearly when no language server is attached', function()
-      local ok, err = pcall(run, 'lsp_definition', { bufnr = buf, line = 1 })
+      local ok, err = pcall(run, 'lsp_hover', { bufnr = buf, line = 1 })
 
       eq(false, ok)
       assert.is_truthy(err:find('no language server attached', 1, true))
@@ -332,15 +332,6 @@ describe('nvim_mcp.tools:', function()
       eq(1, #tools.locations({
         { targetUri = 'file:///b.lua', targetSelectionRange = { start = { line = 0, character = 0 } } },
       }))
-    end)
-  end)
-
-  describe('fs_find', function()
-    it('finds a file by name under a path', function()
-      local dir = vim.fs.dirname(debug.getinfo(1, 'S').source:sub(2))
-      local out = run('fs_find', { names = { 'tools_spec.lua' }, path = dir, type = 'file' })
-
-      assert.is_truthy(out[1]:find('tools_spec.lua', 1, true))
     end)
   end)
 

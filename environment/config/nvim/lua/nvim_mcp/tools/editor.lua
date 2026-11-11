@@ -100,10 +100,6 @@ local function cursor_set(args)
   return { win = window.win_id, line = line, col = args.col or 1 }
 end
 
-local function fs_find(args)
-  return vim.fs.find(args.names, { path = args.path, type = args.type, limit = args.limit or 20 })
-end
-
 return {
   {
     name = 'editor_state',
@@ -111,18 +107,6 @@ return {
     summary = 'Where the user is, compactly: cwd and mode; the focused file with its bufnr, window and cursor; the last visual selection; open buffers ([+] unsaved); tabs with their windows. Call this first.',
     params = {},
     fn = editor_state,
-  },
-  {
-    name = 'fs_find',
-    risk = 'read',
-    summary = 'Find files or directories by exact name, searching downward from path (default cwd).',
-    params = {
-      { name = 'names', type = schema.list(schema.str()) },
-      { name = 'path', type = schema.str(), optional = true },
-      { name = 'type', type = schema.literal({ 'file', 'directory' }), optional = true },
-      { name = 'limit', type = schema.int(), optional = true },
-    },
-    fn = fs_find,
   },
   {
     name = 'open',

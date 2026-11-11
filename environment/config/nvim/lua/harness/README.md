@@ -282,7 +282,7 @@ Editor tools (`nvim_mcp/tools/`) take a `path` or `bufnr`; omitting both means t
 
 | Tier | Tools | Approval |
 | --- | --- | --- |
-| read | `editor_state`, `buffer_read`, `diagnostics`, `lsp_*`, `treesitter_node`, `fs_find`, `search`, `ui_surfaces`, `ui_read`, `ui_screen`, `git_status`, `git_log`, `git_diff`, `git_blame`, `session_list`, `session_read` | none |
+| read | `editor_state`, `buffer_read`, `diagnostics`, `lsp_clients`, `lsp_hover`, `lsp_symbols`, `treesitter_node`, `search`, `ui_surfaces`, `ui_read`, `ui_screen`, `git_status`, `git_log`, `git_diff`, `git_blame`, `session_list`, `session_read` | none |
 | write | `buffer_edit`, `buffer_write`, `buffer_save`, `open` (always a new tab), `cursor_set`, `ui_show`, `ui_pick`, `ui_command`, `git_view`, `git_stage`, `session_cancel`, `session_close` | none. Edits are one undo step each and stay unsaved. |
 | exec | `lua`, `ex`, `ui_keys`, `session_new`, `session_prompt` | allowed when the agent's policy has `auto_allow` (Claude's does). Otherwise you are asked, with "allow always" for the session. |
 | always asked | `git_discard`, `git_run` | asked every time, whatever the policy: they throw work away or change the repository |
