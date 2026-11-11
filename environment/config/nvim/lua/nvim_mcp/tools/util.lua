@@ -3,6 +3,7 @@ local Window = require('core.Window')
 local buffers = require('core.buffers')
 local editor = require('core.editor')
 local fs = require('core.fs')
+local lsp = require('core.lsp')
 local compact = require('compact')
 local schema = require('nvim_mcp.schema')
 
@@ -114,7 +115,7 @@ function util.locations(result)
     local range = loc.range or loc.targetSelectionRange or loc.targetRange
 
     if uri and range then
-      out[#out + 1] = { path = vim.uri_to_fname(uri), line = range.start.line + 1, col = range.start.character + 1 }
+      out[#out + 1] = { path = lsp.uri_to_fname(uri), line = range.start.line + 1, col = range.start.character + 1 }
     end
   end
 

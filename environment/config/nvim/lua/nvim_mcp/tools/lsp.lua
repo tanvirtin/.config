@@ -1,4 +1,5 @@
 local compact = require('compact')
+local lsp = require('core.lsp')
 local sources = require('sources')
 local util = require('nvim_mcp.tools.util')
 
@@ -17,7 +18,7 @@ local function lsp_clients(args)
   local buf = (args.path or args.bufnr) and util.resolve(args) or nil
   local out = {}
 
-  for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
+  for _, client in ipairs(lsp.clients({ bufnr = buf })) do
     out[#out + 1] = string.format(
       '%s (id %d)%s',
       client.name,
@@ -30,13 +31,13 @@ local function lsp_clients(args)
 end
 
 local function request(buf, method, params)
-  if #vim.lsp.get_clients({ bufnr = buf, method = method }) == 0 then
+  if #lsp.clients({ bufnr = buf, method = method }) == 0 then
     util.fail('no language server attached to ' .. util.buf_label(buf) .. ' supports ' .. method)
   end
 
   local results = {}
 
-  for _, response in pairs(vim.lsp.buf_request_sync(buf, method, params, 5000) or {}) do
+  for _, response in pairs(lsp.request_sync(buf, method, params, 5000) or {}) do
     if response.err then util.fail(method .. ': ' .. tostring(response.err.message or response.err)) end
     if response.result ~= nil then results[#results + 1] = response.result end
   end
@@ -47,7 +48,7 @@ end
 local function request_at(args, method, extra)
   local buf = util.resolve(args)
   local params = vim.tbl_extend('force', {
-    textDocument = { uri = vim.uri_from_bufnr(buf) },
+    textDocument = { uri = lsp.uri_from_bufnr(buf) },
     position = { line = args.line - 1, character = (args.col or 1) - 1 },
   }, extra or {})
 

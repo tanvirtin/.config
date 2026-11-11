@@ -1,6 +1,7 @@
 local fs = require('core.fs')
 local Timer = require('core.Timer')
 local Window = require('core.Window')
+local lsp = require('core.lsp')
 
 local METHODS = {
   definition = 'textDocument/definition',
@@ -34,7 +35,7 @@ return {
 
     local buf, row, col = position(opts)
 
-    if #vim.lsp.get_clients({ bufnr = buf, method = method }) == 0 then
+    if #lsp.clients({ bufnr = buf, method = method }) == 0 then
       Timer.schedule(function()
         done('no language server attached to this buffer supports ' .. method)
       end)
@@ -42,11 +43,11 @@ return {
     end
 
     local cancelled = false
-    local cancel = vim.lsp.buf_request_all(buf, method, function(client)
-      local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
+    local cancel = lsp.request_all(buf, method, function(client)
+      local params = lsp.position_params(client.offset_encoding)
 
       params.position = { line = row, character = col }
-      params.textDocument = { uri = vim.uri_from_bufnr(buf) }
+      params.textDocument = { uri = lsp.uri_from_bufnr(buf) }
       if method == METHODS.references then params.context = { includeDeclaration = true } end
 
       return params
@@ -56,13 +57,13 @@ return {
       local items = {}
 
       for client_id, response in pairs(results or {}) do
-        local client = vim.lsp.get_client_by_id(client_id)
+        local client = lsp.client(client_id)
         local result = response.result
 
         if result and client then
           if result.uri or result.targetUri then result = { result } end
 
-          for _, entry in ipairs(vim.lsp.util.locations_to_items(result, client.offset_encoding)) do
+          for _, entry in ipairs(lsp.locations_to_items(result, client.offset_encoding)) do
             items[#items + 1] = {
               kind = 'location',
               path = entry.filename,

@@ -43,9 +43,13 @@ function LinesComponent:on_mount()
 end
 
 function LinesComponent:set_content(lines, highlights)
-  if vim.iter(lines):any(function(line)
-    return line:find('\n', 1, true) ~= nil
-  end) then
+  local multiline = false
+
+  for _, line in ipairs(lines) do
+    if line:find('\n', 1, true) then multiline = true end
+  end
+
+  if multiline then
     local split = {}
 
     for _, line in ipairs(lines) do

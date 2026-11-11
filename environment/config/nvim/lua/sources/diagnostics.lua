@@ -1,6 +1,7 @@
 local fs = require('core.fs')
 local Timer = require('core.Timer')
 local Buffer = require('core.Buffer')
+local diagnostics = require('core.diagnostics')
 
 local SEVERITY = { 'ERROR', 'WARN', 'INFO', 'HINT' }
 
@@ -10,7 +11,7 @@ return {
   collect = function(query, opts, emit, done)
     local items = {}
 
-    for _, d in ipairs(vim.diagnostic.get(opts.buf)) do
+    for _, d in ipairs(diagnostics.get(opts.buf)) do
       local path = Buffer(d.bufnr):get_name()
       local severity = SEVERITY[d.severity] or tostring(d.severity)
 

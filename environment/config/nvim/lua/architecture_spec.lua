@@ -26,6 +26,14 @@ local NEOVIM = {
   'system',
   'filetype',
   'keycode',
+  'lsp',
+  'diagnostic',
+  'uri_from_bufnr',
+  'uri_to_fname',
+  'rpcrequest',
+  'fs',
+  'env',
+  'iter',
 }
 
 local RAW_BY_DESIGN = {
