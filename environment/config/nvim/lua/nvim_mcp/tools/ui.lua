@@ -88,18 +88,6 @@ local function search(args, ctx)
   return compact.reply(ctx.caller, items, text)
 end
 
-local function ui_show(args, ctx)
-  local shown
-
-  if args.kind == 'list' then
-    shown = surfaces.list({ title = args.title, items = args.items or {}, owner = ctx.caller })
-  else
-    shown = surfaces.panel({ title = args.title, markdown = args.markdown or '', owner = ctx.caller })
-  end
-
-  return shown:describe()
-end
-
 local function ui_pick(args, ctx)
   local items = args.items and vim.tbl_map(function(label)
     return { label = label }
@@ -213,18 +201,6 @@ return {
       }
     ),
     fn = search,
-  },
-  {
-    name = 'ui_show',
-    risk = 'write',
-    summary = 'Show the user a list of locations (kind = list: a split in the order you give, items in one file in a row sharing its name; they press Enter to jump) or a markdown panel (kind = panel). Prefer this to writing a Lua script. Returns the surface id and its commands.',
-    params = {
-      { name = 'kind', type = schema.literal({ 'list', 'panel' }) },
-      { name = 'title', type = schema.str() },
-      { name = 'items', type = schema.list(require('surfaces.List').LOCATION), optional = true },
-      { name = 'markdown', type = schema.str(), optional = true },
-    },
-    fn = ui_show,
   },
   {
     name = 'ui_pick',

@@ -74,15 +74,16 @@ describe('nvim_mcp.tools.ui:', function()
 
   describe('surfaces', function()
     it('shows a list and drives it', function()
-      local out = run('ui_show', {
-        kind = 'list',
+      local list = surfaces.list({
         title = 'Greets',
         items = { { path = root .. '/b.lua', line = 1, text = 'greet()' } },
-      }, 'h1')
-      local list = surfaces.all()[1]
+        owner = 'h1',
+      })
 
       assert.is_truthy(
-        out:find(list.id .. ' list "Greets" [ready] by h1 commands: add(items) close() cursor(index)', 1, true)
+        list
+          :describe()
+          :find(list.id .. ' list "Greets" [ready] by h1 commands: add(items) close() cursor(index)', 1, true)
       )
 
       local after = run('ui_command', {
@@ -97,7 +98,7 @@ describe('nvim_mcp.tools.ui:', function()
     end)
 
     it('shows a panel', function()
-      run('ui_show', { kind = 'panel', title = 'Notes', markdown = '- one' })
+      surfaces.panel({ title = 'Notes', markdown = '- one', owner = 'h1' })
 
       eq({ '# Notes', '', '- one' }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
     end)
@@ -122,7 +123,7 @@ describe('nvim_mcp.tools.ui:', function()
       eq(false, ok)
       eq('no surface u999 (ui_surfaces lists them)', err)
 
-      run('ui_show', { kind = 'panel', title = 'P', markdown = '' })
+      surfaces.panel({ title = 'P', markdown = '', owner = 'h1' })
 
       ok, err = pcall(run, 'ui_command', { surface = surfaces.all()[1].id, command = 'fly' })
       eq(false, ok)
