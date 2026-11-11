@@ -175,7 +175,7 @@ return {
   {
     name = 'buffer_save',
     risk = 'write',
-    summary = 'Write a buffer to its file on disk, creating parent directories. Only when the user asked to save.',
+    summary = 'Write a buffer to its file on disk, creating parent directories. Only when the user asked to save, or before a command that reads the disk.',
     params = util.TARGET,
     fn = buffer_save,
   },

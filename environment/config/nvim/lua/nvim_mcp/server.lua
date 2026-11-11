@@ -10,11 +10,11 @@ local INVALID_PARAMS = -32602
 
 server.INSTRUCTIONS = table.concat({
   'These tools drive the Neovim editor the user is working in.',
-  'Start with editor_state to see the focused file, cursor and open buffers.',
+  'editor_state says where the user is: the focused file, cursor, open buffers and tabs.',
   'Read and edit through buffer_read and buffer_edit rather than the file on disk: buffers can hold unsaved changes, and edits land in the editor as one undo step each.',
   'Editor tools take a path (or bufnr; omit both for the focused buffer) and 1-based, inclusive lines.',
   'Edits stay unsaved, so a command that reads files from disk (a build, tests, a linter, git) would see the old text: save the buffers you changed with buffer_save before running one, and otherwise only when the user asks.',
-  'For anything visual or multi-step, write one Lua script with the lua tool instead of many small calls: fill a quickfix list, open a float or scratch buffer, draw extmarks. Present results in the editor when that helps the user explore.',
+  'To show the user something, use ui_show: a list of locations or a markdown panel. For what these tools do not cover, write one Lua script with the lua tool instead of making many small calls.',
 }, ' ')
 
 local MAX_RESULT_CHARS = { buffer_read = 200000 }

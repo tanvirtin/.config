@@ -104,7 +104,7 @@ return {
   {
     name = 'editor_state',
     risk = 'read',
-    summary = 'Where the user is, compactly: cwd and mode; the focused file with its bufnr, window and cursor; the last visual selection; open buffers ([+] unsaved); tabs with their windows. Call this first.',
+    summary = 'Where the user is, compactly: cwd and mode; the focused file with its bufnr, window and cursor; the last visual selection; open buffers ([+] unsaved); tabs with their windows.',
     params = {},
     fn = editor_state,
   },
