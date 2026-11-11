@@ -240,13 +240,26 @@ local function buffer_write(args, ctx)
 end
 
 local function buffer_save(args)
-  local buf = util.resolve(args)
+  local targets = {}
 
-  if not util.buf_path(buf) then util.fail('bufnr ' .. buf .. ' has no file name to save to') end
+  for _, path in ipairs(args.paths or {}) do
+    targets[#targets + 1] = util.resolve({ path = path })
+  end
 
-  Buffer(buf):write()
+  if #targets == 0 or args.path or args.bufnr then targets[#targets + 1] = util.resolve(args) end
 
-  return 'saved ' .. shown(buf)
+  for _, buf in ipairs(targets) do
+    if not util.buf_path(buf) then util.fail('bufnr ' .. buf .. ' has no file name to save to') end
+  end
+
+  local saved = {}
+
+  for _, buf in ipairs(targets) do
+    Buffer(buf):write()
+    saved[#saved + 1] = shown(buf)
+  end
+
+  return 'saved ' .. table.concat(saved, ', ')
 end
 
 return {
@@ -311,8 +324,14 @@ return {
   {
     name = 'buffer_save',
     risk = 'write',
-    summary = 'Write a buffer to its file on disk, creating parent directories. Only when the user asked to save, or before a command that reads the disk.',
-    params = util.TARGET,
+    summary = 'Write a buffer to its file on disk, creating parent directories; paths saves several in one call. Only when the user asked to save, or before a command that reads the disk.',
+    params = util.params(util.TARGET, {
+      {
+        name = 'paths',
+        type = schema.list(schema.str(), { description = 'Several files to save at once.' }),
+        optional = true,
+      },
+    }),
     fn = buffer_save,
   },
 }

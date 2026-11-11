@@ -393,6 +393,33 @@ describe('nvim_mcp.tools:', function()
       assert.is_truthy(run('buffer_save', { path = path }):find('^saved '))
       eq({ 'return 2' }, vim.fn.readfile(path))
     end)
+
+    it('saves several files in one call', function()
+      local dir = vim.fn.tempname()
+      local first, second = dir .. '/a.lua', dir .. '/b.lua'
+
+      run('buffer_write', { path = first, content = 'return 1' })
+      run('buffer_write', { path = second, content = 'return 2' })
+
+      local result = run('buffer_save', { paths = { first, second } })
+
+      assert.is_truthy(result:find('a.lua, ', 1, true))
+      assert.is_truthy(result:find('b.lua', 1, true))
+      eq({ 'return 1' }, vim.fn.readfile(first))
+      eq({ 'return 2' }, vim.fn.readfile(second))
+    end)
+
+    it('saves nothing when one of the paths names no file', function()
+      local dir = vim.fn.tempname()
+      local path = dir .. '/a.lua'
+
+      run('buffer_write', { path = path, content = 'return 1' })
+
+      assert.has_error(function()
+        run('buffer_save', { paths = { path, dir .. '/missing.lua' } })
+      end)
+      eq(nil, vim.uv.fs_stat(path))
+    end)
   end)
 
   describe('open and cursor_set', function()
