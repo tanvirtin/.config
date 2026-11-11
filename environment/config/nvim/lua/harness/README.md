@@ -558,7 +558,10 @@ make test-file FILE=lua/harness/Session_spec.lua
 make ci            # luacheck, stylua, and all specs
 make coverage      # luacov report in luacov.report.out
 BENCH_BUDGET_MS=250 make bench-check
+RUNS=3 make bench-tools   # real agent runs, with and without the editor tools
 ```
+
+`make bench-tools` runs four fixed tasks through `claude -p` on a copy of `lua/`, once with only Claude Code's own tools and once with the editor tools and the harness prompt, and prints turns, tool calls, tokens and cost for each. It spends real usage. `TASK`, `MODEL`, `RUNS` and `JOBS` narrow or widen it.
 
 `make ci` is what the `Harness` workflow runs on `main` and pull requests. The fixture loads vgit from `VGIT_DIR` or `~/workspace/vgit.nvim`; CI checks out `alpha-v2.0.x`. The workflow uses Neovim nightly because the harness relies on `vim.async`.
 
