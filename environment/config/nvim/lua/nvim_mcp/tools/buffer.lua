@@ -268,7 +268,7 @@ return {
   {
     name = 'outline',
     risk = 'read',
-    summary = 'The definitions in a buffer (functions, methods, classes, types, markdown sections) with their line ranges, nested, from the syntax tree. Use it to find your way in a large file before reading the part you need.',
+    summary = 'The definitions in a buffer (functions, methods, classes, types, markdown sections) with their line ranges, nested, from the syntax tree. Use it to find the part you need in a large file; skip it when you will read the whole file anyway.',
     params = util.params(util.TARGET, {
       { name = 'budget', type = schema.int({ description = 'Characters of output (default 6000).' }), optional = true },
     }),

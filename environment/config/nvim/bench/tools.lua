@@ -94,6 +94,49 @@ local TASKS = {
       return left ~= 0 and renamed == 0
     end,
   },
+  {
+    name = 'bugfix',
+    prompt = 'The search tool shows grep matches at column 1 as "  12:1: text". They should read "  12: text", with the column only when it is past 1. Find the cause under lua/ and fix it. Save every file you change to disk.',
+    setup = function(run)
+      local path = run.dir .. '/lua/compact.lua'
+      local text = table.concat(vim.fn.readfile(path), '\n')
+
+      vim.fn.writefile(vim.split((text:gsub('item%.col > 1', 'item.col >= 1', 1)), '\n'), path)
+    end,
+    check = function(run)
+      local script = 'package.path = "./lua/?.lua;" .. package.path; '
+        .. 'local text = require("compact").locations({ { path = "/a", line = 12, col = 1, text = "t" }, { path = "/a", line = 13, col = 4, text = "u" } }); '
+        .. 'os.exit(text:find("  12: t", 1, true) and text:find("  13:4: u", 1, true) and 0 or 1)'
+      local _, code = sh('nvim --headless -u NONE -l /dev/stdin <<\'EOF\'\n' .. script .. '\nEOF', run.dir)
+
+      return code == 0
+    end,
+  },
+  {
+    name = 'refactor',
+    prompt = 'compact.reply takes (caller, raw, text). Change it to take (caller, text, raw), and update every call under lua/, specs included, so behaviour stays the same. Save every file you change to disk.',
+    check = function(run)
+      local old = {
+        'function compact.reply(caller, raw, text)',
+        'reply(ctx.caller, raw, text)',
+        'reply(ctx.caller, items, text)',
+        'reply(ctx.caller, entries, text)',
+        'reply(ctx.caller, patch, text)',
+        "reply(ctx.caller, patch, 'no changes')",
+        "reply('h1', raw, 'short')",
+      }
+
+      for _, form in ipairs(old) do
+        local _, code = sh('grep -rqF ' .. vim.fn.shellescape(form) .. ' lua', run.dir)
+
+        if code == 0 then return false end
+      end
+
+      local _, defined = sh('grep -qF "function compact.reply(caller, text, raw)" lua/compact.lua', run.dir)
+
+      return defined == 0
+    end,
+  },
 }
 
 local SCRIPT = [[
@@ -116,6 +159,8 @@ fi
 local function prepare(run)
   vim.fn.mkdir(run.dir, 'p')
   sh(string.format('cp -R %s %s', vim.fn.shellescape(root .. '/lua'), vim.fn.shellescape(run.dir .. '/lua')))
+
+  if run.task.setup then run.task.setup(run) end
 
   local servers = {}
 
