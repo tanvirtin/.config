@@ -20,6 +20,12 @@ session.Stored = dataclass.define('StoredSession', {
 
 session.TITLE_LONG = 60
 
+function session.label(value)
+  if type(value) ~= 'table' then return 'untitled' end
+
+  return value.title or (value.agent and value.agent.name) or 'untitled'
+end
+
 function session.title(text)
   if type(text) ~= 'string' then return nil end
 

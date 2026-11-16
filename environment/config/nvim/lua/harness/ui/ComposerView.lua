@@ -16,6 +16,7 @@ local Element = lazy('ui.elements.Element')
 local Animator = lazy('harness.ui.Animator')
 local Renderer = lazy('ui.markdown.Renderer')
 local theme = lazy('harness.transcript.theme')
+local session_types = lazy('harness.types.session')
 local PromptHistory = lazy('harness.ui.PromptHistory')
 local AnswerDestination = lazy('harness.ui.AnswerDestination')
 local PromptDestination = lazy('harness.ui.PromptDestination')
@@ -134,7 +135,7 @@ end
 
 function ComposerView:winbar()
   local session = self.session
-  local title = (session.title or 'untitled'):gsub('%%', '%%%%')
+  local title = session_types.label(session):gsub('%%', '%%%%')
   local anchored = self.anchor ~= nil and self.anchor:is_valid()
   local parts = {}
 

@@ -1,5 +1,6 @@
 local async = require('harness.async')
 local actions = require('harness.ui.actions')
+local display = require('harness.ui.display')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local hub = require('harness.hub')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
@@ -59,6 +60,8 @@ describe('harness.ui.actions:', function()
   end)
 
   after_each(function()
+    require('surfaces').close_all()
+    require('harness.ui.composer').close(true)
     async.drain()
     hub.shutdown()
     hub.config = vim.deepcopy(defaults)
@@ -154,7 +157,7 @@ describe('harness.ui.actions:', function()
     eq(0, fakes[1]:count('session/prompt'))
   end)
 
-  it('keeps the session when its buffer is closed, and reopens it from the selector', function()
+  it('keeps the session when its buffer is closed, and reopens it from the picker', function()
     local session = actions.new():wait()
 
     vim.api.nvim_buf_delete(0, { force = true })
@@ -163,16 +166,19 @@ describe('harness.ui.actions:', function()
     eq('idle', session.state)
     eq(session, hub.session(session.key))
 
-    local picker = actions.switch():wait()
+    local picker = actions.switch()
 
-    picker:command('query', { text = 'untitled' })
-    assert.is_truthy(picker:snapshot():find('selected: ○ untitled', 1, true))
+    picker:command('query', { text = session.agent.name })
+    assert.is_truthy(picker:snapshot():find('selected:', 1, true))
+    assert.is_truthy(picker:snapshot():find(session.agent.name, 1, true))
     picker:command('select')
     settle(function()
-      return transcript.view() ~= nil
+      return display.view_of(session) ~= nil
     end)
 
-    eq(session, transcript.view().session)
+    eq(session, display.view_of(session).session)
+
+    picker:close()
   end)
 
   it('cancels the running turn of the transcript', function()

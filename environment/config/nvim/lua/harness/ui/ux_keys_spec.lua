@@ -50,14 +50,10 @@ describe('keys the harness names on screen:', function()
 
   it('lists the sessions picker keys from the settings', function()
     with_keys('sessions', { fork = '<C-k>', delete = '<C-d>' }, function()
-      local SessionsView = require('harness.ui.SessionsView')
-      local shown = vim.tbl_map(function(hint)
-        return hint[1]
-      end, SessionsView.hints())
+      local picker = require('harness.ui.SessionPicker')({ dir = '/w' })
 
-      assert.is_true(vim.tbl_contains(shown, '<C-k>'))
-      assert.is_true(vim.tbl_contains(shown, '<C-d>'))
-      assert.is_false(vim.tbl_contains(shown, '<C-f>'))
+      eq('<C-k>', picker:_fork_key())
+      eq('<C-d>', picker:_delete_key())
     end)
   end)
 

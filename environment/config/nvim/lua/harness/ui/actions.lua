@@ -16,6 +16,7 @@ local display = lazy('harness.ui.display')
 local composer = lazy('harness.ui.composer')
 local transcript = lazy('harness.ui.transcript')
 local global_keys = lazy('harness.ui.global_keys')
+local session_types = lazy('harness.types.session')
 
 local actions = {}
 
@@ -162,7 +163,7 @@ local function choose_session(shown, buf, range)
   for _, view in ipairs(shown) do
     if view.session.state ~= 'closed' then
       items[#items + 1] = {
-        label = view.session.key .. ' ' .. (view.session.title or 'untitled'),
+        label = view.session.key .. ' ' .. session_types.label(view.session),
         description = view.session:running() and 'running' or 'idle',
         view = view,
       }
@@ -275,16 +276,7 @@ function actions.new(opts)
 end
 
 function actions.switch()
-  local from = source()
-
-  return require('harness.ui.sessions').open({
-    on_open = function(session)
-      transcript.open(session, { source_win = from.win, source_buf = from.buf })
-    end,
-    on_new = function(agent_name)
-      start(agent_name)
-    end,
-  })
+  return require('harness.ui.SessionPicker').launch({ dir = hub.dir() })
 end
 
 require('harness.session_store').on('start', function(session)
