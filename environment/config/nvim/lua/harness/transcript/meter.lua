@@ -56,6 +56,24 @@ function meter.bar(value, cols, group)
   end)
 end
 
+function meter.ring(value, group)
+  if not Tile.available() then return nil end
+
+  local fg = fg_of(group)
+
+  if not fg then return nil end
+
+  value = max(0, min(1, value))
+
+  local key = 'ring:' .. floor(value * 100 + 0.5) .. ':' .. fg
+
+  return chunk_of(key, 2, function()
+    local props = catalog.resolve('ring', { value = value, color = string.format('#%06x', fg) })
+
+    return catalog.get('ring').commands(props, 2 * Tile.CELL[1], Tile.CELL[2], 0)
+  end)
+end
+
 function meter.greens(added, removed)
   local total = added + removed
 

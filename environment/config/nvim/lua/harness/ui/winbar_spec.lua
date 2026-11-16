@@ -109,6 +109,37 @@ describe('harness.ui.winbar:', function()
     assert.truthy(text:find('100%%', 1, true))
   end)
 
+  it('warns as the context fills, and draws a ring where there are pixels', function()
+    local Tile = require('ui.pixel.Tile')
+    local graphics = require('core.graphics')
+    local meter = require('harness.transcript.meter')
+    local available, upload, delete = Tile.available, graphics.upload, graphics.delete
+    local function context(used)
+      return winbar.context({ used = used, size = 100 })
+    end
+
+    assert.truthy(context(50):find('%#UiMuted#  ctx 50%%', 1, true))
+    assert.truthy(context(75):find('%#UiWarn#  ctx 75%%', 1, true))
+    assert.truthy(context(95):find('%#UiError#  ctx 95%%', 1, true))
+
+    Tile.available = function()
+      return true
+    end
+    graphics.upload = function() end
+    graphics.delete = function() end
+
+    local text = context(40)
+
+    meter.stop()
+    Tile.drain()
+    Tile.available, graphics.upload, graphics.delete = available, upload, delete
+
+    assert.is_nil(text:find('ctx', 1, true))
+    assert.truthy(text:find('%#UiPixelTile', 1, true))
+    assert.truthy(text:find(' 40%%', 1, true))
+    eq(2 + 2 + 1 + 3, winbar.visible_width(text))
+  end)
+
   it('shows the scrolled-past prompt in place of the hints', function()
     local text = winbar.transcript(session({}), { lines = { '> fix the 100% bug', '> please' } })
 

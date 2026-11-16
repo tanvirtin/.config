@@ -287,6 +287,12 @@ function theme.diffstat(added, removed)
   return { { ' ' }, squares[1] }
 end
 
+function theme.context_ring(share, group)
+  local chunks = meter.ring(share, group)
+
+  return chunks and chunks[1] or nil
+end
+
 function theme.meter(done, total, width, group)
   local value = total > 0 and done / total or 0
 

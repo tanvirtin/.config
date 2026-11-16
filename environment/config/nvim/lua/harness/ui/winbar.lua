@@ -117,13 +117,25 @@ local function status(session, prompt, target)
 
   local usage = last_usage(session)
 
-  if usage and usage.used and usage.size and usage.size > 0 then
-    parts[#parts + 1] = string.format('%%#UiMuted#  ctx %d%%%%', math.floor(usage.used / usage.size * 100 + 0.5))
-  end
+  if usage and usage.used and usage.size and usage.size > 0 then parts[#parts + 1] = winbar.context(usage) end
 
   if usage and usage.cost then parts[#parts + 1] = string.format('%%#UiMuted#  $%.2f', usage.cost) end
 
   return table.concat(parts, '') .. ' '
+end
+
+winbar.CONTEXT_WARN = 70
+winbar.CONTEXT_FULL = 90
+
+function winbar.context(usage)
+  local share = usage.used / usage.size
+  local percent = math.floor(share * 100 + 0.5)
+  local full, warn = percent >= winbar.CONTEXT_FULL, percent >= winbar.CONTEXT_WARN
+  local group = full and 'UiError' or warn and 'UiWarn' or 'UiMuted'
+  local ring = theme.context_ring(share, full and 'UiError' or warn and 'UiWarn' or 'UiAccent')
+  local label = ring and '%#' .. ring[2] .. '#' .. ring[1] .. '%#' .. group .. '# ' or 'ctx '
+
+  return '%#' .. group .. '#  ' .. label .. percent .. '%%'
 end
 
 function winbar.transcript(session, prompt, width, target)
