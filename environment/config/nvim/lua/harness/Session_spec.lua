@@ -1047,3 +1047,39 @@ describe('harness.Session:', function()
     end)
   end)
 end)
+
+describe('harness.Session revert of a relative diff path:', function()
+  local made, dir, bufnr
+
+  before_each(function()
+    made = vim.fn.tempname()
+    vim.fn.mkdir(made, 'p')
+    dir = vim.uv.fs_realpath(made)
+    vim.fn.writefile({ 'local a = 1', 'local b = 2', 'local c = 3' }, dir .. '/a.lua')
+    vim.cmd('edit ' .. vim.fn.fnameescape(dir .. '/a.lua'))
+    bufnr = vim.api.nvim_get_current_buf()
+    vim.api.nvim_buf_set_lines(bufnr, 1, 2, false, { 'local b = NEW' })
+  end)
+
+  after_each(function()
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+    vim.fn.delete(made, 'rf')
+  end)
+
+  it('finds the unsaved buffer through the session dir, not the process cwd', function()
+    local session = Session({
+      key = 'h1',
+      id = 's1',
+      dir = dir,
+      connection = Connection(fake_agent.new()),
+    })
+    local plan = session.edits:revert_plan({
+      { id = 't1', diffs = { { path = 'a.lua', old = 'local b = 2', new = 'local b = NEW' } } },
+    })
+
+    eq(1, plan.undone)
+    eq({}, plan.skipped)
+    eq(1, #plan.files)
+    eq({ 'local a = 1', 'local b = 2', 'local c = 3' }, plan.files[1].new_lines)
+  end)
+end)

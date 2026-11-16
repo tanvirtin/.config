@@ -1,5 +1,6 @@
 local lazy = require('core.lazy')
 
+local fs = lazy('core.fs')
 local Timer = lazy('core.Timer')
 local Object = lazy('core.Object')
 local events = lazy('harness.types.events')
@@ -24,7 +25,11 @@ function EditAttribution:_open_tool()
 end
 
 function EditAttribution:_same_file(a, b)
-  return a and b and editor_context.absolute(a, self.session.dir) == editor_context.absolute(b, self.session.dir)
+  if not a or not b then return false end
+
+  local dir = self.session.dir
+
+  return fs.resolve(editor_context.absolute(a, dir)) == fs.resolve(editor_context.absolute(b, dir))
 end
 
 function EditAttribution:_known(diffs, diff)

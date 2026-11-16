@@ -45,6 +45,12 @@ function Session.is_state_event(event)
   return STATE_EVENTS[event.kind] == true
 end
 
+local function lines_in(dir)
+  return function(path)
+    return buffers.lines_of(editor_context.absolute(path, dir))
+  end
+end
+
 function Session:constructor(opts)
   local session = {
     key = opts.key,
@@ -67,7 +73,7 @@ function Session:constructor(opts)
     _instructed = nil,
     auto_edits = nil,
     turn_ended = nil,
-    edits = EditLog(opts.file_lines or buffers.lines_of),
+    edits = EditLog(opts.file_lines or lines_in(opts.dir)),
   }
 
   session.log = History()

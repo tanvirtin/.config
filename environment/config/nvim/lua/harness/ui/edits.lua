@@ -124,7 +124,7 @@ end
 local function describe(plan, confirm)
   local text = string.format('%s reverts %s', confirm, core_text.plural(plan.undone, 'change'))
 
-  return #plan.skipped > 0 and string.format('%s, skips %d', text, #plan.skipped) or text
+  return #plan.skipped > 0 and string.format('%s, skips %d: %s', text, #plan.skipped, plan.skipped[1].reason) or text
 end
 
 function edits.revert(view, scope)

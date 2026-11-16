@@ -111,6 +111,24 @@ describe('harness.ui.edits:', function()
     eq({ 'local x = 1', 'local keep = true' }, shown[1].new_lines)
   end)
 
+  it('says why an edit was skipped in the revert message', function()
+    local console = require('core.console')
+    local saved = console.notify_now
+    local said
+
+    console.notify_now = function(msg)
+      said = msg
+    end
+    vim.fn.writefile({ 'local y = 9' }, b_path)
+
+    local ok = edits.revert(transcript.view(), edits.SCOPE.session)
+
+    console.notify_now = saved
+
+    assert.is_true(ok)
+    assert.is_truthy(said:find('skips 1: changed since', 1, true), said)
+  end)
+
   it('says why when there is nothing to revert here', function()
     vim.api.nvim_win_set_cursor(0, { 1, 0 })
 

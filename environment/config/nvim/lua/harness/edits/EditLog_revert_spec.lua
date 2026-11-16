@@ -55,6 +55,25 @@ describe('harness.edits.EditLog revert_plan:', function()
     eq({ { path = 'a', id = '1', reason = Edit.REASON.changed } }, plan.skipped)
   end)
 
+  it('undoes one edit in each of two files from two tools, with nothing skipped', function()
+    local plan = EditLog(files({
+      a = { 'if x then', '\tlocal y = 2' },
+      b = { 'z = 2' },
+    })):revert_plan({
+      { id = 't1', diffs = { { path = 'a', old = 'if x then\n  local y = 1', new = 'if x then\n\tlocal y = 2' } } },
+      { id = 't2', diffs = { { path = 'b', old = 'z = 1', new = 'z = 2' } } },
+    })
+
+    eq({ undone = 2, skipped = {} }, { undone = plan.undone, skipped = plan.skipped })
+    local by_name = {}
+
+    for _, file in ipairs(plan.files) do
+      by_name[file.filename] = file.new_lines
+    end
+
+    eq({ a = { 'if x then', '  local y = 1' }, b = { 'z = 1' } }, by_name)
+  end)
+
   it('empties a file the agent created', function()
     local plan =
       EditLog(files({ n = { 'one', 'two' } })):revert_plan({ edit('1', { path = 'n', old = '', new = 'one\ntwo\n' }) })
