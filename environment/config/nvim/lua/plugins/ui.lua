@@ -129,6 +129,45 @@ return {
         show_buffer_close_icons = false,
       },
     },
+    config = function(_, opts)
+      require('bufferline').setup(opts)
+
+      -- Rendering the tabline makes Neovim collect sign info from every buffer
+      -- (getbufinfo), which costs ~60ms once transcripts pile up extmarks. The
+      -- tabline only changes on buffer and window events, so cache its output.
+      local render = _G.nvim_bufferline
+
+      if not render or (_G.__tabline_cache and _G.__tabline_cache.render == render) then return end
+
+      local cache
+      local wrapped = function()
+        if not cache then cache = render() end
+        return cache
+      end
+
+      _G.__tabline_cache = { render = render }
+      _G.nvim_bufferline = wrapped
+
+      vim.api.nvim_create_autocmd({
+        'BufAdd',
+        'BufDelete',
+        'BufEnter',
+        'BufFilePost',
+        'BufWritePost',
+        'ColorScheme',
+        'DiagnosticChanged',
+        'InsertLeave',
+        'SessionLoadPost',
+        'VimResized',
+        'WinEnter',
+        'WinResized',
+      }, {
+        group = vim.api.nvim_create_augroup('TablineCache', { clear = true }),
+        callback = function()
+          cache = nil
+        end,
+      })
+    end,
   },
   {
     'folke/snacks.nvim',

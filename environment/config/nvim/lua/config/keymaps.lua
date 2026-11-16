@@ -33,7 +33,7 @@ map('v', '<leader><ESC>', '<Cmd>q<CR>', { desc = 'Quit' })
 
 map('n', '\\', '<Cmd>winc w<CR>', { desc = 'Next window' })
 
-map('n', '<leader>q', '<Cmd>bp | sp | bn | bd<CR>', { desc = 'Close the buffer, keeping the window' })
+map('n', '<leader>q', '<Cmd>bprevious | bdelete #<CR>', { desc = 'Close the buffer, keeping the window' })
 
 map('n', '<C-h>', '<Cmd>bp<CR>', { desc = 'Previous buffer' })
 map('n', '<C-l>', '<Cmd>bn<CR>', { desc = 'Next buffer' })
