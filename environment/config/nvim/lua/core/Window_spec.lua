@@ -559,4 +559,63 @@ describe('Window:', function()
       end)
     end)
   end)
+
+  describe('get_screen_rect', function()
+    it('is the text box of a float without a border', function()
+      win = Window:open(buffer, default_float_opts)
+
+      eq({ row = 5, col = 5, width = 20, height = 10 }, win:get_screen_rect())
+    end)
+
+    it('takes in the border of a float, one cell on each bordered side', function()
+      win = Window:open(buffer, vim.tbl_extend('force', default_float_opts, { border = 'rounded' }))
+
+      eq({ row = 5, col = 5, width = 22, height = 12 }, win:get_screen_rect())
+    end)
+
+    it('reads a border list, where an empty item means no border on that side', function()
+      win = Window:open(
+        buffer,
+        vim.tbl_extend('force', default_float_opts, { border = { '', '', '', '|', '', '', '', '' } })
+      )
+
+      eq({ row = 5, col = 5, width = 21, height = 10 }, win:get_screen_rect())
+    end)
+
+    it('is the plain box of a normal window', function()
+      local current = Window(vim.api.nvim_get_current_win())
+      local position = current:get_position()
+      local rect = current:get_screen_rect()
+
+      eq(
+        { position[1], position[2], current:get_width(), current:get_height() },
+        { rect.row, rect.col, rect.width, rect.height }
+      )
+    end)
+  end)
+
+  describe('get_zindex', function()
+    it('is 50 for a float unless it says otherwise, and 0 for a normal window', function()
+      win = Window:open(buffer, default_float_opts)
+      local high = Window:open(buffer, vim.tbl_extend('force', default_float_opts, { zindex = 200 }))
+
+      eq(50, win:get_zindex())
+      eq(200, high:get_zindex())
+      eq(0, Window(vim.api.nvim_get_current_win()):get_zindex())
+
+      high:close()
+    end)
+  end)
+
+  describe('is_visible', function()
+    it('is true for a float in the current tabpage, and false once it is closed', function()
+      win = Window:open(buffer, default_float_opts)
+
+      eq(true, win:is_visible())
+
+      win:close()
+
+      eq(false, win:is_visible())
+    end)
+  end)
 end)

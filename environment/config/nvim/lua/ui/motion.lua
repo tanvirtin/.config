@@ -21,6 +21,50 @@ motion.ease = {
   end,
 }
 
+local function bounce(t)
+  local n, d = 7.5625, 2.75
+
+  if t < 1 / d then return n * t * t end
+  if t < 2 / d then
+    t = t - 1.5 / d
+    return n * t * t + 0.75
+  end
+  if t < 2.5 / d then
+    t = t - 2.25 / d
+    return n * t * t + 0.9375
+  end
+
+  t = t - 2.625 / d
+
+  return n * t * t + 0.984375
+end
+
+motion.ease.in_cubic = function(t)
+  return t ^ 3
+end
+
+motion.ease.out_quad = function(t)
+  return 1 - (1 - t) * (1 - t)
+end
+
+motion.ease.in_out_sine = function(t)
+  return -(math.cos(math.pi * t) - 1) / 2
+end
+
+motion.ease.out_back = function(t)
+  local c = 1.70158
+
+  return 1 + (c + 1) * (t - 1) ^ 3 + c * (t - 1) ^ 2
+end
+
+motion.ease.out_bounce = bounce
+
+motion.ease.out_elastic = function(t)
+  if t <= 0 or t >= 1 then return t end
+
+  return 2 ^ (-10 * t) * math.sin((t * 10 - 0.75) * (2 * math.pi) / 3) + 1
+end
+
 function motion.lerp(from, to, t)
   return from + (to - from) * t
 end

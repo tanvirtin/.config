@@ -364,6 +364,59 @@ function Window:get_config()
   return vim.api.nvim_win_get_config(self.win_id)
 end
 
+local function border_sides(border)
+  if type(border) == 'string' then
+    if border == '' or border == 'none' then return 0, 0, 0, 0 end
+    if border == 'shadow' then return 0, 1, 1, 0 end
+
+    return 1, 1, 1, 1
+  end
+
+  if type(border) ~= 'table' or #border == 0 then return 0, 0, 0, 0 end
+
+  local function side(position)
+    local item = border[(position - 1) % #border + 1]
+
+    if type(item) == 'table' then item = item[1] end
+
+    return item ~= nil and item ~= '' and 1 or 0
+  end
+
+  return side(2), side(4), side(6), side(8)
+end
+
+function Window:get_screen_rect()
+  local config = self:get_config()
+  local top, right, bottom, left = 0, 0, 0, 0
+
+  if config.relative ~= '' then
+    top, right, bottom, left = border_sides(config.border)
+  end
+
+  local position = self:get_position()
+
+  return {
+    row = position[1],
+    col = position[2],
+    width = self:get_width() + left + right,
+    height = self:get_height() + top + bottom,
+  }
+end
+
+function Window:get_zindex()
+  local config = self:get_config()
+
+  if config.relative == '' then return 0 end
+
+  return config.zindex or 50
+end
+
+function Window:is_visible()
+  if not self:is_valid() then return false end
+
+  return self:get_tab() == Window.current_tab() and not self:get_config().hide
+end
+
 function Window:assign_options(options)
   for key, value in pairs(options) do
     pcall(vim.api.nvim_set_option_value, key, value, { scope = 'local', win = self.win_id })
@@ -437,9 +490,14 @@ function Window:call(callback)
 end
 
 function Window:start_insert()
-  return self:call(function()
-    vim.cmd('startinsert!')
-  end)
+  if not self:is_valid() then return self end
+
+  -- startinsert inside nvim_win_call is dropped when the call returns, so focus
+  -- the window first and start the insert from the current context.
+  self:focus()
+  vim.cmd('startinsert!')
+
+  return self
 end
 
 function Window.stop_insert()

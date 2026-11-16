@@ -444,4 +444,88 @@ describe('Element:', function()
       eq('added', marks[1][4].virt_lines[1][1][1])
     end)
   end)
+
+  describe('surface', function()
+    local graphics = require('core.graphics')
+    local Backdrop = require('ui.pixel.Backdrop')
+
+    local original, drawn
+
+    local function floating(opts)
+      return create_element(vim.tbl_deep_extend('force', {
+        window_mode = 'floating',
+        win_plot = { relative = 'editor', row = 2, col = 2, width = 30, height = 6, border = 'rounded' },
+        win_options = { winhl = 'Normal:UiNormal,FloatBorder:UiMuted', wrap = false },
+      }, opts or {}))
+    end
+
+    local function border_chars(el)
+      return vim.tbl_map(function(item)
+        return type(item) == 'table' and item[1] or item
+      end, el:get_window():get_config().border)
+    end
+
+    before_each(function()
+      drawn = {}
+      original = { draw = graphics.draw, delete = graphics.delete, supported = graphics.supported }
+      graphics.supported = function()
+        return true
+      end
+      graphics.draw = function()
+        drawn[#drawn + 1] = true
+      end
+      graphics.delete = function() end
+    end)
+
+    after_each(function()
+      graphics.draw, graphics.delete, graphics.supported = original.draw, original.delete, original.supported
+    end)
+
+    it('mounts a surfaced floating element with a blank border, a remapped winhl and one backdrop', function()
+      local before = Backdrop.count()
+      local el = floating({ surface = { elevation = 'raised' } }):mount()
+
+      eq({ ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ' }, border_chars(el))
+      eq('Normal:UiBackdropNormal,FloatBorder:UiBackdropNormal', el:get_window():get_option('winhl'))
+      eq(before + 1, Backdrop.count())
+      eq(true, #drawn > 0)
+
+      el:unmount()
+    end)
+
+    it('repaints the backdrop when the surfaced element is resized', function()
+      local el = floating({ surface = true }):mount()
+      local painted = #drawn
+
+      el:set_width(20)
+
+      eq(true, #drawn > painted)
+
+      el:unmount()
+    end)
+
+    it('destroys the backdrop when the surfaced element unmounts', function()
+      local el = floating({ surface = true }):mount()
+      local before = Backdrop.count()
+
+      el:unmount()
+
+      eq(before - 1, Backdrop.count())
+    end)
+
+    it('keeps the given border and winhl when there are no pixels', function()
+      graphics.supported = function()
+        return false
+      end
+
+      local before = Backdrop.count()
+      local el = floating({ surface = { elevation = 'raised' } }):mount()
+
+      eq('╭', border_chars(el)[1])
+      eq('Normal:UiNormal,FloatBorder:UiMuted', el:get_window():get_option('winhl'))
+      eq(before, Backdrop.count())
+
+      el:unmount()
+    end)
+  end)
 end)

@@ -8,6 +8,8 @@ local Buffer = lazy('core.Buffer')
 local Window = lazy('core.Window')
 local mouse = lazy('core.mouse')
 local renderer = lazy('core.renderer')
+local surface = lazy('ui.pixel.surface')
+local Backdrop = lazy('ui.pixel.Backdrop')
 local LayoutBounds = lazy('ui.layout.LayoutBounds')
 
 local Element = Object:extend()
@@ -21,6 +23,9 @@ function Element:constructor(props)
     _mounted = false,
     _on_render = function() end,
     _is_attached_to_renderer = false,
+    _surface_prop = props.surface,
+    _surface = nil,
+    _backdrop = nil,
     _plot = props.plot or {
       win_plot = utils.object.assign(props.win_plot or {}),
     },
@@ -61,9 +66,14 @@ function Element:mount()
   end
 
   win_plot.mode = window_mode
+  self._surface = self:_resolve_surface()
+
+  if self._surface then win_plot.border = surface.window_border(self._surface) end
+
   self._window = Window:open(self._buffer, win_plot)
 
   self:_apply_win_options()
+  self:_mount_backdrop()
 
   self._mounted = true
 
@@ -74,12 +84,49 @@ function Element:forget()
   if not self._mounted then return self end
 
   self:detach_from_renderer()
+  self:_destroy_backdrop()
 
   if self._window and self._window:is_valid() then self._window:close() end
   self._window = nil
   self._buffer = nil
+  self._surface = nil
 
   self._mounted = false
+
+  return self
+end
+
+function Element:_resolve_surface()
+  if self._config.window_mode ~= 'floating' or not self._surface_prop or not Backdrop.available() then return nil end
+
+  return surface.resolve(self._surface_prop)
+end
+
+function Element:_mount_backdrop()
+  if not self._surface then return self end
+
+  local card = self._surface
+
+  self._backdrop = Backdrop({
+    window = self._window,
+    draw = function(bitmap, size)
+      surface.draw(bitmap, size, card)
+    end,
+  })
+  self._backdrop:refresh()
+
+  return self
+end
+
+function Element:_destroy_backdrop()
+  if self._backdrop then self._backdrop:destroy() end
+  self._backdrop = nil
+
+  return self
+end
+
+function Element:_refresh_backdrop()
+  if self._backdrop then self._backdrop:refresh() end
 
   return self
 end
@@ -171,12 +218,14 @@ end
 function Element:set_width(width)
   if not self:is_valid() then return self end
   self._window:set_width(width)
+  self:_refresh_backdrop()
   return self
 end
 
 function Element:set_height(height)
   if not self:is_valid() then return self end
   self._window:set_height(height)
+  self:_refresh_backdrop()
   return self
 end
 
@@ -240,6 +289,7 @@ function Element:set_footer(footer)
   config.footer = type(footer) == 'string' and { { footer, 'UiMuted' } } or footer
   config.footer_pos = 'center'
   self._window:set_config(config)
+  self:_refresh_backdrop()
 
   return self
 end
@@ -396,12 +446,18 @@ function Element:detach_from_renderer()
   return self
 end
 
+function Element:_window_options()
+  local options = self._config.win_options
+
+  if not self._surface then return options end
+
+  return vim.tbl_extend('force', options, { winhl = surface.winhl(options.winhl) })
+end
+
 function Element:_apply_win_options()
   if not self._window or not self._window:is_valid() then return self end
 
-  local options = self._config.win_options
-
-  for key, value in pairs(options) do
+  for key, value in pairs(self:_window_options()) do
     self._window:set_option(key, value)
   end
 
@@ -409,7 +465,13 @@ function Element:_apply_win_options()
 end
 
 function Element:set_config(config)
-  if self:is_valid() then self._window:set_config(config) end
+  if not self:is_valid() then return self end
+
+  if self._surface then config = vim.tbl_extend('force', config, { border = surface.window_border(self._surface) }) end
+
+  self._window:set_config(config)
+  self:_refresh_backdrop()
+
   return self
 end
 

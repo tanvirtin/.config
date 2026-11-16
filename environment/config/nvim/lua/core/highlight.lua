@@ -10,6 +10,10 @@ function highlight.get_hl_by_name(name)
   return vim.api.nvim_get_hl(0, { name = name, link = false })
 end
 
+function highlight.exists(name)
+  return vim.fn.hlexists(name) == 1
+end
+
 function highlight.set(group, spec)
   vim.api.nvim_set_hl(0, group, spec)
 

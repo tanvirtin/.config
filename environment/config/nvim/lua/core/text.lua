@@ -34,6 +34,10 @@ function text.width(value)
   return vim.fn.strdisplaywidth(value)
 end
 
+function text.chars(value)
+  return vim.fn.split(value, '\\zs')
+end
+
 function text.truncate(value, width)
   if width <= 0 then return '' end
   if text.width(value) <= width then return value end

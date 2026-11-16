@@ -3,6 +3,11 @@ local text = require('core.text')
 local eq = assert.are.same
 
 describe('core.text:', function()
+  it('splits a string into its characters, whole even when they are many bytes', function()
+    eq({ 'a', '▓', 'b' }, text.chars('a▓b'))
+    eq({}, text.chars(''))
+  end)
+
   describe('fuzzy', function()
     it('keeps only the items whose key matches the query', function()
       local items = { { name = 'buffer_edit' }, { name = 'git_diff' }, { name = 'buffer_read' } }
