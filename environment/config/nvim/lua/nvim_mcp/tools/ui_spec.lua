@@ -45,6 +45,14 @@ describe('nvim_mcp.tools.ui:', function()
       assert.is_true(compact.stats('h1').saved_tokens > 0)
     end)
 
+    it('searches a single file when the path is a file', function()
+      local out = run('search', { source = 'grep', query = 'greet', path = root .. '/lua/a.lua' })
+
+      assert.is_truthy(out:find('2:7: local greet = 2', 1, true), out)
+      assert.is_falsy(out:find('ENOTDIR', 1, true))
+      assert.is_falsy(out:find('b.lua', 1, true))
+    end)
+
     it('adds the lines around each grep match when asked for context', function()
       local out = run('search', { source = 'grep', query = 'greet', path = root, context = 1 })
 
@@ -116,6 +124,81 @@ describe('nvim_mcp.tools.ui:', function()
       end)
 
       assert.is_truthy(run('ui_read', { surface = picker.id }):find('chosen: blue', 1, true))
+    end)
+
+    it('draws lines on a canvas owned by the caller, and refuses to draw nothing', function()
+      local out = run('ui_draw', { title = 'Sketch', lines = { '[accent]hi[/] there' } }, 'h1')
+      local canvas = surfaces.all()[1]
+
+      assert.is_truthy(out:find(canvas.id .. ' canvas "Sketch" [ready] by h1 commands: close()', 1, true))
+      assert.is_truthy(run('ui_read', { surface = canvas.id }):find('hi there', 1, true))
+
+      local ok, err = pcall(run, 'ui_draw', { title = 'Empty', frames = {} })
+      eq(false, ok)
+      eq('pass lines, or frames to animate', err)
+
+      ok, err = pcall(run, 'ui_draw', { lines = { 'x' } })
+      eq(false, ok)
+      eq('pass a title, or the surface of a canvas to redraw', err)
+    end)
+
+    it('plays a preset or a scene of actors, and says what it needs when given neither', function()
+      local out = run('ui_animate', { preset = 'sparks', duration_ms = 30 }, 'h1')
+      local scene = surfaces.all()[1]
+
+      assert.is_truthy(out:find(scene.id .. ' scene "sparks" [ready] by h1 commands: close()', 1, true))
+      vim.wait(1000, function()
+        return scene.state == 'closed'
+      end, 10)
+      eq('closed', scene.state)
+
+      out =
+        run('ui_animate', { title = 'Mine', scene = { actors = { { type = 'curtain', blend = 50 } } }, loop = true })
+      assert.is_truthy(out:find('scene "Mine" [ready]', 1, true))
+      run('ui_command', { surface = surfaces.all()[1].id, command = 'close' })
+      eq({}, surfaces.all())
+
+      local ok, err = pcall(run, 'ui_animate', {})
+      eq(false, ok)
+      assert.is_truthy(err:find('pass a preset (confetti, fireworks, ', 1, true))
+    end)
+
+    it('redraws a canvas it opened instead of opening another', function()
+      run('ui_draw', { title = 'Sketch', lines = { 'one' } })
+
+      local id = surfaces.all()[1].id
+      local out = run('ui_draw', { surface = id, lines = { '{rule:3}', '{rep:x:2}' } })
+
+      eq(1, #surfaces.all())
+      assert.is_truthy(out:find('───\n xx', 1, true) or out:find('───', 1, true))
+
+      surfaces.panel({ title = 'P', markdown = '' })
+
+      local ok, err = pcall(run, 'ui_draw', { surface = surfaces.all()[2].id, lines = { 'x' } })
+      eq(false, ok)
+      assert.is_truthy(err:find('is a panel, not a canvas', 1, true))
+    end)
+
+    it('draws components by id, and changes their data with ui_command set', function()
+      run('ui_draw', {
+        title = 'Tests',
+        components = {
+          { id = 't', type = 'ring', value = 0.7 },
+          { id = 'b', type = 'badge', text = 'passing', color = 'added' },
+        },
+        lines = { '{@t} [title]tests[/] {@b}' },
+      }, 'h1')
+      local canvas = surfaces.all()[1]
+      local shown = run('ui_read', { surface = canvas.id })
+
+      assert.is_truthy(shown:find('[ring t]', 1, true))
+      assert.is_truthy(shown:find('[badge b]', 1, true))
+      assert.is_truthy(shown:find('t ring value=0.7', 1, true))
+      assert.is_truthy(shown:find('b badge color=added text=passing', 1, true))
+
+      run('ui_command', { surface = canvas.id, command = 'set', args = { id = 'b', props = { text = 'failing' } } })
+
+      assert.is_truthy(run('ui_read', { surface = canvas.id }):find('b badge color=added text=failing', 1, true))
     end)
 
     it('reports an unknown surface and an unknown command', function()

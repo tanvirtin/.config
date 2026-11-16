@@ -103,4 +103,20 @@ function surfaces.panel(opts)
   return surfaces.add(require('surfaces.Panel')(opts)):open()
 end
 
+function surfaces.scene(opts)
+  local scene = surfaces.add(require('surfaces.Scene')(opts))
+  local ok, err = pcall(scene.open, scene)
+
+  if not ok then
+    scene:close()
+    error(err, 0)
+  end
+
+  return scene
+end
+
+function surfaces.canvas(opts)
+  return surfaces.add(require('surfaces.Canvas')(opts)):open()
+end
+
 return surfaces

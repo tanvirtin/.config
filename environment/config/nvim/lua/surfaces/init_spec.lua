@@ -328,4 +328,142 @@ describe('surfaces:', function()
       panel:command('close')
     end)
   end)
+
+  describe('canvas', function()
+    local function drawn(canvas)
+      return vim.api.nvim_buf_get_lines(canvas._body:get_bufnr(), 0, -1, false)
+    end
+
+    it('draws styled lines in a float that leaves the focus where it was', function()
+      local before = vim.api.nvim_get_current_win()
+      local canvas = surfaces.canvas({ title = 'Sketch', lines = { 'a [accent]hot[/] word', 'plain' } })
+      local marks = vim.api.nvim_buf_get_extmarks(canvas._body:get_bufnr(), -1, 0, -1, { details = true })
+
+      eq(before, vim.api.nvim_get_current_win())
+      eq({ ' a hot word', ' plain' }, drawn(canvas))
+      eq({ 0, 3, 6, 'UiAccent' }, { marks[1][2], marks[1][3], marks[1][4].end_col, marks[1][4].hl_group })
+      assert.is_truthy(canvas:snapshot():find('canvas "Sketch" [ready]', 1, true))
+      assert.is_truthy(canvas:snapshot():find('a hot word', 1, true))
+
+      canvas:command('close')
+      eq('closed', canvas.state)
+      eq({}, surfaces.all())
+    end)
+
+    it('plays its frames in a loop, and stops its clock when it closes', function()
+      local canvas = surfaces.canvas({ title = 'Spin', frames = { { 'one' }, { 'two' } }, interval_ms = 10 })
+
+      eq({ ' one' }, drawn(canvas))
+      settle(function()
+        return drawn(canvas)[1] == ' two'
+      end)
+      eq({ ' two' }, drawn(canvas))
+      settle(function()
+        return drawn(canvas)[1] == ' one'
+      end)
+      eq({ ' one' }, drawn(canvas))
+
+      canvas:close()
+      eq(false, canvas._timer:is_active())
+    end)
+
+    it('expands widgets on every frame, and animates on its own when one moves', function()
+      local canvas = surfaces.canvas({ title = 'Build', lines = { '{spin} {bar:@:4}' }, interval_ms = 10 })
+
+      eq({ ' ⠋ ░░░░' }, drawn(canvas))
+      settle(function()
+        return drawn(canvas)[1] ~= ' ⠋ ░░░░'
+      end)
+      assert.is_truthy(drawn(canvas)[1] ~= ' ⠋ ░░░░')
+      canvas:close()
+    end)
+
+    it('closes itself after its duration', function()
+      local canvas = surfaces.canvas({ title = 'Brief', lines = { 'hi' }, duration_ms = 20 })
+
+      settle(function()
+        return canvas.state == 'closed'
+      end)
+      eq('closed', canvas.state)
+      eq({}, surfaces.all())
+    end)
+
+    it('is redrawn in place and resized to fit, keeping its id', function()
+      local canvas = surfaces.canvas({ title = 'Sketch', lines = { 'a' } })
+      local id = canvas.id
+
+      canvas:command('draw', { lines = { 'a much longer line', 'and a second' } })
+
+      eq(id, canvas.id)
+      eq({ ' a much longer line', ' and a second' }, drawn(canvas))
+      eq(2, vim.api.nvim_win_get_height(vim.fn.bufwinid(canvas._body:get_bufnr())))
+
+      local ok, err = pcall(canvas.command, canvas, 'draw', {})
+      eq(false, ok)
+      eq('pass lines, or frames to animate', err)
+      canvas:close()
+    end)
+
+    it('draws from a function of the time that has passed, and stops when that function breaks', function()
+      local ticks = {}
+      local canvas = surfaces.canvas({
+        title = 'Clock',
+        interval_ms = 10,
+        draw = function(ms, tick)
+          ticks[#ticks + 1] = tick
+
+          if tick == 3 then error('boom') end
+
+          return { 'tick ' .. tick .. ' at ' .. (ms >= 0 and 'some' or 'no') .. ' time' }
+        end,
+      })
+
+      eq({ ' tick 0 at some time' }, drawn(canvas))
+      settle(function()
+        return canvas.state == 'closed'
+      end)
+      eq({ 0, 1, 2, 3 }, ticks)
+      eq('closed', canvas.state)
+      eq(false, canvas._timer:is_active())
+    end)
+  end)
+  describe('a scene', function()
+    it('plays its actors without taking focus, and closes itself when it ends', function()
+      local before = vim.api.nvim_get_current_win()
+      local scene = surfaces.scene({
+        title = 'Glide',
+        scene = { actors = { { type = 'sprite', lines = { 'hi' }, to = { 5, 5 }, ms = 40 } } },
+      })
+
+      eq(before, vim.api.nvim_get_current_win())
+      eq('ready', scene.state)
+      eq({ scene }, surfaces.all())
+      assert.is_truthy(scene:snapshot():find('scene "Glide" [ready]\n1 actors, 90 ms', 1, true))
+
+      settle(function()
+        return scene.state == 'closed'
+      end)
+      eq('closed', scene.state)
+      eq({}, surfaces.all())
+      eq(1, #vim.api.nvim_list_wins())
+    end)
+
+    it('stops at once when it is closed', function()
+      local scene =
+        surfaces.scene({ title = 'Loop', scene = { loop = true, actors = { { type = 'curtain', blend = 50 } } } })
+
+      eq(2, #vim.api.nvim_list_wins())
+      scene:command('close')
+      eq('closed', scene.state)
+      eq(1, #vim.api.nvim_list_wins())
+    end)
+
+    it('opens nothing when its spec is wrong', function()
+      local ok, err = pcall(surfaces.scene, { title = 'Bad', scene = { actors = { { type = 'blob' } } } })
+
+      eq(false, ok)
+      assert.is_truthy(err:find('actor 1: unknown type blob', 1, true))
+      eq({}, surfaces.all())
+    end)
+  end)
 end)

@@ -4,12 +4,19 @@ local Window = require('core.Window')
 local buffers = require('core.buffers')
 local editor = require('core.editor')
 local compact = require('compact')
+local catalog = require('ui.pixel.catalog')
 local schema = require('nvim_mcp.schema')
 local sources = require('sources')
 local surfaces = require('surfaces')
 local util = require('nvim_mcp.tools.util')
 
 local WAIT_MS = 2000
+
+local function component_help()
+  return '\nComponents: pass components [{id, type, ...props}] and put {@id} in lines (alone on a line for tall ones). Pixel graphics where the terminal has them, text otherwise. Colours are style names (accent, muted, added, removed, warn, error, info). Change data later with ui_command <surface> set {id, props}.\n'
+    .. table.concat(catalog.describe(), '\n')
+    .. '\nExample: components [{id:"t",type:"ring",value:0.7},{id:"b",type:"badge",text:"passing",color:"added"}], lines ["{@t} [title]tests[/] {@b}"].'
+end
 
 local function surface(id)
   local found = surfaces.find(id)
@@ -36,7 +43,11 @@ local function source_opts(args)
 
   if args.source == 'diagnostics' then return { buf = (args.path or args.bufnr) and util.resolve(args) or nil } end
 
-  return { cwd = args.path and fs.normalize(fs.full_path(args.path)) or nil }
+  local full = args.path and fs.normalize(fs.full_path(args.path)) or nil
+
+  if full and not fs.is_dir(full) then return { cwd = fs.dirname(full), path = fs.basename(full) } end
+
+  return { cwd = full }
 end
 
 local function render(items, args)
@@ -104,6 +115,49 @@ local function ui_pick(args, ctx)
   if args.query then picker:command('query', { text = args.query }) end
 
   return picker:describe() .. '\nthe user is choosing; ui_read ' .. picker.id .. ' shows their choice once made'
+end
+
+local function ui_draw(args, ctx)
+  if not args.lines and #(args.frames or {}) == 0 then util.fail('pass lines, or frames to animate') end
+
+  if args.surface then
+    local canvas = surface(args.surface)
+
+    if canvas.kind ~= 'canvas' then util.fail(args.surface .. ' is a ' .. canvas.kind .. ', not a canvas') end
+
+    canvas:command('draw', { lines = args.lines, frames = args.frames, components = args.components })
+
+    return canvas:snapshot()
+  end
+
+  if not args.title then util.fail('pass a title, or the surface of a canvas to redraw') end
+
+  return surfaces
+    .canvas({
+      title = args.title,
+      lines = args.lines,
+      frames = not args.lines and args.frames or nil,
+      components = args.components,
+      interval_ms = args.interval_ms,
+      duration_ms = args.duration_ms,
+      owner = ctx.caller,
+    })
+    :describe()
+end
+
+local function ui_animate(args, ctx)
+  local scene = vim.deepcopy(args.scene or {})
+
+  scene.preset = args.preset or scene.preset
+  scene.at = args.at or scene.at
+  scene.duration_ms = args.duration_ms or scene.duration_ms
+  scene.loop = args.loop or scene.loop
+
+  if not scene.preset and not scene.actors then
+    util.fail('pass a preset (' .. table.concat(require('ui.anim.presets').names(), ', ') .. ') or a scene with actors')
+  end
+
+  return surfaces.scene({ title = args.title or scene.preset or 'scene', scene = scene, owner = ctx.caller }):describe()
 end
 
 local function ui_surfaces()
@@ -215,9 +269,39 @@ return {
     fn = ui_pick,
   },
   {
+    name = 'ui_draw',
+    risk = 'write',
+    summary = 'Draw for the user in a float that takes no focus. lines = one picture; frames = a loop (one per interval_ms, default 100). Pass surface to redraw a canvas in place instead of opening another; duration_ms closes it by itself.\nStyle: [name]text[/] with name accent muted title warn error info hint added removed path (or a highlight group, capitalised); \\[ is a literal bracket.\nWidgets, expanded here so you do not write them out: {bar:60:20} (percent, width; {bar:@:20} fills over 20 ticks), {spark:3,5,8}, {spin}, {rule:30}, {rep:▓:8}.\nExample: lines ["[title]build[/] {spin}", "{bar:@:24} [muted]linking[/]"], duration_ms 5000.\nFor motion computed from time, run require("surfaces").canvas({ title = "x", draw = function(ms, tick) return lines end }) with lua.'
+      .. component_help(),
+    params = {
+      { name = 'title', type = schema.str(), optional = true },
+      { name = 'surface', type = schema.str(), optional = true },
+      { name = 'duration_ms', type = schema.int(), optional = true },
+      { name = 'lines', type = schema.list(schema.str()), optional = true },
+      { name = 'frames', type = schema.list(schema.list(schema.str())), optional = true },
+      { name = 'components', type = schema.list(schema.dict(schema.any())), optional = true },
+      { name = 'interval_ms', type = schema.int(), optional = true },
+    },
+    fn = ui_draw,
+  },
+  {
+    name = 'ui_animate',
+    risk = 'write',
+    summary = 'Play an animation over the editor, without taking focus. Cheapest: pass preset (fireworks, confetti, sparks, rain, snow, matrix, glitch, typewriter, shimmer, flash, ripple), optionally at [x,y] and duration_ms. Or pass scene { duration_ms, fps, loop, actors: [...] }. Positions are cells or "50%" strings; times are ms.\\nActors (type):\\n sprite: lines|frames, at, anchor "center", to [x,y] + ms + ease + from_ms (glide), x/y [[ms,v,ease?],...] keyframes, blend [[ms,0-100],...] (100 invisible), fade in|out|inout, border, bg.\\n emitter: at, burst N, rate/s, start_ms, stop_ms, life_ms [lo,hi], speed [lo,hi], angle [lo,hi] degrees (0 right, 90 up), gravity, drag, spread, glyphs [..] and hl [..] (walk through a particle\'s life), mixed (random hl), size. With kitty graphics particles are glowing pixels and glyphs are unused; pixels:false in the scene forces glyphs. Pixels sit behind the text, so sprites and code stay readable over them; front:true in the scene puts them on top.\\n shape (real pixels, needs kitty graphics: Ghostty or kitty, not tmux): shape circle|glow|ring|rect|line, at, color (style name or "#rrggbb"), r (radius in rows), w (columns), h (rows), end [x,y] (line), thick (px), round (px), opacity 0-100, anchor "center", show_ms, hide_ms; r, w, h, x, y, x2, y2, opacity also take [[ms,v,ease?],...]; to + ms + ease glides as a sprite does.\\n text (animates the focused window\'s real text, nothing is edited): effect reveal|sweep|glitch|rain, from_ms, ms.\\n camera (moves the real editor): move cursor|scroll|width|height, to ([line,col] or number), from_ms, ms, ease.\\n curtain: color, blend [[ms,0-100],...] (a screen-wide fade).\\nEases: linear, out_cubic, in_out, in_cubic, out_quad, in_out_sine, out_back, out_bounce, out_elastic. Styles in sprite lines as in ui_draw ([accent]x[/], {spin}, {bar:@:10}).\\nExample: {preset:"confetti"} or {scene:{actors:[{type:"sprite",lines:["[accent]★[/]"],at:[0,"50%"],to:["90%","50%"],ms:1200,ease:"out_bounce"},{type:"emitter",at:["90%","50%"],start_ms:1200,burst:30,glyphs:["✦","·"],hl:["warn","muted"]}]}}.\\nIt ends by itself; ui_command close stops it.',
+    params = {
+      { name = 'preset', type = schema.str(), optional = true },
+      { name = 'scene', type = schema.dict(schema.any()), optional = true },
+      { name = 'at', type = schema.list(schema.any()), optional = true },
+      { name = 'duration_ms', type = schema.int(), optional = true },
+      { name = 'loop', type = schema.bool(), optional = true },
+      { name = 'title', type = schema.str(), optional = true },
+    },
+    fn = ui_animate,
+  },
+  {
     name = 'ui_surfaces',
     risk = 'read',
-    summary = 'Open surfaces (pickers, lists, panels): id, kind, title, state, owner, and the commands each takes.',
+    summary = 'Open surfaces (pickers, lists, panels, canvases): id, kind, title, state, owner, and the commands each takes.',
     params = {},
     fn = ui_surfaces,
   },
