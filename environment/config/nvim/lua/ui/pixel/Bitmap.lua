@@ -3,6 +3,7 @@ local ffi = require('ffi')
 local Bitmap = {}
 
 Bitmap.__index = Bitmap
+Bitmap.FAST = true
 
 local floor, ceil, max, min, sqrt, abs = math.floor, math.ceil, math.max, math.min, math.sqrt, math.abs
 local sin, cos, atan2, TAU = math.sin, math.cos, math.atan2, 2 * math.pi
@@ -101,6 +102,96 @@ function Bitmap:_fill(x0, y0, x1, y1, rgb, alpha, coverage)
   return self
 end
 
+local function blend(data, at, r, g, b, source)
+  local s = min(source, 1)
+  local under = data[at + 3] / 255 * (1 - s)
+  local out = s + under
+
+  data[at] = (r * s + data[at] * under) / out
+  data[at + 1] = (g * s + data[at + 1] * under) / out
+  data[at + 2] = (b * s + data[at + 2] * under) / out
+  data[at + 3] = out * 255
+end
+
+function Bitmap:_fill_core(x0, y0, x1, y1, rgb, alpha, coverage, cx, cy, tall, wide, solid)
+  x0, y0 = max(self.clip_left, floor(x0)), max(self.clip_top, floor(y0))
+  x1, y1 = min(self.clip_right - 1, ceil(x1)), min(self.clip_bottom - 1, ceil(y1))
+
+  if x1 < x0 or y1 < y0 or alpha <= 0 then return self end
+
+  local data, width = self.data, self.width
+  local r, g, b = rgb[1], rgb[2], rgb[3]
+  local s = min(alpha, 1)
+  local keep = 1 - s
+  local tall_x0, tall_x1 = ceil(cx - tall.x - 0.5) + 1, floor(cx + tall.x - 0.5) - 1
+  local tall_y0, tall_y1 = ceil(cy - tall.y - 0.5) + 1, floor(cy + tall.y - 0.5) - 1
+  local wide_x0, wide_x1 = ceil(cx - wide.x - 0.5) + 1, floor(cx + wide.x - 0.5) - 1
+  local wide_y0, wide_y1 = ceil(cy - wide.y - 0.5) + 1, floor(cy + wide.y - 0.5) - 1
+
+  local function scan(from, to, y)
+    for x = from, to do
+      local source = alpha * coverage(x + 0.5, y + 0.5)
+
+      if source > 0 then blend(data, (y * width + x) * 4, r, g, b, source) end
+    end
+  end
+
+  local opaque = nil
+
+  if solid and s >= 1 then
+    opaque = ffi.new('uint8_t[?]', width * 4)
+
+    for x = 0, width - 1 do
+      opaque[x * 4] = r
+      opaque[x * 4 + 1] = g
+      opaque[x * 4 + 2] = b
+      opaque[x * 4 + 3] = 255
+    end
+  end
+
+  local function fill(from, to, y)
+    if opaque then
+      ffi.copy(data + (y * width + from) * 4, opaque, (to - from + 1) * 4)
+
+      return
+    end
+
+    for x = from, to do
+      local at = (y * width + x) * 4
+      local under = data[at + 3] / 255 * keep
+      local out = s + under
+
+      data[at] = (r * s + data[at] * under) / out
+      data[at + 1] = (g * s + data[at + 1] * under) / out
+      data[at + 2] = (b * s + data[at + 2] * under) / out
+      data[at + 3] = out * 255
+    end
+  end
+
+  for y = y0, y1 do
+    local inner_from, inner_to = x1 + 1, x1
+
+    if y >= wide_y0 and y <= wide_y1 then
+      inner_from, inner_to = max(x0, wide_x0), min(x1, wide_x1)
+    elseif y >= tall_y0 and y <= tall_y1 then
+      inner_from, inner_to = max(x0, tall_x0), min(x1, tall_x1)
+    end
+
+    if inner_from <= inner_to then
+      scan(x0, inner_from - 1, y)
+      if solid then fill(inner_from, inner_to, y) end
+      scan(inner_to + 1, x1, y)
+    else
+      scan(x0, x1, y)
+    end
+  end
+
+  self.left, self.top = min(self.left, x0), min(self.top, y0)
+  self.right, self.bottom = max(self.right, x1), max(self.bottom, y1)
+
+  return self
+end
+
 local function edge(distance)
   return max(0, min(1, 0.5 - distance))
 end
@@ -163,9 +254,26 @@ function Bitmap:rect(x, y, width, height, rgb, alpha, radius)
 
   radius = max(0, min(radius or 0, half_w, half_h))
 
-  return self:_fill(x - 1, y - 1, x + width + 1, y + height + 1, rgb, alpha, function(px, py)
+  local function coverage(px, py)
     return edge(box_distance(px, py, cx, cy, half_w, half_h, radius))
-  end)
+  end
+
+  if not Bitmap.FAST then return self:_fill(x - 1, y - 1, x + width + 1, y + height + 1, rgb, alpha, coverage) end
+
+  return self:_fill_core(
+    x - 1,
+    y - 1,
+    x + width + 1,
+    y + height + 1,
+    rgb,
+    alpha,
+    coverage,
+    cx,
+    cy,
+    { x = half_w - radius - 0.5, y = half_h - 0.5 },
+    { x = half_w - 0.5, y = half_h - radius - 0.5 },
+    true
+  )
 end
 
 function Bitmap:border(x, y, width, height, thickness, rgb, alpha, radius)
@@ -174,11 +282,28 @@ function Bitmap:border(x, y, width, height, thickness, rgb, alpha, radius)
 
   radius = max(0, min(radius or 0, half_w, half_h))
 
-  return self:_fill(x - 1, y - 1, x + width + 1, y + height + 1, rgb, alpha, function(px, py)
+  local function coverage(px, py)
     local d = box_distance(px, py, cx, cy, half_w, half_h, radius)
 
     return edge(abs(d + thickness / 2) - thickness / 2)
-  end)
+  end
+
+  if not Bitmap.FAST then return self:_fill(x - 1, y - 1, x + width + 1, y + height + 1, rgb, alpha, coverage) end
+
+  return self:_fill_core(
+    x - 1,
+    y - 1,
+    x + width + 1,
+    y + height + 1,
+    rgb,
+    alpha,
+    coverage,
+    cx,
+    cy,
+    { x = half_w - radius - thickness - 0.5, y = half_h - thickness - 0.5 },
+    { x = half_w - thickness - 0.5, y = half_h - radius - thickness - 0.5 },
+    false
+  )
 end
 
 function Bitmap:line(x0, y0, x1, y1, thickness, rgb, alpha)

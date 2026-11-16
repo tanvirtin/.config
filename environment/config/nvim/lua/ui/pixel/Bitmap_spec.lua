@@ -173,4 +173,134 @@ describe('ui.pixel.Bitmap:', function()
     eq({ 2, 2, 16 }, { width, height, #bytes })
     eq(string.rep('\255\0\0\255', 4), bytes)
   end)
+
+  describe('fast rectangles and borders', function()
+    local BACKDROP = { 40, 90, 160 }
+    local SHAPE = { 255, 80, 0 }
+
+    local function with_fast(fast, fn)
+      Bitmap.FAST = fast
+
+      local ok, result = pcall(fn)
+
+      Bitmap.FAST = true
+      assert(ok, result)
+
+      return result
+    end
+
+    local function render(fast, draw)
+      return with_fast(fast, function()
+        local bitmap = Bitmap.new(300, 200):rect(0, 0, 300, 200, BACKDROP, 0.4)
+
+        draw(bitmap)
+
+        return (bitmap:crop(0, 0, 299, 199))
+      end)
+    end
+
+    local function same_bytes(draw)
+      eq(render(false, draw), render(true, draw))
+    end
+
+    local RECTS = {
+      { 10, 10, 60, 40, 0, 1 },
+      { 20, 15, 50, 30, 0, 0.5 },
+      { 20, 15, 50, 30, 3, 1 },
+      { 20, 15, 50, 30, 3, 0.5 },
+      { 70, 20, 80, 50, 10, 1 },
+      { 70, 20, 80, 50, 10, 0.5 },
+      { 160, 10, 120, 100, 40, 1 },
+      { 160, 10, 120, 100, 40, 0.5 },
+      { 2.5, 3.25, 100.7, 60.3, 0, 1 },
+      { 2.5, 3.25, 100.7, 60.3, 4.5, 0.5 },
+      { 5.3, 7.9, 33.3, 21.7, 2.2, 1 },
+      { 40, 40, 0.5, 0.5, 0, 1 },
+      { -15, 150, 50, 40, 6, 1 },
+      { 250, -20, 90, 60, 10, 0.5 },
+    }
+
+    local BORDERS = {}
+
+    for _, thickness in ipairs({ 1, 1.5, 3 }) do
+      for _, radius in ipairs({ 0, 3, 10, 40 }) do
+        BORDERS[#BORDERS + 1] = { 12.5, 11, 120, 90, thickness, radius }
+      end
+    end
+
+    it('fills rectangles with the same bytes on the fast and full paths', function()
+      for _, shape in ipairs(RECTS) do
+        local x, y, width, height, radius, alpha = unpack(shape)
+
+        same_bytes(function(bitmap)
+          bitmap:rect(x, y, width, height, SHAPE, alpha, radius)
+        end)
+      end
+    end)
+
+    it('outlines borders with the same bytes on the fast and full paths', function()
+      for _, shape in ipairs(BORDERS) do
+        local x, y, width, height, thickness, radius = unpack(shape)
+
+        same_bytes(function(bitmap)
+          bitmap:border(x, y, width, height, thickness, SHAPE, 1, radius)
+        end)
+      end
+    end)
+
+    it('matches the full path for translucent borders', function()
+      same_bytes(function(bitmap)
+        bitmap:border(20.25, 30.5, 150.5, 80.75, 2.5, SHAPE, 0.5, 8)
+      end)
+    end)
+
+    it('matches the full path under a clip', function()
+      same_bytes(function(bitmap)
+        bitmap:clip(30, 30, 200, 120):rect(0, 0, 300, 200, SHAPE, 1, 10):unclip()
+      end)
+
+      same_bytes(function(bitmap)
+        bitmap:clip(30, 30, 200, 120):border(10, 10, 200, 150, 3, SHAPE, 0.5, 10):unclip()
+      end)
+    end)
+
+    it('marks the same bounds dirty on both paths', function()
+      local full = with_fast(false, function()
+        return Bitmap.new(300, 200):rect(-15, 150, 50, 40, SHAPE, 1, 6):border(12, 11, 120, 90, 1.5, SHAPE, 1, 3)
+      end)
+      local fast = with_fast(true, function()
+        return Bitmap.new(300, 200):rect(-15, 150, 50, 40, SHAPE, 1, 6):border(12, 11, 120, 90, 1.5, SHAPE, 1, 3)
+      end)
+
+      eq({ full:bounds() }, { fast:bounds() })
+    end)
+
+    it('runs the rectangle and border no slower on the fast path', function()
+      local function draw(bitmap)
+        bitmap:rect(2, 2, 496, 192, SHAPE, 1, 6):border(2, 2, 496, 192, 2, SHAPE, 1, 6)
+      end
+
+      local function time(fast)
+        local best = math.huge
+
+        for _ = 1, 5 do
+          local bitmap = Bitmap.new(500, 200)
+          local started = os.clock()
+
+          with_fast(fast, function()
+            draw(bitmap)
+          end)
+
+          best = math.min(best, os.clock() - started)
+        end
+
+        return best * 1000
+      end
+
+      local full, fast = time(false), time(true)
+
+      print(string.format('rect and border 496x192: full path %.2f ms, fast path %.2f ms', full, fast))
+      assert.is_true(fast <= full)
+    end)
+  end)
 end)
