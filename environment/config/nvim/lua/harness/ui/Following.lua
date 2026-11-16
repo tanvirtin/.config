@@ -118,28 +118,16 @@ function Following:observe(window)
   if not state.applied then
     state.applied = now
     state.lines = state.buffer:get_line_count()
-
-    if sticky_bottom.at_end(window) then
-      state.mode = 'follow'
-      self:_unanchor(state)
-    else
-      state.mode = 'hold'
-      self:_anchor(state, now)
-    end
+    state.mode = sticky_bottom.at_end(window) and 'follow' or 'hold'
+    self:_anchor(state, now)
 
     return
   end
 
   if not self:_moved(now, state.applied) then return end
 
-  if self:_later(now, state.applied) and self:_reached_end(state, window) then
-    state.mode = 'follow'
-    self:_unanchor(state)
-  else
-    state.mode = 'hold'
-    self:_anchor(state, now)
-  end
-
+  state.mode = self:_later(now, state.applied) and self:_reached_end(state, window) and 'follow' or 'hold'
+  self:_anchor(state, now)
   state.applied = now
   state.lines = state.buffer:get_line_count()
 end
@@ -205,17 +193,42 @@ function Following:_same(now, wanted)
     and (now.skipcol or 0) == (wanted.skipcol or 0)
 end
 
+function Following:_restore_top(state, window)
+  local row = state.anchor and state.buffer:get_extmark_row(Following.ANCHOR, state.anchor)
+
+  if not row then return end
+
+  local view = window:get_view()
+  local last = state.buffer:get_line_count() - 1
+
+  if row > last then row = last end
+
+  window:set_view({
+    topline = row + 1,
+    topfill = self:_clamp(state.anchor_fill, 0, math.max(window:get_text_height(row, row) - 1, 0)),
+    skipcol = state.anchor_skip,
+    lnum = view.lnum,
+    col = view.col,
+    curswant = view.curswant,
+  })
+end
+
 function Following:_pin(state, window)
   local cursor = window:get_cursor()
   local carried = state.lines == nil or cursor[1] >= state.lines
 
+  self:_restore_top(state, window)
   sticky_bottom.pin(window, self.reserve(window))
 
-  if carried then return end
+  if carried then
+    self:_anchor(state, window:get_view())
+    return
+  end
 
   local top = window:get_visible_range()
 
   window:set_cursor({ math.max(cursor[1], top + 1), cursor[2] })
+  self:_anchor(state, window:get_view())
 end
 
 function Following:sync(window)
@@ -283,6 +296,7 @@ function Following:land(window, decorate)
   state.applied = window:get_view()
   state.lines = state.buffer:get_line_count()
   state.height, state.width = window:get_height(), window:get_width()
+  self:_anchor(state, state.applied)
   self.applying = false
 end
 
