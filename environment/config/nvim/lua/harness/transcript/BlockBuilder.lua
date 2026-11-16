@@ -28,6 +28,8 @@ BlockBuilder.GROUP_VERB = { [Block.CATEGORY.read] = 'Read', [Block.CATEGORY.sear
 
 BlockBuilder.ROW = { [Block.KIND.tool] = true, [Block.KIND.diff] = true }
 
+BlockBuilder.SUBAGENT_TAIL = 4
+
 function BlockBuilder:constructor(opts)
   return { opts = opts or {} }
 end
@@ -36,6 +38,16 @@ function BlockBuilder.last_activity(block, times)
   return block.finished
     or (block.last_event and times[block.last_event + 1] or times[block.last_event])
     or block.started
+end
+
+local SETTLED = { [Block.STATUS.completed] = true, [Block.STATUS.failed] = true }
+
+function BlockBuilder.settle(child, parent)
+  if child.kind ~= Block.KIND.tool or SETTLED[child.status] or not SETTLED[parent.status] then return end
+
+  child.settled = true
+
+  if parent.status == Block.STATUS.completed then child.status = Block.STATUS.completed end
 end
 
 function BlockBuilder.nest(list, times)
@@ -70,6 +82,10 @@ function BlockBuilder.nest(list, times)
         for i, child in ipairs(children[block.id]) do
           child.first_child = i == 1 or nil
           child.last_child = i == #children[block.id] or nil
+          child.open_parent = not SETTLED[block.status] or nil
+          child.sibling = i
+          child.siblings = #children[block.id]
+          BlockBuilder.settle(child, block)
         end
 
         vim.list_extend(out, children[block.id])

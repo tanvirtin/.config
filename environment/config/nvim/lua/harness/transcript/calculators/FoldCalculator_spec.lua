@@ -49,6 +49,24 @@ describe('harness.transcript.calculators.FoldCalculator:', function()
     eq('1', FoldCalculator.level(blocks(true), 5))
   end)
 
+  it('leaves an open sub-agent child unfolded, while its own output still folds', function()
+    local open = {
+      { start = 0, finish = 4, depth = 1, parent = 't', open_parent = true, folds = { { 1, 2 } }, index = 1 },
+    }
+    local closed = {
+      { start = 0, finish = 2, index = 1 },
+      { start = 2, finish = 4, depth = 1, parent = 't', index = 2 },
+    }
+
+    eq({ '0', '>1', '1', '0' }, {
+      FoldCalculator.level(open, 0),
+      FoldCalculator.level(open, 1),
+      FoldCalculator.level(open, 2),
+      FoldCalculator.level(open, 3),
+    })
+    eq({ '>1', '1' }, { FoldCalculator.level(closed, 2), FoldCalculator.level(closed, 3) })
+  end)
+
   it('leaves rows outside every block unfolded', function()
     eq('0', FoldCalculator.level({ { start = 0, finish = 2, index = 1 } }, 5))
     eq('0', FoldCalculator.level({}, 0))

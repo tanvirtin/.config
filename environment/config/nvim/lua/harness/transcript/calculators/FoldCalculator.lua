@@ -12,7 +12,7 @@ function FoldCalculator.level(blocks, row)
 
   if block.kind == Block.KIND.thought and block.live and tail and block.finish >= tail.finish then return '0' end
 
-  local base = block.depth or 0
+  local base = block.open_parent and 0 or (block.depth or 0)
 
   for _, fold in ipairs(block.folds or {}) do
     local from, to = block.start + fold[1], block.start + fold[2]

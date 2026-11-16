@@ -16,8 +16,10 @@ return function(block, ctx)
   if #parts == 0 then parts[1] = 'done' end
 
   MarkSpec.add(out, block.start, 0, { end_col = #block.lines[1], conceal = '' })
+  local overlay, pixels = theme.rule(ctx, theme.RULE, 'UiTurnSeparator', 'solid')
+
   MarkSpec.add(out, block.start, 0, {
-    virt_text = { { string.rep(theme.RULE, theme.rule_width(ctx)), 'UiTurnSeparator' } },
+    virt_text = overlay,
     virt_text_pos = 'overlay',
     priority = theme.GUTTER_PRIORITY,
   })
@@ -33,7 +35,11 @@ return function(block, ctx)
     })
   end
 
-  vim.list_extend(summary, { { ' ' }, { string.rep(theme.RULE, 2), 'UiTurnSeparator' } })
+  if pixels then
+    summary[#summary + 1] = { ' ' }
+  else
+    vim.list_extend(summary, { { ' ' }, { string.rep(theme.RULE, 2), 'UiTurnSeparator' } })
+  end
 
   MarkSpec.add(out, block.start, 0, {
     virt_text = summary,

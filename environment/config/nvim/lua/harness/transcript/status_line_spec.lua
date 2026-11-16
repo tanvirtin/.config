@@ -1,5 +1,9 @@
-local status_line = require('harness.transcript.status_line')
+local Tile = require('ui.pixel.Tile')
+local graphics = require('core.graphics')
+local ticker = require('ui.pixel.ticker')
+local indicators = require('ui.pixel.indicators')
 local theme = require('harness.transcript.theme')
+local status_line = require('harness.transcript.status_line')
 
 local eq = assert.are.same
 
@@ -28,27 +32,18 @@ describe('harness.transcript.status_line:', function()
     eq('  ' .. theme.QUEUE_ICON[1] .. 'queued next', text(lines[3]))
   end)
 
-  it('shows the running icon, a pulsing label and the elapsed time while working', function()
+  it('shows the working animation, then the elapsed time while working', function()
     local lines = status_line.lines({ running = true, started = 0, label = 'Thinking' }, 5000)
 
-    eq(text(theme.working(5000, 0)) .. ' Thinking · 5s · <C-c> interrupt', text(lines[2]))
-  end)
-
-  it('cycles working words when no label is given', function()
-    local first = status_line.lines({ running = true, started = 0 }, 0)
-    local second = status_line.lines({ running = true, started = 0 }, 4000)
-
-    assert.truthy(text(first[2]):find(theme.working_word(0, 0), 1, true))
-    assert.truthy(text(second[2]):find(theme.working_word(4000, 0), 1, true))
-    eq('UiWorking2', second[2][3][2])
+    eq(' ' .. text(theme.working(5000, 0)) .. ' · 5s · <C-c> interrupt', text(lines[2]))
   end)
 
   it('strikes the running icon', function()
     local first = status_line.lines({ running = true, started = 0 }, 0)
     local second = status_line.lines({ running = true, started = 0 }, 100)
 
-    eq('UiStrike1', first[2][1][2])
-    eq('UiStrike2', second[2][1][2])
+    eq('UiStrike1', first[2][2][2])
+    eq('UiStrike2', second[2][2][2])
   end)
 
   it('says a session is loading while the agent replays it, above prompts waiting for it', function()
@@ -88,6 +83,47 @@ describe('harness.transcript.status_line:', function()
     end
   end)
 
+  describe('with pixels for the rail', function()
+    local original
+
+    before_each(function()
+      original = { available = Tile.available, upload = graphics.upload, delete = graphics.delete }
+      graphics.upload = function() end
+      graphics.delete = function() end
+    end)
+
+    after_each(function()
+      indicators.stop()
+      ticker.stop()
+      Tile.drain()
+      Tile.available, graphics.upload, graphics.delete = original.available, original.upload, original.delete
+    end)
+
+    it('starts each card row with a pixel rail one cell wide, and keeps every row the same width', function()
+      local state = {
+        running = true,
+        width = 30,
+        asks = { { text = 'Bash ls', choices = { { key = '1', label = 'Allow' } } } },
+      }
+      local plain = status_line.card_of(status_line.lines(state, 0))
+
+      Tile.available = function()
+        return true
+      end
+
+      local pixel = status_line.card_of(status_line.lines(state, 0))
+
+      eq(#plain, #pixel)
+      assert.is_true(#pixel > 0)
+
+      for index, row in ipairs(pixel) do
+        eq(indicators.chunk('rail', 'warn', index, #pixel), row[1])
+        eq(vim.fn.strdisplaywidth(text(plain[index])), vim.fn.strdisplaywidth(text(row)))
+        eq(30, vim.fn.strdisplaywidth(text(row)))
+      end
+    end)
+  end)
+
   describe('sections', function()
     local function ids()
       return vim.tbl_map(function(section)
@@ -116,11 +152,11 @@ describe('harness.transcript.status_line:', function()
         end,
       })
 
-      local lines = status_line.lines({ running = true, background = true, started = 0 }, 0)
+      local lines = status_line.lines({ running = true, background = true, started = 0 }, 3000)
 
       eq(
-        { '', theme.working_word(0, 0), 'background task' },
-        { text(lines[1]), text(lines[2]):match('^%S+ (%a+)'), text(lines[3]) }
+        { '', ' ' .. text(theme.working(3000, 0)) .. ' · 3s · <C-c> interrupt', 'background task' },
+        { text(lines[1]), text(lines[2]), text(lines[3]) }
       )
       eq(nil, status_line.lines({ running = false, background = false }))
     end)

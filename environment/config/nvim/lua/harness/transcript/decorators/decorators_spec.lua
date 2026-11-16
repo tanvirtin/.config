@@ -1,3 +1,8 @@
+local graphics = require('core.graphics')
+local Tile = require('ui.pixel.Tile')
+local pip = require('harness.transcript.pip')
+local rule = require('harness.transcript.rule')
+local meter = require('harness.transcript.meter')
 local Block = require('harness.transcript.Block')
 local decorators = require('harness.transcript.decorators')
 local theme = require('harness.transcript.theme')
@@ -17,6 +22,16 @@ local function find(marks, predicate)
   for _, mark in ipairs(marks) do
     if predicate(mark.opts, mark) then return mark end
   end
+end
+
+local function width_of(chunks)
+  local total = 0
+
+  for _, chunk in ipairs(chunks) do
+    total = total + vim.fn.strdisplaywidth(chunk[1])
+  end
+
+  return total
 end
 
 local function virt(opts)
@@ -332,7 +347,7 @@ describe('harness.transcript.decorators:', function()
   end)
 
   it(
-    'sums up a finished thought by its first line, or its bold heading, cut to fit, and ticks its latest line while it runs',
+    'sums up a finished thought by its first line, or its bold heading, cut to fit, and shows only the time of a live one',
     function()
       local lines = { '> [!thought]', '>', '> the first idea `here` ' .. string.rep('x', 100), '> later' }
       local function eol(marks)
@@ -346,7 +361,7 @@ describe('harness.transcript.decorators:', function()
       local done =
         eol(decorators.decorate(make(Block.KIND.thought, lines, { started = 0, finished = 2000 }), { width = 60 }))
 
-      eq({ '  2s', 'UiMuted' }, done[1])
+      eq({ '  for 2s', 'UiMuted' }, done[1])
       eq(' · ', done[2][1])
       eq('UiThought', done[3][2])
       assert.truthy(done[3][1]:find('^the first idea here'))
@@ -364,12 +379,12 @@ describe('harness.transcript.decorators:', function()
         )
       )
 
-      eq({ { '  4s', 'UiMuted' }, { ' · ', 'UiMuted' }, { 'later', 'UiThought' } }, live)
+      eq({ { '  4s', 'UiMuted' } }, live)
     end
   )
 
-  it('hides a live thought\'s body, row by row, until it finishes', function()
-    local lines = { '> [!thought]', '> one', '> two' }
+  it('conceals a live thought\'s older body rows, row by row, until it finishes', function()
+    local lines = { '> [!thought]', '> one', '> two', '> three', '> four', '> five' }
     local function hidden(marks)
       return vim.tbl_map(
         function(mark)
@@ -386,6 +401,15 @@ describe('harness.transcript.decorators:', function()
       hidden(decorators.decorate(make(Block.KIND.thought, lines, { live = true }), { running = true, now = 0 }))
     )
     eq({}, hidden(decorators.decorate(make(Block.KIND.thought, lines, {}), {})))
+    eq(
+      {},
+      hidden(
+        decorators.decorate(
+          make(Block.KIND.thought, lines, { live = true, first_event = 7 }),
+          { running = true, now = 0, revealed = { [7] = true } }
+        )
+      )
+    )
   end)
 
   it('dims the whole body of a thought with one mark beneath the markdown styling, leaving the header alone', function()
@@ -427,10 +451,10 @@ describe('harness.transcript.decorators:', function()
       end).opts.virt_text
     end
 
-    eq({ { '◇ ', theme.pulse(0) }, { 'Thought', 'UiMuted' } }, head(live))
+    eq({ { '◇ ', theme.pulse(0) }, { 'Thinking', 'UiMuted' } }, head(live))
     eq({ { '◇ ', 'UiMuted' }, { 'Thought', 'UiMuted' } }, head(done))
     eq(
-      '  2s',
+      '  for 2s',
       virt(find(done, function(opts)
         return opts.virt_text_pos == 'eol'
       end).opts)
@@ -676,7 +700,7 @@ describe('harness.transcript.decorators:', function()
       local function rail_hl(depth)
         local block = make(Block.KIND.tool, { '-> Read a' }, { name = 'Read', depth = depth })
 
-        return find(decorators.nesting(block, {}), function()
+        return find(decorators.nesting.marks(block), function()
           return true
         end).opts.virt_text[1][2]
       end
@@ -684,6 +708,65 @@ describe('harness.transcript.decorators:', function()
       eq('UiRailMuted', rail_hl(1))
       eq('UiRailInfo', rail_hl(2))
       eq('UiRailAccent', rail_hl(3))
+    end)
+
+    it('hides a running sub-agent\'s older children, and counts them above the newest', function()
+      local function child(i, siblings)
+        local block = make(Block.KIND.tool, { '  Bash ' .. i }, { name = 'Bash', depth = 1, start = (i - 1) * 2 })
+
+        block.open_parent = true
+        block.sibling = i
+        block.siblings = siblings
+
+        return block
+      end
+
+      local function conceals(marks)
+        return find(marks, function(opts)
+          return opts.conceal_lines ~= nil
+        end) ~= nil
+      end
+
+      local six = decorators.decorate(child(1, 6), {})
+
+      eq(2, #six)
+      eq({ '', '' }, { six[1].opts.conceal_lines, six[2].opts.conceal_lines })
+      eq(2, #decorators.decorate(child(2, 6), {}))
+
+      local first_shown = decorators.decorate(child(3, 6), {})
+      local earlier = find(first_shown, function(opts)
+        return opts.virt_lines_above
+      end)
+
+      eq(4, earlier.row)
+      eq({ '+2 earlier', 'UiMuted' }, earlier.opts.virt_lines[1][2])
+      assert.is_false(conceals(first_shown))
+
+      for i = 4, 6 do
+        assert.is_false(conceals(decorators.decorate(child(i, 6), {})))
+      end
+
+      for i = 1, 3 do
+        local plain = decorators.decorate(child(i, 3), {})
+
+        assert.is_false(conceals(plain))
+        assert.is_nil(find(plain, function(opts)
+          return opts.virt_lines_above
+        end))
+      end
+    end)
+
+    it('shows the elapsed time on a running sub-agent header, beside its tool count', function()
+      local block = make(
+        Block.KIND.tool,
+        { '-> Agent' },
+        { id = 'A', name = 'Agent', status = Block.STATUS.in_progress, nested = 3, started = 0 }
+      )
+      local marks = decorators.decorate(block, { running = true, now = 4000 })
+
+      assert.truthy(find(marks, function(opts)
+        return opts.virt_text_pos == 'eol' and virt(opts) == '  3 tools · 4s'
+      end))
     end)
 
     it('draws the turn rule and artifact borders as wide as the window, not a fixed 400 columns', function()
@@ -697,6 +780,128 @@ describe('harness.transcript.decorators:', function()
 
       eq(60, vim.fn.strchars(rule.opts.virt_text[1][1]))
       eq(theme.RULE_WIDTH, vim.fn.strchars(fixed.opts.virt_text[1][1]))
+    end)
+  end)
+
+  describe('finished tools', function()
+    local original
+
+    before_each(function()
+      original = { available = Tile.available, upload = graphics.upload, delete = graphics.delete }
+      Tile.available = function()
+        return true
+      end
+      graphics.upload = function() end
+      graphics.delete = function() end
+    end)
+
+    after_each(function()
+      pip.stop()
+      Tile.available, graphics.upload, graphics.delete = original.available, original.upload, original.delete
+    end)
+
+    local function finished_tool()
+      return make(
+        Block.KIND.tool,
+        { '-> Bash' },
+        { id = 't', name = 'Bash', status = Block.STATUS.completed, finished = 1000 }
+      )
+    end
+
+    it('bursts the pip right after the tool finishes, then settles to its completed icon', function()
+      local placeholder = vim.fn.nr2char(0x10EEEE)
+      local glyph = theme.TOOL_ICONS[Block.STATUS.completed][1]
+
+      assert.truthy(find(decorators.decorate(finished_tool(), { running = false, now = 1100 }), function(opts)
+        return opts.virt_text and opts.virt_text[1][1]:find(placeholder, 1, true)
+      end))
+      assert.truthy(find(decorators.decorate(finished_tool(), { running = false, now = 5000 }), function(opts)
+        return opts.virt_text and opts.virt_text[1][1] == glyph
+      end))
+    end)
+  end)
+
+  describe('pixel rules', function()
+    local original
+
+    before_each(function()
+      original = { available = Tile.available, upload = graphics.upload, delete = graphics.delete }
+      Tile.available = function()
+        return true
+      end
+      graphics.upload = function() end
+      graphics.delete = function() end
+    end)
+
+    after_each(function()
+      rule.stop()
+      meter.stop()
+      Tile.drain()
+      Tile.available, graphics.upload, graphics.delete = original.available, original.upload, original.delete
+    end)
+
+    it('draws a turn rule as pixels, and its summary without the glyph tail', function()
+      local placeholder = vim.fn.nr2char(0x10EEEE)
+      local stop = make(Block.KIND.stop, { 'x' }, { reason = 'end_turn' })
+      local marks = decorators.decorate(stop, { width = 60 })
+      local overlay = find(marks, function(opts)
+        return opts.virt_text_pos == 'overlay'
+      end)
+      local summary = find(marks, function(opts)
+        return opts.virt_text_pos == 'right_align'
+      end)
+
+      eq(60, width_of(overlay.opts.virt_text))
+      assert.truthy(overlay.opts.virt_text[1][1]:find(placeholder, 1, true))
+      eq(' done ', virt(summary.opts))
+    end)
+
+    it('ends a diff path with its counts and a pixel diffstat', function()
+      local placeholder = vim.fn.nr2char(0x10EEEE)
+      local diff = make(Block.KIND.diff, { '```edit', 'a.lua', '```' }, { path = 'a.lua', added = 4, removed = 2 })
+      local stat = find(decorators.decorate(diff, {}), function(opts)
+        return opts.virt_text_pos == 'eol'
+      end)
+      local chunks = stat.opts.virt_text
+
+      eq(5, #chunks)
+      eq({ ' +4', ' −2', ' ' }, { chunks[1][1], chunks[2][1], chunks[3][1] })
+      assert.truthy(chunks[4][1]:find(placeholder, 1, true))
+      eq(' ', chunks[5][1])
+    end)
+
+    it('folds a plan to a pixel progress bar', function()
+      local placeholder = vim.fn.nr2char(0x10EEEE)
+      local plan = make(
+        Block.KIND.plan,
+        { 'plan', '- [x] read', '- [ ] edit' },
+        { statuses = { 'completed', 'pending' } }
+      )
+      local folded = find(decorators.decorate(plan, { plan_open = true }), function(opts)
+        return opts.virt_text_pos == 'eol'
+      end)
+
+      eq('  1/2 ', folded.opts.virt_text[1][1])
+      assert.truthy(folded.opts.virt_text[2][1]:find(placeholder, 1, true))
+    end)
+
+    it('borders an artifact with pixels, keeping its nested gutter in front', function()
+      local settings = require('harness.settings.theme')
+      local saved = settings:get('artifact_border')
+      local fields = { start = 4, frame_top = true, depth = 1, name = 'Bash' }
+      local lines = { '-> Bash ls', '```output', 'a', '```' }
+
+      settings:assign({ artifact_border = 'top' })
+      local marks = decorators.decorate(make(Block.KIND.tool, lines, fields), { width = 60 })
+      settings:assign({ artifact_border = saved })
+
+      local line = find(marks, function(opts)
+        return opts.virt_lines_above == true
+      end).opts.virt_lines[1]
+
+      eq(theme.GUTTER, line[1][1])
+      assert.truthy(line[2][1]:find(vim.fn.nr2char(0x10EEEE), 1, true))
+      eq(60, width_of(line))
     end)
   end)
 end)

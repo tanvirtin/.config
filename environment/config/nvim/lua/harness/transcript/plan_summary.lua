@@ -48,7 +48,8 @@ end
 
 function plan_summary.render(entries)
   local done = plan_summary.done(entries)
-  local title = string.format(' Plan  %d/%d %s', done, #entries, plan_summary.bar(done, #entries))
+  local head = string.format(' Plan  %d/%d ', done, #entries)
+  local title = head .. plan_summary.bar(done, #entries)
   local lines = { title }
   local highlights = { { row = 0, from = 0, to = #title, hl = 'UiTitle' } }
   local width = text.width(title)
@@ -69,7 +70,15 @@ function plan_summary.render(entries)
     width = math.max(width, text.width(line))
   end
 
-  return { lines = lines, highlights = highlights, width = width + 1 }
+  local bar = {
+    row = 0,
+    col = #head,
+    done = done,
+    total = #entries,
+    width = plan_summary.BAR.width,
+  }
+
+  return { lines = lines, highlights = highlights, width = width + 1, bar = bar }
 end
 
 return plan_summary

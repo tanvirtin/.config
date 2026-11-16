@@ -1,6 +1,25 @@
+local Tile = require('ui.pixel.Tile')
 local Toast = require('harness.ui.Toast')
+local graphics = require('core.graphics')
+local ticker = require('ui.pixel.ticker')
+local theme_settings = require('harness.settings.theme')
 
 local eq = assert.are.same
+
+local function reduce(on)
+  theme_settings:assign({ motion = vim.tbl_extend('force', theme_settings:get('motion'), { reduced = on }) })
+end
+
+local function rings(window)
+  local bufnr = window:get_buffer().bufnr
+  local found = {}
+
+  for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(bufnr, -1, 0, -1, { details = true })) do
+    if mark[4].virt_text then found[#found + 1] = mark end
+  end
+
+  return found
+end
 
 describe('harness.ui.Toast:', function()
   after_each(function()
@@ -60,5 +79,86 @@ describe('harness.ui.Toast:', function()
 
     eq(false, window:is_valid())
     eq(false, Toast.visible())
+  end)
+
+  describe('with pixels for a countdown ring', function()
+    local original, deleted
+
+    before_each(function()
+      deleted = 0
+      original = { available = Tile.available, upload = graphics.upload, delete = graphics.delete }
+      Tile.available = function()
+        return true
+      end
+      graphics.upload = function() end
+      graphics.delete = function()
+        deleted = deleted + 1
+      end
+    end)
+
+    after_each(function()
+      Toast.dismiss()
+      reduce(false)
+      ticker.stop()
+      Tile.drain()
+      Tile.available, graphics.upload, graphics.delete = original.available, original.upload, original.delete
+    end)
+
+    it('widens the toast by the ring and places the ring as one text mark at its right end', function()
+      Tile.available = function()
+        return false
+      end
+
+      local plain = Toast.show('ring'):get_config().width
+
+      Tile.available = function()
+        return true
+      end
+
+      local window = Toast.show('ring')
+      local line = vim.api.nvim_buf_get_lines(window:get_buffer().bufnr, 0, -1, false)[1]
+      local found = rings(window)
+
+      eq(plain + Toast.RING_COLS + 1, window:get_config().width)
+      eq(1, #found)
+      eq(0, found[1][2])
+      eq(#line - Toast.RING_COLS - 1, found[1][3])
+    end)
+
+    it('frees its image as soon as it is dismissed', function()
+      Toast.show('bye')
+      eq(0, deleted)
+
+      Toast.dismiss()
+      eq(1, deleted)
+    end)
+
+    it('is exactly as before under reduced motion', function()
+      Tile.available = function()
+        return false
+      end
+
+      local plain = Toast.show('calm'):get_config().width
+
+      Tile.available = function()
+        return true
+      end
+      reduce(true)
+
+      local window = Toast.show('calm')
+
+      eq(plain, window:get_config().width)
+      eq({}, rings(window))
+    end)
+
+    it('is exactly as before where there are no pixels', function()
+      Tile.available = function()
+        return false
+      end
+
+      local window = Toast.show('plain')
+
+      eq({}, rings(window))
+    end)
   end)
 end)

@@ -28,9 +28,12 @@ describe('harness.ui.transcript_motion:', function()
     end, transcript_motion.effects())
   end
 
-  it('ships the collapse of an answered card, the fade of new rows and the flash of a finished tool', function()
-    eq({ 'collapse', 'fade', 'flash' }, ids())
-  end)
+  it(
+    'ships the collapse of an answered card, the fade of new rows and the flash and burst of a finished tool',
+    function()
+      eq({ 'collapse', 'fade', 'flash', 'burst' }, ids())
+    end
+  )
 
   it('gives each view its own instance of every effect', function()
     local other = { animator = Animator(), buffer = view.buffer }
@@ -42,7 +45,7 @@ describe('harness.ui.transcript_motion:', function()
     local keys = vim.tbl_keys(view.effects)
 
     table.sort(keys)
-    eq({ 'collapse', 'fade', 'flash' }, keys)
+    eq({ 'burst', 'collapse', 'fade', 'flash' }, keys)
     other.animator:close()
   end)
 
@@ -69,6 +72,7 @@ describe('harness.ui.transcript_motion:', function()
     view.effects.collapse = {}
     view.effects.fade = {}
     view.effects.flash = {}
+    view.effects.burst = {}
 
     transcript_motion.settle(view)
     eq(0, view.animator:count())
@@ -107,6 +111,7 @@ describe('harness.ui.transcript_motion:', function()
     view.effects.collapse = {}
     view.effects.fade = {}
     view.effects.flash = {}
+    view.effects.burst = {}
 
     transcript_motion.before(view, { asks = {} })
 
@@ -118,6 +123,6 @@ describe('harness.ui.transcript_motion:', function()
     transcript_motion.register({ id = 'test', create = function() end })
     transcript_motion.register({ id = 'test', create = function() end })
 
-    eq(4, #ids())
+    eq(5, #ids())
   end)
 end)

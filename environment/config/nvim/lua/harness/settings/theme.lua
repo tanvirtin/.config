@@ -8,6 +8,8 @@ return Config({
       icon = '󰣪',
       spark = { '✦', '•', '·' },
       spark_ms = 100,
+      ingot = '▓',
+      crack = '▒',
       word_beats = 3,
       words = {
         'kindling',

@@ -108,6 +108,11 @@ function commands.activate(view)
 
   local head = view.document:block_at(row - 1)
 
+  if head and head.kind == Block.KIND.thought and head.live then
+    view:toggle_live(head)
+    return true
+  end
+
   if head and head.folds and head.folds[1] and row == head.start + 1 then
     view:_toggle_at(window, head.start + head.folds[1][1] + 1, row)
     return true

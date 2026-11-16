@@ -595,6 +595,46 @@ describe('harness.transcript.BlockBuilder:', function()
       eq({ '  two files' }, list[4].lines)
       eq(1, list[2].nested)
     end)
+
+    it('settles the tools a finished sub-agent never reported as done', function()
+      local function inner(status)
+        local list = blocks.build({
+          { kind = 'tool_call', id = 'task1', name = 'Task', input = { description = 'x' }, diffs = {} },
+          { kind = 'tool_call', id = 'inner', name = 'Bash', parent = 'task1', input = { command = 'ls' }, diffs = {} },
+          { kind = 'tool_update', id = 'task1', status = status, diffs = {} },
+        })
+
+        return list[3]
+      end
+
+      eq(
+        { Block.STATUS.completed, true },
+        { inner(Block.STATUS.completed).status, inner(Block.STATUS.completed).settled }
+      )
+      eq(true, inner(Block.STATUS.failed).settled)
+      eq(nil, inner(Block.STATUS.in_progress).settled)
+    end)
+
+    it('numbers the children of a running sub-agent among its siblings, as open to the parent', function()
+      local list = blocks.build({
+        { kind = 'tool_call', id = 'task1', name = 'Task', input = { description = 'x' }, diffs = {} },
+        { kind = 'tool_call', id = 'a', name = 'Bash', parent = 'task1', input = { command = 'ls' }, diffs = {} },
+        { kind = 'tool_call', id = 'b', name = 'Bash', parent = 'task1', input = { command = 'pwd' }, diffs = {} },
+      })
+
+      eq({ true, true }, { list[3].open_parent, list[4].open_parent })
+      eq({ 1, 2, 2 }, { list[3].sibling, list[4].sibling, list[4].siblings })
+    end)
+
+    it('leaves the children of a finished sub-agent closed', function()
+      local list = blocks.build({
+        { kind = 'tool_call', id = 'task1', name = 'Task', input = { description = 'x' }, diffs = {} },
+        { kind = 'tool_call', id = 'a', name = 'Bash', parent = 'task1', input = { command = 'ls' }, diffs = {} },
+        { kind = 'tool_update', id = 'task1', status = Block.STATUS.completed, diffs = {} },
+      })
+
+      eq({ nil }, { list[3].open_parent })
+    end)
   end)
 
   it('lists a replayed prompt\'s selections the same way, hiding the harness\'s own blocks', function()

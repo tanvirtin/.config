@@ -1,12 +1,14 @@
 local tone = require('ui.tone')
 local text = require('core.text')
 local theme = require('harness.transcript.theme')
+local indicators = require('ui.pixel.indicators')
 
 local card = {}
 
 card.RAIL = '▎'
 
 local SURFACE = tone.surface(tone.WARN)
+local rows = setmetatable({}, { __mode = 'k' })
 
 local function shaded(group)
   if type(group) == 'table' then return vim.list_extend(vim.list_slice(group), { SURFACE }) end
@@ -18,13 +20,20 @@ end
 
 function card.build(state, lines, now)
   local out = {}
+  local pixels = now and not theme.reduced()
 
   for index = 1, #lines do
     local line, card_line = lines[index], {}
     local indent = line[1] and line[1][1] == '   '
-    local rail = now and theme.pulse(now, tone.WARN) or tone.rail(tone.WARN)
+    local pixel = pixels and indicators.chunk('rail', 'warn', index, #lines)
 
-    card_line[1] = { indent and card.RAIL .. '  ' or card.RAIL, { rail, SURFACE } }
+    if pixel then
+      card_line[1], card_line[2] = pixel, { indent and '  ' or '', SURFACE }
+    else
+      local rail = now and theme.pulse(now, tone.WARN) or tone.rail(tone.WARN)
+
+      card_line[1] = { indent and card.RAIL .. '  ' or card.RAIL, { rail, SURFACE } }
+    end
 
     for chunk_index = indent and 2 or 1, #line do
       local chunk = line[chunk_index]
@@ -42,6 +51,7 @@ function card.build(state, lines, now)
       card_line[#card_line + 1] = { string.rep(' ', state.width - used), SURFACE }
     end
 
+    rows[card_line] = true
     out[#out + 1] = card_line
   end
 
@@ -49,15 +59,17 @@ function card.build(state, lines, now)
 end
 
 function card.of(lines)
-  local rows = {}
+  local found = {}
 
   for _, line in ipairs(lines or {}) do
     local first = line[1] and line[1][1]
 
-    if type(first) == 'string' and first:sub(1, #card.RAIL) == card.RAIL then rows[#rows + 1] = line end
+    if rows[line] or (type(first) == 'string' and first:sub(1, #card.RAIL) == card.RAIL) then
+      found[#found + 1] = line
+    end
   end
 
-  return rows
+  return found
 end
 
 function card.retint(group, flash)

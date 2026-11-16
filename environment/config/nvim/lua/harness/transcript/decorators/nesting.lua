@@ -21,12 +21,18 @@ local function rail(out, row, glyph, indented, group)
   end
 end
 
-return function(block)
+local nesting = {}
+
+function nesting.group(depth)
+  return RAILS[(depth - 1) % #RAILS + 1]
+end
+
+function nesting.marks(block)
   local out = {}
 
   if not block.depth then return out end
 
-  local group = RAILS[(block.depth - 1) % #RAILS + 1]
+  local group = nesting.group(block.depth)
 
   local last = block.start + #block.lines - 1
 
@@ -44,3 +50,5 @@ return function(block)
 
   return out
 end
+
+return nesting

@@ -1,4 +1,3 @@
-local tone = require('ui.tone')
 local text = require('core.text')
 local MarkSpec = require('ui.MarkSpec')
 local Block = require('harness.transcript.Block')
@@ -27,11 +26,13 @@ local SUMMARY = {
 }
 
 local function icon_of(block, live, waiting, ctx)
-  if waiting then
-    return { { theme.WAITING_ICON[1], ctx.now and theme.pulse(ctx.now, tone.WARN) or theme.WAITING_ICON[2] } }
-  end
+  if waiting then return { theme.waiting_icon(ctx.now) } end
   if live then return { theme.spinner(ctx.now) } end
   if block.interrupted then return { { theme.TOOL_ICONS.failed[1], 'UiMuted' } } end
+
+  local burst = theme.burst(block.id, block.finished, ctx.now, block.status == Block.STATUS.failed)
+
+  if burst then return { burst } end
 
   return { theme.TOOL_ICONS[block.status] or theme.TOOL_ICONS[Block.STATUS.pending] }
 end
@@ -44,8 +45,14 @@ local function verb_of(block)
   return verb .. string.rep(' ', math.max(theme.VERB_WIDTH - text.width(verb), 2))
 end
 
-local function subagent_summary(block, live)
+local function subagent_summary(block, live, ctx)
   local tools = theme.plural(block.nested, 'tool')
+
+  if live and block.started and ctx.now then
+    local ms = math.max(0, ctx.now - block.started)
+
+    return tools .. ' · ' .. (theme.duration(ms) or math.floor(ms / 1000) .. 's')
+  end
 
   if live or not context.FINISHED[block.status] or block.finished == nil then return tools end
 
@@ -71,9 +78,17 @@ local function tail_of(block, ctx, live, waiting)
     end
   end
 
-  if block.nested then add({ subagent_summary(block, live), 'UiMuted' }) end
+  if block.nested then add({ subagent_summary(block, live, ctx), 'UiMuted' }) end
   if block.added or block.removed then
-    add({ '+' .. (block.added or 0), 'UiAdded' }, { ' ' }, { '−' .. (block.removed or 0), 'UiRemoved' })
+    local squares = theme.diffstat(block.added or 0, block.removed or 0)
+
+    add(
+      { '+' .. (block.added or 0), 'UiAdded' },
+      { ' ' },
+      { '−' .. (block.removed or 0), 'UiRemoved' },
+      squares[1],
+      squares[2]
+    )
   end
 
   if block.denied then
@@ -84,7 +99,7 @@ local function tail_of(block, ctx, live, waiting)
 
   if waiting then
     add({ 'waiting for you', 'UiWarn' })
-  elseif live and block.started and ctx.now then
+  elseif live and not block.nested and block.started and ctx.now then
     local elapsed = theme.duration(ctx.now - block.started)
     if elapsed then add({ elapsed, 'UiMuted' }) end
   elseif not live and context.FINISHED[block.status] then

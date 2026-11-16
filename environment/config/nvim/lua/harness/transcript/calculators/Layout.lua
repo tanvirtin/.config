@@ -134,6 +134,9 @@ function Layout.signature(block)
     tostring(block.frame_bottom),
     tostring(block.denied),
     tostring(block.interrupted),
+    tostring(block.open_parent),
+    tostring(block.sibling),
+    tostring(block.siblings),
   }, ':')
 end
 

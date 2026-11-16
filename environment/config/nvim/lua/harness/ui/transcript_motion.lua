@@ -1,4 +1,5 @@
 local Fades = require('harness.ui.Fades')
+local Bursts = require('harness.ui.Bursts')
 local Flashes = require('harness.ui.Flashes')
 local Collapse = require('harness.ui.Collapse')
 
@@ -81,6 +82,12 @@ for _, effect in ipairs({
     id = 'flash',
     create = function(view)
       return Flashes(view.buffer, view)
+    end,
+  },
+  {
+    id = 'burst',
+    create = function(view)
+      return Bursts(view)
     end,
   },
 }) do

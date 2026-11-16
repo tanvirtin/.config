@@ -53,4 +53,12 @@ describe('harness.transcript.plan_summary:', function()
     eq('▰▰▰▰▰▰▰▰', plan_summary.bar(4, 4))
     eq('▱▱▱▱▱▱▱▱', plan_summary.bar(0, 0))
   end)
+
+  it('reports where its glyph bar starts in the title', function()
+    local summary = plan_summary.render(ENTRIES)
+    local bar = summary.bar
+
+    eq({ row = 0, col = #' Plan  1/3 ', done = 1, total = 3, width = plan_summary.BAR.width }, bar)
+    eq(plan_summary.bar(1, 3), summary.lines[1]:sub(bar.col + 1, bar.col + #plan_summary.bar(1, 3)))
+  end)
 end)

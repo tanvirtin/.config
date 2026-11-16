@@ -48,6 +48,8 @@ function Document:constructor(bufnr)
     pending = {},
     partial = {},
     deferred = {},
+    decorated = {},
+    revealed = {},
     scheduled = false,
     lines = {},
     blocks = {},
@@ -78,6 +80,7 @@ function Document:_context()
     active = state.active,
     plan_open = state.plan_open,
     width = self.width,
+    revealed = self.revealed,
     now = Timer.now(),
   }
 end
@@ -140,6 +143,8 @@ function Document:_decorate(block, ctx)
 
   self.buffer:clear_namespace(Document.NAMESPACE, block.start, block.finish)
   MarkSpec.apply(self.buffer, Document.NAMESPACE, marks)
+
+  if block.index then self.decorated[block.index] = true end
 end
 
 function Document:redecorate_kind(kind)
@@ -183,6 +188,7 @@ function Document:reset()
   self.pending = {}
   self.partial = {}
   self.deferred = {}
+  self.decorated = {}
 end
 
 function Document:attach()
@@ -200,6 +206,18 @@ end
 
 function Document:block_at(row)
   return Layout.block_at(self.blocks, row)
+end
+
+function Document:toggle_live(block)
+  if not block or not block.live or not block.first_event then return false end
+
+  local key = block.first_event
+
+  self.revealed[key] = not self.revealed[key] or nil
+
+  if self.buffer:is_valid() then self:_decorate(block) end
+
+  return self.revealed[key] == true
 end
 
 function Document:_set_lines(lines, from, to)
@@ -321,6 +339,10 @@ function Document:write(list, state)
     self.buffer:clear_namespace(Document.NAMESPACE, from, -1)
     self.renderer:clear(settled)
 
+    for i in pairs(self.decorated) do
+      if i >= changed then self.decorated[i] = nil end
+    end
+
     if settled > from then partial[changed] = settled end
 
     for i = changed, #list do
@@ -391,12 +413,89 @@ function Document:_redecorate(lang)
   end
 end
 
+function Document:redecorate(index)
+  local block = self.blocks[index]
+
+  if not block or not self.buffer:is_valid() then return end
+  if self.pending[index] or not self.decorated[index] then return end
+
+  self:_decorate(block)
+end
+
 function Document:has_pending(top, bottom)
   for _, set in ipairs({ self.pending, self.deferred }) do
     for i in pairs(set) do
       local block = self.blocks[i]
 
       if block and block.finish > top and block.start <= bottom then return true end
+    end
+  end
+
+  local first = Layout.block_at(self.blocks, top)
+
+  for i = first and first.index or 1, #self.blocks do
+    local block = self.blocks[i]
+
+    if block.start > bottom then break end
+    if not self.decorated[i] and block.finish > top then return true end
+  end
+
+  return false
+end
+
+function Document:_undecorate(from, to)
+  self.buffer:clear_namespace(Document.NAMESPACE, from, to)
+  self.buffer:clear_namespace(Renderer.NAMESPACE, from, to)
+end
+
+function Document:_trim(ranges)
+  local stale = {}
+
+  for i in pairs(self.decorated) do
+    local block = self.blocks[i]
+
+    if not block or not self:_overlaps(block, ranges) then stale[#stale + 1] = i end
+  end
+
+  if #stale == 0 then return end
+
+  table.sort(stale)
+
+  local from, to
+
+  local function flush()
+    if from then self:_undecorate(from, to) end
+    from, to = nil, nil
+  end
+
+  for _, i in ipairs(stale) do
+    local block = self.blocks[i]
+
+    self.decorated[i] = nil
+
+    if block and from and block.start == to then
+      to = block.finish
+    else
+      flush()
+
+      if block then
+        from, to = block.start, block.finish
+      end
+    end
+  end
+
+  flush()
+end
+
+function Document:_undecorated(ranges)
+  for _, range in ipairs(ranges) do
+    local first = Layout.block_at(self.blocks, range[1])
+
+    for i = first and first.index or 1, #self.blocks do
+      local block = self.blocks[i]
+
+      if block.start >= range[2] then break end
+      if not self.decorated[i] and block.finish > range[1] then return true end
     end
   end
 
@@ -414,11 +513,18 @@ function Document:folded(block)
 end
 
 function Document:decorate_visible()
-  if (not next(self.pending) and not next(self.deferred)) or not self.buffer:is_valid() then return end
+  if not self.buffer:is_valid() then return end
 
   local ranges = self:visible_ranges()
 
-  if #ranges == 0 then return end
+  if #ranges == 0 then
+    self:_trim({})
+    return
+  end
+
+  self:_trim(ranges)
+
+  if not next(self.pending) and not next(self.deferred) and not self:_undecorated(ranges) then return end
 
   local group
 
@@ -430,13 +536,14 @@ function Document:decorate_visible()
   local due = {}
 
   for i, block in ipairs(self.blocks) do
-    local waiting = self.pending[i] or self.deferred[i]
+    local waiting = self.pending[i] or self.deferred[i] or not self.decorated[i]
 
     if waiting and self:_overlaps(block, ranges) and content.option(block, 'quote') and self:folded(block) then
       flush()
 
-      if self.pending[i] then
+      if self.pending[i] or not self.decorated[i] then
         self.renderer:render(block.start, block.start + 1)
+        self.decorated[i] = true
         due[#due + 1] = block
         self.pending[i], self.partial[i], self.deferred[i] = nil, nil, true
       end

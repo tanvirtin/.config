@@ -1,4 +1,8 @@
+local Tile = require('ui.pixel.Tile')
+local graphics = require('core.graphics')
+local ticker = require('ui.pixel.ticker')
 local theme = require('harness.transcript.theme')
+local settings = require('harness.settings.theme')
 
 local eq = assert.are.same
 
@@ -35,9 +39,6 @@ describe('harness.transcript.theme:', function()
     eq({ { icon, 'UiStrike3' }, { '•', 'UiSpark2' } }, theme.working(1200, 0))
     eq({ { icon, 'UiStrike4' }, { '·', 'UiSpark3' } }, theme.working(2500, 0))
     eq({ { icon, 'UiStrike1' }, { '✦', 'UiSpark1' } }, theme.working(3600, 0))
-    eq('UiWorkingGlint2_1', theme.glint('UiWorking2', 3600, 0))
-    eq('UiWorkingGlint1_2', theme.glint('UiWorking1', 1200, 0))
-    eq('UiWorking1', theme.glint('UiWorking1', 1400, 0))
   end)
 
   it(
@@ -78,7 +79,7 @@ describe('harness.transcript.theme:', function()
       eq(theme.TOOL_ICONS.in_progress, theme.spinner(500))
       eq({ '◆ ', 'UiPulse1' }, theme.badge(600))
       eq('▰', theme.sweep(900)[1][1])
-      eq('UiWorking1', theme.glint('UiWorking1', 0))
+      eq({ { 'kindling', 'UiWorking1' } }, theme.forged('kindling', 'UiWorking1', 0, 0))
       eq('UiPulse1', theme.pulse(700))
       eq('UiPulseWarn1', theme.pulse(700, 'Warn'))
     end)
@@ -99,12 +100,57 @@ describe('harness.transcript.theme:', function()
     end)
   end)
 
-  it('glints the working word on every spark, cooling with it, then lets it rest in its own colour', function()
-    eq('UiWorkingGlint1_1', theme.glint('UiWorking1', 0))
-    eq('UiWorkingGlint1_2', theme.glint('UiWorking1', 130))
-    eq('UiWorkingGlint3_3', theme.glint('UiWorking3', 1450))
-    eq('UiWorking1', theme.glint('UiWorking1', 400))
-    eq('UiPulse1', theme.glint('UiPulse1', 0))
+  it('forges each word over its beats: fault lines telegraph the break, the taps hammer the letters out', function()
+    local working = require('harness.settings.theme'):get('motion').working
+    local crack, ingot = working.crack, working.ingot
+
+    eq({
+      { crack:rep(2), 'UiIngot2' },
+      { ingot, 'UiIngot1' },
+      { crack, 'UiIngot2' },
+      { ingot, 'UiIngot1' },
+      { crack:rep(2), 'UiIngot2' },
+      { ingot, 'UiIngot1' },
+    }, theme.forged('kindling', 'UiWorking1', 0, 0))
+    eq({
+      { crack:rep(2), 'UiIngot2' },
+      { ingot, 'UiIngot4' },
+      { crack, 'UiIngot2' },
+      { ingot, 'UiIngot4' },
+      { crack:rep(2), 'UiIngot2' },
+      { ingot, 'UiIngot4' },
+    }, theme.forged('kindling', 'UiWorking1', 1100, 0))
+    eq({
+      { 'ki', 'UiWorking1' },
+      { crack, 'UiIngot2' },
+      { 'd', 'UiWorking1' },
+      { crack, 'UiIngot2' },
+      { 'in', 'UiWorking1' },
+      { crack, 'UiIngot2' },
+    }, theme.forged('kindling', 'UiWorking1', 1800, 0))
+    eq({ { 'kindling', 'UiWorking1' } }, theme.forged('kindling', 'UiWorking1', 3000, 0))
+    eq({ { 'kindling', 'UiWorking1' } }, theme.forged('kindling', 'UiWorking1', 600))
+    eq({ { 'Thinking', 'UiPulse1' } }, theme.forged('Thinking', 'UiPulse1', 0, 0))
+  end)
+
+  it('flashes each batch bright on the beat it breaks, cooling to the word within three pulse steps', function()
+    eq({
+      { 'ki', 'UiWorking1' },
+      { 'n', 'UiWorkingGlint1_1' },
+      { 'd', 'UiWorking1' },
+      { 'l', 'UiWorkingGlint1_1' },
+      { 'in', 'UiWorking1' },
+      { 'g', 'UiWorkingGlint1_1' },
+    }, theme.forged('kindling', 'UiWorking1', 2400, 0))
+    eq({
+      { 'ki', 'UiWorking1' },
+      { 'n', 'UiWorkingGlint1_2' },
+      { 'd', 'UiWorking1' },
+      { 'l', 'UiWorkingGlint1_2' },
+      { 'in', 'UiWorking1' },
+      { 'g', 'UiWorkingGlint1_2' },
+    }, theme.forged('kindling', 'UiWorking1', 2500, 0))
+    eq({ { 'kindling', 'UiWorking1' } }, theme.forged('kindling', 'UiWorking1', 2700, 0))
   end)
 
   it('spins a running tool a frame per pulse step, and sweeps a loading session once a beat', function()
@@ -116,6 +162,26 @@ describe('harness.transcript.theme:', function()
     eq({ frames[1] .. ' ', 'UiAccent' }, theme.spinner(1200))
     eq({ { '▰', 'UiAccent' }, { '▱', 'UiMuted' }, { '▱', 'UiMuted' }, { '▱', 'UiMuted' } }, theme.sweep(0))
     eq('▰', theme.sweep(900)[4][1])
+  end)
+
+  it('sweeps a loading session as one pixel bar as wide as the loading width, when there are pixels', function()
+    local original = { available = Tile.available, upload = graphics.upload, delete = graphics.delete }
+
+    Tile.available = function()
+      return true
+    end
+    graphics.upload = function() end
+    graphics.delete = function() end
+
+    local chunks = theme.sweep(0)
+    local width = vim.fn.strdisplaywidth(chunks[1][1])
+
+    ticker.stop()
+    Tile.drain()
+    Tile.available, graphics.upload, graphics.delete = original.available, original.upload, original.delete
+
+    eq(1, #chunks)
+    eq(settings:get('motion').loading.width, width)
   end)
 
   it('pluralises counts', function()

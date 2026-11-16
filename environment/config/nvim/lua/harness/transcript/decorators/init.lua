@@ -2,6 +2,7 @@ local text = require('core.text')
 local MarkSpec = require('ui.MarkSpec')
 local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
+local BlockBuilder = require('harness.transcript.BlockBuilder')
 
 local decorators = {}
 
@@ -21,8 +22,8 @@ decorators.nesting = require('harness.transcript.decorators.nesting')
 decorators.BORDER = { top = { top = true }, both = { top = true, bottom = true } }
 
 local function border(block, ctx)
-  local width = theme.rule_width(ctx) - (block.depth and text.width(theme.GUTTER) or 0)
-  local line = { { string.rep(theme.ARTIFACT_RULE, width), 'UiArtifactBorder' } }
+  local inset = block.depth and text.width(theme.GUTTER) or 0
+  local line = theme.rule(ctx, theme.ARTIFACT_RULE, 'UiArtifactBorder', 'dotted', inset)
 
   if block.depth then table.insert(line, 1, { theme.GUTTER, 'UiMuted' }) end
 
@@ -51,6 +52,35 @@ function decorators.frame(block, out, ctx)
   return out
 end
 
+local function subagent_count(block)
+  if not (block.open_parent and block.siblings) then return 0 end
+
+  return block.siblings - BlockBuilder.SUBAGENT_TAIL
+end
+
+local function concealed(block)
+  local out = {}
+
+  for row = block.start, block.finish - 1 do
+    MarkSpec.add(out, row, 0, { conceal_lines = '' })
+  end
+
+  return out
+end
+
+local function earlier(block, out)
+  local count = subagent_count(block)
+
+  if count < 1 or block.sibling ~= count + 1 then return end
+
+  MarkSpec.add(out, block.start, 0, {
+    virt_lines = {
+      { { theme.GUTTER, decorators.nesting.group(block.depth or 1) }, { '+' .. count .. ' earlier', 'UiMuted' } },
+    },
+    virt_lines_above = true,
+  })
+end
+
 local function sign_group(block)
   if block.kind == Block.KIND.diff then return 'UiAdded' end
   if block.kind == Block.KIND.tool and block.status == Block.STATUS.failed and not block.interrupted then
@@ -72,13 +102,16 @@ local function signs(block, out)
 end
 
 function decorators.decorate(block, ctx)
+  if block.open_parent and block.sibling <= subagent_count(block) then return concealed(block) end
+
   local decorate = decorators.KIND[block.kind]
   local out = decorate and decorate(block, ctx) or {}
 
-  for _, mark in ipairs(decorators.nesting(block, ctx)) do
+  for _, mark in ipairs(decorators.nesting.marks(block)) do
     out[#out + 1] = mark
   end
 
+  earlier(block, out)
   decorators.frame(block, out, ctx)
   signs(block, out)
 

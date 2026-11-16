@@ -22,6 +22,7 @@ local FoldText = require('harness.ui.FoldText')
 local PlanPanel = require('harness.ui.PlanPanel')
 local Block = require('harness.transcript.Block')
 local Following = require('harness.ui.Following')
+local session_types = lazy('harness.types.session')
 local motion = lazy('harness.ui.transcript_motion')
 local commands = lazy('harness.ui.transcript_commands')
 local bindings = lazy('harness.ui.transcript_bindings')
@@ -59,7 +60,7 @@ TranscriptView.LIST_PATTERN = [[^>\s\+\|^\s*[-*+]\s\+\|^\s*\d\+[.)]\s\+]]
 TranscriptView.FOLD_OPTIONS = { 'foldexpr', 'foldtext', 'foldlevel', 'foldenable', 'foldmethod' }
 
 function TranscriptView.buffer_name(session)
-  return string.format('harness://%s %s', session.key, session.title or 'untitled')
+  return string.format('harness://%s %s', session.key, session_types.label(session))
 end
 
 function TranscriptView.turn_started(session)
@@ -270,6 +271,10 @@ end
 
 function TranscriptView:reveal(row)
   return motion.reveal(self, row)
+end
+
+function TranscriptView:toggle_live(block)
+  return self.document:toggle_live(block)
 end
 
 function TranscriptView:diff_layout()
@@ -490,11 +495,14 @@ end
 
 function TranscriptView:bind(actions)
   local session = self.session
+  -- i/a are already visual-mode prefixes for the objects (io, ib, ...) and o
+  -- jumps to the other end of a selection, so only the blockwise I/A write.
+  local insert_like = { I = true, A = true }
 
   for _, lhs in ipairs(settings.keymaps:get('transcript').write) do
     self:map(lhs, function()
       if self.composer then self.composer.open(session, { insert = true, display = self.display }) end
-    end, 'Write to this session')
+    end, 'Write to this session', { mode = insert_like[lhs] and { 'n', 'x' } or 'n' })
   end
 
   for _, binding in ipairs(actions) do
@@ -644,7 +652,10 @@ function TranscriptView:mount(callbacks)
     relayout()
   end)
   self.group.on('WinScrolled', function()
-    if not self.disposed and not self.following.applying then self:sync() end
+    if not self.disposed and not self.following.applying then
+      self:sync()
+      self.document:decorate_visible()
+    end
   end)
   self.group.on('CursorMoved', function()
     hints.show(self)

@@ -1,4 +1,5 @@
 local MarkSpec = require('ui.MarkSpec')
+local theme = require('harness.transcript.theme')
 local plan_summary = require('harness.transcript.plan_summary')
 
 local ENTRY_PREFIX = #'- [ ] '
@@ -11,8 +12,11 @@ local function folded(out, block)
     if status == 'completed' then done = done + 1 end
   end
 
+  local pixels = theme.meter(done, total, plan_summary.BAR.width, 'UiAccent')
+  local bar = pixels and pixels[1] or { plan_summary.bar(done, total), 'UiAccent' }
+
   MarkSpec.add(out, block.start, 0, {
-    virt_text = { { string.format('  %d/%d ', done, total), 'UiMuted' }, { plan_summary.bar(done, total), 'UiAccent' } },
+    virt_text = { { string.format('  %d/%d ', done, total), 'UiMuted' }, bar },
     virt_text_pos = 'eol',
   })
 

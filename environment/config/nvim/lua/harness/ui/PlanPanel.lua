@@ -86,6 +86,7 @@ function PlanPanel:_mount(window, summary)
     win_plot = self:_plot(window, summary),
     buf_options = { modifiable = false, buflisted = false, bufhidden = 'wipe' },
     win_options = { winhl = 'Normal:UiNormal,FloatBorder:UiMuted', wrap = false },
+    surface = { elevation = 'raised' },
   })
   self.element:mount()
   self.anchor = window.win_id
@@ -104,6 +105,13 @@ function PlanPanel:_paint(summary)
       col_range = { from = highlight.from, to = highlight.to },
     })
   end
+
+  element:clear_extmark_texts()
+
+  local bar = summary.bar
+  local pixels = bar and theme.meter(bar.done, bar.total, bar.width, 'UiAccent')
+
+  if pixels then element:place_extmark_text({ texts = pixels, row = bar.row, col = bar.col, pos = 'overlay' }) end
 
   self.lines = summary.lines
   self.summary = summary

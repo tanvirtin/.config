@@ -349,7 +349,7 @@ describe('harness.ui.Document:', function()
 
       local live = header()
 
-      eq({ '◇ ', 'Thought' }, { live[1][1], live[2][1] })
+      eq({ '◇ ', 'Thinking' }, { live[1][1], live[2][1] })
       eq('UiMuted', live[2][2])
       assert.is_truthy(live[1][2]:match('^UiPulse%d+$'))
       eq(
@@ -364,6 +364,33 @@ describe('harness.ui.Document:', function()
       document:decorate_visible()
 
       eq({ { '◇ ', 'UiMuted' }, { 'Thought', 'UiMuted' } }, header())
+    end)
+
+    it('shows a live thought\'s body once it is revealed, and hides it again', function()
+      local running = { running = true }
+
+      events.append(history, events.prompt('hi'))
+      events.append(history, { kind = 'thought', text = 'one\ntwo\nthree\nfour\nfive' })
+      document:write(blocks.build(history, nil, running), running)
+      document:decorate_visible()
+
+      local thought = document.blocks[#document.blocks]
+
+      local function concealed()
+        local rows = {}
+
+        for _, mark in ipairs(marks(buf, Document.NAMESPACE)) do
+          if mark[2] >= thought.start and mark[4].conceal_lines ~= nil then rows[#rows + 1] = mark[2] end
+        end
+
+        return rows
+      end
+
+      eq({ thought.start + 1, thought.start + 2 }, concealed())
+      assert.is_true(document:toggle_live(thought))
+      eq({}, concealed())
+      assert.is_false(document:toggle_live(thought))
+      eq({ thought.start + 1, thought.start + 2 }, concealed())
     end)
 
     it('drops a table\'s box from above once the table grows past the settled line', function()
@@ -425,6 +452,75 @@ describe('harness.ui.Document:', function()
       vim.api.nvim_win_set_buf(0, buf)
       vim.api.nvim_buf_delete(whole, { force = true })
     end)
+  end)
+
+  it('drops what it drew for a block once it scrolls out of view, and draws it again on return', function()
+    local Renderer = require('ui.markdown.Renderer')
+
+    for i = 1, 6 do
+      emit(events.prompt('ask ' .. i))
+      emit({ kind = 'message', text = 'reply **' .. i .. '**' })
+    end
+
+    local prompt, reply, last = document.blocks[2], document.blocks[3], document.blocks[#document.blocks]
+    local ranges = { { 0, #document.lines } }
+
+    document.visible_ranges = function()
+      return ranges
+    end
+
+    document:decorate_visible()
+
+    local function drawn(namespace, block)
+      return #vim.api.nvim_buf_get_extmarks(buf, namespace, { block.start, 0 }, { block.finish - 1, -1 }, {})
+    end
+
+    assert.is_true(drawn(Document.NAMESPACE, prompt) > 0)
+    assert.is_true(drawn(Renderer.NAMESPACE, reply) > 0)
+
+    ranges = { { last.start, last.finish } }
+    document:decorate_visible()
+
+    eq(0, drawn(Document.NAMESPACE, prompt))
+    eq(0, drawn(Renderer.NAMESPACE, reply))
+    assert.is_true(document:has_pending(prompt.start, prompt.finish))
+
+    ranges = { { prompt.start, reply.finish } }
+    document:decorate_visible()
+
+    assert.is_true(drawn(Document.NAMESPACE, prompt) > 0)
+    assert.is_true(drawn(Renderer.NAMESPACE, reply) > 0)
+    assert.is_false(document:has_pending(prompt.start, prompt.finish))
+
+    ranges = {}
+    document:decorate_visible()
+
+    eq(0, drawn(Document.NAMESPACE, prompt))
+    eq(0, drawn(Renderer.NAMESPACE, reply))
+  end)
+
+  it('keeps only the marks near the viewport as it scrolls through a long transcript', function()
+    for i = 1, 30 do
+      emit(events.prompt('ask ' .. i))
+      emit({ kind = 'message', text = 'reply **' .. i .. '**' })
+    end
+
+    local ranges
+
+    document.visible_ranges = function()
+      return ranges
+    end
+
+    local peak = 0
+
+    for i = 2, #document.blocks do
+      ranges = { { document.blocks[i].start, document.blocks[i].finish } }
+      document:decorate_visible()
+
+      peak = math.max(peak, #vim.api.nvim_buf_get_extmarks(buf, Document.NAMESPACE, 0, -1, {}))
+    end
+
+    assert.is_true(peak < 50)
   end)
 
   it('rewrites everything after reset', function()
@@ -599,12 +695,20 @@ describe('harness.ui.Document:', function()
   it('shows a working line only while the turn runs', function()
     local status = function()
       local marks = vim.api.nvim_buf_get_extmarks(buf, Document.STATUS_NAMESPACE, 0, -1, { details = true })
-      return marks[1] and marks[1][4].virt_lines[2][3][1]
+      if not marks[1] then return nil end
+
+      local parts = {}
+
+      for _, chunk in ipairs(marks[1][4].virt_lines[2]) do
+        parts[#parts + 1] = chunk[1]
+      end
+
+      return table.concat(parts)
     end
 
     history = { events.prompt('go') }
     document:write(blocks.build(history), { running = true, started = vim.uv.now() })
-    eq(' ' .. require('harness.settings.theme'):get('motion').working.words[1], status())
+    assert.is_truthy(status():find('interrupt', 1, true))
 
     document:write(blocks.build(history), { running = false })
     eq(nil, status())
@@ -668,6 +772,7 @@ describe('harness.ui.Document:', function()
       { kind = 'tool_update', id = 'inner', status = Block.STATUS.completed, output = output, diffs = {} }
     )
     events.append(history, { kind = 'message', text = 'report', parent = 'task1' })
+    events.append(history, { kind = 'tool_update', id = 'task1', status = Block.STATUS.completed, diffs = {} })
     events.append(history, { kind = 'message', text = 'parent done' })
     document:write(blocks.build(history))
 
@@ -703,6 +808,30 @@ describe('harness.ui.Document:', function()
     eq('0', document:fold_level(document.blocks[#document.blocks].start))
   end)
 
+  it('folds a running sub-agent\'s children to level 0 while its own output folds stay open', function()
+    local output = table.concat(vim.tbl_map(tostring, vim.fn.range(1, 10)), '\n')
+
+    history = {}
+    events.append(history, { kind = 'tool_call', id = 'task1', name = 'Task', diffs = {} })
+    events.append(
+      history,
+      { kind = 'tool_call', id = 'inner', name = 'Grep', category = 'search', parent = 'task1', diffs = {} }
+    )
+    events.append(
+      history,
+      { kind = 'tool_update', id = 'inner', status = Block.STATUS.completed, output = output, diffs = {} }
+    )
+    events.append(history, { kind = 'message', text = 'report', parent = 'task1' })
+    document:write(blocks.build(history))
+
+    local inner, report = document.blocks[3], document.blocks[4]
+
+    eq('0', document:fold_level(inner.start))
+    eq('0', document:fold_level(inner.start + 1))
+    eq('>1', document:fold_level(inner.start + 2 + require('harness.settings.transcript'):get('preview_lines')))
+    eq('0', document:fold_level(report.start))
+  end)
+
   it('keeps a held row in place when a subagent writes above it in a short transcript', function()
     local Following = require('harness.ui.Following')
 
@@ -726,5 +855,21 @@ describe('harness.ui.Document:', function()
     eq(held, lines(buf)[now + 1])
     assert.is_true(now > row)
     vim.api.nvim_buf_del_extmark(buf, Following.ANCHOR, id)
+  end)
+
+  it('redecorates one decorated block on demand, and ignores an index with no block', function()
+    emit(events.prompt('hello'))
+
+    local calls = {}
+
+    document._decorate = function(_, block)
+      calls[#calls + 1] = block
+    end
+
+    document:redecorate(99)
+    eq({}, calls)
+
+    document:redecorate(1)
+    eq(1, #calls)
   end)
 end)

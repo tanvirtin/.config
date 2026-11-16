@@ -6,11 +6,10 @@ context.FINISHED = { [Block.STATUS.completed] = true, [Block.STATUS.failed] = tr
 
 function context.live_tool(block, ctx)
   if block.kind ~= Block.KIND.tool then return false end
-  if ctx.active and ((block.id and ctx.active[block.id]) or (block.parent and ctx.active[block.parent])) then
-    return true
-  end
+  if ctx.active and block.id and ctx.active[block.id] then return true end
+  if block.settled or context.FINISHED[block.status] then return false end
 
-  return ctx.running == true and not context.FINISHED[block.status]
+  return ctx.running == true or (ctx.active ~= nil and block.parent ~= nil and ctx.active[block.parent] == true)
 end
 
 function context.waiting_for(block, ctx)

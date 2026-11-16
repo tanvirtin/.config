@@ -418,8 +418,13 @@ describe('harness.ui.TranscriptView:', function()
     end)
   end)
 
-  it('names the buffer after the session', function()
+  it('names the buffer after the session, by agent until it has a title', function()
     eq('harness://h1 untitled', TranscriptView.buffer_name({ key = 'h1' }))
+    eq('harness://h1 opencode', TranscriptView.buffer_name({ key = 'h1', agent = { name = 'opencode' } }))
+    eq(
+      'harness://h1 Fix the picker',
+      TranscriptView.buffer_name({ key = 'h1', title = 'Fix the picker', agent = { name = 'opencode' } })
+    )
   end)
 
   it('creates a listed, unmodifiable harness buffer that renders on mount', function()
@@ -573,6 +578,39 @@ describe('harness.ui.TranscriptView:', function()
 
     eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
     assert.is_true(sticky_bottom.at_end(Window(win)))
+    view:dispose()
+  end)
+
+  it('keeps the window still while a thought streams into its hidden body', function()
+    for i = 1, 30 do
+      session:_emit(events.prompt('turn ' .. i))
+    end
+
+    local view = TranscriptView(session):mount()
+    local win = vim.api.nvim_get_current_win()
+    local Window = require('core.Window')
+    local w = Window(win)
+
+    view:show_in(w)
+    session.state = 'running'
+
+    session:_emit(events.new({ kind = 'thought', text = 'one\ntwo\nthree\nfour' }))
+    view:render()
+
+    local top = vim.fn.line('w0', win)
+    local function height()
+      return w:get_text_height(top - 1, vim.api.nvim_buf_line_count(view.bufnr) - 1)
+    end
+
+    local shown = height()
+
+    for i = 1, 20 do
+      session:_emit(events.new({ kind = 'thought', text = string.rep('\n\nmore thinking ' .. i, 2) }))
+      view:render()
+      eq(top, vim.fn.line('w0', win))
+    end
+
+    eq(shown, height())
     view:dispose()
   end)
 

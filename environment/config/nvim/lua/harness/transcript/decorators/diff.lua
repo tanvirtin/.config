@@ -12,6 +12,14 @@ local LINE_PRIORITY = theme.SYNTAX_PRIORITY + 50
 local SURFACE_PRIORITY = theme.SYNTAX_PRIORITY - 100
 local NUMBERED = { context = true, add = true, remove = true }
 
+local function stat_chunks(added, removed)
+  local squares = theme.diffstat(added, removed)
+
+  if #squares == 0 then return { { ' +' .. added, 'UiAdded' }, { ' −' .. removed .. ' ', 'UiRemoved' } } end
+
+  return { { ' +' .. added, 'UiAdded' }, { ' −' .. removed, 'UiRemoved' }, squares[1], squares[2], { ' ' } }
+end
+
 local function path_row(out, block)
   local row = block.start + 1
   local split = block.patch and block.patch.layout == 'split'
@@ -27,10 +35,7 @@ local function path_row(out, block)
 
   if block.added or block.removed then
     MarkSpec.add(out, row, 0, {
-      virt_text = {
-        { ' +' .. (block.added or 0), 'UiAdded' },
-        { ' −' .. (block.removed or 0) .. ' ', 'UiRemoved' },
-      },
+      virt_text = stat_chunks(block.added or 0, block.removed or 0),
       virt_text_pos = 'eol',
     })
   end
