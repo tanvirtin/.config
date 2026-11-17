@@ -9,8 +9,15 @@ surface.ELEVATION = {
   modal = { fill = 'UiSurfaceRaised', border = 'UiAccent', shadow = 0.32 },
 }
 surface.GROUP = 'UiBackdropNormal'
+surface.winbar_groups = { 'WinBar', 'WinBarNC' }
 
 local REMAPPED = { Normal = true, NormalFloat = true, FloatBorder = true, EndOfBuffer = true }
+local WINBAR = {}
+
+for _, name in ipairs(surface.winbar_groups) do
+  WINBAR[name] = true
+end
+
 local BORDER_WIDTH = 1.5
 local BORDER_ALPHA = 0.9
 local SHADOW_OFFSET = 2
@@ -34,14 +41,19 @@ function surface.resolve(spec)
 
   return {
     elevation = name,
-    fill = elevation.fill,
+    fill = spec.fill or elevation.fill,
+    focus = spec.focus,
     border = border,
     shadow = elevation.shadow,
     radius = spec.radius or surface.RADIUS,
   }
 end
 
-function surface.draw(bitmap, size, spec)
+function surface.draw(bitmap, size, spec, focused)
+  local border = spec.border
+
+  if focused and spec.focus then border = spec.focus end
+
   local x, y = 2, 2
   local width, height = size.width - 4, size.height - 4
   local radius = spec.radius
@@ -62,7 +74,7 @@ function surface.draw(bitmap, size, spec)
 
   bitmap:rect(x, y, width, height, roles.rgb(roles.background(spec.fill)), 1, radius)
 
-  if spec.border then bitmap:border(x, y, width, height, BORDER_WIDTH, roles.rgb(spec.border), BORDER_ALPHA, radius) end
+  if border then bitmap:border(x, y, width, height, BORDER_WIDTH, roles.rgb(border), BORDER_ALPHA, radius) end
 
   return bitmap
 end
@@ -78,7 +90,7 @@ function surface.winhl(existing)
     for pair in existing:gmatch('[^,]+') do
       local from = pair:match('^([^:]+)')
 
-      if REMAPPED[from] then pair = from .. ':' .. surface.GROUP end
+      if REMAPPED[from] or WINBAR[from] then pair = from .. ':' .. surface.GROUP end
 
       entries[#entries + 1] = pair
       has_normal = has_normal or from == 'Normal'

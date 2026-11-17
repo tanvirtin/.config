@@ -113,6 +113,26 @@ describe('ui.pixel.Backdrop:', function()
     eq(2, #drawn)
   end)
 
+  it('repaints when its key changes, and not when the key stays the same', function()
+    local state = 'a'
+    local backdrop = Backdrop({
+      window = Window(float({})),
+      draw = fill,
+      key = function()
+        return state
+      end,
+    })
+
+    backdrops[#backdrops + 1] = backdrop
+
+    backdrop:refresh():refresh()
+    eq(1, #drawn)
+
+    state = 'b'
+    backdrop:refresh()
+    eq(2, #drawn)
+  end)
+
   it('erases the pixels under a higher float, and repaints them whole when it closes', function()
     local backdrop = backdrop_for(float({}))
 

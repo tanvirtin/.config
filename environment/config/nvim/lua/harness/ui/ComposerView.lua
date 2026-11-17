@@ -705,6 +705,7 @@ function ComposerView:mount(insert)
       winhl = 'Normal:UiComposer,EndOfBuffer:UiComposer',
     },
     win_plot = { split = 'below', win = anchor and anchor.win_id or -1, height = settings.composer:get('height') },
+    surface = { elevation = 'raised', fill = 'UiComposer', focus = 'UiAccent' },
   })
 
   self.anchor = anchor

@@ -33,7 +33,7 @@ function roles.background(name)
 
   local spec = group_spec(name)
 
-  return spec.bg or spec.fg or roles.FALLBACK
+  return spec.bg or highlight.get_hl_by_name('Normal').bg or roles.FALLBACK
 end
 
 function roles.rgb(name)

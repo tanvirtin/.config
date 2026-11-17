@@ -68,7 +68,7 @@ function Element:mount()
   win_plot.mode = window_mode
   self._surface = self:_resolve_surface()
 
-  if self._surface then win_plot.border = surface.window_border(self._surface) end
+  if self._surface and self:_is_float() then win_plot.border = surface.window_border(self._surface) end
 
   self._window = Window:open(self._buffer, win_plot)
 
@@ -96,8 +96,19 @@ function Element:forget()
   return self
 end
 
+function Element:_is_float()
+  return self._config.window_mode == 'floating'
+end
+
+function Element:_is_split()
+  local plot = self._plot.win_plot or {}
+
+  return not self:_is_float() and (plot.relative or '') == ''
+end
+
 function Element:_resolve_surface()
-  if self._config.window_mode ~= 'floating' or not self._surface_prop or not Backdrop.available() then return nil end
+  if not self._surface_prop or not Backdrop.available() then return nil end
+  if not self:_is_float() and not self:_is_split() then return nil end
 
   return surface.resolve(self._surface_prop)
 end
@@ -106,11 +117,15 @@ function Element:_mount_backdrop()
   if not self._surface then return self end
 
   local card = self._surface
+  local window = self._window
 
   self._backdrop = Backdrop({
-    window = self._window,
+    window = window,
+    key = card.focus and function()
+      return tostring(window:is_focused())
+    end or nil,
     draw = function(bitmap, size)
-      surface.draw(bitmap, size, card)
+      surface.draw(bitmap, size, card, window:is_focused())
     end,
   })
   self._backdrop:refresh()
@@ -451,7 +466,19 @@ function Element:_window_options()
 
   if not self._surface then return options end
 
-  return vim.tbl_extend('force', options, { winhl = surface.winhl(options.winhl) })
+  if self:_is_float() then return vim.tbl_extend('force', options, { winhl = surface.winhl(options.winhl) }) end
+
+  local extra = {}
+
+  if options.winbar and options.winbar ~= '' then
+    for _, group in ipairs(surface.winbar_groups) do
+      extra[#extra + 1] = group .. ':' .. group
+    end
+  end
+
+  local winhl = table.concat(vim.list_extend({ options.winhl or '' }, extra), ',')
+
+  return vim.tbl_extend('force', options, { winhl = surface.winhl(winhl), statuscolumn = ' ' })
 end
 
 function Element:_apply_win_options()
@@ -467,7 +494,9 @@ end
 function Element:set_config(config)
   if not self:is_valid() then return self end
 
-  if self._surface then config = vim.tbl_extend('force', config, { border = surface.window_border(self._surface) }) end
+  if self._surface and self:_is_float() then
+    config = vim.tbl_extend('force', config, { border = surface.window_border(self._surface) })
+  end
 
   self._window:set_config(config)
   self:_refresh_backdrop()

@@ -15,6 +15,10 @@ local serial = 0
 local listening = false
 local queued = false
 
+local function no_key()
+  return ''
+end
+
 local function schedule()
   if queued then return end
 
@@ -41,7 +45,18 @@ local function listen()
 
   local group = event.augroup('ui.pixel.Backdrop')
 
-  group.on({ 'WinScrolled', 'WinResized', 'VimResized', 'WinNew', 'WinClosed', 'TabEnter', 'WinEnter' }, schedule)
+  group.on({
+    'WinScrolled',
+    'WinResized',
+    'VimResized',
+    'WinNew',
+    'WinClosed',
+    'TabEnter',
+    'WinEnter',
+    'WinLeave',
+    'FocusGained',
+    'FocusLost',
+  }, schedule)
   group.on('ColorScheme', invalidate_all)
 end
 
@@ -55,8 +70,8 @@ local function overlap(rect, cover)
   return { col = left - rect.col, row = top - rect.row, width = right - left, height = bottom - top }
 end
 
-local function signature_of(rect, covers, content)
-  local parts = { rect.row, rect.col, rect.width, rect.height, content }
+local function signature_of(rect, covers, content, key)
+  local parts = { rect.row, rect.col, rect.width, rect.height, content, key }
 
   for _, cover in ipairs(covers) do
     parts[#parts + 1] = string.format('%d,%d,%d,%d', cover.row, cover.col, cover.width, cover.height)
@@ -87,6 +102,7 @@ function Backdrop:constructor(options)
     serial = serial,
     window = options.window,
     draw = options.draw,
+    key = options.key or no_key,
     ids = { graphics.id(), graphics.id() },
     turn = 1,
     shown = nil,
@@ -172,7 +188,7 @@ function Backdrop:refresh()
 
   local rect = self.window:get_screen_rect()
   local covers = self:covers()
-  local signature = signature_of(rect, covers, self.content)
+  local signature = signature_of(rect, covers, self.content, self.key())
 
   if signature ~= self.signature then
     self.signature = signature

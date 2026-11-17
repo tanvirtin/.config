@@ -459,6 +459,14 @@ describe('Element:', function()
       }, opts or {}))
     end
 
+    local function splitting(opts)
+      return Element(vim.tbl_deep_extend('force', {
+        win_plot = { split = 'below', win = vim.api.nvim_get_current_win(), height = 6 },
+        win_options = { winhl = 'Normal:UiComposer,EndOfBuffer:UiComposer', winbar = 'HEADER', wrap = false },
+        surface = { elevation = 'raised', fill = 'UiComposer', focus = 'UiAccent' },
+      }, opts or {}))
+    end
+
     local function border_chars(el)
       return vim.tbl_map(function(item)
         return type(item) == 'table' and item[1] or item
@@ -523,6 +531,65 @@ describe('Element:', function()
 
       eq('╭', border_chars(el)[1])
       eq('Normal:UiNormal,FloatBorder:UiMuted', el:get_window():get_option('winhl'))
+      eq(before, Backdrop.count())
+
+      el:unmount()
+    end)
+
+    it('mounts a surfaced split with its winbar groups remapped, a blank status column and one backdrop', function()
+      local before = Backdrop.count()
+      local el = splitting():mount()
+
+      eq(
+        'Normal:UiBackdropNormal,EndOfBuffer:UiBackdropNormal,WinBar:UiBackdropNormal,WinBarNC:UiBackdropNormal',
+        el:get_window():get_option('winhl')
+      )
+      eq(' ', el:get_window():get_option('statuscolumn'))
+      eq(before + 1, Backdrop.count())
+      eq(true, #drawn > 0)
+
+      el:unmount()
+    end)
+
+    it('remaps only the normal groups of a surfaced split without a winbar', function()
+      local el =
+        splitting({ win_options = { winhl = 'Normal:UiComposer,EndOfBuffer:UiComposer', winbar = '' } }):mount()
+
+      eq('Normal:UiBackdropNormal,EndOfBuffer:UiBackdropNormal', el:get_window():get_option('winhl'))
+
+      el:unmount()
+    end)
+
+    it('repaints the split backdrop when the current window changes', function()
+      local origin = vim.api.nvim_get_current_win()
+      local el = splitting():mount()
+      local painted = #drawn
+
+      vim.api.nvim_set_current_win(el:get_window().win_id)
+      Backdrop.refresh_all()
+
+      local focused = #drawn
+
+      eq(true, focused > painted)
+
+      vim.api.nvim_set_current_win(origin)
+      Backdrop.refresh_all()
+
+      eq(true, #drawn > focused)
+
+      el:unmount()
+    end)
+
+    it('keeps a split without pixels as it is, with no status column padding', function()
+      graphics.supported = function()
+        return false
+      end
+
+      local before = Backdrop.count()
+      local el = splitting():mount()
+
+      eq('Normal:UiComposer,EndOfBuffer:UiComposer', el:get_window():get_option('winhl'))
+      eq('', el:get_window():get_option('statuscolumn'))
       eq(before, Backdrop.count())
 
       el:unmount()

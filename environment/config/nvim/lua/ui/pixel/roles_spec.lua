@@ -49,4 +49,17 @@ describe('ui.pixel.roles:', function()
   it('converts a table of channels to a number in resolve', function()
     eq(0x102030, roles.resolve({ 0x10, 0x20, 0x30 }))
   end)
+
+  it('fills with the editor background when a group has no background of its own', function()
+    local normal = vim.api.nvim_get_hl(0, { name = 'Normal' })
+
+    vim.api.nvim_set_hl(0, 'RolesSpecNoBg', { fg = 0x123456 })
+    vim.api.nvim_set_hl(0, 'Normal', { fg = 0xffffff, bg = 0x101010 })
+
+    local background = roles.background('RolesSpecNoBg')
+
+    vim.api.nvim_set_hl(0, 'Normal', normal)
+
+    assert.are.same(0x101010, background)
+  end)
 end)

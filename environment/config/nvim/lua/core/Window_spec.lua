@@ -582,6 +582,27 @@ describe('Window:', function()
       eq({ row = 5, col = 5, width = 21, height = 10 }, win:get_screen_rect())
     end)
 
+    it('is the box of a split without a winbar, from its first text row', function()
+      win = Window.split('botright split')
+      win:set_height(6)
+
+      local position = win:get_position()
+      local rect = win:get_screen_rect()
+
+      eq({ position[1], position[2], win:get_width(), 6 }, { rect.row, rect.col, rect.width, rect.height })
+    end)
+
+    it('takes the winbar row of a split into its box, on the row the window starts on', function()
+      win = Window.split('botright split')
+      win:set_height(6)
+      win:set_option('winbar', 'HEADER')
+
+      local position = win:get_position()
+      local rect = win:get_screen_rect()
+
+      eq({ position[1], position[2], win:get_width(), 6 }, { rect.row, rect.col, rect.width, rect.height })
+    end)
+
     it('is the plain box of a normal window', function()
       local current = Window(vim.api.nvim_get_current_win())
       local position = current:get_position()

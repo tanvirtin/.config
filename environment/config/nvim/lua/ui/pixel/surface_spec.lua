@@ -14,10 +14,10 @@ local function card(overrides)
   )
 end
 
-local function paint(spec)
+local function paint(spec, focused)
   local bitmap = Bitmap.new(WIDTH, HEIGHT)
 
-  surface.draw(bitmap, { width = WIDTH, height = HEIGHT }, spec)
+  surface.draw(bitmap, { width = WIDTH, height = HEIGHT }, spec, focused)
 
   return bitmap
 end
@@ -26,11 +26,15 @@ describe('ui.pixel.surface:', function()
   before_each(function()
     vim.api.nvim_set_hl(0, 'SurfaceSpecFill', { bg = 0x203040 })
     vim.api.nvim_set_hl(0, 'SurfaceSpecBorder', { fg = 0xff0000 })
+    vim.api.nvim_set_hl(0, 'SurfaceSpecFocus', { fg = 0x00ff00 })
+    vim.api.nvim_set_hl(0, 'SurfaceSpecOther', { bg = 0x804020 })
   end)
 
   after_each(function()
     vim.api.nvim_set_hl(0, 'SurfaceSpecFill', {})
     vim.api.nvim_set_hl(0, 'SurfaceSpecBorder', {})
+    vim.api.nvim_set_hl(0, 'SurfaceSpecFocus', {})
+    vim.api.nvim_set_hl(0, 'SurfaceSpecOther', {})
   end)
 
   it('resolves true to the surface elevation with its radius', function()
@@ -50,6 +54,13 @@ describe('ui.pixel.surface:', function()
       surface.resolve({ elevation = 'modal' }).border,
       surface.resolve({ elevation = 'modal' }).shadow,
     })
+  end)
+
+  it('takes a fill and a focus role from the spec over the elevation fill', function()
+    local resolved = surface.resolve({ elevation = 'raised', fill = 'SurfaceSpecOther', focus = 'UiAccent' })
+
+    eq({ 'SurfaceSpecOther', 'UiAccent' }, { resolved.fill, resolved.focus })
+    eq(nil, surface.resolve({ elevation = 'raised' }).focus)
   end)
 
   it('takes a border role, a radius, or no border from the spec', function()
@@ -87,6 +98,20 @@ describe('ui.pixel.surface:', function()
     eq(255, alpha)
   end)
 
+  it('paints the border in the focus colour only while the window is focused', function()
+    local spec = card({ border = 'SurfaceSpecBorder', focus = 'SurfaceSpecFocus' })
+    local _, green_unfocused = paint(spec, false):pixel(80, 2)
+    local _, green_focused = paint(spec, true):pixel(80, 2)
+
+    assert.is_true(green_focused > green_unfocused + 100)
+  end)
+
+  it('keeps the spec border while focused when no focus role is set', function()
+    local spec = card({ border = 'SurfaceSpecBorder' })
+
+    eq({ paint(spec, false):pixel(80, 2) }, { paint(spec, true):pixel(80, 2) })
+  end)
+
   it('casts a soft shadow just below the card only when the shadow is above zero', function()
     eq(0, select(4, paint(card({ shadow = 0 })):pixel(80, 94)))
     assert.is_true(select(4, paint(card({ shadow = 0.22 })):pixel(80, 94)) > 0)
@@ -97,6 +122,14 @@ describe('ui.pixel.surface:', function()
       'Normal:UiBackdropNormal,FloatBorder:UiBackdropNormal,CursorLine:UiSelected',
       surface.winhl('Normal:UiNormal,FloatBorder:UiMuted,CursorLine:UiSelected')
     )
+  end)
+
+  it('remaps the winbar groups only when the window already lists them', function()
+    eq(
+      'Normal:UiBackdropNormal,WinBar:UiBackdropNormal,WinBarNC:UiBackdropNormal',
+      surface.winhl('Normal:UiComposer,WinBar:WinBar,WinBarNC:WinBarNC')
+    )
+    eq('Normal:UiBackdropNormal,CursorLine:UiSelected', surface.winhl('Normal:UiComposer,CursorLine:UiSelected'))
   end)
 
   it('starts a winhl with the normal group when there is none', function()
