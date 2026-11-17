@@ -1,4 +1,5 @@
 local lazy = require('core.lazy')
+local glyph = require('ui.design.glyph')
 
 local fences = lazy('core.fences')
 local Window = lazy('core.Window')
@@ -10,7 +11,7 @@ local hints = {}
 
 hints.NAMESPACE = Buffer.namespace('harness.hints')
 
-hints.SEPARATOR = ' · '
+hints.SEPARATOR = glyph.SEPARATOR
 
 hints.EDITING = {
   [Block.CATEGORY.edit] = true,

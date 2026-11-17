@@ -1,4 +1,5 @@
 local compact = require('compact')
+local glyph = require('ui.design.glyph')
 local ASK = require('harness.types.events').ASK
 local theme = require('harness.transcript.theme')
 local keymaps = require('harness.settings.keymaps')
@@ -70,7 +71,9 @@ local function elicitation_rows(state, request)
   for _, choice in ipairs(view.choices) do
     local row = { { '   ' }, { choice.key, 'UiAccent' }, { ' ' } }
 
-    if choice.checked ~= nil then row[#row + 1] = { choice.checked and '◉ ' or '○ ', 'UiAccent' } end
+    if choice.checked ~= nil then
+      row[#row + 1] = { (choice.checked and glyph.STATUS.selected or glyph.STATUS.pending) .. ' ', 'UiAccent' }
+    end
     row[#row + 1] = { fit(state, choice.label, 10) }
     if choice.description then
       row[#row + 1] = { '  ' .. fit(state, choice.description, 12 + #choice.label), 'UiMuted' }

@@ -1,4 +1,5 @@
 local dataclass = require('core.dataclass')
+local layer = require('ui.design.layer')
 
 local MarkSpec = dataclass.define('MarkSpec', {
   row = { type = 'number', required = true },
@@ -6,7 +7,7 @@ local MarkSpec = dataclass.define('MarkSpec', {
   opts = { type = 'table', required = true },
 })
 
-MarkSpec.PRIORITY = 300
+MarkSpec.PRIORITY = layer.of('mark')
 
 function MarkSpec.add(out, row, col, opts, priority)
   opts.priority = opts.priority or priority or MarkSpec.PRIORITY

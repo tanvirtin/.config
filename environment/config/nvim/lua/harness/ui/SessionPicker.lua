@@ -7,10 +7,12 @@ local glitch = lazy('ui.glitch')
 local Timer = lazy('core.Timer')
 local event = lazy('core.event')
 local motion = lazy('ui.motion')
+local design = lazy('ui.design')
 local Buffer = lazy('core.Buffer')
 local Window = lazy('core.Window')
 local agent = lazy('harness.agent')
 local async = lazy('harness.async')
+local glyph = lazy('ui.design.glyph')
 local schema = lazy('nvim_mcp.schema')
 local Component = lazy('ui.Component')
 local notice = lazy('harness.ui.notice')
@@ -34,11 +36,10 @@ local EVENT = require('harness.types.events').KIND
 local STATE_ROLE = { waiting = 'warn', running = 'accent', idle = 'muted' }
 local STATE_INDICATOR = { waiting = 'waiting', running = 'busy', idle = 'idle' }
 local SECTION = { live = 'Live', recent = 'Recent' }
-local TUNE_MS, TUNE_FRAME_MS, TUNE_DENSITY = 240, 33, 0.55
-local LISTING_MS, LISTING_MAX_MS = 240, 5000
+local TUNE_STATIC, STATIC, STATIC_BAND = 'medium', 'whisper', 'medium'
+local LISTING_MAX_MS = 5000
 local CORPUS_KINDS = { [EVENT.prompt] = true, [EVENT.message] = true }
 local GLITCH = Buffer.namespace('harness.session_picker.glitch')
-local STATIC_DENSITY, STATIC_BAND, STATIC_PRIORITY = 0.3, 0.6, 150
 
 local function one_line(text)
   return text and (tostring(text):gsub('[\r\n]+', ' ')) or ''
@@ -361,7 +362,11 @@ function SessionPicker:_begin_listing()
 
   if #names == 0 then return end
 
-  self._listing = { pending = #names, ends_at = Timer.now() + LISTING_MS, gives_up = Timer.now() + LISTING_MAX_MS }
+  self._listing = {
+    pending = #names,
+    ends_at = Timer.now() + design.motion.DURATION.moderate,
+    gives_up = Timer.now() + LISTING_MAX_MS,
+  }
   self._lister = Timer()
   self._lister:every(motion.STEP_MS, function()
     if not self:is_open() or not self._listing then return self:_stop_lister() end
@@ -485,13 +490,13 @@ function SessionPicker:_draw_static(element, seed, band, top)
     local index = first + offset_row
     local from = #(line:match('^[%s>]*') or '')
     local dense = math.abs(offset + index - 1 - band) <= 1
-    local density = dense and STATIC_BAND or STATIC_DENSITY
+    local density = design.static.density(dense and STATIC_BAND or STATIC)
 
     for _, cell in ipairs(glitch.cols(line, density, seed + index, from)) do
       buffer:set_extmark(GLITCH, index - 1, cell[1], {
         virt_text = { { cell[2], dense and 'UiThought' or 'UiThoughtFade2' } },
         virt_text_pos = 'overlay',
-        priority = STATIC_PRIORITY,
+        priority = design.layer.of('effect'),
       })
     end
   end
@@ -863,7 +868,7 @@ function SessionPicker:_live_facts(session, status, agent_name)
 
   if session.dir ~= self._dir then parts[#parts + 1] = home(session.dir) end
 
-  return table.concat(parts, ' · ')
+  return glyph.join(parts)
 end
 
 function SessionPicker:_live_row(session)
@@ -873,11 +878,11 @@ function SessionPicker:_live_row(session)
   local icon, icon_hl
 
   if status == 'waiting' then
-    icon, icon_hl = '!', status_hl
+    icon, icon_hl = glyph.STATUS.attention, status_hl
   elseif status == 'running' then
-    icon, icon_hl = '»', status_hl
+    icon, icon_hl = glyph.STATUS.running, status_hl
   else
-    icon, icon_hl = '·', 'UiMuted'
+    icon, icon_hl = glyph.STATUS.pending, 'UiMuted'
   end
 
   return {
@@ -898,7 +903,7 @@ function SessionPicker:_session_rows()
   if self._query == '' then
     rows[#rows + 1] = {
       action = 'new',
-      icon = '+',
+      icon = glyph.ACTION.add,
       icon_hl = 'UiAccent',
       label = 'New session',
       description = 'start one on any agent',
@@ -939,7 +944,7 @@ function SessionPicker:_session_rows()
       label = title,
       age = age,
       description = entry.agent .. ' ' .. title,
-      meta = table.concat({ entry.agent, age }, ' · '),
+      meta = glyph.join({ entry.agent, age }),
     }
   end
 
@@ -961,7 +966,7 @@ function SessionPicker:_agent_rows()
   if self._query == '' then
     rows[#rows + 1] = {
       action = 'back',
-      icon = '←',
+      icon = glyph.ACTION.back,
       icon_hl = 'UiMuted',
       label = 'Back to sessions',
       description = 'switch, do not start',
@@ -977,7 +982,7 @@ function SessionPicker:_agent_rows()
       action = 'agent',
       agent = name,
       spec = spec,
-      icon = '+',
+      icon = glyph.ACTION.add,
       icon_hl = 'UiAccent',
       label = name .. (name == default and ' (default)' or ''),
       description = table.concat({ spec.description or '', spec.command or '' }, ' '),
@@ -1134,7 +1139,7 @@ function SessionPicker:_tuning()
 
   if not tune or theme.reduced() then return nil end
 
-  local progress = (Timer.now() - tune.started) / TUNE_MS
+  local progress = (Timer.now() - tune.started) / design.motion.DURATION.moderate
 
   if progress >= 1 then return nil end
 
@@ -1153,7 +1158,7 @@ function SessionPicker:_start_tune()
   self._tune = { started = Timer.now() }
   self:_stop_tuner()
   self._tuner = Timer()
-  self._tuner:every(TUNE_FRAME_MS, function()
+  self._tuner:every(design.static.FRAME_MS, function()
     if not self:is_open() or not self:_tuning() then
       self:_stop_tuner()
       self._tune = nil
@@ -1239,7 +1244,7 @@ function SessionPicker:_draw_list()
     local label = shorten(row.label or '', math.max(8, inner - text.width(meta) - 4))
     local icon = row.icon or ' '
 
-    if loading then label = glitch.scramble(label, 0.4, math.floor(Timer.now() / TUNE_FRAME_MS)) end
+    if loading then label = glitch.scramble(label, design.static.density('light'), design.static.seed(Timer.now())) end
     local head = ' ' .. icon .. ' ' .. label
     local tail = meta ~= '' and (' ' .. meta .. ' ') or ''
     local gap = tail ~= '' and string.rep(' ', math.max(1, width - text.width(head) - text.width(tail))) or ''
@@ -1271,9 +1276,9 @@ function SessionPicker:_draw_list()
     if indicator then overlays[#overlays + 1] = { texts = { indicator }, row = at, col = 1, pos = 'overlay' } end
 
     if tune and i == self._selected then
-      local seed = math.floor(Timer.now() / TUNE_FRAME_MS)
+      local seed = design.static.seed(Timer.now())
 
-      for _, cell in ipairs(glitch.cols(label, TUNE_DENSITY * (1 - progress), seed)) do
+      for _, cell in ipairs(glitch.cols(label, design.static.density(TUNE_STATIC, 1 - progress), seed)) do
         overlays[#overlays + 1] =
           { texts = { { cell[2], 'UiMuted' } }, row = at, col = origin + cell[1], pos = 'overlay' }
       end
@@ -1365,7 +1370,7 @@ function SessionPicker:_detail_of(row)
     local turns = turns_of(session)
 
     put(' ' .. session_types.label(session), 'UiTitle')
-    field('agent', (session.agent and session.agent.name or '?') .. ' · ' .. model)
+    field('agent', glyph.join({ session.agent and session.agent.name or '?', model }))
     field('dir', home(session.dir))
 
     local facts = {}
@@ -1387,14 +1392,18 @@ function SessionPicker:_detail_of(row)
     if turns > 0 then facts[#facts + 1] = turns .. (turns == 1 and ' turn' or ' turns') end
     if usage and usage.cost then facts[#facts + 1] = string.format('$%.2f', usage.cost) end
 
-    field('context', table.concat(facts, ' · '))
+    field('context', glyph.join(facts))
 
     if not extras.ring or #facts == 0 then extras.ring = nil end
 
     if buffer then
       local buf = Buffer(buffer)
 
-      field('buffer', string.format('#%d · %d lines', buffer, buf:is_valid() and buf:get_line_count() or 0), 'UiMuted')
+      field(
+        'buffer',
+        string.format('#%d' .. glyph.SEPARATOR .. '%d lines', buffer, buf:is_valid() and buf:get_line_count() or 0),
+        'UiMuted'
+      )
     else
       field('buffer', 'not loaded', 'UiMuted')
     end

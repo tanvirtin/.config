@@ -2,6 +2,7 @@ local lazy = require('core.lazy')
 
 local Fold = lazy('core.Fold')
 local core_text = lazy('core.text')
+local glyph = lazy('ui.design.glyph')
 local winbar = lazy('harness.ui.winbar')
 local display = lazy('harness.ui.display')
 local TranscriptView = lazy('harness.ui.TranscriptView')
@@ -48,7 +49,10 @@ function transcript.foldtext()
 
   if view then return view:fold_text(first, last) end
 
-  return { { '  ', 'UiMuted' }, { '⋯ ' .. core_text.plural(last - first + 1, 'more line'), 'UiMuted' } }
+  return {
+    { '  ', 'UiMuted' },
+    { glyph.STATUS.more .. ' ' .. core_text.plural(last - first + 1, 'more line'), 'UiMuted' },
+  }
 end
 
 return transcript

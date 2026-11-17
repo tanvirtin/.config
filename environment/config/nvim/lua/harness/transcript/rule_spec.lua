@@ -69,15 +69,15 @@ describe('harness.transcript.rule:', function()
     eq(nil, rule.chunks(40, 'RuleSpecNoFg'))
   end)
 
-  it('is as wide as asked, in display cells, for solid rules', function()
+  it('is as wide as asked, in display cells, for static rules', function()
     for _, width in ipairs({ 13, 40, 44, 100 }) do
       eq(width, cells(rule.chunks(width, GROUP)))
     end
   end)
 
-  it('is as wide as asked, in display cells, for dotted rules', function()
+  it('is as wide as asked, in display cells, for faint rules', function()
     for _, width in ipairs({ 13, 40, 44, 100 }) do
-      eq(width, cells(rule.chunks(width, GROUP, 'dotted')))
+      eq(width, cells(rule.chunks(width, GROUP, 'faint')))
     end
   end)
 
@@ -100,28 +100,69 @@ describe('harness.transcript.rule:', function()
     eq(1, rule.count())
   end)
 
-  it('caches solid and dotted rules apart', function()
-    rule.chunks(40, GROUP, 'solid')
-    rule.chunks(40, GROUP, 'dotted')
+  it('caches static and faint rules apart', function()
+    rule.chunks(40, GROUP, 'static')
+    rule.chunks(40, GROUP, 'faint')
 
     eq(2, rule.count())
   end)
 
   it('frees every cached tile on stop', function()
     rule.chunks(40, GROUP)
-    rule.chunks(40, GROUP, 'dotted')
+    rule.chunks(40, GROUP, 'faint')
     rule.stop()
 
     eq(0, rule.count())
     eq(6, #deleted)
   end)
 
-  it('lights a solid rule at mid height and fades its left end', function()
-    rule.chunks(40, GROUP, 'solid')
+  local function band(upload, from, to)
+    local lit, total, outside = 0, 0, 0
+
+    for y = 0, Tile.CELL[2] - 1 do
+      for x = from, to do
+        local a = alpha(upload, x, y)
+
+        if a > 0 then
+          if y >= 14 and y <= 17 then
+            lit, total = lit + 1, total + a
+          else
+            outside = outside + 1
+          end
+        end
+      end
+    end
+
+    return lit, total, outside
+  end
+
+  it('draws a static rule as a band of noise at mid height that fades in from its left end', function()
+    rule.chunks(40, GROUP, 'static')
 
     local body, left = upload_of(uploads, Tile.MAX_CELLS), upload_of(uploads, rule.FADE)
+    local lit, _, outside = band(body, 0, body.width - 1)
 
-    assert.is_true(alpha(body, 100, 16) > 0)
-    assert.is_true(alpha(left, 1, 16) < alpha(left, 90, 16))
+    assert.is_true(lit > 0)
+    eq(0, outside)
+    assert.is_true(lit < body.width * 4)
+
+    local _, edge = band(left, 0, 15)
+    local _, inner = band(left, left.width - 16, left.width - 1)
+
+    assert.is_true(edge < inner)
+  end)
+
+  it('draws a faint rule thinner and sparser than a static one', function()
+    rule.chunks(40, GROUP, 'static')
+
+    local strong = band(upload_of(uploads, Tile.MAX_CELLS), 0, 255)
+
+    rule.stop()
+    uploads = {}
+    rule.chunks(40, GROUP, 'faint')
+
+    local faint = band(upload_of(uploads, Tile.MAX_CELLS), 0, 255)
+
+    assert.is_true(faint > 0 and faint < strong)
   end)
 end)

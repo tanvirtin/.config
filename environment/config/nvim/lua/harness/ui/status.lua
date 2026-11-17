@@ -1,6 +1,7 @@
 local lazy = require('core.lazy')
 local compact = require('compact')
 local Timer = require('core.Timer')
+local glyph = require('ui.design.glyph')
 
 local hub = lazy('harness.hub')
 local theme = lazy('harness.transcript.theme')
@@ -69,7 +70,7 @@ function status.text(list)
     end
   end
 
-  return table.concat(parts, ' · ')
+  return glyph.join(parts)
 end
 
 function status.visible(list)

@@ -1,16 +1,11 @@
 local text_utils = require('core.text')
+local glyph = require('ui.design.glyph')
 
 local table_layout = {}
 
 table_layout.ALIGN = require('core.dataclass').enum({ 'left', 'center', 'right' })
 
-table_layout.BORDER = {
-  top = { '┌', '┬', '┐' },
-  middle = { '├', '┼', '┤' },
-  bottom = { '└', '┴', '┘' },
-  vertical = '│',
-  horizontal = '─',
-}
+table_layout.BORDER = glyph.GRID
 
 table_layout.HL = { border = 'UiMuted', header = 'UiMarkdownTableHeader', cell = 'UiMarkdownTableCell' }
 

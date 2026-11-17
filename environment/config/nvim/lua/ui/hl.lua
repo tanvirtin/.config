@@ -1,56 +1,54 @@
 local tone = require('ui.tone')
 local highlight = require('core.highlight')
-local motion = require('ui.motion')
+local palette = require('ui.design.color')
 
 local hl = {}
 
-hl.PULSE_STEPS = 12
 hl.FLASH_STEPS = 8
 hl.FADE_STEPS = 6
-hl.GLINT = { 1, 0.6, 0.25 }
-hl.FADE_FLOOR = 0.45
-hl.THOUGHT = 0.62
-hl.THOUGHT_STREAM_FLOOR = 0.18
-hl.FLASH_PEAK = 0.24
-hl.RULE = 0.3
-hl.LEGIBLE = 3
+hl.FADE_FLOOR = palette.MIX.fade
+hl.THOUGHT = palette.MIX.thought
+hl.THOUGHT_STREAM_FLOOR = palette.MIX.thought_stream
+hl.FLASH_PEAK = palette.MIX.flash
+hl.RULE = palette.MIX.rule
+hl.LEGIBLE = palette.CONTRAST
 hl.LIFT_STEP = 0.1
-hl.THOUGHT_FADE = { 0.65, 0.35 }
+hl.THOUGHT_FADE = palette.THOUGHT_FADE
+
+local role = palette.source
 
 hl.GROUPS = {
-  UiNormal = 'NormalFloat',
-  UiBorder = 'FloatBorder',
-  UiTitle = 'Title',
-  UiSelected = 'CursorLine',
-  UiMuted = 'Comment',
-  UiAccent = 'Special',
-  UiWorking = 'Special',
-  UiPath = 'Directory',
-  UiLineNr = 'LineNr',
-  UiAdded = 'Added',
-  UiRemoved = 'Removed',
-  UiError = 'DiagnosticError',
-  UiWarn = 'DiagnosticWarn',
-  UiInfo = 'DiagnosticInfo',
-  UiHint = 'DiagnosticHint',
+  UiNormal = role('surface.background'),
+  UiBorder = role('border'),
+  UiTitle = role('text.title'),
+  UiSelected = role('element.selected'),
+  UiMuted = role('text.muted'),
+  UiAccent = role('text.accent'),
+  UiPath = role('text.path'),
+  UiLineNr = role('line_number'),
+  UiAdded = role('created'),
+  UiRemoved = role('deleted'),
+  UiError = role('error'),
+  UiWarn = role('warning'),
+  UiInfo = role('info'),
+  UiHint = role('hint'),
   UiMarkdownHeading1 = '@markup.heading.1.markdown',
   UiMarkdownHeading2 = '@markup.heading.2.markdown',
   UiMarkdownHeading3 = '@markup.heading.3.markdown',
   UiMarkdownHeading4 = '@markup.heading.4.markdown',
   UiMarkdownHeading5 = '@markup.heading.5.markdown',
   UiMarkdownHeading6 = '@markup.heading.6.markdown',
-  UiMarkdownBullet = 'Special',
-  UiMarkdownQuote = 'Comment',
-  UiMarkdownLink = 'Underlined',
-  UiMarkdownChecked = 'DiagnosticOk',
-  UiMarkdownUnchecked = 'Comment',
+  UiMarkdownBullet = role('text.accent'),
+  UiMarkdownQuote = role('text.muted'),
+  UiMarkdownLink = role('text.link'),
+  UiMarkdownChecked = role('success'),
+  UiMarkdownUnchecked = role('text.muted'),
   UiMarkdownTableHeader = '@markup.heading.markdown',
-  UiMarkdownTableCell = 'Normal',
-  UiExternalChange = 'DiffChange',
-  UiToolName = 'Function',
-  UiToolPending = 'DiagnosticInfo',
-  UiToolDone = 'DiagnosticOk',
-  UiToolFailed = 'DiagnosticError',
+  UiMarkdownTableCell = role('text'),
+  UiToolName = role('text.function'),
+  UiToolPending = role('info'),
+  UiToolDone = role('success'),
+  UiToolFailed = role('error'),
 }
 
 local function color(group, key)
@@ -116,59 +114,6 @@ local function shade(strength, fallback)
   end
 end
 
-hl.WORKING = {
-  'Special',
-  'Directory',
-  'DiagnosticInfo',
-  'Constant',
-  'Function',
-  'Keyword',
-  'String',
-  'Type',
-  'Number',
-  'Identifier',
-  'Statement',
-  'PreProc',
-  'DiagnosticWarn',
-  'DiagnosticOk',
-  'DiagnosticHint',
-}
-
-hl.WORKING_SLOTS = 6
-hl.WORKING_FROM_TEXT = 90
-hl.WORKING_APART = 40
-
-local function distance(a, b)
-  local total = 0
-
-  for _, shift in ipairs({ 16, 8, 0 }) do
-    local delta = math.floor(a / 2 ^ shift) % 256 - math.floor(b / 2 ^ shift) % 256
-
-    total = total + delta * delta
-  end
-
-  return math.sqrt(total)
-end
-
-local function pick_working()
-  local text, picked = color('Normal', 'fg'), {}
-
-  for _, group in ipairs(hl.WORKING) do
-    local fg = color(group, 'fg')
-    local fits = fg ~= nil and (text == nil or distance(fg, text) >= hl.WORKING_FROM_TEXT)
-
-    for _, other in ipairs(picked) do
-      if fits and distance(fg, other) < hl.WORKING_APART then fits = false end
-    end
-
-    if fits then picked[#picked + 1] = fg end
-
-    if #picked == hl.WORKING_SLOTS then break end
-  end
-
-  return picked
-end
-
 hl.ANSI = {
   [0] = 'Comment',
   'DiagnosticError',
@@ -198,7 +143,7 @@ local function ansi(n)
   end
 end
 
-local SURFACE = 0.12
+local SURFACE = palette.MIX.code
 
 local function number(group, fallback)
   return function()
@@ -226,9 +171,9 @@ local function rail(tint, fallback)
   end
 end
 
-hl.SURFACE_BASE = 0.05
-hl.SURFACE_RAISED = 0.09
-hl.SURFACE_TINT = 0.1
+hl.SURFACE_BASE = palette.MIX.surface
+hl.SURFACE_RAISED = palette.MIX.elevated
+hl.SURFACE_TINT = palette.MIX.tint
 
 hl.COMPUTED = {
   UiSurface = surface(hl.SURFACE_BASE, 'Normal', 'ColorColumn'),
@@ -283,7 +228,7 @@ hl.COMPUTED = {
 
     if not foreground or not background then return { link = 'WinSeparator' } end
 
-    return { fg = hl.blend(foreground, background, 0.16) }
+    return { fg = hl.blend(foreground, background, palette.MIX.border) }
   end,
   UiDiffNumber = number('GitLineNr', 'LineNr'),
   UiDiffAddNumber = number('GitSignsAdd', 'Added'),
@@ -296,6 +241,20 @@ hl.COMPUTED = {
   end,
   UiAnsiBold = function()
     return { bold = true }
+  end,
+  UiGlint = function()
+    local accent = color('UiAccent', 'fg')
+
+    if not accent then return { link = 'UiAccent' } end
+
+    return { fg = accent, bold = true }
+  end,
+  UiGlintSoft = function()
+    local accent, text = color('UiAccent', 'fg'), color('Normal', 'fg')
+
+    if not accent or not text then return { link = 'UiAccent' } end
+
+    return { fg = hl.blend(accent, text, palette.MIX.glint) }
   end,
 }
 
@@ -329,16 +288,6 @@ local function foreground_of(group, ...)
   end
 end
 
-local function breathing(floor)
-  return function(i)
-    return floor + (1 - floor) * motion.breath(hl.PULSE_STEPS, i)
-  end
-end
-
-ramp('UiPulse', hl.PULSE_STEPS, foreground_of('Normal'), breathing(0.3), function(i)
-  return i <= hl.PULSE_STEPS / 2 and 'UiAccent' or 'UiMuted'
-end)
-
 ramp('UiFade', hl.FADE_STEPS, foreground_of('Normal'), function(i)
   return hl.FADE_FLOOR + (1 - hl.FADE_FLOOR) * along(i, hl.FADE_STEPS)
 end, function()
@@ -361,27 +310,11 @@ for step, alpha in ipairs(hl.THOUGHT_FADE) do
   end
 end
 
-for word = 1, 6 do
-  for step, mix in ipairs(hl.GLINT) do
-    hl.COMPUTED['UiWorkingGlint' .. word .. '_' .. step] = function()
-      local accent, own = color('UiAccent', 'fg'), color('UiWorking' .. word, 'fg')
-
-      if not accent or not own then return { link = 'UiAccent' } end
-
-      return { fg = hl.blend(accent, own, mix), bold = step == 1 }
-    end
-  end
-end
-
 for _, name in ipairs(tone.ALL) do
   local source = tone.SOURCE[name]
 
   hl.COMPUTED[tone.surface(name)] = surface(hl.SURFACE_TINT, source, 'ColorColumn')
   hl.COMPUTED[tone.rail(name)] = rail(source, source)
-
-  ramp('UiPulse' .. name, hl.PULSE_STEPS, foreground_of(source), breathing(0.35), function()
-    return source
-  end)
 
   for i = 1, hl.FLASH_STEPS do
     hl.COMPUTED[tone.flash(name, i)] = function()
@@ -427,7 +360,6 @@ end
 
 hl.LIFTED = {
   'UiAccent',
-  'UiWorking',
   'UiPath',
   'UiAdded',
   'UiRemoved',
@@ -443,10 +375,6 @@ hl.LIFTED = {
   'UiMarkdownLink',
   'UiMarkdownChecked',
 }
-
-for slot = 1, hl.WORKING_SLOTS do
-  hl.LIFTED[#hl.LIFTED + 1] = 'UiWorking' .. slot
-end
 
 local lifted = {}
 
@@ -476,16 +404,6 @@ function hl.define()
   for group, link in pairs(hl.GROUPS) do
     highlight.set(group, { link = link, default = true })
   end
-
-  local picked = pick_working()
-
-  for slot = 1, hl.WORKING_SLOTS do
-    local fg = #picked > 0 and picked[(slot - 1) % #picked + 1] or nil
-
-    highlight.set('UiWorking' .. slot, fg and { fg = fg } or { link = hl.WORKING[slot], default = true })
-  end
-
-  if #picked > 0 then highlight.set('UiWorking', { fg = picked[1] }) end
 
   lift()
 

@@ -1,4 +1,5 @@
 local compact = require('compact')
+local glyph = require('ui.design.glyph')
 local theme = require('harness.transcript.theme')
 local keymaps = require('harness.settings.keymaps')
 local settings = require('harness.settings.transcript')
@@ -44,8 +45,8 @@ function working.lines(state, now)
 
   return {
     vim.list_extend(line, {
-      { elapsed and ' · ' .. elapsed or '', 'UiMuted' },
-      { ' · ', 'UiMuted' },
+      { elapsed and glyph.SEPARATOR .. elapsed or '', 'UiMuted' },
+      { glyph.SEPARATOR, 'UiMuted' },
       { keymaps:get('transcript').interrupt, 'UiAccent' },
       { ' interrupt', 'UiMuted' },
     }),

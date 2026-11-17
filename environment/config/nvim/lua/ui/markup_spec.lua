@@ -10,7 +10,7 @@ describe('ui.markup:', function()
 
   it('names the group of a tag: a Ui role in lower case, or any highlight group by its capitalised name', function()
     eq('UiAccent', markup.group('accent'))
-    eq('UiPulse3', markup.group('UiPulse3'))
+    eq('UiFade3', markup.group('UiFade3'))
     eq('Comment', markup.group('Comment'))
     assert.is_nil(markup.group('comment'))
     assert.is_nil(markup.group('nosuchgroup'))

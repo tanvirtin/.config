@@ -1,4 +1,5 @@
 local MarkSpec = require('ui.MarkSpec')
+local glyph = require('ui.design.glyph')
 local theme = require('harness.transcript.theme')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 
@@ -16,18 +17,18 @@ return function(block, ctx)
   if #parts == 0 then parts[1] = 'done' end
 
   MarkSpec.add(out, block.start, 0, { end_col = #block.lines[1], conceal = '' })
-  local overlay, pixels = theme.rule(ctx, theme.RULE, 'UiTurnSeparator', 'solid')
+  local overlay, pixels = theme.rule(ctx, theme.RULE, 'UiTurnSeparator', 'static')
 
   MarkSpec.add(out, block.start, 0, {
     virt_text = overlay,
     virt_text_pos = 'overlay',
     priority = theme.GUTTER_PRIORITY,
   })
-  local summary = { { ' ' .. table.concat(parts, ' · '), REASON_HL[block.reason] or 'UiWarn' } }
+  local summary = { { ' ' .. glyph.join(parts), REASON_HL[block.reason] or 'UiWarn' } }
 
   if block.files then
     vim.list_extend(summary, {
-      { ' · ', 'UiMuted' },
+      { glyph.SEPARATOR, 'UiMuted' },
       { '+' .. (block.added or 0), 'UiAdded' },
       { ' ' },
       { '−' .. (block.removed or 0), 'UiRemoved' },

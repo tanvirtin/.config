@@ -9,6 +9,7 @@ local Object = lazy('core.Object')
 local Window = lazy('core.Window')
 local keymap = lazy('core.keymap')
 local asks = lazy('harness.ui.asks')
+local layer = lazy('ui.design.layer')
 local context = lazy('harness.context')
 local notice = lazy('harness.ui.notice')
 local settings = lazy('harness.settings')
@@ -258,7 +259,7 @@ function ComposerView:_decorate()
         buffer:set_extmark(ComposerView.NAMESPACE, row - 1, found.start - 1, {
           end_col = found.finish,
           hl_group = 'UiChip',
-          priority = 200,
+          priority = layer.of('syntax'),
         })
       end
     end

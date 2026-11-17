@@ -1,5 +1,6 @@
 local glitch = require('ui.glitch')
 local motion = require('ui.motion')
+local glyph = require('ui.design.glyph')
 local theme = require('harness.transcript.theme')
 
 local loading = { id = 'loading', order = 30, exclusive = true }
@@ -15,7 +16,7 @@ function loading.lines(state, now)
   local rows = {
     vim.list_extend({ theme.loader('loading', now) }, {
       { 'loading', 'UiAccent' },
-      { ' · the agent is replaying this session', 'UiMuted' },
+      { glyph.SEPARATOR .. 'the agent is replaying this session', 'UiMuted' },
     }),
   }
 

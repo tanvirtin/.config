@@ -1,5 +1,6 @@
 local lazy = require('core.lazy')
 local Timer = require('core.Timer')
+local glyph = require('ui.design.glyph')
 
 local compact = lazy('compact')
 local core_text = lazy('core.text')
@@ -77,7 +78,7 @@ end
 local function status(session, prompt, target)
   local parts = {}
 
-  if target then parts[#parts + 1] = '%#UiAccent#● selections go here  ' end
+  if target then parts[#parts + 1] = '%#UiAccent#' .. glyph.STATUS.current .. ' selections go here  ' end
 
   if session.external and follow.is_following(session) then parts[#parts + 1] = '%#UiWarn#⇄ external  ' end
 
@@ -98,7 +99,7 @@ local function status(session, prompt, target)
       '%%#UiAccent#  %d agent%s%s',
       agents.active,
       agents.active == 1 and '' or 's',
-      quiet and (' · quiet ' .. quiet) or ''
+      quiet and (glyph.SEPARATOR .. 'quiet ' .. quiet) or ''
     )
   end
 

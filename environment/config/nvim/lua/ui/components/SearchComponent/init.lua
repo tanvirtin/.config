@@ -1,6 +1,7 @@
 local lazy = require('core.lazy')
 
 local event = lazy('core.event')
+local glyph = lazy('ui.design.glyph')
 local Element = lazy('ui.elements.Element')
 local Component = lazy('ui.Component')
 local SearchFilter = lazy('core.SearchFilter')
@@ -65,8 +66,21 @@ function SearchComponent:mount()
   local list_winhl = 'Normal:UiNormal,FloatBorder:' .. border_hl .. ',CursorLine:UiSelected'
 
   local is_popup = self.props.popup ~= false
-  local input_border = is_popup and (self.props.border or { '', '', '', '│', '', '', '', '│' }) or 'none'
-  local list_border = is_popup and { '├', '─', '┤', '│', '╯', '─', '╰', '│' } or 'none'
+  local input_border = is_popup
+      and (self.props.border or { '', '', '', glyph.BOX.vertical, '', '', '', glyph.BOX.vertical })
+    or 'none'
+  local list_border = is_popup
+      and {
+        glyph.GRID.middle[1],
+        glyph.BOX.horizontal,
+        glyph.GRID.middle[3],
+        glyph.BOX.vertical,
+        glyph.BOX.bottom_right,
+        glyph.BOX.horizontal,
+        glyph.BOX.bottom_left,
+        glyph.BOX.vertical,
+      }
+    or 'none'
   local list_focusable = not is_popup
 
   if not self.elements.input then

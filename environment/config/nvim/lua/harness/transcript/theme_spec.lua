@@ -17,7 +17,7 @@ describe('harness.transcript.theme:', function()
   end)
 
   it('keeps the working words on one beat: twelve pulse steps', function()
-    eq(1200, theme.beat())
+    eq(require('ui.design.motion').DURATION.deliberate, theme.beat())
   end)
 
   describe('without pixels', function()

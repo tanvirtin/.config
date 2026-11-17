@@ -2,19 +2,21 @@ local hl = require('ui.hl')
 local glitch = require('ui.glitch')
 local motion = require('ui.motion')
 local Timer = require('core.Timer')
+local design = require('ui.design')
 local Buffer = require('core.Buffer')
 local Object = require('core.Object')
+local layer = require('ui.design.layer')
 local settings = require('harness.settings')
 local theme = require('harness.transcript.theme')
 
 local Fades = Object:extend()
 
 Fades.NAMESPACE = Buffer.namespace('harness.fade')
-Fades.PRIORITY = 100
+Fades.PRIORITY = layer.of('highlight')
+Fades.EFFECT_PRIORITY = layer.of('effect')
 Fades.MAX = 8
 Fades.TUNE = 0.6
-Fades.TUNE_DENSITY = 0.7
-Fades.TUNE_FRAME_MS = 30
+Fades.TUNE_STATIC = 'medium'
 
 function Fades:constructor(buffer, view)
   return { buffer = buffer, view = view, chunks = {}, high = -1, seen = {} }
@@ -119,8 +121,8 @@ end
 function Fades:tune(chunk, progress, now)
   if chunk.group ~= 'UiThoughtStream' or progress >= Fades.TUNE then return end
 
-  local density = Fades.TUNE_DENSITY * (1 - progress / Fades.TUNE)
-  local seed = math.floor(now / Fades.TUNE_FRAME_MS)
+  local density = design.static.density(Fades.TUNE_STATIC, 1 - progress / Fades.TUNE)
+  local seed = design.static.seed(now)
 
   for row = chunk.from, chunk.to do
     local line = line_at(self.buffer, row)
@@ -155,7 +157,7 @@ function Fades:step(now)
         end_row = chunk.to + 1,
         end_col = 0,
         hl_group = (chunk.group or 'UiFade') .. index,
-        priority = Fades.PRIORITY,
+        priority = Fades.EFFECT_PRIORITY,
       })
       self:tune(chunk, progress, now)
       alive[#alive + 1] = chunk

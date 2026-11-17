@@ -1,11 +1,12 @@
 local tone = require('ui.tone')
 local text = require('core.text')
+local glyph = require('ui.design.glyph')
 local theme = require('harness.transcript.theme')
 local indicators = require('ui.pixel.indicators')
 
 local card = {}
 
-card.RAIL = '▎'
+card.RAIL = glyph.LINE.rail
 
 local SURFACE = tone.surface(tone.WARN)
 local rows = setmetatable({}, { __mode = 'k' })

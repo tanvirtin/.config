@@ -1,6 +1,8 @@
+local design = require('ui.design')
 local Tile = require('ui.pixel.Tile')
 local Tiles = require('ui.pixel.Tiles')
 local Bitmap = require('ui.pixel.Bitmap')
+local static = require('ui.pixel.static')
 local highlight = require('core.highlight')
 
 local floor, min = math.floor, math.min
@@ -8,7 +10,8 @@ local floor, min = math.floor, math.min
 local rule = {}
 
 rule.FADE = 6
-rule.STYLES = { solid = 'solid', dotted = 'dotted' }
+rule.STYLES = { static = 'static', faint = 'faint' }
+rule.BLOCK = 2
 
 local cache = {}
 
@@ -22,27 +25,33 @@ local function strength(px)
   return min(1, px / fade_px, (total_px() - px) / fade_px)
 end
 
-local function solid(rgb)
-  return function(bitmap, command)
-    for px = 0, total_px() - 1 do
-      local x = command.x + px
+local function noise(preset, rows)
+  return function(rgb)
+    return function(bitmap, command)
+      local density = design.static.density(preset) * 100
+      local mid = Tile.CELL[2] / 2
 
-      if x >= -2 and x <= bitmap.width + 2 then bitmap:rect(x, Tile.CELL[2] / 2 - 1, 1, 2, rgb, strength(px)) end
+      for px = 0, total_px() - 1, rule.BLOCK do
+        local x = command.x + px
+        local column = math.floor(px / rule.BLOCK)
+
+        if x >= -2 and x <= bitmap.width + 2 then
+          for row = 0, rows - 1 do
+            local h = static.hash(column, row, 7)
+
+            if h < density then
+              local y = mid - rows * rule.BLOCK / 2 + row * rule.BLOCK
+
+              bitmap:rect(x, y, rule.BLOCK, rule.BLOCK, rgb, strength(px) * (0.35 + 0.65 * h / density))
+            end
+          end
+        end
+      end
     end
   end
 end
 
-local function dotted(rgb)
-  return function(bitmap, command)
-    for px = 4, total_px() - 1, 8 do
-      local x = command.x + px
-
-      if x >= -2 and x <= bitmap.width + 2 then bitmap:disc(x, Tile.CELL[2] / 2, 1.5, rgb, strength(px)) end
-    end
-  end
-end
-
-local DRAW = { solid = solid, dotted = dotted }
+local DRAW = { static = noise('medium', 2), faint = noise('whisper', 1) }
 
 local function build(style, fg)
   local commands = { { kind = 'custom', x = 0, y = 0, draw = DRAW[style](Bitmap.rgb(fg)) } }
@@ -59,7 +68,7 @@ local function build(style, fg)
 end
 
 function rule.chunks(width, group, style)
-  style = style or rule.STYLES.solid
+  style = style or rule.STYLES.static
 
   if not Tile.available() or width < 2 * rule.FADE + 1 then return nil end
 

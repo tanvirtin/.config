@@ -2,6 +2,7 @@ local text = require('core.text')
 local markup = require('ui.markup')
 local Tile = require('ui.pixel.Tile')
 local roles = require('ui.pixel.roles')
+local glyph = require('ui.design.glyph')
 
 local max, min = math.max, math.min
 
@@ -97,13 +98,14 @@ return {
 
     local group = markup.group(props.color)
 
-    rows[1] = { { '╭' .. string.rep('─', w) .. '╮', group } }
+    rows[1] = { { glyph.BOX.top_left .. string.rep(glyph.BOX.horizontal, w) .. glyph.BOX.top_right, group } }
 
     for i = 1, h do
-      rows[#rows + 1] = { { '│', group }, { padded[i] }, { '│', group } }
+      rows[#rows + 1] = { { glyph.BOX.vertical, group }, { padded[i] }, { glyph.BOX.vertical, group } }
     end
 
-    rows[#rows + 1] = { { '╰' .. string.rep('─', w) .. '╯', group } }
+    rows[#rows + 1] =
+      { { glyph.BOX.bottom_left .. string.rep(glyph.BOX.horizontal, w) .. glyph.BOX.bottom_right, group } }
 
     return rows
   end,

@@ -68,7 +68,7 @@ describe('harness.ui.Flashes:', function()
   it('covers a finished row in static that clears, heavier and red when it failed, and then leaves it clean', function()
     buffer:set_lines({ 'a', '-> Bash make test passed with flying colours', 'c' })
 
-    local ms = require('harness.settings').transcript:get('flash_ms') * Flashes.STRETCH
+    local ms = require('harness.settings').transcript:get('flash_ms')
 
     flashes:scan({ tool({ start = 1, finished = 1000 }) }, 1000)
     eq(true, flashes:step(1000))

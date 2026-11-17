@@ -1,16 +1,17 @@
 local glitch = require('ui.glitch')
 local Timer = require('core.Timer')
+local design = require('ui.design')
 local Buffer = require('core.Buffer')
 local Object = require('core.Object')
+local layer = require('ui.design.layer')
 local theme = require('harness.transcript.theme')
 
 local TuneIn = Object:extend()
 
 TuneIn.NAMESPACE = Buffer.namespace('harness.tune_in')
-TuneIn.MS = 450
-TuneIn.FRAME_MS = 33
-TuneIn.DENSITY = 0.85
-TuneIn.PRIORITY = 400
+TuneIn.MS = design.motion.DURATION.slow
+TuneIn.STATIC = 'heavy'
+TuneIn.PRIORITY = layer.of('effect')
 
 function TuneIn:constructor(view)
   return { view = view, started = nil }
@@ -37,8 +38,8 @@ end
 
 function TuneIn:paint(progress, now)
   local buffer = self.view.buffer
-  local density = TuneIn.DENSITY * (1 - progress) ^ 2
-  local seed = math.floor(now / TuneIn.FRAME_MS)
+  local density = design.static.density(TuneIn.STATIC, (1 - progress) ^ 2)
+  local seed = design.static.seed(now)
 
   for _, window in ipairs(self.view:windows()) do
     local top, bottom = window:get_visible_range()

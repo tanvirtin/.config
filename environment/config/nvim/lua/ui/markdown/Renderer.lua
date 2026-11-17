@@ -5,6 +5,7 @@ local treesitter = require('core.treesitter')
 local MarkSpec = require('ui.MarkSpec')
 local Object = require('core.Object')
 local nodes = require('ui.markdown.nodes')
+local layer = require('ui.design.layer')
 require('ui.hl')
 
 local Renderer = Object:extend()
@@ -19,8 +20,8 @@ Renderer.CALLOUTS = nodes.CALLOUTS
 Renderer.RULE_WIDTH = nodes.RULE_WIDTH
 Renderer.NODES = nodes.NODES
 
-Renderer.HIGHLIGHT_PRIORITY = 100
-Renderer.LINK_PRIORITY = 190
+Renderer.HIGHLIGHT_PRIORITY = layer.of('highlight')
+Renderer.LINK_PRIORITY = layer.of('link')
 
 local QUERY = treesitter.parse_query(
   'markdown',

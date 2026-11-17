@@ -1,22 +1,24 @@
 local treesitter = require('core.treesitter')
 local MarkSpec = require('ui.MarkSpec')
 local table_layout = require('ui.markdown.table')
+local layer = require('ui.design.layer')
+local glyph = require('ui.design.glyph')
 
 local nodes = {}
 
-nodes.PRIORITY = 200
+nodes.PRIORITY = layer.of('syntax')
 
 nodes.HEADING_ICONS = { '', '', '', '', '', '' }
 
-nodes.BULLETS = { '•', '◦', '▪', '▫' }
+nodes.BULLETS = glyph.BULLETS
 
 nodes.CALLOUTS = {
-  note = { icon = 'ℹ ', hl = 'UiInfo' },
-  info = { icon = 'ℹ ', hl = 'UiInfo' },
-  tip = { icon = '◇ ', hl = 'UiHint' },
-  important = { icon = '◆ ', hl = 'UiHint' },
-  warning = { icon = '! ', hl = 'UiWarn' },
-  caution = { icon = '✗ ', hl = 'UiError' },
+  note = { icon = glyph.STATUS.info .. ' ', hl = 'UiInfo' },
+  info = { icon = glyph.STATUS.info .. ' ', hl = 'UiInfo' },
+  tip = { icon = glyph.STATUS.hint .. ' ', hl = 'UiHint' },
+  important = { icon = glyph.STATUS.attention .. ' ', hl = 'UiHint' },
+  warning = { icon = glyph.STATUS.warning .. ' ', hl = 'UiWarn' },
+  caution = { icon = glyph.STATUS.failed .. ' ', hl = 'UiError' },
   thought = { icon = '', hl = 'UiMuted', label = 'Thought', defer = true },
 }
 
@@ -119,7 +121,7 @@ function NODES.code(out, node, src, opts)
   if opts.code_hl and family and opts.code_hl[family] ~= nil then surface = opts.code_hl[family] or nil end
 
   for row = start_row, last do
-    if surface then mark(out, row, 0, { line_hl_group = surface, priority = 50 }) end
+    if surface then mark(out, row, 0, { line_hl_group = surface, priority = layer.of('surface') }) end
   end
 
   if language and not opts.hidden_labels[family] and start_row + 1 <= last then
@@ -156,8 +158,8 @@ local function checkbox(icon, hl)
   end
 end
 
-NODES.checked = checkbox('✓', 'UiMarkdownChecked')
-NODES.unchecked = checkbox('○', 'UiMarkdownUnchecked')
+NODES.checked = checkbox(glyph.STATUS.done, 'UiMarkdownChecked')
+NODES.unchecked = checkbox(glyph.STATUS.pending, 'UiMarkdownUnchecked')
 
 function NODES.quote(out, node, src, renderer)
   local start_row = src:start(node)
@@ -203,7 +205,7 @@ function NODES.rule(out, node, src)
   local row = src:start(node)
 
   mark(out, row, 0, {
-    virt_text = { { string.rep('─', nodes.RULE_WIDTH), 'UiMarkdownRule' } },
+    virt_text = { { string.rep(glyph.LINE.rule, nodes.RULE_WIDTH), 'UiMarkdownRule' } },
     virt_text_pos = 'overlay',
     virt_text_win_col = 0,
   })

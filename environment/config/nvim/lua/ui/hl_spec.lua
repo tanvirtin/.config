@@ -175,43 +175,28 @@ describe('ui.hl:', function()
       eq('ColorColumn', vim.api.nvim_get_hl(0, { name = 'UiSurfaceError' }).link)
     end)
 
-    it('blends the pulse in smooth steps from the text colour down to a trough and back', function()
+    it('gives text effects an accent glint, bold at its head and softer toward the text', function()
+      vim.api.nvim_set_hl(0, 'Normal', { fg = 0xffffff, bg = 0x000000 })
+      vim.api.nvim_set_hl(0, 'Special', { fg = 0x61afef })
       hl.define()
 
-      local first = vim.api.nvim_get_hl(0, { name = 'UiPulse1' }).fg
-      local trough = vim.api.nvim_get_hl(0, { name = 'UiPulse' .. hl.PULSE_STEPS / 2 + 1 }).fg
-      local seen = {}
+      local head, soft = vim.api.nvim_get_hl(0, { name = 'UiGlint' }), vim.api.nvim_get_hl(0, { name = 'UiGlintSoft' })
 
-      for i = 1, hl.PULSE_STEPS do
-        seen[vim.api.nvim_get_hl(0, { name = 'UiPulse' .. i }).fg] = true
-      end
-
-      eq(vim.api.nvim_get_hl(0, { name = 'Normal' }).fg, first)
-      assert.is_true(trough < first)
-      assert.is_true(vim.tbl_count(seen) >= hl.PULSE_STEPS / 2 + 1)
+      eq({ 0x61afef, true }, { head.fg, head.bold })
+      eq(hl.blend(0x61afef, 0xffffff, require('ui.design.color').MIX.glint), soft.fg)
     end)
 
-    it('never cycles the working word through the text colour, nor through two near-identical colours', function()
-      vim.api.nvim_set_hl(0, 'Normal', { fg = 0xffffff, bg = 0x000000 })
-      vim.api.nvim_set_hl(0, 'Special', { fg = 0xfafafa })
-      vim.api.nvim_set_hl(0, 'Directory', { fg = 0x61afef })
-      vim.api.nvim_set_hl(0, 'DiagnosticInfo', { fg = 0x62b0f0 })
-      vim.api.nvim_set_hl(0, 'Constant', { fg = 0xe5c07b })
-      hl.define()
+    it('names every role group after a colour role the design knows', function()
+      local color = require('ui.design.color')
+      local sources = {}
 
-      local seen = {}
-
-      for slot = 1, hl.WORKING_SLOTS do
-        local fg = vim.api.nvim_get_hl(0, { name = 'UiWorking' .. slot }).fg
-
-        assert.is_true(fg ~= nil)
-        assert.is_true(fg ~= 0xffffff and fg ~= 0xfafafa)
-        seen[fg] = true
+      for _, group in pairs(color.ROLE) do
+        sources[group] = true
       end
 
-      assert.is_true(seen[0x61afef])
-      assert.is_nil(seen[0x62b0f0])
-      eq(vim.api.nvim_get_hl(0, { name = 'UiWorking1' }).fg, vim.api.nvim_get_hl(0, { name = 'UiWorking' }).fg)
+      for name, link in pairs(hl.GROUPS) do
+        if not link:find('^@') then assert.is_true(sources[link] == true, name) end
+      end
     end)
 
     it('lets overrides win, and keeps them across colour scheme changes', function()

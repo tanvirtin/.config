@@ -1,4 +1,5 @@
 local MarkSpec = require('ui.MarkSpec')
+local layer = require('ui.design.layer')
 local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
 
@@ -8,8 +9,8 @@ local NUMBER_GROUP = {
   GitSignsAdd = 'UiDiffAddNumber',
   GitSignsDelete = 'UiDiffDeleteNumber',
 }
-local LINE_PRIORITY = theme.SYNTAX_PRIORITY + 50
-local SURFACE_PRIORITY = theme.SYNTAX_PRIORITY - 100
+local LINE_PRIORITY = layer.of('line')
+local SURFACE_PRIORITY = layer.of('highlight')
 local NUMBERED = { context = true, add = true, remove = true }
 
 local function stat_chunks(added, removed)
@@ -95,7 +96,7 @@ local function words(out, block, first)
       virt_text = word.texts,
       virt_text_pos = 'overlay',
       hl_mode = 'combine',
-      priority = MarkSpec.PRIORITY + 100,
+      priority = layer.of('emphasis'),
     })
   end
 end

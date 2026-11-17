@@ -1,6 +1,10 @@
+local tokens = require('ui.design.motion')
+
 local motion = {}
 
-motion.STEP_MS = 100
+motion.STEP_MS = tokens.STEP_MS
+motion.FRAME_MS = tokens.FRAME_MS
+motion.DURATION = tokens.DURATION
 
 function motion.step(now)
   return math.floor((now or 0) / motion.STEP_MS)

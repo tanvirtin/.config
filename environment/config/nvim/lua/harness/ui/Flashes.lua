@@ -1,22 +1,21 @@
 local tone = require('ui.tone')
 local glitch = require('ui.glitch')
 local Timer = require('core.Timer')
+local design = require('ui.design')
 local Buffer = require('core.Buffer')
 local Object = require('core.Object')
-local MarkSpec = require('ui.MarkSpec')
+local layer = require('ui.design.layer')
 local settings = require('harness.settings')
 local theme = require('harness.transcript.theme')
 local Block = require('harness.transcript.Block')
 
 local Flashes = Object:extend()
 
-Flashes.PRIORITY = MarkSpec.PRIORITY + 50
+Flashes.PRIORITY = layer.of('effect')
 Flashes.LOOKBACK = 48
 Flashes.GLITCH = Buffer.namespace('harness.flash.glitch')
-Flashes.GLITCH_FRAME_MS = 40
-Flashes.GLITCH_DENSITY = 0.5
-Flashes.DONE_DENSITY = 0.35
-Flashes.STRETCH = 1.6
+Flashes.FAILED = 'light'
+Flashes.DONE = 'whisper'
 
 function Flashes:constructor(buffer, view)
   return { buffer = buffer, view = view, active = {} }
@@ -38,7 +37,7 @@ end
 function Flashes:scan(blocks, now)
   if theme.reduced() then return false end
 
-  local ms = settings.transcript:get('flash_ms') * Flashes.STRETCH
+  local ms = settings.transcript:get('flash_ms')
 
   for index = #blocks, math.max(#blocks - Flashes.LOOKBACK + 1, 1), -1 do
     local block = blocks[index]
@@ -60,8 +59,8 @@ end
 function Flashes:glitch(flash, progress, now)
   local line = self.buffer:get_lines(flash.row, flash.row + 1)[1] or ''
   local failed = flash.tone == tone.ERROR
-  local seed = math.floor(now / Flashes.GLITCH_FRAME_MS)
-  local density = (failed and Flashes.GLITCH_DENSITY or Flashes.DONE_DENSITY) * (1 - progress) ^ 2
+  local seed = design.static.seed(now)
+  local density = design.static.density(failed and Flashes.FAILED or Flashes.DONE, (1 - progress) ^ 2)
   local from = #(line:match('^[^%w]*') or '')
 
   for _, cell in ipairs(glitch.cols(line, density, seed + flash.row, from)) do
@@ -74,7 +73,7 @@ function Flashes:glitch(flash, progress, now)
 end
 
 function Flashes:step(now)
-  local ms = settings.transcript:get('flash_ms') * Flashes.STRETCH
+  local ms = settings.transcript:get('flash_ms')
 
   self.buffer:clear_namespace(Flashes.GLITCH)
 

@@ -289,18 +289,19 @@ describe('harness.transcript.status_line:', function()
     end)
 
     it('switches off like a tube: rows break into static, squash to a bright line, then a dot', function()
-      local squashing = status_line.closing_rows(closing(), 1300)
+      local ms = status_line.closing_ms()
+      local squashing = status_line.closing_rows(closing(), 1000 + ms * 0.6)
       local scrambled = text(squashing[1])
 
       assert.is_truthy(scrambled:find('[░▒▓▚▞]'))
 
-      local bar = status_line.closing_rows(closing(), 1400)
+      local bar = status_line.closing_rows(closing(), 1000 + ms * 0.8)
 
       eq(1, #bar)
       assert.is_truthy(text(bar[1]):find('━', 1, true))
       eq('UiFlashAccent1', bar[1][1][2])
 
-      local dot = status_line.closing_rows(closing(), 1480)
+      local dot = status_line.closing_rows(closing(), 1000 + ms * 0.95)
 
       eq('·', vim.trim(text(dot[1])))
     end)

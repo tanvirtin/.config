@@ -2,6 +2,8 @@ local hl = require('ui.hl')
 local tone = require('ui.tone')
 local glitch = require('ui.glitch')
 local motion = require('ui.motion')
+local design = require('ui.design')
+local glyph = require('ui.design.glyph')
 local settings = require('harness.settings.transcript')
 local card = require('harness.transcript.status_line.card')
 
@@ -10,10 +12,10 @@ local closing = { id = 'closing', order = 10, exclusive = false }
 closing.FLASH = 0.4
 closing.SQUASH = 0.75
 closing.DOT = 0.92
-closing.FRAME_MS = 40
+closing.STATIC = 'heavy'
 
 function closing.ms()
-  return settings:get('flash_ms') * 2
+  return settings:get('flash_ms')
 end
 
 function closing.applies(state)
@@ -52,14 +54,17 @@ local function squash(shown, progress, now)
   local t = (progress - closing.FLASH) / (closing.SQUASH - closing.FLASH)
   local count = math.max(1, math.ceil(#shown.lines * (1 - motion.ease.in_out(t))))
   local group = tone.flash(shown.tone, hl.FLASH_STEPS)
-  local seed = math.floor(now / closing.FRAME_MS)
+  local seed = design.static.seed(now)
   local rows = {}
 
   for index = 1, count do
     local row = {}
 
     for _, chunk in ipairs(shown.lines[index]) do
-      row[#row + 1] = { glitch.scramble(chunk[1], 0.8 * t, seed + index), card.retint(chunk[2], group) }
+      row[#row + 1] = {
+        glitch.scramble(chunk[1], design.static.density(closing.STATIC, t), seed + index),
+        card.retint(chunk[2], group),
+      }
     end
 
     rows[#rows + 1] = row
@@ -72,12 +77,12 @@ local function line(shown, progress)
   local full = width(shown.lines[1] or {})
   local group = tone.flash(shown.tone, 1)
 
-  if progress >= closing.DOT then return { { { string.rep(' ', math.floor(full / 2)) .. '·', group } } } end
+  if progress >= closing.DOT then return { { { string.rep(' ', math.floor(full / 2)) .. glyph.DOT, group } } } end
 
   local t = (progress - closing.SQUASH) / (closing.DOT - closing.SQUASH)
   local length = math.max(1, math.floor(full * (1 - motion.ease.in_out(t))))
 
-  return { { { string.rep(' ', math.floor((full - length) / 2)) .. string.rep('━', length), group } } }
+  return { { { string.rep(' ', math.floor((full - length) / 2)) .. string.rep(glyph.LINE.heavy, length), group } } }
 end
 
 function closing.rows(shown, now)

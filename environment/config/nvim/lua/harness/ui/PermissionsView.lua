@@ -5,6 +5,7 @@ local View = require('ui.View')
 local Timer = lazy('core.Timer')
 local compact = require('compact')
 local console = lazy('core.console')
+local glyph = lazy('ui.design.glyph')
 local schema = require('nvim_mcp.schema')
 local settings = lazy('harness.settings')
 local dataclass = require('core.dataclass')
@@ -104,7 +105,11 @@ function PermissionsView.render(model)
   heading('Allowed for this session', #model.grants)
   for _, grant in ipairs(model.grants) do
     add(
-      string.format('  ✓ %-' .. tool_width .. 's  · %s', grant.tool, ago(grant.time)),
+      string.format(
+        '  ' .. glyph.STATUS.done .. ' %-' .. tool_width .. 's ' .. glyph.SEPARATOR .. '%s',
+        grant.tool,
+        ago(grant.time)
+      ),
       nil,
       { kind = PermissionsView.ROW.grant, grant = grant }
     )
@@ -114,7 +119,7 @@ function PermissionsView.render(model)
   heading('Saved by the agent', #model.rules)
   for _, rule in ipairs(model.rules) do
     add(
-      string.format('  %-5s %s  · %s', rule.behavior, cut(rule.text), fs.display(rule.path)),
+      string.format('  %-5s %s ' .. glyph.SEPARATOR .. '%s', rule.behavior, cut(rule.text), fs.display(rule.path)),
       rule.behavior == permission.BEHAVIOR.deny and 'UiError' or nil,
       { kind = PermissionsView.ROW.rule, rule = rule }
     )
@@ -133,7 +138,7 @@ function PermissionsView.render(model)
 
     add(
       string.format(
-        '  %-9s %s%s  · %s',
+        '  %-9s %s%s ' .. glyph.SEPARATOR .. '%s',
         label,
         cut(entry.title or entry.tool),
         entry.label and ('  ' .. cut(entry.label)) or '',

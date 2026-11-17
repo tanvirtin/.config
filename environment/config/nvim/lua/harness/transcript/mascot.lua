@@ -2,16 +2,17 @@ local motion = require('ui.motion')
 local Timer = require('core.Timer')
 local roles = require('ui.pixel.roles')
 local static = require('ui.pixel.static')
+local tokens = require('ui.design.motion')
 local Animation = require('ui.pixel.Animation')
 
 local mascot = {}
 
 mascot.COLS = 3
 mascot.BLOCK = 2
-mascot.FORM_MS = 600
-mascot.GRACE_MS = 600
-mascot.WANE_MS = 800
-mascot.HOLD_MS = 200
+mascot.FORM_MS = tokens.DURATION.slow
+mascot.GRACE_MS = tokens.DURATION.slow
+mascot.WANE_MS = tokens.DURATION.deliberate
+mascot.HOLD_MS = tokens.DURATION.fast
 mascot.BODY = 'muted'
 mascot.EYES = { work = 'accent', wait = 'warn', fail = 'error' }
 mascot.ACTS = { 'drift', 'glitch', 'jump', 'roll', 'scan' }

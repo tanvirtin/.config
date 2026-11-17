@@ -2,6 +2,7 @@ local Buffer = require('core.Buffer')
 local motion = require('ui.motion')
 local text = require('core.text')
 local highlight = require('core.highlight')
+local layer = require('ui.design.layer')
 
 local TextFx = {}
 
@@ -18,7 +19,7 @@ local function overlay(buffer, namespace, row, col, glyph, group)
     virt_text = { { glyph, group } },
     virt_text_pos = 'overlay',
     virt_text_win_col = col,
-    priority = 4000,
+    priority = layer.of('animation'),
     hl_mode = 'replace',
   })
 end
@@ -67,12 +68,12 @@ function EFFECT.sweep(ctx)
 
     if to > from then
       local reach = math.abs(center - (from + to) / 2) / (TextFx.BAND / 2)
-      local group = reach < 0.4 and 'UiWorkingGlint1_1' or 'UiWorkingGlint1_2'
+      local group = reach < 0.4 and 'UiGlint' or 'UiGlintSoft'
 
       ctx.buffer:set_extmark(ctx.namespace, ctx.top + index - 1, from, {
         end_col = to,
         hl_group = highlight.exists(group) and group or 'UiAccent',
-        priority = 4000,
+        priority = layer.of('animation'),
       })
     end
   end
@@ -113,7 +114,7 @@ function EFFECT.rain(ctx)
       local row = math.floor(head) - tail
 
       if row >= 0 and row < rows and (tail < 7 * fade or tail == 0 and fade > 0) then
-        local group = tail == 0 and 'UiWorkingGlint1_1' or tail < 3 and 'UiAdded' or 'UiMuted'
+        local group = tail == 0 and 'UiGlint' or tail < 3 and 'UiAdded' or 'UiMuted'
 
         overlay(
           ctx.buffer,

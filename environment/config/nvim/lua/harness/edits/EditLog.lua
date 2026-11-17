@@ -1,5 +1,6 @@
 local compact = require('compact')
 local Object = require('core.Object')
+local glyph = require('ui.design.glyph')
 local Edit = require('harness.edits.Edit')
 local context = require('harness.context')
 local EVENT = require('harness.types.events').KIND
@@ -227,7 +228,8 @@ function EditLog:locations(history, tools)
           added = hunk.added,
           removed = hunk.removed,
           prompt = prompt,
-          text = string.format('+%d −%d', hunk.added, hunk.removed) .. (prompt and ('  · ' .. prompt) or ''),
+          text = string.format('+%d −%d', hunk.added, hunk.removed)
+            .. (prompt and (' ' .. glyph.SEPARATOR .. prompt) or ''),
         }
       end
     end

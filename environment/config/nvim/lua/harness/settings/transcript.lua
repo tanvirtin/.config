@@ -1,12 +1,13 @@
 local Config = require('core.Config')
+local tokens = require('ui.design.motion')
 
 return Config({
-  tick_ms = 100,
-  animate_ms = 33,
-  flash_ms = 250,
-  fade_ms = 150,
+  tick_ms = tokens.STEP_MS,
+  animate_ms = tokens.FRAME_MS,
+  flash_ms = tokens.DURATION.slow,
+  fade_ms = tokens.DURATION.fast,
   fade_rows = 40,
-  toast = { in_ms = 150, hold_ms = 2500, out_ms = 250 },
+  toast = { in_ms = tokens.DURATION.fast, hold_ms = 2500, out_ms = tokens.DURATION.moderate },
   watch_ms = 150,
   frame_ms = 16,
   margin_screens = 2,

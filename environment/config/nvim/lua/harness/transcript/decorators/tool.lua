@@ -1,11 +1,13 @@
 local text = require('core.text')
 local MarkSpec = require('ui.MarkSpec')
+local layer = require('ui.design.layer')
+local glyph = require('ui.design.glyph')
 local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
 local output_style = require('harness.transcript.output_style')
 local context = require('harness.transcript.decorators.context')
 
-local OUTPUT_PRIORITY = 120
+local OUTPUT_PRIORITY = layer.of('output')
 
 local function count_lines(output)
   local trimmed = (output or ''):gsub('%s+$', '')
@@ -51,14 +53,14 @@ local function subagent_summary(block, live, ctx)
   if live and block.started and ctx.now then
     local ms = math.max(0, ctx.now - block.started)
 
-    return tools .. ' · ' .. (theme.duration(ms) or math.floor(ms / 1000) .. 's')
+    return tools .. glyph.SEPARATOR .. (theme.duration(ms) or math.floor(ms / 1000) .. 's')
   end
 
   if live or not context.FINISHED[block.status] or block.finished == nil then return tools end
 
   local duration = block.started and theme.duration(block.finished - block.started)
 
-  return (duration and duration .. ' · ' or '') .. tools
+  return (duration and duration .. glyph.SEPARATOR or '') .. tools
 end
 
 local function took(block)

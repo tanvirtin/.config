@@ -32,8 +32,4 @@ function tone.flash(name, step)
   return 'UiFlash' .. known(name) .. step
 end
 
-function tone.pulse(name, index)
-  return 'UiPulse' .. (name and known(name) or '') .. index
-end
-
 return tone

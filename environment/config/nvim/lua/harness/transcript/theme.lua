@@ -1,18 +1,16 @@
-local lazy = require('core.lazy')
-
 local text = require('core.text')
+local design = require('ui.design')
+local layer = require('ui.design.layer')
 local rule = require('harness.transcript.rule')
 local meter = require('harness.transcript.meter')
 local indicators = require('ui.pixel.indicators')
 local settings = require('harness.settings.theme')
 local mascot = require('harness.transcript.mascot')
 
-local hl = lazy('ui.hl')
-
 local theme = {}
 
-theme.GUTTER_PRIORITY = 10
-theme.SYNTAX_PRIORITY = 200
+theme.GUTTER_PRIORITY = layer.of('gutter')
+theme.SYNTAX_PRIORITY = layer.of('syntax')
 theme.RULE_WIDTH = 400
 theme.LOADER_GROUPS =
   { busy = 'UiAccent', thinking = 'UiThought', waiting = 'UiWarn', loading = 'UiAccent', idle = 'UiMuted' }
@@ -52,7 +50,7 @@ function theme.reduced()
 end
 
 function theme.beat()
-  return settings:get('motion').pulse_ms * hl.PULSE_STEPS
+  return design.motion.DURATION.deliberate
 end
 
 function theme.working(now, _, mood, owner)

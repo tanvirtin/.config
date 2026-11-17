@@ -1,4 +1,5 @@
 local lazy = require('core.lazy')
+local glyph = require('ui.design.glyph')
 
 local core_text = lazy('core.text')
 local Object = require('core.Object')
@@ -37,7 +38,7 @@ function FoldText:_children_in(first, last)
     if n then parts[#parts + 1] = core_text.plural(n, noun, FoldText.MANY[noun]) end
   end
 
-  return #parts > 0 and table.concat(parts, ' · ') or nil
+  return #parts > 0 and glyph.join(parts) or nil
 end
 
 function FoldText:_rails(row, last)
@@ -66,7 +67,7 @@ end
 
 function FoldText:text(first, last)
   local children = self:_children_in(first - 1, last)
-  local text = '⋯ ' .. (children or self:_line_summary(first, last))
+  local text = glyph.STATUS.more .. ' ' .. (children or self:_line_summary(first, last))
 
   return { { self:_rails(first - 1, last - 1), 'UiMuted' }, { text, 'UiMuted' } }
 end

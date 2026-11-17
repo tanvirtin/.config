@@ -1,4 +1,5 @@
 local compact = require('compact')
+local glyph = require('ui.design.glyph')
 
 local fold_summary = {}
 
@@ -27,7 +28,7 @@ function fold_summary.text(count, lines, failed, from_end)
 
   if preview then parts[#parts + 1] = '"' .. preview .. '"' end
 
-  return table.concat(parts, ' · ')
+  return glyph.join(parts)
 end
 
 return fold_summary

@@ -1,17 +1,19 @@
 local compact = require('compact')
 local glitch = require('ui.glitch')
-local motion = require('ui.motion')
+local design = require('ui.design')
 local MarkSpec = require('ui.MarkSpec')
+local layer = require('ui.design.layer')
+local glyph = require('ui.design.glyph')
 local nodes = require('ui.markdown.nodes')
 local theme = require('harness.transcript.theme')
 
 local CALLOUT = nodes.CALLOUTS.thought
 
 local GIST = 72
-local BODY_PRIORITY = 90
+local BODY_PRIORITY = layer.of('body')
 local THOUGHT_TAIL = 3
 local FADES = { 'UiThoughtFade2', 'UiThoughtFade1', 'UiThought' }
-local STATIC = 0.3
+local STATIC = 'whisper'
 
 local function gist(block, ctx)
   for index = 2, #block.lines do
@@ -32,11 +34,11 @@ local function interference(out, block, index, ctx)
   local line = block.lines[index]
   local from = #(line:match('^[%s>]*') or '')
 
-  for _, cell in ipairs(glitch.cols(line, STATIC, motion.step(ctx.now), from)) do
+  for _, cell in ipairs(glitch.cols(line, design.static.density(STATIC), design.static.seed(ctx.now, true), from)) do
     MarkSpec.add(out, block.start + index - 1, cell[1], {
       virt_text = { { cell[2], FADES[1] } },
       virt_text_pos = 'overlay',
-    }, BODY_PRIORITY + 1)
+    }, layer.of('effect'))
   end
 end
 
@@ -59,7 +61,7 @@ local function tail(block, ctx, pulsing)
 
   if duration then out[#out + 1] = { '  for ' .. duration, 'UiMuted' } end
   if summary then
-    out[#out + 1] = { duration and ' · ' or '  ', 'UiMuted' }
+    out[#out + 1] = { duration and glyph.SEPARATOR or '  ', 'UiMuted' }
     out[#out + 1] = { summary, 'UiThought' }
   end
 

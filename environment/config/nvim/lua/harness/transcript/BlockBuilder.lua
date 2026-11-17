@@ -1,6 +1,7 @@
 local compact = require('compact')
 local Object = require('core.Object')
 local fences = require('core.fences')
+local glyph = require('ui.design.glyph')
 local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
 local keymaps = require('harness.settings.keymaps')
@@ -263,7 +264,7 @@ end
 
 function BlockBuilder:_collapsed(count)
   local label = string.format(
-    '%d earlier turn%s · %s to show',
+    '%d earlier turn%s' .. glyph.SEPARATOR .. '%s to show',
     count,
     count == 1 and '' or 's',
     keymaps:get('transcript').activate

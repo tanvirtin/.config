@@ -1,8 +1,10 @@
 local motion = require('ui.motion')
+local tokens = require('ui.design.motion')
 local Tile = require('ui.pixel.Tile')
 local roles = require('ui.pixel.roles')
 local static = require('ui.pixel.static')
 local Animation = require('ui.pixel.Animation')
+local glyph = require('ui.design.glyph')
 
 local indicators = {}
 
@@ -10,8 +12,8 @@ indicators.KINDS = { 'busy', 'thinking', 'waiting', 'loading', 'idle', 'rail' }
 indicators.ROLES =
   { busy = 'accent', thinking = 'UiThought', waiting = 'warn', loading = 'accent', idle = 'muted', rail = 'warn' }
 indicators.FINISH = { done = 'added', failed = 'error' }
-indicators.LINGER_MS = 500
-indicators.FINISH_MS = 450
+indicators.LINGER_MS = tokens.DURATION.slow
+indicators.FINISH_MS = tokens.DURATION.slow
 indicators.GRID = 6
 indicators.INSET = 1
 indicators.SPIN = { 0x0B, 0x19, 0x38, 0x34, 0x26, 0x07 }
@@ -50,8 +52,8 @@ indicators.GLYPHS = {
   thinking = { '⠢', '⠔', '⠑', '⠊' },
   waiting = { '⠉', '⠒', '⠤', '⣀' },
   loading = { '⡇', '⢸' },
-  idle = { '·' },
-  rail = { '▎' },
+  idle = { glyph.DOT },
+  rail = { glyph.LINE.rail },
 }
 
 local GRID = indicators.GRID

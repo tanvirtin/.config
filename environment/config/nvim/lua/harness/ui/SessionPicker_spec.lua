@@ -387,7 +387,12 @@ describe('harness.ui.SessionPicker:', function()
     assert.is_not_nil(picker._listing)
     assert.is_truthy(body.title:get_lines()[1]:find('Harness', 1, true))
     assert.is_truthy(table.concat(list_lines(picker), '\n'):find('New session', 1, true))
-    assert.is_true(#glitches(body.list) > 0)
+
+    local flickered = vim.wait(200, function()
+      return #glitches(body.list) > 0
+    end, 10)
+
+    assert.is_true(flickered)
 
     settle(function()
       return picker._listing == nil
