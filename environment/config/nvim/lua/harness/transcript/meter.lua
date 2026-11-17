@@ -1,8 +1,10 @@
 local Tile = require('ui.pixel.Tile')
 local Tiles = require('ui.pixel.Tiles')
 local Bitmap = require('ui.pixel.Bitmap')
+local static = require('ui.pixel.static')
 local catalog = require('ui.pixel.catalog')
 local highlight = require('core.highlight')
+local indicators = require('ui.pixel.indicators')
 
 local floor, min, max = math.floor, math.min, math.max
 
@@ -12,6 +14,7 @@ meter.SQUARES = 5
 meter.DIFFSTAT_COLS = 3
 
 local SQUARE, GAP, RADIUS = 8, 2, 2
+local RING_INSET = 4
 local ADDED, REMOVED = 'UiAdded', 'UiRemoved'
 
 local tiles
@@ -56,6 +59,32 @@ function meter.bar(value, cols, group)
   end)
 end
 
+local function draw_ring(bitmap, command)
+  local n = indicators.SPIN_GRID
+  local c = (n - 1) / 2
+  local seed = floor(command.value * 100 + 0.5)
+  local full = command.value >= 0.9
+
+  for y = 0, n - 1 do
+    for x = 0, n - 1 do
+      if indicators.on_ring(x, y) then
+        local angle = math.atan2(x - c, c - y) % (2 * math.pi)
+        local filled = angle / (2 * math.pi) < command.value
+        local h = static.hash(x, y, seed)
+        local alpha
+
+        if filled then
+          alpha = h < (full and 24 or 8) and 0.35 or 1
+        elseif h < 40 then
+          alpha = 0.2
+        end
+
+        if alpha then bitmap:rect(RING_INSET + x * 2, RING_INSET + y * 2, 2, 2, command.color, alpha) end
+      end
+    end
+  end
+end
+
 function meter.ring(value, group)
   if not Tile.available() then return nil end
 
@@ -68,9 +97,7 @@ function meter.ring(value, group)
   local key = 'ring:' .. floor(value * 100 + 0.5) .. ':' .. fg
 
   return chunk_of(key, 2, function()
-    local props = catalog.resolve('ring', { value = value, color = string.format('#%06x', fg) })
-
-    return catalog.get('ring').commands(props, 2 * Tile.CELL[1], Tile.CELL[2], 0)
+    return { { kind = 'custom', draw = draw_ring, value = value, color = Bitmap.rgb(fg) } }
   end)
 end
 

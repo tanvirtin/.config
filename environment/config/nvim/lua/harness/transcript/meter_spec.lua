@@ -108,6 +108,64 @@ describe('harness.transcript.meter:', function()
     eq(tiles + 1, meter.count())
   end)
 
+  it('draws the context ring as static blocks that fill clockwise from the top', function()
+    local grey = { 0x80, 0x80, 0x80 }
+
+    eq(2, cells(meter.ring(0.45, GROUP)))
+
+    local function drawn(share)
+      meter.ring(share, GROUP)
+
+      return uploads[#uploads]
+    end
+
+    local empty, half, full = drawn(0), drawn(0.5), drawn(1)
+
+    local function solid(upload)
+      local total = 0
+
+      for y = 0, upload.height - 1 do
+        for x = 0, upload.width - 1 do
+          if alpha(upload, x, y) == 255 then total = total + 1 end
+        end
+      end
+
+      return total
+    end
+
+    eq(0, solid(empty))
+    assert.is_true(solid(empty) < solid(half))
+    assert.is_true(solid(half) < solid(full))
+    assert.is_true(count_color(empty, grey) > 0)
+
+    local function weight(upload, from, to)
+      local total = 0
+
+      for y = 0, upload.height - 1 do
+        for x = from, to do
+          total = total + alpha(upload, x, y)
+        end
+      end
+
+      return total
+    end
+
+    assert.is_true(weight(half, 16, 31) > weight(half, 0, 15))
+    assert.is_true(weight(empty, 0, 31) > 0)
+  end)
+
+  it('shares one image per rounded percentage of the ring', function()
+    local first = meter.ring(0.4, GROUP)
+    local count = meter.count()
+
+    eq(first, meter.ring(0.4, GROUP))
+    eq(count, meter.count())
+
+    meter.ring(0.7, GROUP)
+
+    eq(count + 1, meter.count())
+  end)
+
   it('is as wide as asked for a bar, and caches it per rounded fill', function()
     eq(8, cells(meter.bar(0.5, 8, GROUP)))
     eq(12, cells(meter.bar(0.2, 12, GROUP)))

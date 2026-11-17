@@ -73,6 +73,8 @@ local function ring(x, y)
   return d >= c - 2 and d <= c + 0.3
 end
 
+indicators.on_ring = ring
+
 local function tear(step)
   if static.hash(step, 0, 29) >= 8 then return nil end
 
@@ -179,17 +181,22 @@ function indicators.rail(bitmap, step, rgb)
 end
 
 function indicators.dissolve(bitmap, progress, rgb)
+  local n = indicators.SPIN_GRID
   local fade = 1 - progress
+  local snow = math.sin(math.pi * progress) * 30
+  local at = math.floor(progress * 10)
 
-  for y = 0, GRID - 1 do
-    for x = 0, GRID - 1 do
-      local centre = x >= 1 and x <= GRID - 2 and y >= 1 and y <= GRID - 2
+  for y = 0, n - 1 do
+    for x = 0, n - 1 do
+      local alpha
 
-      if centre then
-        if static.hash(x, y, 11) >= progress * 100 then put(bitmap, x, y, rgb, fade) end
-      elseif static.hash(x, y, 13) < progress * 60 then
-        put(bitmap, x, y, rgb, 0.5 * fade)
+      if ring(x, y) and static.hash(x, y, 11) >= progress * 100 then
+        alpha = fade
+      elseif static.hash(x, y, at) < snow then
+        alpha = 0.35 * fade
       end
+
+      if alpha then static.block(bitmap, x, y + 2 * indicators.INSET, rgb, alpha, static.BLOCK / 2) end
     end
   end
 end

@@ -208,13 +208,14 @@ describe('ui.pixel.indicators:', function()
     end
   end)
 
-  it('is solid in the centre of a dissolve at progress 0 and empty at progress 1', function()
+  it('is the whole ring at the start of a dissolve, and empty at the end', function()
     local start, done = fresh(2, 1), fresh(2, 1)
 
     indicators.dissolve(start, 0, RGB)
     indicators.dissolve(done, 1, RGB)
 
-    assert.is_true(alpha(start, 16, 16) > 0)
+    assert.is_true(alpha(start, 1, 15) > 0)
+    eq(0, alpha(start, 12, 16))
     eq(0, lit(done))
   end)
 
