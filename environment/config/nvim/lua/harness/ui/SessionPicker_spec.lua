@@ -183,12 +183,13 @@ describe('harness.ui.SessionPicker:', function()
     local picker = open()
     local placed = record_extmarks(picker._body.elements.list)
 
+    picker._drawn = nil
     picker:refresh()
 
     local found = overlays(placed)
 
     eq(1, #found)
-    eq({ row = 1, col = 1, pos = 'overlay' }, { row = found[1].row, col = found[1].col, pos = found[1].pos })
+    eq({ row = 2, col = 1, pos = 'overlay' }, { row = found[1].row, col = found[1].col, pos = found[1].pos })
     eq({ indicators.chunk('idle', 'muted') }, found[1].texts)
   end)
 
@@ -204,9 +205,200 @@ describe('harness.ui.SessionPicker:', function()
     local picker = open()
     local placed = record_extmarks(picker._body.elements.list)
 
+    picker._drawn = nil
     picker:refresh()
 
     eq({}, overlays(placed))
+  end)
+
+  local function list_lines(picker)
+    return picker._body.elements.list:get_lines()
+  end
+
+  local function talk(live, prompt, reply)
+    live.log:append({ kind = 'prompt', text = prompt })
+    live.log:append({ kind = 'message', text = reply })
+  end
+
+  it('groups the rows under Live and Recent headers, and moves past them', function()
+    hub.start({ dir = '/w' }):wait()
+
+    local picker = open()
+    local lines = list_lines(picker)
+
+    eq({ 'New session', 'Live 1', 'Recent 1' }, {
+      vim.trim(lines[1]:gsub('^%s*%+', '')),
+      vim.trim(lines[2]),
+      vim.trim(lines[4]),
+    })
+
+    eq(2, picker._selected)
+    eq({ 3, 5 }, { picker._line_of[2], picker._line_of[3] })
+
+    picker:move('down')
+
+    eq(3, picker._selected)
+    eq(5, picker._body.elements.list:get_cursor()[1])
+
+    picker:query('Yesterday')
+    eq(
+      {},
+      vim.tbl_filter(function(line)
+        return line:find('Recent', 1, true) ~= nil
+      end, list_lines(picker))
+    )
+  end)
+
+  it('ranks the best match first, and highlights what matched in the label', function()
+    local picker = open()
+    local list = picker._body.elements.list
+    local marks = {}
+    local place = list.place_extmark_highlight
+
+    list.place_extmark_highlight = function(self, opts)
+      marks[#marks + 1] = opts
+
+      return place(self, opts)
+    end
+
+    picker:query('yest')
+
+    eq(1, #picker._filtered)
+    eq({ 1, 2, 3, 4 }, picker._filtered[1].match)
+
+    local matched = vim.tbl_filter(function(mark)
+      return mark.hl == 'UiAccent' and mark.col_range.to - mark.col_range.from == 4
+    end, marks)
+
+    eq(1, #matched)
+  end)
+
+  it('finds a live session by what was said in it, ranked below title matches', function()
+    local live = hub.start({ dir = '/w' }):wait()
+
+    talk(live, 'please untangle the scroll pin', 'it is the sticky bottom')
+
+    local picker = open()
+
+    picker:query('sticky')
+
+    eq(1, #picker._filtered)
+    eq(live, picker._filtered[1].session)
+
+    picker:query('zzzzzz')
+    eq(0, #picker._filtered)
+    assert.is_truthy(list_lines(picker)[1]:find('no matches', 1, true))
+  end)
+
+  it('shows the last turn of the selected live session in the preview, and a note for a stored one', function()
+    local live = hub.start({ dir = '/w' }):wait()
+
+    talk(live, 'explain the scroll pin', 'the pin keeps the last line in view')
+
+    local picker = open()
+
+    picker:query('')
+    picker._selected = 2
+    picker:refresh()
+
+    local preview = picker._body.elements.preview:get_lines()
+
+    assert.is_truthy(table.concat(preview, '\n'):find('explain the scroll pin', 1, true))
+    assert.is_truthy(table.concat(preview, '\n'):find('pin keeps the last line', 1, true))
+
+    picker:query('Yesterday')
+
+    local note =
+      vim.api.nvim_buf_get_extmarks(picker._body.elements.preview:get_buffer().bufnr, -1, 0, -1, { details = true })
+
+    assert.is_true(#note > 0)
+    eq({ '' }, picker._body.elements.preview:get_lines())
+  end)
+
+  it('shows context, turns and the buffer in the detail of a live session', function()
+    local live = hub.start({ dir = '/w' }):wait()
+
+    talk(live, 'hello', 'hi')
+    live.log:append({ kind = 'usage', used = 40, size = 100, cost = 0.5 })
+
+    local picker = open()
+
+    picker._selected = 2
+    picker:refresh()
+
+    local detail = table.concat(picker._body.elements.detail:get_lines(), '\n')
+
+    assert.is_truthy(detail:find('context  40%% · 1 turn · $0.50'))
+    assert.is_truthy(detail:find('buffer  not loaded', 1, true))
+  end)
+
+  it('leaves the list alone when a refresh changes nothing', function()
+    hub.start({ dir = '/w' }):wait()
+
+    local picker = open()
+    local list = picker._body.elements.list
+    local writes = 0
+    local set_lines = list.set_lines
+
+    list.set_lines = function(self, lines)
+      writes = writes + 1
+
+      return set_lines(self, lines)
+    end
+
+    picker:refresh()
+    picker:refresh()
+
+    eq(0, writes)
+  end)
+
+  it('tunes the selected label in out of static as the selection moves, then settles', function()
+    hub.start({ dir = '/w' }):wait()
+
+    local picker = open()
+    local placed = record_extmarks(picker._body.elements.list)
+
+    picker:move('down')
+
+    local flickers = vim.tbl_filter(function(mark)
+      return mark.pos == 'overlay' and mark.texts[1][1]:find('[░▒▓▚▞]') ~= nil
+    end, placed)
+
+    assert.is_true(#flickers > 0)
+
+    vim.wait(400, function()
+      return picker._tune == nil
+    end, 20)
+
+    eq(nil, picker._tune)
+  end)
+
+  it('stays open on static while a stored session loads, then opens it', function()
+    local picker = open()
+
+    picker:query('Yesterday')
+    picker:select()
+
+    assert.is_not_nil(picker._loading)
+    eq(true, picker._loader:is_active())
+
+    local frame = list_lines(picker)[1]
+    local preview = table.concat(picker._body.elements.preview:get_lines(), '\n')
+
+    assert.is_truthy(preview:find('loading Yesterday', 1, true))
+    assert.is_truthy(preview:find('[░▒▓]'))
+    assert.is_truthy(frame:find('loading', 1, true))
+
+    picker:select()
+    eq('old', picker._loading.id)
+
+    settle(function()
+      return picker.state == 'closed'
+    end)
+
+    eq('closed', picker.state)
+    eq(nil, picker._loading)
+    eq(false, picker._loader and picker._loader:is_active() or false)
   end)
 
   it('stops its refresh timer and releases the state badge on close', function()

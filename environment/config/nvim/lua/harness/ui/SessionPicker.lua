@@ -3,6 +3,7 @@ local lazy = require('core.lazy')
 local View = lazy('ui.View')
 local text = lazy('core.text')
 local hub = lazy('harness.hub')
+local glitch = lazy('ui.glitch')
 local Timer = lazy('core.Timer')
 local event = lazy('core.event')
 local Buffer = lazy('core.Buffer')
@@ -14,20 +15,29 @@ local Component = lazy('ui.Component')
 local notice = lazy('harness.ui.notice')
 local Surface = lazy('surfaces.Surface')
 local catalog = lazy('ui.pixel.catalog')
+local winbar = lazy('harness.ui.winbar')
 local display = lazy('harness.ui.display')
 local Element = lazy('ui.elements.Element')
+local Document = lazy('harness.ui.Document')
+local theme = lazy('harness.transcript.theme')
 local indicators = lazy('ui.pixel.indicators')
 local LayoutSpec = lazy('ui.layout.LayoutSpec')
 local transcript = lazy('harness.ui.transcript')
 local keymaps = lazy('harness.settings.keymaps')
 local confirm = lazy('harness.settings.sessions')
 local session_types = lazy('harness.types.session')
+local session_search = lazy('harness.ui.session_search')
+local BlockBuilder = lazy('harness.transcript.BlockBuilder')
 
 local PROMPT = '> '
 local MODES = { 'sessions', 'agents' }
 local EVENT = require('harness.types.events').KIND
 local STATE_ROLE = { waiting = 'warn', running = 'accent', idle = 'muted' }
 local STATE_INDICATOR = { waiting = 'waiting', running = 'busy', idle = 'idle' }
+local SECTION = { live = 'Live', recent = 'Recent' }
+local TUNE_MS, TUNE_FRAME_MS, TUNE_DENSITY = 240, 33, 0.55
+local PREVIEW_LINES, PREVIEW_BLOCK = 4, 60
+local CORPUS_KINDS = { [EVENT.prompt] = true, [EVENT.message] = true }
 
 local function one_line(text)
   return text and (tostring(text):gsub('[\r\n]+', ' ')) or ''
@@ -41,16 +51,6 @@ local function home(dir)
   if not dir or dir == '' then return '?' end
 
   return text.display_path(dir)
-end
-
-local function last_prompt(session)
-  for i = #session.history, 1, -1 do
-    local event = session.history[i]
-
-    if event.kind == EVENT.prompt and not event.steered then
-      return (vim.split(event.text or '', '\n', { plain = true })[1] or ''):sub(1, 60)
-    end
-  end
 end
 
 local function state_of(session)
@@ -94,21 +94,36 @@ local function open_here(session)
   transcript.open(session, { source_win = source_win, source_buf = source_buf })
 end
 
-local function matches(text, query)
-  local at = 1
+local function ago(ms)
+  local seconds = math.floor(ms / 1000)
 
-  for i = 1, #query do
-    local found = text:find(query:sub(i, i), at, true)
+  if seconds < 5 then return 'just now' end
+  if seconds < 60 then return seconds .. 's ago' end
+  if seconds < 3600 then return math.floor(seconds / 60) .. 'm ago' end
+  if seconds < 86400 then return math.floor(seconds / 3600) .. 'h ago' end
 
-    if not found then return false end
+  return math.floor(seconds / 86400) .. 'd ago'
+end
 
-    at = found + 1
+local function turns_of(session)
+  local total = 0
+
+  for _, event in ipairs(session.history) do
+    if event.kind == EVENT.prompt and not event.steered then total = total + 1 end
   end
 
-  return true
+  return total
+end
+
+local function usage_of(session)
+  for i = #session.history, 1, -1 do
+    if session.history[i].kind == EVENT.usage then return session.history[i] end
+  end
 end
 
 local SessionPickerBody = Component:extend()
+
+SessionPickerBody.DETAIL_HEIGHT = 8
 
 function SessionPickerBody:constructor(props)
   local instance = Component.constructor(self, props)
@@ -174,6 +189,23 @@ function SessionPickerBody:mount()
     surface = { elevation = 'raised' },
   })
 
+  self.elements.preview = Element({
+    buf_options = { modifiable = false, buflisted = false, bufhidden = 'wipe' },
+    win_options = {
+      cursorline = false,
+      number = false,
+      relativenumber = false,
+      wrap = true,
+      linebreak = true,
+      breakindent = true,
+      conceallevel = 2,
+      foldenable = false,
+      winhl = 'Normal:UiNormal,FloatBorder:UiBorder',
+    },
+    win_plot = { focusable = false, border = 'rounded', title = ' Preview ', title_pos = 'left' },
+    surface = { elevation = 'raised' },
+  })
+
   self.elements.footer = Element({
     buf_options = { modifiable = false, buflisted = false, bufhidden = 'wipe' },
     win_options = {
@@ -196,7 +228,14 @@ function SessionPickerBody:get_layout_spec()
       LayoutSpec.view(self.elements.input, { height = 1 }),
       LayoutSpec.horizontal({
         LayoutSpec.view(self.elements.list, { flex = 3 }),
-        LayoutSpec.view(self.elements.detail, { flex = 2 }),
+        LayoutSpec.flex({
+          direction = LayoutSpec.Direction.VERTICAL,
+          flex = 2,
+          children = {
+            LayoutSpec.view(self.elements.detail, { height = SessionPickerBody.DETAIL_HEIGHT }),
+            LayoutSpec.view(self.elements.preview, { flex = 1 }),
+          },
+        }),
       }, { flex = 1 }),
       LayoutSpec.view(self.elements.footer, { height = 1 }),
     }),
@@ -249,6 +288,17 @@ function SessionPicker:constructor(opts)
   instance._pending_delete = nil
   instance._select_pending = true
   instance._dir = opts.dir or hub.dir()
+  instance._corpus = {}
+  instance._lines = {}
+  instance._rows_at = {}
+  instance._drawn = nil
+  instance._detail_drawn = nil
+  instance._preview_drawn = nil
+  instance._document = nil
+  instance._tune = nil
+  instance._tuner = nil
+  instance._loading = nil
+  instance._loader = nil
 
   return instance
 end
@@ -311,27 +361,100 @@ function SessionPicker:_load_stored()
   async.drain()
 end
 
-function SessionPicker:_resume(entry)
-  self:close()
+function SessionPicker:_begin_loading(entry)
+  if self._loading then return false end
 
-  Timer.schedule(function()
-    hub
-      .load({ dir = self._dir, agent = entry.agent, id = entry.id, title = entry.title })
-      :on_complete(function(err, session)
+  self._loading = { id = entry.id, title = entry.title or 'untitled', started = Timer.now() }
+  self:_stop_tuner()
+  self._loader = Timer()
+  self._loader:every(TUNE_FRAME_MS, function()
+    if not self:is_open() or not self._loading then return self:_stop_loader() end
+
+    self:_draw_list()
+    self:_draw_loading()
+  end)
+
+  self:_draw_list()
+  self:_draw_loading()
+
+  return true
+end
+
+function SessionPicker:_stop_loader()
+  if self._loader then self._loader:close() end
+
+  self._loader = nil
+end
+
+function SessionPicker:_end_loading()
+  self._loading = nil
+  self:_stop_loader()
+  self._document = nil
+  self._preview_drawn = nil
+
+  if self:is_open() then self:refresh() end
+end
+
+function SessionPicker:_draw_loading()
+  local body = self._body
+  local preview = body and body.elements.preview
+
+  if not preview or not preview:is_valid() or not self._loading then return end
+
+  local window = preview:get_window()
+  local seed = math.floor(Timer.now() / 80)
+  local rows = math.max(1, window:get_height() - 2)
+  local width = math.max(8, window:get_width() - 2)
+  local lines = { ' loading ' .. self._loading.title, '' }
+
+  for row = 1, rows do
+    lines[#lines + 1] = ' ' .. glitch.snow(width, seed, row)
+  end
+
+  self._document = nil
+  self._preview_drawn = 'loading'
+
+  preview:set_lines(lines)
+  preview:clear_extmark_highlights()
+  preview:clear_extmark_texts()
+  preview:place_extmark_highlight({ hl = 'UiAccent', row = 0, col_range = { from = 1, to = 8 } })
+  preview:place_extmark_highlight({ hl = 'UiMuted', row = 0, col_range = { from = 9, to = #lines[1] } })
+
+  for row = 3, #lines do
+    preview:place_extmark_highlight({ hl = 'UiMuted', row = row - 1, col_range = { from = 0, to = #lines[row] } })
+  end
+end
+
+function SessionPicker:_resume(entry)
+  if not self:_begin_loading(entry) then return self end
+
+  hub
+    .load({ dir = self._dir, agent = entry.agent, id = entry.id, title = entry.title })
+    :on_complete(function(err, session)
+      Timer.schedule(function()
+        local was_open = self:is_open()
+
+        self:_end_loading()
+
         if err then return notice.warn('could not resume: ' .. tostring(err)) end
+        if not was_open then return end
+
+        self:close()
 
         Timer.schedule(function()
           open_here(session)
         end)
       end)
-    async.drain()
-  end)
+    end)
+  async.drain()
 
   return self
 end
 
 function SessionPicker:close()
   if self._timer then self._timer:close() end
+  self:_stop_tuner()
+  self:_stop_loader()
   self:_release_badge()
   if self.state == 'closed' then return self end
 
@@ -400,12 +523,16 @@ function SessionPicker:move(direction)
   end
 
   self._selected = index
+  self:_start_tune()
   self:_draw_list()
+  self:_draw_detail()
 
   return self
 end
 
 function SessionPicker:select()
+  if self._loading then return self end
+
   return self:choose(self._filtered[self._selected])
 end
 
@@ -491,10 +618,14 @@ function SessionPicker:_fork_stored(entry)
     return self
   end
 
+  if not self:_begin_loading(entry) then return self end
+
   hub
     .load({ dir = self._dir, agent = entry.agent, id = entry.id, title = entry.title })
     :on_complete(function(err, session)
       Timer.schedule(function()
+        self:_end_loading()
+
         if err then return notice.warn('could not load: ' .. tostring(err)) end
 
         self:_fork_live(session)
@@ -623,12 +754,33 @@ function SessionPicker:_live_sessions()
   return out
 end
 
+function SessionPicker:_live_facts(session, status, agent_name)
+  local parts = { agent_name }
+  local now = Timer.now()
+
+  if status == 'running' then
+    local started = lazy('harness.ui.TranscriptView').turn_started(session)
+    local elapsed = started and theme.duration(now - started)
+
+    parts[#parts + 1] = elapsed and ('working ' .. elapsed) or 'working'
+  elseif status == 'waiting' then
+    parts[#parts + 1] = 'asks you'
+  else
+    local seen = session.times[#session.times]
+
+    if seen then parts[#parts + 1] = ago(now - seen) end
+  end
+
+  if session.dir ~= self._dir then parts[#parts + 1] = home(session.dir) end
+
+  return table.concat(parts, ' · ')
+end
+
 function SessionPicker:_live_row(session)
   local status, status_hl = state_of(session)
   local agent_name = session.agent and session.agent.name or '?'
   local dir = home(session.dir)
   local icon, icon_hl
-  local meta = table.concat({ agent_name, status, dir }, ' · ')
 
   if status == 'waiting' then
     icon, icon_hl = '!', status_hl
@@ -640,12 +792,13 @@ function SessionPicker:_live_row(session)
 
   return {
     session = session,
+    section = 'live',
     icon = icon,
     icon_hl = icon_hl,
     indicator = { STATE_INDICATOR[status], STATE_ROLE[status] },
     label = session_types.label(session),
     description = table.concat({ agent_name, status, dir }, ' '),
-    meta = meta,
+    meta = self:_live_facts(session, status, agent_name),
   }
 end
 
@@ -691,11 +844,12 @@ function SessionPicker:_session_rows()
 
     rows[#rows + 1] = {
       stored = entry,
+      section = 'recent',
       icon = ' ',
       label = title,
       age = age,
       description = entry.agent .. ' ' .. title,
-      meta = table.concat({ entry.agent, age, home(self._dir) }, ' · '),
+      meta = table.concat({ entry.agent, age }, ' · '),
     }
   end
 
@@ -771,19 +925,35 @@ function SessionPicker:refresh()
   return self
 end
 
-function SessionPicker:_filter_rows()
-  if self._query == '' then return self._rows end
+function SessionPicker:_body_of(row)
+  local session = row.session
 
-  local query = self._query:lower()
-  local out = {}
+  if not session then return nil end
 
-  for _, row in ipairs(self._rows) do
-    local haystack = ((row.label or '') .. ' ' .. (row.description or '')):lower()
+  local cached = self._corpus[session.key]
+  local size = #session.history
 
-    if matches(haystack, query) then out[#out + 1] = row end
+  if cached and cached.size == size then return cached.text end
+
+  local parts = {}
+
+  for _, event in ipairs(session.history) do
+    if CORPUS_KINDS[event.kind] and event.text and event.text ~= '' then parts[#parts + 1] = one_line(event.text) end
   end
 
-  return out
+  local joined = table.concat(parts, ' ')
+
+  self._corpus[session.key] = { size = size, text = joined }
+
+  return joined
+end
+
+function SessionPicker:_filter_rows()
+  local query = self._query:lower()
+
+  return session_search.rank(self._rows, query, function(row)
+    return self:_body_of(row)
+  end)
 end
 
 function SessionPicker:_draw_input()
@@ -858,6 +1028,71 @@ function SessionPicker:_draw_tabs()
   })
 end
 
+function SessionPicker:_tuning()
+  local tune = self._tune
+
+  if not tune or theme.reduced() then return nil end
+
+  local progress = (Timer.now() - tune.started) / TUNE_MS
+
+  if progress >= 1 then return nil end
+
+  return tune, progress
+end
+
+function SessionPicker:_stop_tuner()
+  if self._tuner then self._tuner:close() end
+
+  self._tuner = nil
+end
+
+function SessionPicker:_start_tune()
+  if theme.reduced() then return end
+
+  self._tune = { started = Timer.now() }
+  self:_stop_tuner()
+  self._tuner = Timer()
+  self._tuner:every(TUNE_FRAME_MS, function()
+    if not self:is_open() or not self:_tuning() then
+      self:_stop_tuner()
+      self._tune = nil
+    end
+
+    if self:is_open() then self:_draw_list() end
+  end)
+end
+
+local function match_ranges(positions, limit)
+  local ranges, from, last = {}, nil, nil
+
+  for _, at in ipairs(positions or {}) do
+    if at <= limit then
+      if from and at == last + 1 then
+        last = at
+      else
+        if from then ranges[#ranges + 1] = { from, last } end
+
+        from, last = at, at
+      end
+    end
+  end
+
+  if from then ranges[#ranges + 1] = { from, last } end
+
+  return ranges
+end
+
+function SessionPicker:_snow(width)
+  local seed = math.floor(Timer.now() / 120)
+  local rows = {}
+
+  for i = 1, 3 do
+    rows[i] = glitch.snow(math.max(8, width - 6), seed, i)
+  end
+
+  return rows
+end
+
 function SessionPicker:_draw_list()
   local body = self._body
 
@@ -872,73 +1107,135 @@ function SessionPicker:_draw_list()
   local inner = math.max(24, width - 2)
   local rows = self._filtered
   local lines, highlights, overlays = {}, {}, {}
+  local line_of, row_of = {}, {}
+  local tune, progress = self:_tuning()
+  local sectioned = self._query == '' and self._mode == 'sessions'
+  local section
+
+  local function push(line)
+    lines[#lines + 1] = line
+
+    return #lines - 1
+  end
 
   for i, row in ipairs(rows) do
-    local meta = shorten(row.meta or '', math.max(8, math.floor(inner / 2)))
+    if sectioned and row.section and row.section ~= section then
+      local count = 0
+
+      for _, other in ipairs(rows) do
+        if other.section == row.section then count = count + 1 end
+      end
+
+      local at = push(' ' .. SECTION[row.section] .. ' ' .. count)
+
+      highlights[#highlights + 1] = { hl = 'UiMuted', row = at, col_range = { from = 1, to = #lines[#lines] } }
+    end
+
+    section = row.section or section
+
+    local loading = self._loading and row.stored and row.stored.id == self._loading.id
+    local meta = shorten(loading and 'loading' or row.meta or '', math.max(8, math.floor(inner / 2)))
     local label = shorten(row.label or '', math.max(8, inner - text.width(meta) - 4))
     local icon = row.icon or ' '
+
+    if loading then label = glitch.scramble(label, 0.4, math.floor(Timer.now() / TUNE_FRAME_MS)) end
     local head = ' ' .. icon .. ' ' .. label
     local tail = meta ~= '' and (' ' .. meta .. ' ') or ''
     local gap = tail ~= '' and string.rep(' ', math.max(1, width - text.width(head) - text.width(tail))) or ''
-    local line = head .. gap .. tail
+    local at = push(head .. gap .. tail)
+    local line = lines[#lines]
+    local origin = 2 + #icon
 
-    lines[i] = line
-    highlights[#highlights + 1] =
-      { hl = row.icon_hl or 'UiMuted', row = i - 1, col_range = { from = 1, to = 1 + #icon } }
+    line_of[i], row_of[at + 1] = at + 1, i
+
+    highlights[#highlights + 1] = { hl = row.icon_hl or 'UiMuted', row = at, col_range = { from = 1, to = 1 + #icon } }
 
     if row.label_hl then
-      highlights[#highlights + 1] = { hl = row.label_hl, row = i - 1, col_range = { from = 2 + #icon, to = #head } }
+      highlights[#highlights + 1] = { hl = row.label_hl, row = at, col_range = { from = origin, to = #head } }
+    end
+
+    for _, range in ipairs(match_ranges(row.match, #label)) do
+      highlights[#highlights + 1] =
+        { hl = 'UiAccent', row = at, col_range = { from = origin + range[1] - 1, to = origin + range[2] } }
     end
 
     if tail ~= '' then
-      highlights[#highlights + 1] = { hl = 'UiMuted', row = i - 1, col_range = { from = #head + #gap, to = #line } }
+      highlights[#highlights + 1] = { hl = 'UiMuted', row = at, col_range = { from = #head + #gap, to = #line } }
     end
 
     local indicator = row.indicator and indicators.chunk(row.indicator[1], row.indicator[2])
 
-    if indicator then overlays[#overlays + 1] = { texts = { indicator }, row = i - 1, col = 1, pos = 'overlay' } end
+    if loading then indicator = indicators.chunk('loading', 'accent') end
+
+    if indicator then overlays[#overlays + 1] = { texts = { indicator }, row = at, col = 1, pos = 'overlay' } end
+
+    if tune and i == self._selected then
+      local seed = math.floor(Timer.now() / TUNE_FRAME_MS)
+
+      for _, cell in ipairs(glitch.cols(label, TUNE_DENSITY * (1 - progress), seed)) do
+        overlays[#overlays + 1] =
+          { texts = { { cell[2], 'UiMuted' } }, row = at, col = origin + cell[1], pos = 'overlay' }
+      end
+    end
   end
 
-  if #lines == 0 then
-    lines[1] = '  no matches'
-    highlights[1] = { hl = 'UiMuted', row = 0, col_range = { from = 2, to = #lines[1] } }
+  if #rows == 0 then
+    local at = push('  no matches')
+
+    highlights[#highlights + 1] = { hl = 'UiMuted', row = at, col_range = { from = 2, to = #lines[#lines] } }
+
+    if not theme.reduced() then
+      for _, snow in ipairs(self:_snow(width)) do
+        local row = push('  ' .. snow)
+
+        highlights[#highlights + 1] = { hl = 'UiMuted', row = row, col_range = { from = 2, to = #lines[#lines] } }
+      end
+    end
   end
 
-  list:set_lines(lines)
-  list:clear_extmark_highlights()
-  list:clear_extmark_texts()
+  local signature = {}
 
   for _, mark in ipairs(highlights) do
-    list:place_extmark_highlight(mark)
+    signature[#signature + 1] = mark.hl .. mark.row .. ':' .. mark.col_range.from .. '-' .. mark.col_range.to
   end
 
   for _, mark in ipairs(overlays) do
-    list:place_extmark_text(mark)
+    signature[#signature + 1] = 'o' .. mark.row .. ':' .. mark.col .. vim.inspect(mark.texts)
+  end
+
+  local key = table.concat(lines, '\n') .. '\0' .. table.concat(signature, ';')
+
+  self._rows_at, self._line_of = row_of, line_of
+
+  if key ~= self._drawn then
+    self._drawn = key
+
+    list:set_lines(lines)
+    list:clear_extmark_highlights()
+    list:clear_extmark_texts()
+
+    for _, mark in ipairs(highlights) do
+      list:place_extmark_highlight(mark)
+    end
+
+    for _, mark in ipairs(overlays) do
+      list:place_extmark_text(mark)
+    end
   end
 
   body._drawing = true
-  list:set_cursor({ math.min(self._selected, #lines), 0 })
+  list:set_cursor({ math.min(line_of[self._selected] or 1, #lines), 0 })
   body._drawing = false
 end
 
-function SessionPicker:_draw_detail()
-  local body = self._body
-
-  if not body or not body.elements.detail then return end
-
-  local detail = body.elements.detail
-
-  if not detail:is_valid() then return end
-
-  self:_release_badge()
-
+function SessionPicker:_detail_of(row)
   local lines, highlights = {}, {}
-  local row = self._filtered[self._selected]
+  local extras = {}
 
-  local function put(text, hl)
-    lines[#lines + 1] = text
+  local function put(value, hl)
+    lines[#lines + 1] = value
 
-    if hl then highlights[#highlights + 1] = { hl = hl, row = #lines - 1, col_range = { from = 0, to = #text } } end
+    if hl then highlights[#highlights + 1] = { hl = hl, row = #lines - 1, col_range = { from = 0, to = #value } } end
   end
 
   local function field(key, value, hl)
@@ -960,78 +1257,113 @@ function SessionPicker:_draw_detail()
   if row and row.session then
     local session = row.session
     local buffer = display.buffer_of(session)
-    local status, status_hl = state_of(session)
+    local status = state_of(session)
     local mode = session:mode()
     local model = mode and (mode.name or mode.id) or 'default'
+    local usage = usage_of(session)
+    local turns = turns_of(session)
 
     put(' ' .. session_types.label(session), 'UiTitle')
-    put('')
-    field('agent', session.agent and session.agent.name or '?')
-    field('state', status, status_hl)
-    field('model', model)
+    field('agent', (session.agent and session.agent.name or '?') .. ' · ' .. model)
     field('dir', home(session.dir))
+
+    local facts = {}
+
+    if usage and usage.used and usage.size and usage.size > 0 then
+      local share = usage.used / usage.size
+      local percent = math.floor(share * 100 + 0.5)
+
+      facts[#facts + 1] = percent .. '%'
+      extras.ring = {
+        row = #lines,
+        group = percent >= winbar.CONTEXT_FULL and 'UiError'
+          or percent >= winbar.CONTEXT_WARN and 'UiWarn'
+          or 'UiAccent',
+        share = share,
+      }
+    end
+
+    if turns > 0 then facts[#facts + 1] = turns .. (turns == 1 and ' turn' or ' turns') end
+    if usage and usage.cost then facts[#facts + 1] = string.format('$%.2f', usage.cost) end
+
+    field('context', table.concat(facts, ' · '))
+
+    if not extras.ring or #facts == 0 then extras.ring = nil end
 
     if buffer then
       local buf = Buffer(buffer)
-      local listed = buf:is_listed()
-      local count = buf:is_valid() and buf:get_line_count() or 0
 
-      field(
-        'buffer',
-        string.format('#%d · %s · %d lines', buffer, listed and 'listed' or 'unlisted', count),
-        'UiMuted'
-      )
+      field('buffer', string.format('#%d · %d lines', buffer, buf:is_valid() and buf:get_line_count() or 0), 'UiMuted')
     else
       field('buffer', 'not loaded', 'UiMuted')
     end
 
     if #session.queue > 0 then field('queue', #session.queue .. ' queued', 'UiWarn') end
 
-    local last = last_prompt(session)
-
-    if last and last ~= '' then
-      put('')
-      put(' last', 'UiMuted')
-      put(' ' .. last)
-    end
+    extras.badge = status
   elseif row and row.stored then
     local entry = row.stored
     local spec = agent.get(entry.agent)
 
     put(' ' .. (entry.title or 'untitled'), 'UiTitle')
-    put('')
     field('agent', entry.agent)
     field('used', row.age, 'UiMuted')
     field('dir', home(self._dir))
     field('fork', spec and spec.fork_at_message and 'from any message' or 'not supported', 'UiMuted')
 
     if self._pending_delete == entry.id then
-      put('')
       put(' press ' .. self:_delete_key() .. ' again to delete for good', 'UiWarn')
     end
   elseif row and row.action == 'agent' then
     put(' ' .. row.agent, 'UiTitle')
-    put('')
     put(' ' .. (row.spec.description or ''), 'UiMuted')
-    put('')
     field('command', row.spec.command)
     field('model', row.spec.model or 'whatever it is set to')
     field('login', row.spec.login, 'UiMuted')
     field('fork', row.spec.fork_at_message and 'from any message' or 'not supported', 'UiMuted')
   elseif row and row.action == 'new' then
     put(' New session', 'UiTitle')
-    put('')
     put(' Start a conversation on any of the agents you have.', 'UiMuted')
-    put('')
     put(' Press <CR> to see them, then <CR> again to start.', 'UiMuted')
   elseif row and row.action == 'back' then
     put(' Sessions', 'UiTitle')
-    put('')
     put(' Switch between the sessions you have open.', 'UiMuted')
     put(' Each one is a transcript buffer; pick it to switch to it.', 'UiMuted')
   else
     put(' Nothing selected', 'UiMuted')
   end
+
+  return lines, highlights, extras
+end
+
+function SessionPicker:_draw_detail()
+  local body = self._body
+
+  if not body or not body.elements.detail then return end
+
+  local detail = body.elements.detail
+
+  if not detail:is_valid() then return end
+
+  local row = self._filtered[self._selected]
+  local lines, highlights, extras = self:_detail_of(row)
+  local marks = {}
+
+  for _, mark in ipairs(highlights) do
+    marks[#marks + 1] = mark.hl .. mark.row .. ':' .. mark.col_range.from .. '-' .. mark.col_range.to
+  end
+
+  local ring = extras.ring and (extras.ring.group .. math.floor(extras.ring.share * 100 + 0.5)) or ''
+  local key = table.concat(lines, '\n') .. '\0' .. table.concat(marks, ';') .. '\0' .. (extras.badge or '') .. ring
+
+  if key == self._detail_drawn and (not extras.badge or self._badge) then
+    self:_draw_preview(row)
+
+    return
+  end
+
+  self._detail_drawn = key
+  self:_release_badge()
 
   detail:set_lines(lines)
   detail:clear_extmark_highlights()
@@ -1041,12 +1373,112 @@ function SessionPicker:_draw_detail()
     detail:place_extmark_highlight(mark)
   end
 
-  if row and row.session then
-    local status = state_of(row.session)
-
-    self._badge = catalog.render('badge', { text = status, color = STATE_ROLE[status] })
+  if extras.badge then
+    self._badge = catalog.render('badge', { text = extras.badge, color = STATE_ROLE[extras.badge] })
     detail:place_extmark_text({ texts = self._badge.lines[1], row = 0, col = 0, pos = 'eol' })
   end
+
+  if extras.ring then
+    local chunk = theme.context_ring(extras.ring.share, extras.ring.group)
+
+    if chunk then
+      detail:place_extmark_text({ texts = { { ' ', 'Normal' }, chunk }, row = extras.ring.row, col = 0, pos = 'eol' })
+    end
+  end
+
+  self:_draw_preview(row)
+end
+
+function SessionPicker:_preview_document(preview)
+  local bufnr = preview:get_buffer().bufnr
+
+  if not self._document or self._document.bufnr ~= bufnr then
+    self._document = Document(bufnr):attach()
+    self._document:reset()
+    self._preview_drawn = nil
+  end
+
+  return self._document
+end
+
+function SessionPicker:_preview_note(preview, note)
+  local document = self:_preview_document(preview)
+
+  if self._preview_drawn ~= note then
+    document:write({}, { running = false, frame = 1 })
+    preview:clear_extmark_texts()
+
+    if note ~= '' then
+      preview:place_extmark_text({ text = ' ' .. note, hl = 'UiMuted', row = 0, col = 0, pos = 'overlay' })
+    end
+  end
+
+  self._preview_drawn = note
+end
+
+local function tail(list, budget)
+  local kept, total = {}, 0
+
+  for i = #list, 1, -1 do
+    local block = list[i]
+    local size = #block.lines + 1
+
+    if size <= PREVIEW_BLOCK and block.kind ~= 'title' and block.kind ~= 'collapsed' then
+      if total + size > budget then break end
+
+      table.insert(kept, 1, block)
+      total = total + size
+    end
+  end
+
+  return kept
+end
+
+function SessionPicker:_draw_preview(row)
+  local body = self._body
+  local preview = body and body.elements.preview
+
+  if not preview or not preview:is_valid() then return end
+
+  if self._loading then return end
+
+  local session = row and row.session
+
+  if not session then
+    local note = row and row.stored and 'a stored session loads when you open it' or ''
+
+    return self:_preview_note(preview, note)
+  end
+
+  local window = preview:get_window()
+  local document = self:_preview_document(preview)
+  local width = window:get_width()
+  local key = table.concat({ session.key, #session.history, width, tostring(session:running()) }, ':')
+
+  if key == self._preview_drawn then return end
+
+  self._preview_drawn = key
+  self._previews = self._previews or {}
+  self._previews[session.key] = self._previews[session.key] or {}
+
+  preview:clear_extmark_texts()
+
+  local blocks = BlockBuilder.build(session.history, session.title, {
+    times = session.times,
+    dir = session.dir,
+    running = false,
+    waiting = {},
+    cache = self._previews[session.key],
+    index = session.log and session.log.turns,
+    edits = session.edits,
+    groups = true,
+    live_turns = 1,
+    width = document:text_width(),
+  })
+
+  document:write(tail(blocks, math.max(30, window:get_height() * PREVIEW_LINES)), { running = false, frame = 1 })
+
+  window:set_cursor({ preview:get_buffer():get_line_count(), 0 })
 end
 
 function SessionPicker:_draw_footer()
@@ -1192,10 +1624,12 @@ function SessionPicker:_bind(body)
 
     if not cursor then return end
 
-    local row = cursor[1]
+    local row = self._rows_at[cursor[1]]
 
-    if row ~= self._selected and self._filtered[row] then
+    if row and row ~= self._selected and self._filtered[row] then
       self._selected = row
+      self:_start_tune()
+      self:_draw_list()
       self:_draw_detail()
     end
   end)
