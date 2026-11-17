@@ -447,6 +447,7 @@ describe('harness.ui.TranscriptView:', function()
 
     eq('expr', vim.wo[win].foldmethod)
     eq(2, vim.wo[win].conceallevel)
+    eq('nvic', vim.wo[win].concealcursor)
     assert.truthy(vim.wo[win].winbar:find('write to this session', 1, true))
     eq(true, view:is_visible())
     view:dispose()
