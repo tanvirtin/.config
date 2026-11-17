@@ -8,6 +8,7 @@ local SearchFilter = lazy('core.SearchFilter')
 local SearchComponent = Component({
   on_mount = function(self)
     local prompt = self.props.prompt or '> '
+    self.elements.input:set_buf_var('completion', false)
     self.elements.input:set_lines({ prompt })
 
     self:_setup_input_tracking()

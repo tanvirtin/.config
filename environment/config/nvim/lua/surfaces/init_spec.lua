@@ -102,6 +102,13 @@ describe('surfaces:', function()
       assert.is_truthy(picker:snapshot():find('selected: beta', 1, true))
     end)
 
+    it('keeps autocompletion out of the search line', function()
+      local picker = letters()
+      local buf = picker._search.elements.input:get_buffer().bufnr
+
+      eq(false, vim.b[buf].completion)
+    end)
+
     it('rejects unknown commands and bad arguments', function()
       local picker = letters()
 
