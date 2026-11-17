@@ -371,6 +371,7 @@ end
 function Document:_settled(old, list, changed, first)
   local block, previous = list[changed], old[changed]
 
+  if not block then return nil end
   if not previous or previous.start ~= block.start or previous.kind ~= block.kind then return block.start end
   if not Document.growing(list, changed) or not Document.growing(old, changed) then return block.start end
 

@@ -57,6 +57,26 @@ describe('harness.ui.Document:', function()
     eq(nil, document.touched)
   end)
 
+  it('swaps to a shorter list of blocks, or none at all, without error', function()
+    emit(events.prompt('hello'))
+    emit({ kind = 'message', text = 'a reply' })
+    emit(events.prompt('and again'))
+    emit({ kind = 'message', text = 'another reply' })
+
+    local long = #document.blocks
+
+    document:write(blocks.build({ events.prompt('short') }))
+
+    assert.is_true(#document.blocks < long)
+    assert.is_truthy(table.concat(lines(buf), '\n'):find('short', 1, true))
+    assert.is_nil(table.concat(lines(buf), '\n'):find('hello', 1, true))
+
+    document:write({})
+
+    eq({ '' }, lines(buf))
+    eq(0, #document.blocks)
+  end)
+
   it('leaves a prompt as typed, with no markdown drawn over it', function()
     emit(events.prompt('see [x] and `code`'))
 
