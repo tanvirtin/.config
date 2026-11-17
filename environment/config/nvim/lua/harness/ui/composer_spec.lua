@@ -331,6 +331,27 @@ describe('harness.ui.composer:', function()
     eq(true, element:is_valid())
   end)
 
+  it('opens at its eased height, focused, so the card never flashes its full size', function()
+    local Window = require('core.Window')
+    local original = Window.open
+    local seen
+
+    Window.open = function(_, buffer, opts)
+      seen = opts
+
+      return original(Window, buffer, opts)
+    end
+
+    local ok, err = pcall(open_composer, session)
+
+    Window.open = original
+
+    if not ok then error(err) end
+
+    eq(1, seen.height)
+    eq(true, seen.focus)
+  end)
+
   it('stops growing when it is closed halfway, and opens at once with no ease', function()
     local settings = require('harness.settings.composer')
     open_composer(session)

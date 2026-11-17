@@ -34,6 +34,10 @@ ComposerView.WINDOWED = 30
 
 ComposerView.MARGIN = 20
 
+local function eases()
+  return settings.composer:get('ease_ms') > 0 and settings.composer:get('height') > 1 and not theme.reduced()
+end
+
 ComposerView.WINBAR = '%!v:lua.require\'harness.ui.composer\'.winbar()'
 
 ComposerView.OMNIFUNC = 'v:lua.require\'harness.ui.composer\'.complete'
@@ -271,10 +275,10 @@ function ComposerView:_decorate()
 end
 
 function ComposerView:_ease_open()
+  if not eases() then return self end
+
   local ms = settings.composer:get('ease_ms')
   local target = settings.composer:get('height')
-
-  if ms <= 0 or target <= 1 or theme.reduced() then return self end
 
   local element = self.element
   local tween = motion.Tween({ from = 1, to = target, ms = ms, started = Timer.now() })
@@ -286,6 +290,9 @@ function ComposerView:_ease_open()
     if not self:is_open() or self.closing then return false end
 
     element:set_height(math.max(1, math.floor(tween:at(now) + 0.5)))
+
+    local view = self.display and self.display.view_of(self.session)
+    if view then view:hold_end() end
 
     return not tween:done(now)
   end)
@@ -704,7 +711,12 @@ function ComposerView:mount(insert)
       signcolumn = 'no',
       winhl = 'Normal:UiComposer,EndOfBuffer:UiComposer',
     },
-    win_plot = { split = 'below', win = anchor and anchor.win_id or -1, height = settings.composer:get('height') },
+    win_plot = {
+      split = 'below',
+      win = anchor and anchor.win_id or -1,
+      height = eases() and 1 or settings.composer:get('height'),
+      focus = true,
+    },
     surface = { elevation = 'raised', fill = 'UiComposer', focus = 'UiAccent' },
   })
 
