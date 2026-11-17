@@ -17,7 +17,7 @@ nodes.CALLOUTS = {
   important = { icon = '◆ ', hl = 'UiHint' },
   warning = { icon = '! ', hl = 'UiWarn' },
   caution = { icon = '✗ ', hl = 'UiError' },
-  thought = { icon = '◇ ', hl = 'UiMuted', label = 'Thought', defer = true },
+  thought = { icon = '', hl = 'UiMuted', label = 'Thought', defer = true },
 }
 
 nodes.RULE_WIDTH = 400
@@ -164,7 +164,6 @@ function NODES.quote(out, node, src, renderer)
   local first = src:line(start_row)
   local name = first:match('^[%s>]*%[!(%a+)%]')
   local callout = name and nodes.CALLOUTS[name:lower()]
-  local bar_hl = callout and callout.hl or 'UiMarkdownQuote'
 
   for row = start_row, src:last_row(node) do
     local text = src:line(row)
@@ -172,7 +171,11 @@ function NODES.quote(out, node, src, renderer)
 
     for col = 1, #markers do
       if markers:sub(col, col) == '>' then
-        mark(out, row, col - 1, { end_col = col, virt_text = { { '▎', bar_hl } }, virt_text_pos = 'overlay' })
+        mark(out, row, col - 1, {
+          end_col = col,
+          virt_text = { { ' ' } },
+          virt_text_pos = 'overlay',
+        })
       end
     end
 

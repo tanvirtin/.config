@@ -81,15 +81,17 @@ describe('ui.markdown.Renderer:', function()
     eq(2, find(2, 'conceal').end_col)
   end)
 
-  it('draws quote bars, and callouts with their icon and colour', function()
+  it('blanks quote markers, and labels callouts by their name', function()
     render({ '> plain', '', '> [!THOUGHT]', '> thinking' })
 
-    eq({ '▎' }, virt_text(0))
-    eq('UiMarkdownQuote', find(0, 'virt_text').virt_text[1][2])
-    assert.is_truthy(vim.tbl_contains(virt_text(2), Renderer.CALLOUTS.thought.icon .. 'Thought'))
+    eq({ ' ' }, virt_text(0))
+    assert.is_nil(find(0, 'conceal'))
+    assert.is_truthy(vim.tbl_contains(virt_text(2), 'Thought'))
 
-    for _, mark in ipairs(marks(3)) do
-      if mark.virt_text then eq(Renderer.CALLOUTS.thought.hl, mark.virt_text[1][2]) end
+    for _, mark in ipairs(marks(2)) do
+      if mark.virt_text and mark.virt_text[1][1] == 'Thought' then
+        eq(Renderer.CALLOUTS.thought.hl, mark.virt_text[1][2])
+      end
     end
   end)
 

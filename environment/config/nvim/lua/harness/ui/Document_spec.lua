@@ -384,7 +384,7 @@ describe('harness.ui.Document:', function()
       document:write(blocks.build(history, nil, running), running)
       document:decorate_visible()
 
-      eq({ { '◇ ', 'UiMuted' }, { 'Thought', 'UiMuted' } }, header())
+      eq({ { 'Thought', 'UiMuted' } }, header())
     end)
 
     it('shows a live thought\'s body once it is revealed, and hides it again', function()

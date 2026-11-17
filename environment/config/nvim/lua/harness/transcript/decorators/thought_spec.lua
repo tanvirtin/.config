@@ -108,7 +108,7 @@ describe('harness.transcript.decorators.thought:', function()
     local done = decorators.decorate(make(SIX, { started = 0, finished = 2000 }), {})
 
     eq('Thinking', inline(live)[2][1])
-    eq('Thought', inline(done)[2][1])
+    eq('Thought', inline(done)[1][1])
   end)
 
   it('says how long a finished thought took, before its gist', function()

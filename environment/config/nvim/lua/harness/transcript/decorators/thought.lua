@@ -72,9 +72,12 @@ return function(block, ctx)
   local pulsing = block.live and ctx.running
   local icon = pulsing and theme.loader('thinking', ctx.now) or { CALLOUT.icon, CALLOUT.hl }
   local label = pulsing and 'Thinking' or CALLOUT.label
+  local header = { { label, CALLOUT.hl } }
+
+  if icon[1] ~= '' then table.insert(header, 1, icon) end
 
   MarkSpec.add(out, block.start, #(first:match('^[%s>]*') or ''), {
-    virt_text = { icon, { label, CALLOUT.hl } },
+    virt_text = header,
     virt_text_pos = 'inline',
   })
 

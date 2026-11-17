@@ -480,7 +480,7 @@ describe('harness.transcript.decorators:', function()
     end
 
     eq({ theme.loader('thinking', 0), { 'Thinking', 'UiMuted' } }, head(live))
-    eq({ { '◇ ', 'UiMuted' }, { 'Thought', 'UiMuted' } }, head(done))
+    eq({ { 'Thought', 'UiMuted' } }, head(done))
     eq(
       '  for 2s',
       virt(find(done, function(opts)
