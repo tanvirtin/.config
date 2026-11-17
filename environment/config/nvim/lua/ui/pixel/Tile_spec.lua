@@ -55,6 +55,7 @@ describe('ui.pixel.Tile:', function()
       bitmap:rect(8, 8, 4, 4, { 255, 0, 0 }, 1)
     end)
     eq(2, #uploads)
+    eq(uploads[1], uploads[2])
   end)
 
   it('frees its image once, and only if it sent one', function()

@@ -98,7 +98,7 @@ describe('surfaces.Canvas components:', function()
 
     it('raises clear errors for bad components before anything opens', function()
       eq(
-        'component x: unknown component nope (bar, ring, sparkline, badge, card)',
+        'component x: unknown component nope (bar, ring, sparkline, badge, card, loader)',
         failure(function()
           surfaces.canvas({ title = 'X', components = { { id = 'x', type = 'nope' } }, lines = { 'hi' } })
         end)

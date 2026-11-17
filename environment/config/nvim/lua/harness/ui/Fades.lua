@@ -13,7 +13,11 @@ Fades.PRIORITY = 100
 Fades.MAX = 8
 
 function Fades:constructor(buffer, view)
-  return { buffer = buffer, view = view, chunks = {}, high = -1 }
+  return { buffer = buffer, view = view, chunks = {}, high = -1, seen = {} }
+end
+
+local function line_at(buffer, row)
+  return buffer:get_lines(row, row + 1)[1] or ''
 end
 
 function Fades:observe()
@@ -22,7 +26,34 @@ function Fades:observe()
 
   if theme.reduced() or not touched or not view.session:running() or view.session:loading() then return false end
 
-  return self:touch(touched.from, touched.to, Timer.now())
+  local from, to = touched.from, touched.to
+
+  self.seen = self.seen or {}
+
+  local col = self:grown(from)
+  local fading = self:touch(from, to, Timer.now(), nil, col)
+
+  self:remember(from, to)
+
+  return fading
+end
+
+function Fades:grown(row)
+  local previous = self.seen[row]
+
+  if not previous or previous == '' then return nil end
+
+  local line = line_at(self.buffer, row)
+
+  if #line > #previous and line:sub(1, #previous) == previous then return #previous end
+end
+
+function Fades:remember(from, to)
+  self.seen = {}
+
+  for index, line in ipairs(self.buffer:get_lines(from, to + 1)) do
+    self.seen[from + index - 1] = line
+  end
 end
 
 function Fades:reveal(row)
@@ -40,12 +71,31 @@ function Fades:reveal(row)
   return false
 end
 
-function Fades:touch(from, to, now, any_size)
+function Fades:group(row)
+  local view = self.view
+  local block = view and view.document:block_at(row)
+
+  return block and block.kind == 'thought' and 'UiThoughtStream' or 'UiFade'
+end
+
+function Fades:drop(from, to)
+  local kept = {}
+
+  for _, chunk in ipairs(self.chunks) do
+    if chunk.to < from or chunk.from > to then kept[#kept + 1] = chunk end
+  end
+
+  self.chunks = kept
+end
+
+function Fades:touch(from, to, now, any_size, col)
   local limit = settings.transcript:get('fade_rows')
 
   if settings.transcript:get('fade_ms') <= 0 or (not any_size and to - from + 1 > limit) then return false end
 
-  if not any_size then
+  if col then
+    self:drop(from, to)
+  elseif not any_size then
     from = math.max(from, self.high + 1)
 
     if from > to then return false end
@@ -53,7 +103,7 @@ function Fades:touch(from, to, now, any_size)
 
   self.high = math.max(self.high, to)
 
-  table.insert(self.chunks, { from = from, to = to, started = now })
+  table.insert(self.chunks, { from = from, to = to, col = col, group = self:group(from), started = now })
 
   while #self.chunks > Fades.MAX do
     table.remove(self.chunks, 1)
@@ -73,11 +123,14 @@ function Fades:step(now)
 
     if progress < 1 then
       local index = motion.steps(hl.FADE_STEPS - 1, motion.ease.out_cubic(progress))
+      local col = chunk.col
 
-      self.buffer:set_extmark(Fades.NAMESPACE, chunk.from, 0, {
+      if col and col > 0 then col = math.min(col, #line_at(self.buffer, chunk.from)) end
+
+      self.buffer:set_extmark(Fades.NAMESPACE, chunk.from, col or 0, {
         end_row = chunk.to + 1,
         end_col = 0,
-        hl_group = 'UiFade' .. index,
+        hl_group = (chunk.group or 'UiFade') .. index,
         priority = Fades.PRIORITY,
       })
       alive[#alive + 1] = chunk

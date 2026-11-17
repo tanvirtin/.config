@@ -36,7 +36,8 @@ Buffer.set_decoration_provider(Document.NAMESPACE, function(bufnr, top, bottom)
     document.scheduled = true
     Timer.defer(0, function()
       document.scheduled = false
-      document:decorate_visible()
+
+      if document:decorate_visible() and document.on_decorate then document.on_decorate() end
     end)
   end
 end)
@@ -519,12 +520,12 @@ function Document:decorate_visible()
 
   if #ranges == 0 then
     self:_trim({})
-    return
+    return false
   end
 
   self:_trim(ranges)
 
-  if not next(self.pending) and not next(self.deferred) and not self:_undecorated(ranges) then return end
+  if not next(self.pending) and not next(self.deferred) and not self:_undecorated(ranges) then return false end
 
   local group
 
@@ -573,6 +574,8 @@ function Document:decorate_visible()
   for _, block in ipairs(due) do
     self:_decorate(block, ctx)
   end
+
+  return #due > 0
 end
 
 function Document:tick(state)
@@ -591,16 +594,31 @@ end
 
 function Document:_status()
   local buffer = self.buffer
-
-  buffer:clear_namespace(Document.STATUS_NAMESPACE)
-
+  local shown = self.status
   local lines = status_line.lines(self.state, Timer.now())
 
-  if not lines then return end
+  if not lines then
+    buffer:clear_namespace(Document.STATUS_NAMESPACE)
+    self.status = nil
+
+    return
+  end
 
   local last = math.max(buffer:get_line_count() - 1, 0)
 
-  buffer:set_extmark(Document.STATUS_NAMESPACE, last, 0, { virt_lines = lines })
+  if not shown then buffer:clear_namespace(Document.STATUS_NAMESPACE) end
+
+  if
+    shown
+    and buffer:get_extmark_row(Document.STATUS_NAMESPACE, shown.id) == last
+    and vim.deep_equal(shown.lines, lines)
+  then
+    return
+  end
+
+  local id = buffer:set_extmark(Document.STATUS_NAMESPACE, last, 0, { id = shown and shown.id, virt_lines = lines })
+
+  self.status = id and { id = id, lines = lines } or nil
 end
 
 return Document

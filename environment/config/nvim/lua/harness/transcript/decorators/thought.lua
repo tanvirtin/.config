@@ -53,8 +53,7 @@ return function(block, ctx)
   local out = {}
   local first = block.lines[1] or ''
   local pulsing = block.live and ctx.running
-  local hl = pulsing and ctx.now and theme.pulse(ctx.now) or CALLOUT.hl
-  local icon = pulsing and theme.orb() or { CALLOUT.icon, hl }
+  local icon = pulsing and theme.loader('thinking', ctx.now) or { CALLOUT.icon, CALLOUT.hl }
   local label = pulsing and 'Thinking' or CALLOUT.label
 
   MarkSpec.add(out, block.start, #(first:match('^[%s>]*') or ''), {

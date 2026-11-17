@@ -1,4 +1,5 @@
 local Document = require('harness.ui.Document')
+local indicators = require('ui.pixel.indicators')
 local EditLog = require('harness.edits.EditLog')
 local buffers = require('core.buffers')
 local theme = require('harness.transcript.theme')
@@ -349,9 +350,9 @@ describe('harness.ui.Document:', function()
 
       local live = header()
 
-      eq({ '◇ ', 'Thinking' }, { live[1][1], live[2][1] })
+      eq('Thinking', live[2][1])
       eq('UiMuted', live[2][2])
-      assert.is_truthy(live[1][2]:match('^UiPulse%d+$'))
+      eq('UiThought', live[1][2])
       eq(
         {},
         vim.tbl_filter(function(mark)
@@ -752,9 +753,17 @@ describe('harness.ui.Document:', function()
       return chunk[1]
     end, status[4].virt_lines[2])
 
-    eq('waiting for you: ', line[2])
-    eq('Edit a.lua', line[3])
-    assert.is_truthy(texts(document.blocks[3].start):find(theme.WAITING_ICON[1], 1, true))
+    local waiting = vim.tbl_map(function(glyph)
+      return glyph .. ' '
+    end, indicators.GLYPHS.waiting)
+
+    assert.truthy(vim.tbl_contains(indicators.GLYPHS.waiting, line[2]))
+    eq('UiWarn', status[4].virt_lines[2][2][2])
+    eq('waiting for you: ', line[4])
+    eq('Edit a.lua', line[5])
+    assert.truthy(vim.tbl_filter(function(glyph)
+      return texts(document.blocks[3].start):find(glyph, 1, true)
+    end, waiting)[1])
     assert.is_truthy(texts(document.blocks[3].start):find('waiting for you', 1, true))
   end)
 

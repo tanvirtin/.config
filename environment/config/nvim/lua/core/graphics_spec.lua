@@ -36,4 +36,18 @@ describe('core.graphics:', function()
 
     assert.is_truthy(sequence:find('\27_Ga=d,d=I,i=7,q=2\27\\', 1, true))
   end)
+
+  it('places an uploaded image on a virtual placement', function()
+    local control = graphics.upload_sequence(7, 'abcdefgh', 2, 1, 4, 2):match('\27_G([^;]*);')
+
+    eq('a=T,U=1,i=7,f=32,s=2,v=1,t=t,c=4,r=2,q=2', control)
+  end)
+
+  it('places every upload again, so an animated image keeps resolving its placeholder', function()
+    local first = graphics.upload_sequence(7, 'abcdefgh', 2, 1, 4, 2):match('\27_G([^;]*);')
+    local second = graphics.upload_sequence(7, 'abcdefgh', 2, 1, 4, 2):match('\27_G([^;]*);')
+
+    eq(first, second)
+    eq('a=T,U=1,i=7,f=32,s=2,v=1,t=t,c=4,r=2,q=2', second)
+  end)
 end)

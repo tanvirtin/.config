@@ -231,12 +231,22 @@ function Following:_pin(state, window)
   self:_anchor(state, window:get_view())
 end
 
+function Following:_pinned(state, window)
+  if state.mode ~= 'follow' or not state.applied then return false end
+  if state.lines ~= state.buffer:get_line_count() then return false end
+  if self:_moved(window:get_view(), state.applied) then return false end
+
+  return sticky_bottom.room(window) >= self.reserve(window)
+end
+
 function Following:sync(window)
   if not window:is_valid() then return end
 
   local state = self:of(window)
   local resized = self:resized(window)
   local wanted
+
+  if not resized and self:_pinned(state, window) then return end
 
   if state.mode == 'hold' then wanted = self:_desired_hold(state, window, resized) end
 

@@ -30,9 +30,7 @@ function card.build(state, lines, now)
     if pixel then
       card_line[1], card_line[2] = pixel, { indent and '  ' or '', SURFACE }
     else
-      local rail = now and theme.pulse(now, tone.WARN) or tone.rail(tone.WARN)
-
-      card_line[1] = { indent and card.RAIL .. '  ' or card.RAIL, { rail, SURFACE } }
+      card_line[1] = { indent and card.RAIL .. '  ' or card.RAIL, { tone.rail(tone.WARN), SURFACE } }
     end
 
     for chunk_index = indent and 2 or 1, #line do

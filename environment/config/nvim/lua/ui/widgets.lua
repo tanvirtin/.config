@@ -1,7 +1,6 @@
 local widgets = {}
 
 widgets.CYCLE = 20
-widgets.SPIN = { '⠋', '⠙', '⠸', '⠴', '⠦', '⠇' }
 widgets.LEVELS = { '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█' }
 
 local function number(value, fallback)
@@ -42,7 +41,9 @@ widgets.BUILD = {
     return (args[1] or ''):rep(math.max(0, math.floor(number(args[2], 1))))
   end,
   spin = function(_, tick)
-    return widgets.SPIN[tick % #widgets.SPIN + 1]
+    local frames = require('ui.pixel.indicators').GLYPHS.busy
+
+    return frames[tick % #frames + 1]
   end,
 }
 

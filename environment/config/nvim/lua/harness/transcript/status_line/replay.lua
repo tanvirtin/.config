@@ -8,8 +8,8 @@ end
 
 function loading.lines(_, now)
   return {
-    vim.list_extend(theme.sweep(now), {
-      { ' loading', 'UiAccent' },
+    vim.list_extend({ theme.loader('loading', now) }, {
+      { 'loading', 'UiAccent' },
       { ' · the agent is replaying this session', 'UiMuted' },
     }),
   }

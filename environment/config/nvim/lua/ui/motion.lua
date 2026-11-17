@@ -1,5 +1,11 @@
 local motion = {}
 
+motion.STEP_MS = 100
+
+function motion.step(now)
+  return math.floor((now or 0) / motion.STEP_MS)
+end
+
 function motion.clamp(t)
   if t < 0 then return 0 end
   if t > 1 then return 1 end

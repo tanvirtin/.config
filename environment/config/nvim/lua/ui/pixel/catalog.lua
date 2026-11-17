@@ -11,7 +11,7 @@ local catalog = {}
 
 local PREFIX = 'ui.pixel.components.'
 
-catalog.NAMES = { 'bar', 'ring', 'sparkline', 'badge', 'card' }
+catalog.NAMES = { 'bar', 'ring', 'sparkline', 'badge', 'card', 'loader' }
 
 local function sorted_keys(map)
   local keys = {}

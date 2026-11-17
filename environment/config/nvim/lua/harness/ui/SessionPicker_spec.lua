@@ -175,14 +175,10 @@ describe('harness.ui.SessionPicker:', function()
     assert.is_truthy(picker:snapshot():find('New session', 1, true))
   end)
 
-  it('overlays the state indicator on a running live row when pixels are available', function()
+  it('overlays the state indicator on an idle live row when pixels are available', function()
     stub_pixels(true)
 
-    local live = hub.start({ dir = '/w' }):wait()
-
-    live.running = function()
-      return true
-    end
+    hub.start({ dir = '/w' }):wait()
 
     local picker = open()
     local placed = record_extmarks(picker._body.elements.list)
@@ -193,7 +189,7 @@ describe('harness.ui.SessionPicker:', function()
 
     eq(1, #found)
     eq({ row = 1, col = 1, pos = 'overlay' }, { row = found[1].row, col = found[1].col, pos = found[1].pos })
-    eq({ indicators.chunk('spinner', 'accent') }, found[1].texts)
+    eq({ indicators.chunk('idle', 'muted') }, found[1].texts)
   end)
 
   it('places no overlay without pixels', function()

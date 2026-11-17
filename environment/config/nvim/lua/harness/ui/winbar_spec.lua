@@ -28,6 +28,20 @@ local function session(fields)
 end
 
 describe('harness.ui.winbar:', function()
+  local Tile = require('ui.pixel.Tile')
+  local pixels
+
+  before_each(function()
+    pixels = Tile.available
+    Tile.available = function()
+      return false
+    end
+  end)
+
+  after_each(function()
+    Tile.available = pixels
+  end)
+
   it('counts the turns, and says which one the sticky prompt opens', function()
     local events = require('harness.types.events')
     local history = {
@@ -91,10 +105,10 @@ describe('harness.ui.winbar:', function()
   it('shows running and closed states', function()
     local running = winbar.transcript(session({ state = 'running' }))
 
-    local facets = require('harness.settings.theme'):get('motion').badge.frames
-    local facet = running:match('%%#UiPulse%d+#(.-) %%#UiAccent#running')
+    local frames = require('ui.pixel.indicators').GLYPHS.busy
+    local frame = running:match('%%#UiAccent#([^%%]-) %%#UiAccent#running')
 
-    assert.truthy(vim.tbl_contains(facets, facet))
+    assert.truthy(vim.tbl_contains(frames, frame))
     assert.truthy(winbar.transcript(session({ state = 'closed' })):find('○ closed', 1, true))
   end)
 
@@ -110,7 +124,6 @@ describe('harness.ui.winbar:', function()
   end)
 
   it('warns as the context fills, and draws a ring where there are pixels', function()
-    local Tile = require('ui.pixel.Tile')
     local graphics = require('core.graphics')
     local meter = require('harness.transcript.meter')
     local available, upload, delete = Tile.available, graphics.upload, graphics.delete

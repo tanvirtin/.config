@@ -1,6 +1,6 @@
 local Tile = require('ui.pixel.Tile')
 local Block = require('harness.transcript.Block')
-local pip = require('harness.transcript.pip')
+local indicators = require('ui.pixel.indicators')
 local Bursts = require('harness.ui.Bursts')
 
 local eq = assert.are.same
@@ -62,10 +62,10 @@ describe('harness.ui.Bursts:', function()
     local bursts = Bursts(view(blocks, calls))
 
     eq(true, bursts:scan(blocks, 1010))
-    eq(true, bursts:step(1000 + pip.BURST_MS - 1))
+    eq(true, bursts:step(1000 + indicators.FINISH_MS - 1))
     eq({}, calls)
 
-    eq(false, bursts:step(1000 + pip.BURST_MS))
+    eq(false, bursts:step(1000 + indicators.FINISH_MS))
     eq({ 1 }, calls)
   end)
 end)

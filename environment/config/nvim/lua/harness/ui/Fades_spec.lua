@@ -22,6 +22,22 @@ describe('harness.ui.Fades:', function()
     end, buffer:get_extmarks(Fades.NAMESPACE, 0, -1, { details = true }))
   end
 
+  local function spans()
+    return vim.tbl_map(function(mark)
+      return { mark[2], mark[3], mark[4].hl_group }
+    end, buffer:get_extmarks(Fades.NAMESPACE, 0, -1, { details = true }))
+  end
+
+  local function view_of(kind)
+    return {
+      document = {
+        block_at = function()
+          return { kind = kind }
+        end,
+      },
+    }
+  end
+
   it('starts new rows dimmed and eases them to full, then leaves them alone', function()
     eq(true, fades:touch(1, 2, 1000))
     eq(true, fades:step(1000))
@@ -61,5 +77,47 @@ describe('harness.ui.Fades:', function()
     end, buffer:get_extmarks(Fades.NAMESPACE, 0, -1))
 
     eq({ 1, 3 }, rows)
+  end)
+
+  it('fades a thought toward its own dim colour, so streamed lines never flash brighter than the block', function()
+    fades = Fades(buffer, view_of('thought'))
+
+    eq(true, fades:touch(1, 2, 1000))
+    fades:step(1000)
+
+    eq({ { 1, 3, 'UiThoughtStream1' } }, marks())
+  end)
+
+  it('dissolves only the text appended to a row that is already on screen', function()
+    fades:remember(1, 1)
+
+    buffer:set_lines({ 'a', 'bcd', 'c', 'd' })
+
+    eq(1, fades:grown(1))
+    eq(true, fades:touch(1, 1, 1000, nil, fades:grown(1)))
+
+    fades:step(1000)
+
+    eq({ { 1, 1, 'UiFade1' } }, spans())
+  end)
+
+  it('restarts the dissolve on the appended text instead of dimming the whole line again', function()
+    fades:remember(1, 1)
+    fades:touch(1, 1, 1000)
+
+    buffer:set_lines({ 'a', 'bcd', 'c', 'd' })
+
+    eq(true, fades:touch(1, 1, 1010, nil, fades:grown(1)))
+    fades:step(1010)
+
+    eq({ { 1, 1, 'UiFade1' } }, spans())
+  end)
+
+  it('leaves a row alone when it was rewritten rather than appended to', function()
+    fades:remember(1, 1)
+
+    buffer:set_lines({ 'a', 'zzz', 'c', 'd' })
+
+    assert.is_nil(fades:grown(1))
   end)
 end)

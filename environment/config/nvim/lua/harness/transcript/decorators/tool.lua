@@ -26,8 +26,8 @@ local SUMMARY = {
 }
 
 local function icon_of(block, live, waiting, ctx)
-  if waiting then return { theme.waiting_icon(ctx.now) } end
-  if live then return { theme.spinner(ctx.now) } end
+  if waiting then return { theme.loader('waiting', ctx.now) } end
+  if live then return { theme.loader('busy', ctx.now) } end
   if block.interrupted then return { { theme.TOOL_ICONS.failed[1], 'UiMuted' } } end
 
   local burst = theme.burst(block.id, block.finished, ctx.now, block.status == Block.STATUS.failed)

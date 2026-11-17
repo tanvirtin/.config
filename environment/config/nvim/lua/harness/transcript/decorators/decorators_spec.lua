@@ -1,11 +1,11 @@
-local graphics = require('core.graphics')
 local Tile = require('ui.pixel.Tile')
-local pip = require('harness.transcript.pip')
+local graphics = require('core.graphics')
 local rule = require('harness.transcript.rule')
+local indicators = require('ui.pixel.indicators')
 local meter = require('harness.transcript.meter')
 local Block = require('harness.transcript.Block')
-local decorators = require('harness.transcript.decorators')
 local theme = require('harness.transcript.theme')
+local decorators = require('harness.transcript.decorators')
 
 local eq = assert.are.same
 
@@ -161,7 +161,7 @@ describe('harness.transcript.decorators:', function()
     local marks = decorators.decorate(block, ctx)
 
     assert.truthy(find(marks, function(opts)
-      return first_chunk(opts) == theme.spinner(3000)[1]
+      return first_chunk(opts) == theme.loader('busy', 3000)[1]
     end))
     assert.truthy(find(marks, function(opts)
       return opts.virt_text_pos == 'eol' and virt(opts) == '  3s'
@@ -172,7 +172,7 @@ describe('harness.transcript.decorators:', function()
       return virt(opts) == '  waiting for you'
     end))
     assert.truthy(find(decorators.decorate(block, ctx), function(opts)
-      return first_chunk(opts) == theme.WAITING_ICON[1] and opts.virt_text[1][2] == theme.pulse(3000, 'Warn')
+      return first_chunk(opts) == theme.loader('waiting', 3000)[1] and opts.virt_text[1][2] == 'UiWarn'
     end))
   end)
 
@@ -442,7 +442,7 @@ describe('harness.transcript.decorators:', function()
     end))
   end)
 
-  it('breathes a live thought\'s diamond and times a finished one', function()
+  it('animates a live thought\'s icon and times a finished one', function()
     local live = decorators.decorate(make(Block.KIND.thought, { 'x' }, { live = true }), { running = true, now = 0 })
     local done = decorators.decorate(make(Block.KIND.thought, { 'x' }, { started = 0, finished = 2000 }), {})
     local function head(marks)
@@ -451,7 +451,7 @@ describe('harness.transcript.decorators:', function()
       end).opts.virt_text
     end
 
-    eq({ { '◇ ', theme.pulse(0) }, { 'Thinking', 'UiMuted' } }, head(live))
+    eq({ theme.loader('thinking', 0), { 'Thinking', 'UiMuted' } }, head(live))
     eq({ { '◇ ', 'UiMuted' }, { 'Thought', 'UiMuted' } }, head(done))
     eq(
       '  for 2s',
@@ -586,7 +586,7 @@ describe('harness.transcript.decorators:', function()
     local marks = decorators.decorate(block, { running = false, frame = 2, active = { A = true } })
 
     assert.truthy(find(marks, function(opts)
-      return first_chunk(opts) == theme.spinner(nil)[1]
+      return first_chunk(opts) == theme.loader('busy', nil)[1]
     end))
     assert.truthy(find(marks, function(opts)
       return opts.virt_text_pos == 'eol' and virt(opts) == '  2 tools'
@@ -796,7 +796,7 @@ describe('harness.transcript.decorators:', function()
     end)
 
     after_each(function()
-      pip.stop()
+      indicators.stop()
       Tile.available, graphics.upload, graphics.delete = original.available, original.upload, original.delete
     end)
 
@@ -808,7 +808,7 @@ describe('harness.transcript.decorators:', function()
       )
     end
 
-    it('bursts the pip right after the tool finishes, then settles to its completed icon', function()
+    it('bursts the icon right after the tool finishes, then settles to its completed icon', function()
       local placeholder = vim.fn.nr2char(0x10EEEE)
       local glyph = theme.TOOL_ICONS[Block.STATUS.completed][1]
 

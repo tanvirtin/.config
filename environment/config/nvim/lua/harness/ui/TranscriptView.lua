@@ -21,6 +21,7 @@ local ASK = require('harness.types.events').ASK
 local FoldText = require('harness.ui.FoldText')
 local PlanPanel = require('harness.ui.PlanPanel')
 local Block = require('harness.transcript.Block')
+local theme = require('harness.transcript.theme')
 local Following = require('harness.ui.Following')
 local session_types = lazy('harness.types.session')
 local motion = lazy('harness.ui.transcript_motion')
@@ -196,6 +197,24 @@ function TranscriptView.active_subagents(session)
   return active
 end
 
+function TranscriptView.recently_failed(blocks, now)
+  local window = theme.beat()
+
+  for index = #blocks, math.max(#blocks - 12, 1), -1 do
+    local block = blocks[index]
+
+    if
+      block.finished
+      and now - block.finished <= window
+      and (block.status == Block.STATUS.failed or (block.kind == Block.KIND.stop and block.reason ~= 'end_turn'))
+    then
+      return true
+    end
+  end
+
+  return false
+end
+
 function TranscriptView:state()
   local session = self.session
 
@@ -210,6 +229,8 @@ function TranscriptView:state()
     width = self.document:text_width(),
     held = session:idle() and #session.queue > 0,
     active = TranscriptView.active_subagents(session),
+    owner = self.document,
+    failed = TranscriptView.recently_failed(self.document.blocks, Timer.now()),
   }
 end
 
@@ -267,6 +288,8 @@ function TranscriptView:render()
       self:tick()
     end)
   end
+
+  self.cost = Timer.now() - self.rendered
 end
 
 function TranscriptView:reveal(row)
@@ -339,7 +362,12 @@ function TranscriptView:_step()
 
   local active = TranscriptView.active_subagents(self.session)
 
-  if not self.session:running() and not self.session:loading() and not next(active) then
+  if
+    not self.session:running()
+    and not self.session:loading()
+    and not next(active)
+    and not theme.waning(self.document)
+  then
     self.timer:stop()
     return self:render()
   end
@@ -350,7 +378,7 @@ function TranscriptView:_step()
     self:set_winbar(window)
   end
 
-  self.document:tick({ frame = self.frame, active = active, loading = self.session:loading() })
+  self.document:tick(self:state())
   self:sync()
 end
 
@@ -410,7 +438,8 @@ function TranscriptView:schedule()
     if self.scheduled and not self.disposed then self:render() end
   end
 
-  local wait = self.rendered and settings.transcript:get('frame_ms') - (Timer.now() - self.rendered) or 0
+  local frame = math.max(settings.transcript:get('frame_ms'), (self.cost or 0) * 2)
+  local wait = self.rendered and frame - (Timer.now() - self.rendered) or 0
 
   if wait > 0 then
     self.pacer:after(wait, render)
@@ -624,6 +653,9 @@ function TranscriptView:mount(callbacks)
   self.document.renderer.resolve = function(kind, text)
     return self:resolve(kind, text)
   end
+  self.document.on_decorate = function()
+    if not self.disposed then self:sync() end
+  end
 
   self.unsubscribe = self.session:subscribe(function(update)
     self:on_event(update)
@@ -654,7 +686,8 @@ function TranscriptView:mount(callbacks)
   self.group.on('WinScrolled', function()
     if not self.disposed and not self.following.applying then
       self:sync()
-      self.document:decorate_visible()
+
+      if self.document:decorate_visible() then self:sync() end
     end
   end)
   self.group.on('CursorMoved', function()

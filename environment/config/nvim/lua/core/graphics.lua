@@ -136,7 +136,8 @@ graphics.PLACEHOLDER = 0x10EEEE
 graphics.MAX_CELLS = #DIACRITICS
 
 function graphics.upload_sequence(id, bytes, width, height, cols, rows)
-  local control = string.format('a=T,U=1,i=%d,f=32,s=%d,v=%d,t=t,c=%d,r=%d,q=2', id, width, height, cols, rows)
+  local control =
+    string.format('a=T,U=1,i=%d,f=32,s=%d,v=%d,t=t,c=%d,r=%d,q=2', id, width, height, cols, rows)
 
   return '\27[?2026h' .. apc(control, file(bytes)) .. '\27[?2026l'
 end

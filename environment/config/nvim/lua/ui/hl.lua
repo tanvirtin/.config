@@ -8,12 +8,9 @@ hl.PULSE_STEPS = 12
 hl.FLASH_STEPS = 8
 hl.FADE_STEPS = 6
 hl.GLINT = { 1, 0.6, 0.25 }
-hl.INGOT = { 1, 0.8, 0.6, 0.4, 0.2 }
-hl.SPARK = { 1, 0.7, 0.45 }
-hl.STRIKE_REST = 0.5
-hl.STRIKE_LIGHT = 2
 hl.FADE_FLOOR = 0.45
 hl.THOUGHT = 0.62
+hl.THOUGHT_STREAM_FLOOR = 0.18
 hl.FLASH_PEAK = 0.24
 hl.RULE = 0.3
 hl.LEGIBLE = 3
@@ -348,10 +345,10 @@ end, function()
   return 'UiMuted'
 end)
 
-ramp('UiSpark', #hl.SPARK, foreground_of('UiAccent'), function(i)
-  return hl.SPARK[i]
+ramp('UiThoughtStream', hl.FADE_STEPS - 1, foreground_of('Normal'), function(i)
+  return hl.THOUGHT_STREAM_FLOOR + (hl.THOUGHT - hl.THOUGHT_STREAM_FLOOR) * along(i, hl.FADE_STEPS - 1)
 end, function()
-  return 'UiAccent'
+  return 'UiThought'
 end)
 
 for step, alpha in ipairs(hl.THOUGHT_FADE) do
@@ -364,18 +361,6 @@ for step, alpha in ipairs(hl.THOUGHT_FADE) do
   end
 end
 
-for i = 1, hl.PULSE_STEPS do
-  hl.COMPUTED['UiStrike' .. i] = function()
-    local accent, foreground, background = color('UiAccent', 'fg'), color('Normal', 'fg'), color('Normal', 'bg')
-
-    if not accent or not foreground or not background then return { link = i <= 3 and 'UiAccent' or 'UiMuted' } end
-
-    local rest = hl.blend(foreground, background, hl.STRIKE_REST)
-
-    return { fg = hl.blend(accent, rest, (1 - along(i, hl.PULSE_STEPS)) ^ 3) }
-  end
-end
-
 for word = 1, 6 do
   for step, mix in ipairs(hl.GLINT) do
     hl.COMPUTED['UiWorkingGlint' .. word .. '_' .. step] = function()
@@ -385,16 +370,6 @@ for word = 1, 6 do
 
       return { fg = hl.blend(accent, own, mix), bold = step == 1 }
     end
-  end
-end
-
-for step, mix in ipairs(hl.INGOT) do
-  hl.COMPUTED['UiIngot' .. step] = function()
-    local accent, muted = color('UiAccent', 'fg'), color('UiMuted', 'fg')
-
-    if not accent or not muted then return { link = step <= 2 and 'UiAccent' or 'UiMuted' } end
-
-    return { fg = hl.blend(accent, muted, mix) }
   end
 end
 

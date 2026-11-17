@@ -27,7 +27,7 @@ local PROMPT = '> '
 local MODES = { 'sessions', 'agents' }
 local EVENT = require('harness.types.events').KIND
 local STATE_ROLE = { waiting = 'warn', running = 'accent', idle = 'muted' }
-local STATE_INDICATOR = { waiting = 'pulse', running = 'spinner', idle = 'dot' }
+local STATE_INDICATOR = { waiting = 'waiting', running = 'busy', idle = 'idle' }
 
 local function one_line(text)
   return text and (tostring(text):gsub('[\r\n]+', ' ')) or ''

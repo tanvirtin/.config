@@ -27,10 +27,13 @@ describe('ui.widgets:', function()
     eq('════', widgets.expand('{rule:4:═}'))
   end)
 
-  it('turns a spinner a frame a tick', function()
+  it('turns a spinner a frame a tick, through the busy loader frames', function()
+    local frames = require('ui.pixel.indicators').GLYPHS.busy
+
     eq('⠋', widgets.expand('{spin}', 0))
     eq('⠙', widgets.expand('{spin}', 1))
-    eq('⠋', widgets.expand('{spin}', 6))
+    eq(frames[6], widgets.expand('{spin}', 5))
+    eq('⠋', widgets.expand('{spin}', #frames))
   end)
 
   it('expands inside a line, and leaves what it does not know alone', function()

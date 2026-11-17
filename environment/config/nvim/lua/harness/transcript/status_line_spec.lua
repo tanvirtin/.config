@@ -13,6 +13,10 @@ local function text(line)
   end, line))
 end
 
+local function working(...)
+  return text(theme.working(...))
+end
+
 describe('harness.transcript.status_line:', function()
   it('shows nothing when idle with an empty queue', function()
     assert.is_nil(status_line.lines({ running = false }))
@@ -35,22 +39,22 @@ describe('harness.transcript.status_line:', function()
   it('shows the working animation, then the elapsed time while working', function()
     local lines = status_line.lines({ running = true, started = 0, label = 'Thinking' }, 5000)
 
-    eq(' ' .. text(theme.working(5000, 0)) .. ' · 5s · <C-c> interrupt', text(lines[2]))
+    eq(' ' .. working(5000, 0) .. ' · 5s · <C-c> interrupt', text(lines[2]))
   end)
 
-  it('strikes the running icon', function()
+  it('turns the running icon a glyph per step, in the accent', function()
     local first = status_line.lines({ running = true, started = 0 }, 0)
     local second = status_line.lines({ running = true, started = 0 }, 100)
 
-    eq('UiStrike1', first[2][2][2])
-    eq('UiStrike2', second[2][2][2])
+    eq({ '⠋', 'UiAccent' }, first[2][2])
+    eq({ '⠙', 'UiAccent' }, second[2][2])
   end)
 
   it('says a session is loading while the agent replays it, above prompts waiting for it', function()
     local lines = status_line.lines({ running = false, loading = true, queue = { 'next' } })
 
     eq(3, #lines)
-    eq('▰▱▱▱ loading · the agent is replaying this session', text(lines[2]))
+    eq('⡇ loading · the agent is replaying this session', text(lines[2]))
     eq('  ' .. theme.QUEUE_ICON[1] .. 'queued next', text(lines[3]))
   end)
 
@@ -124,6 +128,53 @@ describe('harness.transcript.status_line:', function()
     end)
   end)
 
+  describe('with pixels for the mascot', function()
+    local original
+    local mascot = require('harness.transcript.mascot')
+
+    before_each(function()
+      original = { available = Tile.available, upload = graphics.upload, delete = graphics.delete }
+      graphics.upload = function() end
+      graphics.delete = function() end
+
+      Tile.available = function()
+        return true
+      end
+    end)
+
+    after_each(function()
+      mascot.stop()
+      ticker.stop()
+      Tile.drain()
+      Tile.available, graphics.upload, graphics.delete = original.available, original.upload, original.delete
+    end)
+
+    it('keeps dissolving through the wane once the turn ends, then goes out', function()
+      local doc = {}
+      local running = status_line.lines({ running = true, started = 0, owner = doc }, 5000)
+
+      eq(' ' .. working(5000, 0, 'work', doc) .. ' · 5s · <C-c> interrupt', text(running[2]))
+
+      local waning = status_line.lines({ running = false, owner = doc }, 5000)
+
+      eq(' ', waning[2][1][1])
+      eq(nil, text(waning[2]):find('interrupt', 1, true))
+      assert.is_true(#waning[2] >= 2)
+
+      mascot.stop()
+
+      eq(nil, status_line.lines({ running = false, owner = doc }))
+    end)
+
+    it('never lights the line of a session that was not the one working', function()
+      local doc = {}
+
+      status_line.lines({ running = true, started = 0, owner = doc }, 0)
+
+      eq(nil, status_line.lines({ running = false, owner = {} }))
+    end)
+  end)
+
   describe('sections', function()
     local function ids()
       return vim.tbl_map(function(section)
@@ -155,7 +206,7 @@ describe('harness.transcript.status_line:', function()
       local lines = status_line.lines({ running = true, background = true, started = 0 }, 3000)
 
       eq(
-        { '', ' ' .. text(theme.working(3000, 0)) .. ' · 3s · <C-c> interrupt', 'background task' },
+        { '', ' ' .. working(3000, 0) .. ' · 3s · <C-c> interrupt', 'background task' },
         { text(lines[1]), text(lines[2]), text(lines[3]) }
       )
       eq(nil, status_line.lines({ running = false, background = false }))
@@ -211,7 +262,7 @@ describe('harness.transcript.status_line:', function()
       local flashing = status_line.closing_rows(closing('Error'), 1010)
 
       eq(4, #flashing)
-      eq({ 'UiPulseWarn1', 'UiFlashError1' }, flashing[1][1][2])
+      eq({ 'UiRailWarn', 'UiFlashError1' }, flashing[1][1][2])
 
       local early = #status_line.closing_rows(closing(), 1300)
       local late = #status_line.closing_rows(closing(), 1450)
