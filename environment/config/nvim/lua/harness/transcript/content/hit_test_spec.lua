@@ -1,10 +1,10 @@
 local content = require('harness.transcript.content')
-local hit_test = require('harness.ui.hit_test')
+local hit_test = require('harness.transcript.content.hit_test')
 local builtin = require('harness.transcript.content.builtin')
 
 local eq = assert.are.same
 
-describe('harness.ui.hit_test:', function()
+describe('harness.transcript.content.hit_test:', function()
   before_each(function()
     content.reset()
     builtin()

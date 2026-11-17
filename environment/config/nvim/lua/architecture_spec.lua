@@ -82,4 +82,20 @@ describe('the editor tools, surfaces, sources and ui:', function()
 
     eq({}, missing)
   end)
+
+  it('never reach up into the harness', function()
+    local found = {}
+
+    for _, root in ipairs(ROOTS) do
+      for _, path in ipairs(vim.fn.globpath(root, '**/*.lua', false, true)) do
+        for number, line in ipairs(path:match('_spec%.lua$') and {} or vim.fn.readfile(path)) do
+          if line:find('require%s*%(?%s*[\'"]harness[%.\'"]') or line:find('lazy%s*%(?%s*[\'"]harness[%.\'"]') then
+            found[#found + 1] = string.format('%s:%d', path, number)
+          end
+        end
+      end
+    end
+
+    eq({}, found)
+  end)
 end)

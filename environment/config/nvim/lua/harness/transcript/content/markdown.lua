@@ -1,5 +1,5 @@
 local treesitter = require('core.treesitter')
-local hit_test = require('harness.ui.hit_test')
+local hit_test = require('harness.transcript.content.hit_test')
 
 local function cell(block, row, col)
   local lines = block.lines

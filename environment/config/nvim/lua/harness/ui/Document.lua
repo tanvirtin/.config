@@ -16,9 +16,9 @@ local context = require('harness.transcript.decorators.context')
 local FoldCalculator = require('harness.transcript.calculators.FoldCalculator')
 
 builtin()
-require('ui.content.json')
-require('ui.content.markdown')
-require('ui.content.table')
+require('harness.transcript.content.json')
+require('harness.transcript.content.markdown')
+require('harness.transcript.content.table')
 
 local Document = Object:extend()
 
@@ -130,7 +130,9 @@ function Document:_decorate(block, ctx)
 
   local table_spec = content.option(block, 'table')
 
-  if table_spec then vim.list_extend(marks, require('ui.content.table').render(block, table_spec, decorate_ctx)) end
+  if table_spec then
+    vim.list_extend(marks, require('harness.transcript.content.table').render(block, table_spec, decorate_ctx))
+  end
 
   self:_links(marks, block)
 

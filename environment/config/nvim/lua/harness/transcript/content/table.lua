@@ -1,8 +1,8 @@
-local MarkSpec = require('ui.MarkSpec')
 local text = require('core.text')
+local MarkSpec = require('ui.MarkSpec')
 local content = require('harness.transcript.content')
-local hit_test = require('harness.ui.hit_test')
 local content_settings = require('harness.settings.content')
+local hit_test = require('harness.transcript.content.hit_test')
 
 local content_table = {}
 

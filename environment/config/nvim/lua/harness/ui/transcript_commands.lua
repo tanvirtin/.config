@@ -14,11 +14,11 @@ local links = require('harness.ui.links')
 local Renderer = lazy('ui.markdown.Renderer')
 local motions = require('harness.ui.motions')
 local theme = lazy('harness.transcript.theme')
-local hit_test = require('harness.ui.hit_test')
 local Block = require('harness.transcript.Block')
 local actions = require('harness.transcript.actions')
 local link_text = require('harness.transcript.link_text')
 local PermissionsView = lazy('harness.ui.PermissionsView')
+local hit_test = require('harness.transcript.content.hit_test')
 
 local commands = {}
 

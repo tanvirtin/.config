@@ -1,6 +1,6 @@
-local Table = require('ui.content.table')
+local Table = require('harness.transcript.content.table')
 local content = require('harness.transcript.content')
-local hit_test = require('harness.ui.hit_test')
+local hit_test = require('harness.transcript.content.hit_test')
 local settings = require('harness.settings.content')
 local builtin = require('harness.transcript.content.builtin')
 
@@ -16,7 +16,7 @@ local function rows(marks)
   return out
 end
 
-describe('ui.content.table:', function()
+describe('harness.transcript.content.table:', function()
   local defaults
 
   before_each(function()

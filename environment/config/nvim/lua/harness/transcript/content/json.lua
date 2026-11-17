@@ -1,5 +1,5 @@
-local hit_test = require('harness.ui.hit_test')
 local Renderer = require('ui.markdown.Renderer')
+local hit_test = require('harness.transcript.content.hit_test')
 
 hit_test.bind('json', function(block, row, col)
   local start = block.start or 0
