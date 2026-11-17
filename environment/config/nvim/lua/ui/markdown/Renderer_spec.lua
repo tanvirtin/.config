@@ -95,6 +95,23 @@ describe('ui.markdown.Renderer:', function()
     end
   end)
 
+  it('tints the text of a plain quote, and leaves callouts to their own colours', function()
+    render({ '> quoted words', '', '> [!THOUGHT]', '> thinking' })
+
+    local tint = vim.iter(marks(0)):find(function(mark)
+      return mark.hl_group == 'UiMarkdownQuote'
+    end)
+
+    assert.is_truthy(tint)
+    eq(#'> quoted words', tint.end_col)
+
+    for _, row in ipairs({ 2, 3 }) do
+      for _, mark in ipairs(marks(row)) do
+        assert.are_not.equal('UiMarkdownQuote', mark.hl_group)
+      end
+    end
+  end)
+
   it('leaves a deferred callout to its owner', function()
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '> [!THOUGHT]', '> thinking' })
     Renderer(buf, { defer_callouts = true }):render(0, 2)

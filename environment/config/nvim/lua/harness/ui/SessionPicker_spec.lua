@@ -360,6 +360,26 @@ describe('harness.ui.SessionPicker:', function()
     eq(nil, picker._tune)
   end)
 
+  it('keeps autocompletion out of its search line', function()
+    local picker = open()
+
+    eq(false, vim.b[picker._body.elements.input:get_buffer().bufnr].completion)
+  end)
+
+  it('gives up on the listing static when an agent never answers', function()
+    local picker = SessionPicker.launch({ dir = '/w' })
+
+    picker._listing.pending = 99
+    picker._listing.gives_up = require('core.Timer').now()
+
+    settle(function()
+      return picker._listing == nil
+    end)
+
+    eq(nil, picker._listing)
+    eq(nil, picker._lister)
+  end)
+
   it('glitches the rows while it lists the stored sessions', function()
     local picker = SessionPicker.launch({ dir = '/w' })
     local body = picker._body.elements

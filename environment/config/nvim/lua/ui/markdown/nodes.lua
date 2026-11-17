@@ -179,6 +179,10 @@ function NODES.quote(out, node, src, renderer)
       end
     end
 
+    if not callout and #text > #markers then
+      mark(out, row, #markers, { end_col = #text, hl_group = 'UiMarkdownQuote' })
+    end
+
     if callout and row == start_row then
       local title = text:sub(#markers + 1):gsub('^%[!%a+%]%s*', '')
       local label = callout.label or name:sub(1, 1):upper() .. name:sub(2):lower()

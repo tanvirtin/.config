@@ -35,7 +35,7 @@ local STATE_ROLE = { waiting = 'warn', running = 'accent', idle = 'muted' }
 local STATE_INDICATOR = { waiting = 'waiting', running = 'busy', idle = 'idle' }
 local SECTION = { live = 'Live', recent = 'Recent' }
 local TUNE_MS, TUNE_FRAME_MS, TUNE_DENSITY = 240, 33, 0.55
-local LISTING_MS = 240
+local LISTING_MS, LISTING_MAX_MS = 240, 5000
 local CORPUS_KINDS = { [EVENT.prompt] = true, [EVENT.message] = true }
 local GLITCH = Buffer.namespace('harness.session_picker.glitch')
 local STATIC_DENSITY, STATIC_BAND, STATIC_PRIORITY = 0.3, 0.6, 150
@@ -223,6 +223,7 @@ function SessionPickerBody:get_layout_spec()
 end
 
 function SessionPickerBody:on_mount()
+  self.elements.input:set_buf_var('completion', false)
   self.picker:_bind(self)
   self.picker:_draw_input()
   self.picker:refresh()
@@ -360,11 +361,12 @@ function SessionPicker:_begin_listing()
 
   if #names == 0 then return end
 
-  self._listing = { pending = #names, ends_at = Timer.now() + LISTING_MS }
+  self._listing = { pending = #names, ends_at = Timer.now() + LISTING_MS, gives_up = Timer.now() + LISTING_MAX_MS }
   self._lister = Timer()
   self._lister:every(motion.STEP_MS, function()
     if not self:is_open() or not self._listing then return self:_stop_lister() end
     if self._listing.pending == 0 and Timer.now() >= self._listing.ends_at then return self:_end_listing() end
+    if Timer.now() >= self._listing.gives_up then return self:_end_listing() end
 
     self:_draw_static_state()
   end)
