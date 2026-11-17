@@ -1,6 +1,5 @@
-local hl = require('ui.hl')
 local tone = require('ui.tone')
-local motion = require('ui.motion')
+local glitch = require('ui.glitch')
 local Timer = require('core.Timer')
 local Buffer = require('core.Buffer')
 local Object = require('core.Object')
@@ -11,9 +10,13 @@ local Block = require('harness.transcript.Block')
 
 local Flashes = Object:extend()
 
-Flashes.NAMESPACE = Buffer.namespace('harness.flash')
 Flashes.PRIORITY = MarkSpec.PRIORITY + 50
 Flashes.LOOKBACK = 48
+Flashes.GLITCH = Buffer.namespace('harness.flash.glitch')
+Flashes.GLITCH_FRAME_MS = 40
+Flashes.GLITCH_DENSITY = 0.5
+Flashes.DONE_DENSITY = 0.35
+Flashes.STRETCH = 1.6
 
 function Flashes:constructor(buffer, view)
   return { buffer = buffer, view = view, active = {} }
@@ -35,7 +38,7 @@ end
 function Flashes:scan(blocks, now)
   if theme.reduced() then return false end
 
-  local ms = settings.transcript:get('flash_ms')
+  local ms = settings.transcript:get('flash_ms') * Flashes.STRETCH
 
   for index = #blocks, math.max(#blocks - Flashes.LOOKBACK + 1, 1), -1 do
     local block = blocks[index]
@@ -54,25 +57,34 @@ function Flashes:scan(blocks, now)
   return next(self.active) ~= nil
 end
 
+function Flashes:glitch(flash, progress, now)
+  local line = self.buffer:get_lines(flash.row, flash.row + 1)[1] or ''
+  local failed = flash.tone == tone.ERROR
+  local seed = math.floor(now / Flashes.GLITCH_FRAME_MS)
+  local density = (failed and Flashes.GLITCH_DENSITY or Flashes.DONE_DENSITY) * (1 - progress) ^ 2
+  local from = #(line:match('^[^%w]*') or '')
+
+  for _, cell in ipairs(glitch.cols(line, density, seed + flash.row, from)) do
+    self.buffer:set_extmark(Flashes.GLITCH, flash.row, cell[1], {
+      virt_text = { { cell[2], failed and 'UiError' or 'UiAccent' } },
+      virt_text_pos = 'overlay',
+      priority = Flashes.PRIORITY,
+    })
+  end
+end
+
 function Flashes:step(now)
-  local ms = settings.transcript:get('flash_ms')
+  local ms = settings.transcript:get('flash_ms') * Flashes.STRETCH
+
+  self.buffer:clear_namespace(Flashes.GLITCH)
 
   for id, flash in pairs(self.active) do
     local progress = ms > 0 and (now - flash.started) / ms or 1
 
     if progress >= 1 then
-      if flash.mark then self.buffer:del_extmark(Flashes.NAMESPACE, flash.mark) end
-
       self.active[id] = nil
     else
-      local index = motion.steps(hl.FLASH_STEPS, motion.ease.out_cubic(progress))
-
-      flash.group = tone.flash(flash.tone, index)
-      flash.mark = self.buffer:set_extmark(Flashes.NAMESPACE, flash.row, 0, {
-        id = flash.mark,
-        line_hl_group = flash.group,
-        priority = Flashes.PRIORITY,
-      })
+      self:glitch(flash, progress, now)
     end
   end
 

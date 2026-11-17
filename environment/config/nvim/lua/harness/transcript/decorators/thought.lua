@@ -1,4 +1,6 @@
 local compact = require('compact')
+local glitch = require('ui.glitch')
+local motion = require('ui.motion')
 local MarkSpec = require('ui.MarkSpec')
 local nodes = require('ui.markdown.nodes')
 local theme = require('harness.transcript.theme')
@@ -9,6 +11,7 @@ local GIST = 72
 local BODY_PRIORITY = 90
 local THOUGHT_TAIL = 3
 local FADES = { 'UiThoughtFade2', 'UiThoughtFade1', 'UiThought' }
+local STATIC = 0.3
 
 local function gist(block, ctx)
   for index = 2, #block.lines do
@@ -20,6 +23,20 @@ local function gist(block, ctx)
 
       return compact.line(text, math.min(GIST, math.max((ctx.width or GIST + 24) - 24, 12)))
     end
+  end
+end
+
+local function interference(out, block, index, ctx)
+  if theme.reduced() or not ctx.now then return end
+
+  local line = block.lines[index]
+  local from = #(line:match('^[%s>]*') or '')
+
+  for _, cell in ipairs(glitch.cols(line, STATIC, motion.step(ctx.now), from)) do
+    MarkSpec.add(out, block.start + index - 1, cell[1], {
+      virt_text = { { cell[2], FADES[1] } },
+      virt_text_pos = 'overlay',
+    }, BODY_PRIORITY + 1)
   end
 end
 
@@ -79,6 +96,8 @@ return function(block, ctx)
         hl_group = group,
       }, BODY_PRIORITY)
     end
+
+    if last - 1 > visible then interference(out, block, last - visible + 1, ctx) end
   elseif last > 1 then
     MarkSpec.add(out, block.start + 1, 0, {
       end_row = block.start + last - 1,

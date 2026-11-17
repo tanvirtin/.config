@@ -1,4 +1,5 @@
 local hl = require('ui.hl')
+local glitch = require('ui.glitch')
 local motion = require('ui.motion')
 local Timer = require('core.Timer')
 local Buffer = require('core.Buffer')
@@ -11,6 +12,9 @@ local Fades = Object:extend()
 Fades.NAMESPACE = Buffer.namespace('harness.fade')
 Fades.PRIORITY = 100
 Fades.MAX = 8
+Fades.TUNE = 0.6
+Fades.TUNE_DENSITY = 0.7
+Fades.TUNE_FRAME_MS = 30
 
 function Fades:constructor(buffer, view)
   return { buffer = buffer, view = view, chunks = {}, high = -1, seen = {} }
@@ -112,6 +116,26 @@ function Fades:touch(from, to, now, any_size, col)
   return true
 end
 
+function Fades:tune(chunk, progress, now)
+  if chunk.group ~= 'UiThoughtStream' or progress >= Fades.TUNE then return end
+
+  local density = Fades.TUNE_DENSITY * (1 - progress / Fades.TUNE)
+  local seed = math.floor(now / Fades.TUNE_FRAME_MS)
+
+  for row = chunk.from, chunk.to do
+    local line = line_at(self.buffer, row)
+    local from = row == chunk.from and chunk.col or #(line:match('^[%s>]*') or '')
+
+    for _, cell in ipairs(glitch.cols(line, density, seed + row, from)) do
+      self.buffer:set_extmark(Fades.NAMESPACE, row, cell[1], {
+        virt_text = { { cell[2], 'UiThoughtFade2' } },
+        virt_text_pos = 'overlay',
+        priority = Fades.PRIORITY,
+      })
+    end
+  end
+end
+
 function Fades:step(now)
   local ms = settings.transcript:get('fade_ms')
   local alive = {}
@@ -133,6 +157,7 @@ function Fades:step(now)
         hl_group = (chunk.group or 'UiFade') .. index,
         priority = Fades.PRIORITY,
       })
+      self:tune(chunk, progress, now)
       alive[#alive + 1] = chunk
     end
   end

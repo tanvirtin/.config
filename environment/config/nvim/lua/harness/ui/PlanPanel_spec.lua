@@ -95,7 +95,7 @@ describe('harness.ui.PlanPanel:', function()
       animator:close()
     end)
 
-    it('flashes the step that just completed, and nothing on the first showing', function()
+    it('breaks the step that just completed into static, and nothing on the first showing', function()
       panel:update(history({ 'completed', 'in_progress', 'pending' }), window)
       eq(0, animator:count())
 
@@ -109,7 +109,9 @@ describe('harness.ui.PlanPanel:', function()
       local rows = {}
 
       for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(float, -1, 0, -1, { details = true })) do
-        if mark[4].hl_group and mark[4].hl_group:find('^UiFlashAccent') then rows[#rows + 1] = mark[2] end
+        if mark[4].virt_text_pos == 'overlay' and mark[4].virt_text[1][2] == 'UiAccent' then
+          rows[#rows + 1] = mark[2]
+        end
       end
 
       eq({ 2 }, rows)

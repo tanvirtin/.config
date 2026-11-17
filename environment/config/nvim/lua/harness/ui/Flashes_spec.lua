@@ -1,6 +1,6 @@
-local Block = require('harness.transcript.Block')
 local Buffer = require('core.Buffer')
 local Flashes = require('harness.ui.Flashes')
+local Block = require('harness.transcript.Block')
 
 local eq = assert.are.same
 
@@ -25,10 +25,21 @@ describe('harness.ui.Flashes:', function()
     )
   end
 
-  local function marks()
-    return vim.tbl_map(function(mark)
-      return { mark[2], mark[4].line_hl_group }
-    end, buffer:get_extmarks(Flashes.NAMESPACE, 0, -1, { details = true }))
+  local function cells()
+    return buffer:get_extmarks(Flashes.GLITCH, 0, -1, { details = true })
+  end
+
+  local function rows()
+    local seen, out = {}, {}
+
+    for _, mark in ipairs(cells()) do
+      if not seen[mark[2]] then
+        seen[mark[2]] = true
+        out[#out + 1] = mark[2]
+      end
+    end
+
+    return out
   end
 
   it('flashes a tool that just finished, and leaves older ones and running ones alone', function()
@@ -37,49 +48,59 @@ describe('harness.ui.Flashes:', function()
     eq(false, Flashes(buffer):scan({ tool({}) }, 5000))
   end)
 
-  it('flashes the rule of a turn that just ended, in the error tone when it did not end cleanly', function()
-    flashes:scan({ { kind = Block.KIND.stop, start = 2, reason = 'end_turn', finished = 1000 } }, 1000)
-    flashes:step(1000)
-    eq({ { 2, 'UiFlashAccent1' } }, marks())
+  it(
+    'breaks the summary of a turn that just ended into static, in the error tone when it did not end cleanly',
+    function()
+      buffer:set_lines({ 'a', 'b', 'done in 12s' })
+      flashes:scan({ { kind = Block.KIND.stop, start = 2, reason = 'end_turn', finished = 1000 } }, 1000)
+      flashes:step(1000)
+
+      eq({ 2 }, rows())
+      eq('UiAccent', cells()[1][4].virt_text[1][2])
+
+      local failed = Flashes(buffer)
+
+      failed:scan({ { kind = Block.KIND.stop, start = 0, reason = 'max_tokens', finished = 1000 } }, 1000)
+      eq('Error', failed.active['stop:0'].tone)
+    end
+  )
+
+  it('covers a finished row in static that clears, heavier and red when it failed, and then leaves it clean', function()
+    buffer:set_lines({ 'a', '-> Bash make test passed with flying colours', 'c' })
+
+    local ms = require('harness.settings').transcript:get('flash_ms') * Flashes.STRETCH
+
+    flashes:scan({ tool({ start = 1, finished = 1000 }) }, 1000)
+    eq(true, flashes:step(1000))
+
+    local early = #cells()
+
+    assert.is_true(early > 0)
+    eq('overlay', cells()[1][4].virt_text_pos)
+    assert.is_true(cells()[1][3] >= 3)
+
+    flashes:step(1000 + ms * 0.7)
+    assert.is_true(#cells() < early)
+
+    eq(false, flashes:step(1000 + ms))
+    eq({}, cells())
 
     local failed = Flashes(buffer)
 
-    failed:scan({ { kind = Block.KIND.stop, start = 0, reason = 'max_tokens', finished = 1000 } }, 1000)
-    eq('Error', failed.active['stop:0'].tone)
-  end)
+    failed:scan({ tool({ id = 'f', start = 1, finished = 1000, status = Block.STATUS.failed }) }, 1000)
+    failed:step(1000)
 
-  it('fades the head row from the accent toward the resting surface, then removes its mark', function()
-    flashes:scan({ tool({ finished = 1000 }) }, 1000)
-
-    eq(true, flashes:step(1000))
-    eq({ { 1, 'UiFlashAccent1' } }, marks())
-
-    flashes:step(1200)
-
-    local late = marks()[1][2]
-
-    assert.is_true(tonumber(late:match('%d+$')) > 1)
-    eq(1, #marks())
-
-    eq(false, flashes:step(1300))
-    eq({}, marks())
-  end)
-
-  it('flashes a failed tool in the error tone', function()
-    flashes:scan({ tool({ finished = 1000, status = Block.STATUS.failed }) }, 1000)
-    flashes:step(1000)
-
-    eq('UiFlashError1', marks()[1][2])
+    eq('UiError', cells()[1][4].virt_text[1][2])
   end)
 
   it('follows the block when the document moves it', function()
+    buffer:set_lines({ 'a', '-> Bash one', '-> Bash two' })
     flashes:scan({ tool({ finished = 1000 }) }, 1000)
     flashes:step(1000)
     flashes:scan({ tool({ finished = 1000, start = 2 }) }, 1050)
     flashes:step(1050)
 
-    eq(2, marks()[1][1])
-    eq(1, #marks())
+    eq({ 2 }, rows())
   end)
 
   it('only looks at the newest blocks, so a long transcript costs a render no more', function()

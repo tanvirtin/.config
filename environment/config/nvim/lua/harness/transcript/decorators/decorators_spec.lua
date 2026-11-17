@@ -412,6 +412,34 @@ describe('harness.transcript.decorators:', function()
     )
   end)
 
+  it('breaks the top row of a live thought into static as it scrolls away, and nothing else', function()
+    local lines = { '> [!thought]', '> one', '> two', '> three idea', '> four', '> five' }
+    local function static(marks)
+      return vim.tbl_filter(function(mark)
+        return mark.opts.virt_text_pos == 'overlay'
+      end, marks)
+    end
+
+    local live =
+      static(decorators.decorate(make(Block.KIND.thought, lines, { live = true }), { running = true, now = 0 }))
+
+    assert.is_true(#live > 0)
+
+    for _, mark in ipairs(live) do
+      eq(3, mark.row)
+      assert.is_true(mark.col >= 2)
+    end
+
+    eq({}, static(decorators.decorate(make(Block.KIND.thought, lines, {}), {})))
+    eq(
+      {},
+      static(decorators.decorate(make(Block.KIND.thought, { '> [!thought]', '> one', '> two' }, { live = true }), {
+        running = true,
+        now = 0,
+      }))
+    )
+  end)
+
   it('dims the whole body of a thought with one mark beneath the markdown styling, leaving the header alone', function()
     local marks = decorators.decorate(make(Block.KIND.thought, { '> [!thought]', '> one', '>', '> two' }), {})
     local dimmed = vim.tbl_filter(function(mark)

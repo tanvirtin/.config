@@ -16,16 +16,22 @@ describe('harness.ui.Fades:', function()
     vim.api.nvim_buf_delete(buffer.bufnr, { force = true })
   end)
 
+  local function details(overlay)
+    return vim.tbl_filter(function(mark)
+      return (mark[4].virt_text_pos == 'overlay') == (overlay == true)
+    end, buffer:get_extmarks(Fades.NAMESPACE, 0, -1, { details = true }))
+  end
+
   local function marks()
     return vim.tbl_map(function(mark)
       return { mark[2], mark[4].end_row, mark[4].hl_group }
-    end, buffer:get_extmarks(Fades.NAMESPACE, 0, -1, { details = true }))
+    end, details())
   end
 
   local function spans()
     return vim.tbl_map(function(mark)
       return { mark[2], mark[3], mark[4].hl_group }
-    end, buffer:get_extmarks(Fades.NAMESPACE, 0, -1, { details = true }))
+    end, details())
   end
 
   local function view_of(kind)
@@ -86,6 +92,35 @@ describe('harness.ui.Fades:', function()
     fades:step(1000)
 
     eq({ { 1, 3, 'UiThoughtStream1' } }, marks())
+  end)
+
+  it('tunes a streamed thought in out of static, then leaves the text clear', function()
+    buffer:set_lines({ '> [!thought]', '> planning the next careful step', 'c', 'd' })
+    fades = Fades(buffer, view_of('thought'))
+
+    fades:touch(1, 1, 1000)
+    fades:step(1000)
+
+    local early = details(true)
+
+    assert.is_true(#early > 0)
+
+    for _, mark in ipairs(early) do
+      eq(1, mark[2])
+      assert.is_true(mark[3] >= 2)
+    end
+
+    fades:step(1100)
+    eq({}, details(true))
+  end)
+
+  it('keeps plain message text free of static while it fades in', function()
+    buffer:set_lines({ 'a', 'planning the next careful step', 'c', 'd' })
+
+    fades:touch(1, 1, 1000)
+    fades:step(1000)
+
+    eq({}, details(true))
   end)
 
   it('dissolves only the text appended to a row that is already on screen', function()

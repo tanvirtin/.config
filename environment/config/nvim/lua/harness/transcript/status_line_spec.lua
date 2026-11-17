@@ -53,9 +53,25 @@ describe('harness.transcript.status_line:', function()
   it('says a session is loading while the agent replays it, above prompts waiting for it', function()
     local lines = status_line.lines({ running = false, loading = true, queue = { 'next' } })
 
-    eq(3, #lines)
+    local snow = require('harness.transcript.status_line.replay').SNOW_ROWS
+
+    eq(3 + snow, #lines)
     eq('⡇ loading · the agent is replaying this session', text(lines[2]))
-    eq('  ' .. theme.QUEUE_ICON[1] .. 'queued next', text(lines[3]))
+    assert.is_truthy(text(lines[3]):find('[░▒▓]'))
+    eq('  ' .. theme.QUEUE_ICON[1] .. 'queued next', text(lines[#lines]))
+  end)
+
+  it('shows no static under the loading line while motion is reduced', function()
+    local settings = require('harness.settings.theme')
+    local motion = settings:get('motion')
+
+    settings:assign({ motion = vim.tbl_extend('force', motion, { reduced = true }) })
+
+    local lines = status_line.lines({ running = false, loading = true, queue = {} })
+
+    settings:assign({ motion = motion })
+
+    eq(2, #lines)
   end)
 
   it('asks about the first permission with its choices, counting the rest', function()
@@ -259,7 +275,7 @@ describe('harness.transcript.status_line:', function()
     end)
 
     it('flashes its surface in the tone of the answer first, then collapses a row at a time', function()
-      local flashing = status_line.closing_rows(closing('Error'), 1010)
+      local flashing = status_line.closing_rows(closing('Error'), 1000)
 
       eq(4, #flashing)
       eq({ 'UiRailWarn', 'UiFlashError1' }, flashing[1][1][2])
@@ -270,6 +286,23 @@ describe('harness.transcript.status_line:', function()
       assert.is_true(early <= 4)
       assert.is_true(late < early)
       eq(0, #status_line.closing_rows(closing(), 1500))
+    end)
+
+    it('switches off like a tube: rows break into static, squash to a bright line, then a dot', function()
+      local squashing = status_line.closing_rows(closing(), 1300)
+      local scrambled = text(squashing[1])
+
+      assert.is_truthy(scrambled:find('[░▒▓▚▞]'))
+
+      local bar = status_line.closing_rows(closing(), 1400)
+
+      eq(1, #bar)
+      assert.is_truthy(text(bar[1]):find('━', 1, true))
+      eq('UiFlashAccent1', bar[1][1][2])
+
+      local dot = status_line.closing_rows(closing(), 1480)
+
+      eq('·', vim.trim(text(dot[1])))
     end)
 
     it('sits under the spacer while no ask is open, and goes once an ask returns', function()

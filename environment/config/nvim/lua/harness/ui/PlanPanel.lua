@@ -1,9 +1,7 @@
 local lazy = require('core.lazy')
 
-local hl = lazy('ui.hl')
-local tone = lazy('ui.tone')
+local glitch = lazy('ui.glitch')
 local Timer = lazy('core.Timer')
-local motion = lazy('ui.motion')
 local Object = lazy('core.Object')
 local settings = lazy('harness.settings')
 local Element = lazy('ui.elements.Element')
@@ -15,6 +13,7 @@ local plan_summary = lazy('harness.transcript.plan_summary')
 local PlanPanel = Object:extend()
 
 PlanPanel.ZINDEX = 40
+PlanPanel.STATIC = 0.45
 
 function PlanPanel:constructor(animator)
   return {
@@ -146,7 +145,7 @@ function PlanPanel:_step(now)
     return false
   end
 
-  local ms = settings.transcript:get('flash_ms')
+  local ms = settings.transcript:get('flash_ms') * 1.6
   local alive = {}
 
   self:_paint(self.summary)
@@ -157,10 +156,12 @@ function PlanPanel:_step(now)
     if progress < 1 then
       local line = self.summary.lines[index + 1] or ''
 
-      self.element:place_extmark_highlight({
-        hl = tone.flash(tone.ACCENT, motion.steps(hl.FLASH_STEPS, motion.ease.out_cubic(progress))),
+      self.element:place_extmark_text({
+        text = glitch.scramble(line, PlanPanel.STATIC * (1 - progress) ^ 2, math.floor(now / 40) + index),
+        hl = 'UiAccent',
         row = index,
-        col_range = { from = 0, to = #line },
+        col = 0,
+        pos = 'overlay',
       })
       alive[index] = started
     end
