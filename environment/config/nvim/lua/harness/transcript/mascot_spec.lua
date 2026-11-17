@@ -115,6 +115,56 @@ describe('harness.transcript.mascot:', function()
     eq(0, lit(gone, eyes))
   end)
 
+  it('rests between acts, then plays all five in a shuffled order without repeating one', function()
+    local length = mascot.REST_STEPS + mascot.ACT_STEPS
+    local seen, previous = {}, nil
+
+    eq(nil, mascot.act(0))
+
+    for cycle = 0, 24 do
+      local name = mascot.act(cycle * length + mascot.REST_STEPS)
+
+      assert.are_not.equal(previous, name)
+      seen[name] = (seen[name] or 0) + 1
+      previous = name
+    end
+
+    for _, name in ipairs(mascot.ACTS) do
+      eq(5, seen[name])
+    end
+  end)
+
+  it('moves through every act, and keeps still while it waits on you', function()
+    local real = mascot.act
+
+    for _, name in ipairs(mascot.ACTS) do
+      local moved = false
+
+      for at = 0, mascot.ACT_STEPS - 1 do
+        mascot.act = function()
+          return name, at / mascot.ACT_STEPS, 3
+        end
+
+        local pose = mascot.pose(25 + at, 'work', 1, 0)
+
+        moved = moved
+          or pose.dx ~= 0
+          or pose.tear ~= nil
+          or pose.scan ~= nil
+          or pose.form < 1
+          or pose.wane > 0
+          or pose.wrap == true
+      end
+
+      mascot.act = real
+      assert.is_true(moved, name)
+    end
+
+    local still = mascot.pose(mascot.REST_STEPS + 5, 'wait', 1, 0)
+
+    eq({ 0, 0, nil, nil }, { still.dx, still.dy, still.act, still.tear })
+  end)
+
   it('paints into one tile on its own clock, wanes for its owner alone, and stops when nobody asks', function()
     Tile.available = function()
       return true

@@ -14,6 +14,9 @@ mascot.WANE_MS = 800
 mascot.HOLD_MS = 200
 mascot.BODY = 'muted'
 mascot.EYES = { work = 'accent', wait = 'warn', fail = 'error' }
+mascot.ACTS = { 'drift', 'glitch', 'jump', 'roll', 'scan' }
+mascot.REST_STEPS = 20
+mascot.ACT_STEPS = 40
 
 mascot.ART = {
   '....ssSSSSss....',
@@ -44,12 +47,151 @@ local function put(bitmap, x, y, rgb, alpha)
   static.block(bitmap, x, y, rgb, alpha, mascot.BLOCK)
 end
 
+local function place(bitmap, pose, x, y, rgb, alpha)
+  local gx = x + pose.dx + (pose.tear and pose.tear(y) or 0)
+  local gy = y + pose.dy
+
+  if pose.wrap then gy = gy % GRID[2] end
+  if gx < 0 or gx >= GRID[1] or gy < 0 or gy >= GRID[2] then return end
+
+  put(bitmap, gx, gy, rgb, alpha)
+end
+
 local function present(x, y, form, wane)
   return static.hash(x, y, FORM_SEED) < form * 100 and static.hash(x, y, WANE_SEED) >= wane * 100
 end
 
-function mascot.specks(bitmap, step, rgb, form, wane)
-  local density = 3 + (1 - form) * 22 + wane * (1 - wane) * 60
+local function shuffled(epoch)
+  local order = {}
+
+  for i = 1, #mascot.ACTS do
+    order[i] = i
+  end
+
+  for i = #order, 2, -1 do
+    local j = static.hash(epoch, i, 43) % i + 1
+
+    order[i], order[j] = order[j], order[i]
+  end
+
+  return order
+end
+
+function mascot.act(step)
+  local length = mascot.REST_STEPS + mascot.ACT_STEPS
+  local cycle = math.floor(step / length)
+  local at = step % length - mascot.REST_STEPS
+
+  if at < 0 then return nil end
+
+  local count = #mascot.ACTS
+  local epoch = math.floor(cycle / count)
+  local order = shuffled(epoch)
+
+  if epoch > 0 and shuffled(epoch - 1)[count] == order[1] then
+    order[1], order[2] = order[2], order[1]
+  end
+
+  return mascot.ACTS[order[cycle % count + 1]], at / mascot.ACT_STEPS, cycle
+end
+
+local function round(value)
+  return math.floor(value + 0.5)
+end
+
+local ACT = {}
+
+function ACT.drift(pose, p)
+  local swing = math.cos(2 * math.pi * p)
+
+  pose.dx = round(3 * math.sin(2 * math.pi * p))
+  pose.look = { swing > 0.3 and 1 or swing < -0.3 and -1 or 0, 0 }
+end
+
+function ACT.glitch(pose, p, step)
+  if p >= 0.9 or static.hash(step, 3, 47) >= 35 then return end
+
+  pose.storm = 25
+  pose.tear = function(y)
+    if static.hash(math.floor(y / 3), step, 53) >= 40 then return 0 end
+
+    return static.hash(y, step, 59) % 5 - 2
+  end
+  pose.look = { static.hash(step, 4, 61) % 3 - 1, static.hash(step, 5, 67) % 3 - 1 }
+end
+
+function ACT.jump(pose, p, _, cycle)
+  local side = static.hash(cycle, 6, 71) % 2 == 0 and -4 or 4
+  local phases = {
+    { 0.25, 0, 'wane' },
+    { 0.4, side, 'form' },
+    { 0.6, side },
+    { 0.75, side, 'wane' },
+    { 0.9, 0, 'form' },
+  }
+  local from = 0
+
+  for _, phase in ipairs(phases) do
+    if p < phase[1] then
+      local t = (p - from) / (phase[1] - from)
+
+      pose.dx = phase[2]
+      if phase[3] == 'wane' then pose.wane = t end
+      if phase[3] == 'form' then pose.form = t end
+      if phase[3] then pose.storm = 12 end
+
+      return
+    end
+
+    from = phase[1]
+  end
+end
+
+function ACT.roll(pose, p, step)
+  if p < 0.1 or p >= 0.7 then return end
+
+  local height = GRID[2]
+  local dy = math.floor((p - 0.1) / 0.6 * 2 * height) % height
+
+  pose.dy, pose.wrap, pose.storm = dy, true, 8
+  pose.tear = function(y)
+    local seam = (y + dy) % height
+
+    if seam > 1 and seam < height - 2 then return 0 end
+
+    return static.hash(y, step, 73) % 3 - 1
+  end
+end
+
+function ACT.scan(pose, p)
+  local row = ORIGIN[2] + math.floor(p * 2 * #mascot.ART) % #mascot.ART
+  local sway = math.sin(4 * math.pi * p)
+
+  pose.scan = row
+  pose.look = {
+    sway > 0.5 and 1 or sway < -0.5 and -1 or 0,
+    row < ORIGIN[2] + EYE_ROWS[1] - 1 and -1 or row > ORIGIN[2] + EYE_ROWS[2] - 1 and 1 or 0,
+  }
+end
+
+function mascot.pose(step, kind, form, wane)
+  local lift = (kind == 'work' and wane == 0) and math.floor(step / BOB_STEPS) % 2 or 0
+  local pose = { dx = 0, dy = lift, form = form, wane = wane, storm = 0 }
+
+  if kind ~= 'work' or form < 1 or wane > 0 then return pose end
+
+  local name, p, cycle = mascot.act(step)
+
+  if name then
+    pose.act = name
+    ACT[name](pose, p, step, cycle)
+  end
+
+  return pose
+end
+
+function mascot.specks(bitmap, step, rgb, form, wane, storm)
+  local density = 3 + (1 - form) * 22 + wane * (1 - wane) * 60 + (storm or 0)
   local at = math.floor(step / 2)
 
   for y = 0, GRID[2] - 1 do
@@ -59,32 +201,35 @@ function mascot.specks(bitmap, step, rgb, form, wane)
   end
 end
 
-function mascot.body(bitmap, step, rgb, form, wane, lift)
+function mascot.body(bitmap, step, rgb, pose)
   for row, line in ipairs(mascot.ART) do
     for col = 1, #line do
       local cell = line:sub(col, col)
-      local x, y = ORIGIN[1] + col - 1, ORIGIN[2] + row - 1 + lift
+      local x, y = ORIGIN[1] + col - 1, ORIGIN[2] + row - 1
 
-      if (cell == 'S' or cell == 's') and present(x, y, form, wane) then
+      if (cell == 'S' or cell == 's') and present(x, y, pose.form, pose.wane) then
         local h = static.hash(x, y, step)
 
-        if cell == 'S' then
-          put(bitmap, x, y, rgb, 0.4 + h / 170)
+        if pose.scan == y then
+          place(bitmap, pose, x, y, rgb, 1)
+        elseif cell == 'S' then
+          place(bitmap, pose, x, y, rgb, 0.4 + h / 170)
         elseif h < 60 then
-          put(bitmap, x, y, rgb, 0.2 + h / 200)
+          place(bitmap, pose, x, y, rgb, 0.2 + h / 200)
         end
       end
     end
   end
 end
 
-function mascot.eyes(bitmap, step, kind, form, wane, lift)
-  if form < 1 or wane > 0.5 then return end
+function mascot.eyes(bitmap, step, kind, pose)
+  if pose.form < 1 or pose.wane > 0.5 then return end
 
   local rgb = roles.rgb(mascot.EYES[kind] or mascot.EYES.work)
   local steady = kind ~= 'work'
   local shut = kind == 'fail' or (step % BLINK_EVERY < BLINK_STEPS)
-  local look = not steady and step % LOOK_EVERY >= LOOK_FROM and step % LOOK_EVERY < LOOK_FROM + LOOK_STEPS
+  local glance = not steady and step % LOOK_EVERY >= LOOK_FROM and step % LOOK_EVERY < LOOK_FROM + LOOK_STEPS
+  local look = pose.look or { glance and 1 or 0, 0 }
   local middle = (EYE_ROWS[1] + EYE_ROWS[2]) / 2
 
   for row = EYE_ROWS[1], EYE_ROWS[2] do
@@ -92,7 +237,9 @@ function mascot.eyes(bitmap, step, kind, form, wane, lift)
 
     for col = 1, #line do
       if line:sub(col, col) == 'e' and (not shut or row == middle) then
-        put(bitmap, ORIGIN[1] + col - 1 + (look and 1 or 0), ORIGIN[2] + row - 1 + lift, rgb, 1)
+        local y = ORIGIN[2] + row - 1
+
+        place(bitmap, pose, ORIGIN[1] + col - 1 + look[1], y + look[2], rgb, 1)
       end
     end
   end
@@ -100,11 +247,11 @@ end
 
 function mascot.draw(bitmap, step, kind, form, wane)
   local body = roles.rgb(mascot.BODY)
-  local lift = (kind == 'work' and wane == 0) and math.floor(step / BOB_STEPS) % 2 or 0
+  local pose = mascot.pose(step, kind, form, wane)
 
-  mascot.specks(bitmap, step, body, form, wane)
-  mascot.body(bitmap, step, body, form, wane, lift)
-  mascot.eyes(bitmap, step, kind, form, wane, lift)
+  mascot.specks(bitmap, step, body, pose.form, pose.wane, pose.storm)
+  mascot.body(bitmap, step, body, pose)
+  mascot.eyes(bitmap, step, kind, pose)
 end
 
 local animation = Animation({
