@@ -48,7 +48,7 @@ local function open()
   local picker = SessionPicker.launch({ dir = '/w' })
 
   settle(function()
-    return #picker._stored > 0
+    return #picker._stored > 0 and picker._listing == nil
   end)
 
   return picker
@@ -75,6 +75,18 @@ local function overlays(placed)
   end
 
   return out
+end
+
+local function glitches(element)
+  local namespace = vim.api.nvim_get_namespaces()['harness.session_picker.glitch']
+  local buffer = element:get_buffer()
+  local marks = vim.api.nvim_buf_get_extmarks(buffer.bufnr, namespace, 0, -1, { details = true })
+
+  return vim.tbl_filter(function(mark)
+    local text = mark[4].virt_text
+
+    return text and text[1] and text[1][1]:find('[░▒▓▚▞]') ~= nil
+  end, marks)
 end
 
 describe('harness.ui.SessionPicker:', function()
@@ -290,31 +302,6 @@ describe('harness.ui.SessionPicker:', function()
     assert.is_truthy(list_lines(picker)[1]:find('no matches', 1, true))
   end)
 
-  it('shows the last turn of the selected live session in the preview, and a note for a stored one', function()
-    local live = hub.start({ dir = '/w' }):wait()
-
-    talk(live, 'explain the scroll pin', 'the pin keeps the last line in view')
-
-    local picker = open()
-
-    picker:query('')
-    picker._selected = 2
-    picker:refresh()
-
-    local preview = picker._body.elements.preview:get_lines()
-
-    assert.is_truthy(table.concat(preview, '\n'):find('explain the scroll pin', 1, true))
-    assert.is_truthy(table.concat(preview, '\n'):find('pin keeps the last line', 1, true))
-
-    picker:query('Yesterday')
-
-    local note =
-      vim.api.nvim_buf_get_extmarks(picker._body.elements.preview:get_buffer().bufnr, -1, 0, -1, { details = true })
-
-    assert.is_true(#note > 0)
-    eq({ '' }, picker._body.elements.preview:get_lines())
-  end)
-
   it('shows context, turns and the buffer in the detail of a live session', function()
     local live = hub.start({ dir = '/w' }):wait()
 
@@ -373,7 +360,25 @@ describe('harness.ui.SessionPicker:', function()
     eq(nil, picker._tune)
   end)
 
-  it('stays open on static while a stored session loads, then opens it', function()
+  it('glitches the rows while it lists the stored sessions', function()
+    local picker = SessionPicker.launch({ dir = '/w' })
+    local body = picker._body.elements
+
+    assert.is_not_nil(picker._listing)
+    assert.is_truthy(body.title:get_lines()[1]:find('Harness', 1, true))
+    assert.is_truthy(table.concat(list_lines(picker), '\n'):find('New session', 1, true))
+    assert.is_true(#glitches(body.list) > 0)
+
+    settle(function()
+      return picker._listing == nil
+    end)
+
+    eq(nil, picker._listing)
+    eq(0, #glitches(body.list))
+    assert.is_truthy(table.concat(list_lines(picker), '\n'):find('Recent', 1, true))
+  end)
+
+  it('keeps the rows glitched while a stored session loads, then opens it', function()
     local picker = open()
 
     picker:query('Yesterday')
@@ -382,12 +387,14 @@ describe('harness.ui.SessionPicker:', function()
     assert.is_not_nil(picker._loading)
     eq(true, picker._loader:is_active())
 
-    local frame = list_lines(picker)[1]
-    local preview = table.concat(picker._body.elements.preview:get_lines(), '\n')
+    local body = picker._body.elements
+    local title = body.title:get_lines()[1]
 
-    assert.is_truthy(preview:find('loading Yesterday', 1, true))
-    assert.is_truthy(preview:find('[░▒▓]'))
-    assert.is_truthy(frame:find('loading', 1, true))
+    assert.is_truthy(title:find('loading', 1, true))
+    assert.is_truthy(title:find('Yesterday', 1, true))
+    assert.is_truthy(table.concat(list_lines(picker), '\n'):find('Yesterday', 1, true))
+    assert.is_true(#glitches(body.list) > 0)
+    assert.is_true(#glitches(body.detail) > 0)
 
     picker:select()
     eq('old', picker._loading.id)
@@ -399,6 +406,23 @@ describe('harness.ui.SessionPicker:', function()
     eq('closed', picker.state)
     eq(nil, picker._loading)
     eq(false, picker._loader and picker._loader:is_active() or false)
+  end)
+
+  it('leaves insert mode when it closes, so the transcript it opens is normal', function()
+    local Window = require('core.Window')
+    local picker = open()
+    local stopped = false
+    local original = Window.stop_insert
+
+    Window.stop_insert = function()
+      stopped = true
+    end
+
+    picker:close()
+
+    Window.stop_insert = original
+
+    eq(true, stopped)
   end)
 
   it('stops its refresh timer and releases the state badge on close', function()

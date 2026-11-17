@@ -6,6 +6,7 @@ local hub = lazy('harness.hub')
 local glitch = lazy('ui.glitch')
 local Timer = lazy('core.Timer')
 local event = lazy('core.event')
+local motion = lazy('ui.motion')
 local Buffer = lazy('core.Buffer')
 local Window = lazy('core.Window')
 local agent = lazy('harness.agent')
@@ -18,7 +19,6 @@ local catalog = lazy('ui.pixel.catalog')
 local winbar = lazy('harness.ui.winbar')
 local display = lazy('harness.ui.display')
 local Element = lazy('ui.elements.Element')
-local Document = lazy('harness.ui.Document')
 local theme = lazy('harness.transcript.theme')
 local indicators = lazy('ui.pixel.indicators')
 local LayoutSpec = lazy('ui.layout.LayoutSpec')
@@ -27,7 +27,6 @@ local keymaps = lazy('harness.settings.keymaps')
 local confirm = lazy('harness.settings.sessions')
 local session_types = lazy('harness.types.session')
 local session_search = lazy('harness.ui.session_search')
-local BlockBuilder = lazy('harness.transcript.BlockBuilder')
 
 local PROMPT = '> '
 local MODES = { 'sessions', 'agents' }
@@ -36,8 +35,10 @@ local STATE_ROLE = { waiting = 'warn', running = 'accent', idle = 'muted' }
 local STATE_INDICATOR = { waiting = 'waiting', running = 'busy', idle = 'idle' }
 local SECTION = { live = 'Live', recent = 'Recent' }
 local TUNE_MS, TUNE_FRAME_MS, TUNE_DENSITY = 240, 33, 0.55
-local PREVIEW_LINES, PREVIEW_BLOCK = 4, 60
+local LISTING_MS = 240
 local CORPUS_KINDS = { [EVENT.prompt] = true, [EVENT.message] = true }
+local GLITCH = Buffer.namespace('harness.session_picker.glitch')
+local STATIC_DENSITY, STATIC_BAND, STATIC_PRIORITY = 0.3, 0.6, 150
 
 local function one_line(text)
   return text and (tostring(text):gsub('[\r\n]+', ' ')) or ''
@@ -123,8 +124,6 @@ end
 
 local SessionPickerBody = Component:extend()
 
-SessionPickerBody.DETAIL_HEIGHT = 8
-
 function SessionPickerBody:constructor(props)
   local instance = Component.constructor(self, props)
 
@@ -189,23 +188,6 @@ function SessionPickerBody:mount()
     surface = { elevation = 'raised' },
   })
 
-  self.elements.preview = Element({
-    buf_options = { modifiable = false, buflisted = false, bufhidden = 'wipe' },
-    win_options = {
-      cursorline = false,
-      number = false,
-      relativenumber = false,
-      wrap = true,
-      linebreak = true,
-      breakindent = true,
-      conceallevel = 2,
-      foldenable = false,
-      winhl = 'Normal:UiNormal,FloatBorder:UiBorder',
-    },
-    win_plot = { focusable = false, border = 'rounded', title = ' Preview ', title_pos = 'left' },
-    surface = { elevation = 'raised' },
-  })
-
   self.elements.footer = Element({
     buf_options = { modifiable = false, buflisted = false, bufhidden = 'wipe' },
     win_options = {
@@ -228,14 +210,7 @@ function SessionPickerBody:get_layout_spec()
       LayoutSpec.view(self.elements.input, { height = 1 }),
       LayoutSpec.horizontal({
         LayoutSpec.view(self.elements.list, { flex = 3 }),
-        LayoutSpec.flex({
-          direction = LayoutSpec.Direction.VERTICAL,
-          flex = 2,
-          children = {
-            LayoutSpec.view(self.elements.detail, { height = SessionPickerBody.DETAIL_HEIGHT }),
-            LayoutSpec.view(self.elements.preview, { flex = 1 }),
-          },
-        }),
+        LayoutSpec.view(self.elements.detail, { flex = 2 }),
       }, { flex = 1 }),
       LayoutSpec.view(self.elements.footer, { height = 1 }),
     }),
@@ -257,6 +232,8 @@ end
 
 function SessionPickerBody:unmount()
   if not self._mounted then return end
+
+  if self.elements.input then self.elements.input:stop_insert() end
 
   for _, element in pairs(self.elements) do
     element:unmount()
@@ -293,12 +270,12 @@ function SessionPicker:constructor(opts)
   instance._rows_at = {}
   instance._drawn = nil
   instance._detail_drawn = nil
-  instance._preview_drawn = nil
-  instance._document = nil
   instance._tune = nil
   instance._tuner = nil
   instance._loading = nil
   instance._loader = nil
+  instance._listing = nil
+  instance._lister = nil
 
   return instance
 end
@@ -328,6 +305,7 @@ function SessionPicker:open()
     self:refresh()
   end)
 
+  self:_begin_listing()
   self:refresh()
   self:_load_stored()
 
@@ -337,7 +315,11 @@ end
 function SessionPicker:_load_stored()
   for _, name in ipairs(agent.names()) do
     hub.list(self._dir, name):on_complete(function(err, listed)
-      if err then return end
+      if err then
+        return Timer.schedule(function()
+          self:_listed()
+        end)
+      end
 
       Timer.schedule(function()
         local kept = {}
@@ -353,7 +335,7 @@ function SessionPicker:_load_stored()
         end
 
         self._stored = kept
-        self:refresh()
+        self:_listed()
       end)
     end)
   end
@@ -361,21 +343,66 @@ function SessionPicker:_load_stored()
   async.drain()
 end
 
+function SessionPicker:_listed()
+  if self._listing then
+    self._listing.pending = math.max(0, self._listing.pending - 1)
+
+    if self._listing.pending == 0 and Timer.now() >= self._listing.ends_at then return self:_end_listing() end
+  end
+
+  self:refresh()
+end
+
+function SessionPicker:_begin_listing()
+  if self._mode ~= 'sessions' or theme.reduced() then return end
+
+  local names = agent.names()
+
+  if #names == 0 then return end
+
+  self._listing = { pending = #names, ends_at = Timer.now() + LISTING_MS }
+  self._lister = Timer()
+  self._lister:every(motion.STEP_MS, function()
+    if not self:is_open() or not self._listing then return self:_stop_lister() end
+    if self._listing.pending == 0 and Timer.now() >= self._listing.ends_at then return self:_end_listing() end
+
+    self:_draw_static_state()
+  end)
+end
+
+function SessionPicker:_stop_lister()
+  if self._lister then self._lister:close() end
+
+  self._lister = nil
+end
+
+function SessionPicker:_cancel_listing()
+  self._listing = nil
+  self:_stop_lister()
+  self:_clear_static()
+  self._drawn, self._detail_drawn = nil, nil
+end
+
+function SessionPicker:_end_listing()
+  self:_cancel_listing()
+
+  if self:is_open() then self:refresh() end
+end
+
 function SessionPicker:_begin_loading(entry)
   if self._loading then return false end
 
   self._loading = { id = entry.id, title = entry.title or 'untitled', started = Timer.now() }
+  self._drawn, self._detail_drawn = nil, nil
   self:_stop_tuner()
   self._loader = Timer()
-  self._loader:every(TUNE_FRAME_MS, function()
+  self._loader:every(motion.STEP_MS, function()
     if not self:is_open() or not self._loading then return self:_stop_loader() end
 
-    self:_draw_list()
-    self:_draw_loading()
+    self:_draw_static_state()
   end)
 
-  self:_draw_list()
-  self:_draw_loading()
+  self:_draw_static_state()
 
   return true
 end
@@ -389,39 +416,82 @@ end
 function SessionPicker:_end_loading()
   self._loading = nil
   self:_stop_loader()
-  self._document = nil
-  self._preview_drawn = nil
+  self:_clear_static()
+  self._drawn, self._detail_drawn = nil, nil
 
   if self:is_open() then self:refresh() end
 end
 
-function SessionPicker:_draw_loading()
+function SessionPicker:_draw_static_state()
   local body = self._body
-  local preview = body and body.elements.preview
 
-  if not preview or not preview:is_valid() or not self._loading then return end
+  if not body or not self:is_open() or not (self._loading or self._listing) then return end
 
-  local window = preview:get_window()
-  local seed = math.floor(Timer.now() / 80)
-  local rows = math.max(1, window:get_height() - 2)
-  local width = math.max(8, window:get_width() - 2)
-  local lines = { ' loading ' .. self._loading.title, '' }
+  local seed = motion.step(Timer.now())
+  local top = body.elements.title:get_window():get_position()[1]
+  local band = seed * 2 % math.max(1, self:height())
 
-  for row = 1, rows do
-    lines[#lines + 1] = ' ' .. glitch.snow(width, seed, row)
+  if self._loading then self:_draw_static_title(seed, 'loading', self._loading.title or 'untitled') end
+
+  for _, pane in ipairs({ 'list', 'detail' }) do
+    self:_draw_static(body.elements[pane], seed, band, top)
   end
+end
 
-  self._document = nil
-  self._preview_drawn = 'loading'
+function SessionPicker:_clear_static()
+  local body = self._body
 
-  preview:set_lines(lines)
-  preview:clear_extmark_highlights()
-  preview:clear_extmark_texts()
-  preview:place_extmark_highlight({ hl = 'UiAccent', row = 0, col_range = { from = 1, to = 8 } })
-  preview:place_extmark_highlight({ hl = 'UiMuted', row = 0, col_range = { from = 9, to = #lines[1] } })
+  if not body then return end
 
-  for row = 3, #lines do
-    preview:place_extmark_highlight({ hl = 'UiMuted', row = row - 1, col_range = { from = 0, to = #lines[row] } })
+  for _, pane in ipairs({ 'list', 'detail' }) do
+    local element = body.elements[pane]
+
+    if element and element:is_valid() then element:get_buffer():clear_namespace(GLITCH, 0, -1) end
+  end
+end
+
+function SessionPicker:_draw_static_title(seed, label, name)
+  local title = self._body.elements.title
+
+  if not title:is_valid() then return end
+
+  local prefix = ' ' .. label .. string.rep('.', seed % 4) .. ' '
+  local line = prefix .. shorten(name, self:width() - #prefix - 2)
+
+  title:set_lines({ line })
+  title:clear_extmark_highlights()
+  title:clear_extmark_texts()
+  title:place_extmark_highlight({ hl = 'UiAccent', row = 0, col_range = { from = 1, to = #prefix - 1 } })
+  title:place_extmark_highlight({ hl = 'UiTitle', row = 0, col_range = { from = #prefix, to = #line } })
+end
+
+function SessionPicker:_draw_static(element, seed, band, top)
+  if not element or not element:is_valid() then return end
+
+  local buffer = element:get_buffer()
+
+  buffer:clear_namespace(GLITCH, 0, -1)
+
+  if theme.reduced() then return end
+
+  local window = element:get_window()
+  local offset = window:get_position()[1] - top
+  local first, last = window:get_visible_range()
+  local lines = buffer:get_lines(first, math.min(last, element:get_line_count()))
+
+  for offset_row, line in ipairs(lines) do
+    local index = first + offset_row
+    local from = #(line:match('^[%s>]*') or '')
+    local dense = math.abs(offset + index - 1 - band) <= 1
+    local density = dense and STATIC_BAND or STATIC_DENSITY
+
+    for _, cell in ipairs(glitch.cols(line, density, seed + index, from)) do
+      buffer:set_extmark(GLITCH, index - 1, cell[1], {
+        virt_text = { { cell[2], dense and 'UiThought' or 'UiThoughtFade2' } },
+        virt_text_pos = 'overlay',
+        priority = STATIC_PRIORITY,
+      })
+    end
   end
 end
 
@@ -455,6 +525,7 @@ function SessionPicker:close()
   if self._timer then self._timer:close() end
   self:_stop_tuner()
   self:_stop_loader()
+  self:_stop_lister()
   self:_release_badge()
   if self.state == 'closed' then return self end
 
@@ -479,6 +550,8 @@ end
 
 function SessionPicker:set_mode(name)
   if name ~= 'sessions' and name ~= 'agents' then return self end
+
+  if self._listing then self:_cancel_listing() end
 
   self._mode = name
   self._query = ''
@@ -510,6 +583,10 @@ function SessionPicker:query(query)
 end
 
 function SessionPicker:move(direction)
+  if self._loading then return self end
+
+  if self._listing then self:_end_listing() end
+
   local count = #self._filtered
 
   if count == 0 then return self end
@@ -533,10 +610,13 @@ end
 function SessionPicker:select()
   if self._loading then return self end
 
+  if self._listing then self:_end_listing() end
+
   return self:choose(self._filtered[self._selected])
 end
 
 function SessionPicker:choose(row)
+  if self._listing then self:_end_listing() end
   if not row then return self end
 
   if row.action == 'new' then return self:set_mode('agents') end
@@ -582,6 +662,10 @@ function SessionPicker:_selected_row()
 end
 
 function SessionPicker:fork()
+  if self._loading then return self end
+
+  if self._listing then self:_end_listing() end
+
   local row = self:_selected_row()
 
   if row and row.session then return self:_fork_live(row.session) end
@@ -637,6 +721,10 @@ function SessionPicker:_fork_stored(entry)
 end
 
 function SessionPicker:delete()
+  if self._loading then return self end
+
+  if self._listing then self:_end_listing() end
+
   local row = self:_selected_row()
 
   if not row or not row.stored then return self end
@@ -916,9 +1004,16 @@ function SessionPicker:refresh()
     self:_select_default()
   end
 
-  self:_draw_tabs()
-  self:_draw_list()
-  self:_draw_detail()
+  if self._loading then
+    self:_draw_static_state()
+  else
+    self:_draw_tabs()
+    self:_draw_list()
+    self:_draw_detail()
+
+    if self._listing then self:_draw_static_state() end
+  end
+
   self:_draw_footer()
   self:_draw_count()
 
@@ -980,7 +1075,11 @@ function SessionPicker:_draw_count()
   local input = body.elements.input
   local text
 
-  if self._mode == 'agents' then
+  if self._loading then
+    text = 'loading'
+  elseif self._listing then
+    text = 'scanning'
+  elseif self._mode == 'agents' then
     text = #agent.names() .. ' agents'
   else
     text = string.format('%d live', #self._live)
@@ -1096,7 +1195,7 @@ end
 function SessionPicker:_draw_list()
   local body = self._body
 
-  if not body or not body.elements.list then return end
+  if not body or not body.elements.list or self._loading then return end
 
   local list = body.elements.list
 
@@ -1339,7 +1438,7 @@ end
 function SessionPicker:_draw_detail()
   local body = self._body
 
-  if not body or not body.elements.detail then return end
+  if not body or not body.elements.detail or self._loading then return end
 
   local detail = body.elements.detail
 
@@ -1356,11 +1455,7 @@ function SessionPicker:_draw_detail()
   local ring = extras.ring and (extras.ring.group .. math.floor(extras.ring.share * 100 + 0.5)) or ''
   local key = table.concat(lines, '\n') .. '\0' .. table.concat(marks, ';') .. '\0' .. (extras.badge or '') .. ring
 
-  if key == self._detail_drawn and (not extras.badge or self._badge) then
-    self:_draw_preview(row)
-
-    return
-  end
+  if key == self._detail_drawn and (not extras.badge or self._badge) then return end
 
   self._detail_drawn = key
   self:_release_badge()
@@ -1385,100 +1480,6 @@ function SessionPicker:_draw_detail()
       detail:place_extmark_text({ texts = { { ' ', 'Normal' }, chunk }, row = extras.ring.row, col = 0, pos = 'eol' })
     end
   end
-
-  self:_draw_preview(row)
-end
-
-function SessionPicker:_preview_document(preview)
-  local bufnr = preview:get_buffer().bufnr
-
-  if not self._document or self._document.bufnr ~= bufnr then
-    self._document = Document(bufnr):attach()
-    self._document:reset()
-    self._preview_drawn = nil
-  end
-
-  return self._document
-end
-
-function SessionPicker:_preview_note(preview, note)
-  local document = self:_preview_document(preview)
-
-  if self._preview_drawn ~= note then
-    document:write({}, { running = false, frame = 1 })
-    preview:clear_extmark_texts()
-
-    if note ~= '' then
-      preview:place_extmark_text({ text = ' ' .. note, hl = 'UiMuted', row = 0, col = 0, pos = 'overlay' })
-    end
-  end
-
-  self._preview_drawn = note
-end
-
-local function tail(list, budget)
-  local kept, total = {}, 0
-
-  for i = #list, 1, -1 do
-    local block = list[i]
-    local size = #block.lines + 1
-
-    if size <= PREVIEW_BLOCK and block.kind ~= 'title' and block.kind ~= 'collapsed' then
-      if total + size > budget then break end
-
-      table.insert(kept, 1, block)
-      total = total + size
-    end
-  end
-
-  return kept
-end
-
-function SessionPicker:_draw_preview(row)
-  local body = self._body
-  local preview = body and body.elements.preview
-
-  if not preview or not preview:is_valid() then return end
-
-  if self._loading then return end
-
-  local session = row and row.session
-
-  if not session then
-    local note = row and row.stored and 'a stored session loads when you open it' or ''
-
-    return self:_preview_note(preview, note)
-  end
-
-  local window = preview:get_window()
-  local document = self:_preview_document(preview)
-  local width = window:get_width()
-  local key = table.concat({ session.key, #session.history, width, tostring(session:running()) }, ':')
-
-  if key == self._preview_drawn then return end
-
-  self._preview_drawn = key
-  self._previews = self._previews or {}
-  self._previews[session.key] = self._previews[session.key] or {}
-
-  preview:clear_extmark_texts()
-
-  local blocks = BlockBuilder.build(session.history, session.title, {
-    times = session.times,
-    dir = session.dir,
-    running = false,
-    waiting = {},
-    cache = self._previews[session.key],
-    index = session.log and session.log.turns,
-    edits = session.edits,
-    groups = true,
-    live_turns = 1,
-    width = document:text_width(),
-  })
-
-  document:write(tail(blocks, math.max(30, window:get_height() * PREVIEW_LINES)), { running = false, frame = 1 })
-
-  window:set_cursor({ preview:get_buffer():get_line_count(), 0 })
 end
 
 function SessionPicker:_draw_footer()
