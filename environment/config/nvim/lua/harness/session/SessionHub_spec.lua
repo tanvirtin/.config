@@ -1,4 +1,4 @@
-local SessionHub = require('harness.SessionHub')
+local SessionHub = require('harness.session.SessionHub')
 
 local eq = assert.are.same
 
@@ -13,7 +13,7 @@ local function store()
   }
 end
 
-describe('harness.SessionHub:', function()
+describe('harness.session.SessionHub:', function()
   it('keeps its settings, keys and workspaces to itself', function()
     local a, b = SessionHub(store()), SessionHub(store())
 

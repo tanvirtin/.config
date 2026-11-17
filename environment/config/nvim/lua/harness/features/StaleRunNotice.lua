@@ -4,7 +4,7 @@ local fs = lazy('core.fs')
 local Object = lazy('core.Object')
 local console = lazy('core.console')
 local events = lazy('harness.types.events')
-local session_store = lazy('harness.session_store')
+local session_store = lazy('harness.session.store')
 
 local StaleRunNotice = Object:extend()
 

@@ -1,11 +1,11 @@
 local Connection = require('harness.servers.acp.Connection')
-local Session = require('harness.Session')
+local Session = require('harness.session.Session')
 local fake_agent = require('harness.servers.acp.fake_agent')
-local session_store = require('harness.session_store')
+local session_store = require('harness.session.store')
 
 local eq = assert.are.same
 
-describe('harness.session_store:', function()
+describe('harness.session.store:', function()
   local seen, disposers
 
   local function session(key)

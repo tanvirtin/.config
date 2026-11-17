@@ -1,6 +1,6 @@
 local Block = require('harness.transcript.Block')
 local EditLog = require('harness.edits.EditLog')
-local Session = require('harness.Session')
+local Session = require('harness.session.Session')
 
 local eq = assert.are.same
 

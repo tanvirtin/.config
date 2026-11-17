@@ -1,4 +1,4 @@
-local Admission = require('harness.Admission')
+local Admission = require('harness.session.Admission')
 
 local eq = assert.are.same
 
@@ -52,7 +52,7 @@ local function admission(sessions, limit)
   })
 end
 
-describe('harness.Admission:', function()
+describe('harness.session.Admission:', function()
   it('counts the sessions with a turn running', function()
     local a = admission({ fake_session('a', 'running'), fake_session('b', 'idle'), fake_session('c', 'running') }, 4)
 

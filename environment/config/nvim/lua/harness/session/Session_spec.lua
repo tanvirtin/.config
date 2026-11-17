@@ -1,5 +1,5 @@
 local Connection = require('harness.servers.acp.Connection')
-local Session = require('harness.Session')
+local Session = require('harness.session.Session')
 local acp_config = require('harness.servers.acp.config')
 local async = require('harness.async')
 local fake_agent = require('harness.servers.acp.fake_agent')
@@ -40,7 +40,7 @@ local function asking(tool)
   }
 end
 
-describe('harness.Session:', function()
+describe('harness.session.Session:', function()
   describe('an edit made through the editor tools', function()
     local events = require('harness.types.events')
     local EditLog = require('harness.edits.EditLog')
@@ -1048,7 +1048,7 @@ describe('harness.Session:', function()
   end)
 end)
 
-describe('harness.Session revert of a relative diff path:', function()
+describe('harness.session.Session revert of a relative diff path:', function()
   local made, dir, bufnr
 
   before_each(function()

@@ -56,7 +56,7 @@ describe('harness.features.SkillSync:', function()
   end)
 
   it('syncs on a session start once however often it is registered, and not after cleanup', function()
-    local session_store = require('harness.session_store')
+    local session_store = require('harness.session.store')
     local feature = SkillSync()
 
     feature:register_events():register_events()

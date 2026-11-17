@@ -1,4 +1,4 @@
-local Session = require('harness.Session')
+local Session = require('harness.session.Session')
 local surfaces = require('surfaces')
 local console = require('core.console')
 local permission = require('harness.types.permission')

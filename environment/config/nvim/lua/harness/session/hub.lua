@@ -1,5 +1,5 @@
-local Session = require('harness.Session')
-local SessionHub = require('harness.SessionHub')
+local Session = require('harness.session.Session')
+local SessionHub = require('harness.session.SessionHub')
 
 local default = SessionHub():register_events()
 

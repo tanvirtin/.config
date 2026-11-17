@@ -1,6 +1,5 @@
 local lazy = require('core.lazy')
 
-local hub = lazy('harness.hub')
 local Timer = lazy('core.Timer')
 local surfaces = lazy('surfaces')
 local Buffer = lazy('core.Buffer')
@@ -9,6 +8,7 @@ local keymap = lazy('core.keymap')
 local async = lazy('harness.async')
 local tools = lazy('nvim_mcp.tools')
 local edits = lazy('harness.ui.edits')
+local hub = lazy('harness.session.hub')
 local context = lazy('harness.context')
 local notice = lazy('harness.ui.notice')
 local status = lazy('harness.ui.status')
@@ -279,7 +279,7 @@ function actions.switch()
   return require('harness.ui.SessionPicker').launch({ dir = hub.dir() })
 end
 
-require('harness.session_store').on('start', function(session)
+require('harness.session.store').on('start', function(session)
   if session.parent then
     require('core.Timer').defer(0, function()
       transcript.open(session, { background = true })

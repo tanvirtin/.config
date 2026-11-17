@@ -38,7 +38,7 @@ function router.setup()
   local group = event.augroup('harness')
 
   group.on('VimLeavePre', function()
-    require('harness.hub').shutdown()
+    require('harness.session.hub').shutdown()
   end)
 
   disposers[#disposers + 1] = group.dispose

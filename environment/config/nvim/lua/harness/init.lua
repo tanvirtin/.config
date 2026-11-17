@@ -1,8 +1,8 @@
 local lazy = require('core.lazy')
 
 local hl = lazy('ui.hl')
-local hub = lazy('harness.hub')
 local tools = lazy('harness.tools')
+local hub = lazy('harness.session.hub')
 local router = lazy('harness.cli.router')
 local settings = lazy('harness.settings')
 local actions = lazy('harness.ui.actions')

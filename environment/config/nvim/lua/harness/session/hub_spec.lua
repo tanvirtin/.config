@@ -1,6 +1,6 @@
 local async = require('harness.async')
 local fake_agent = require('harness.servers.acp.fake_agent')
-local hub = require('harness.hub')
+local hub = require('harness.session.hub')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
 
 local eq = assert.are.same
@@ -17,7 +17,7 @@ local function use_fakes(script)
   end
 end
 
-describe('harness.hub:', function()
+describe('harness.session.hub:', function()
   before_each(function()
     async.drain()
     hub.shutdown()

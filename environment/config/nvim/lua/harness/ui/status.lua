@@ -3,7 +3,7 @@ local compact = require('compact')
 local Timer = require('core.Timer')
 local glyph = require('ui.design.glyph')
 
-local hub = lazy('harness.hub')
+local hub = lazy('harness.session.hub')
 local theme = lazy('harness.transcript.theme')
 
 local status = {}

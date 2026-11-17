@@ -1,4 +1,4 @@
-local hub = require('harness.hub')
+local hub = require('harness.session.hub')
 local surfaces = require('surfaces')
 local Tile = require('ui.pixel.Tile')
 local agent = require('harness.agent')

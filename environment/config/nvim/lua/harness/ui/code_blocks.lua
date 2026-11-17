@@ -1,10 +1,10 @@
 local lazy = require('core.lazy')
 
 local fs = lazy('core.fs')
-local hub = lazy('harness.hub')
 local Buffer = lazy('core.Buffer')
 local Window = lazy('core.Window')
 local keymap = lazy('core.keymap')
+local hub = lazy('harness.session.hub')
 local context = lazy('harness.context')
 local code_spans = lazy('harness.transcript.code_spans')
 

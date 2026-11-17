@@ -3,7 +3,7 @@ local root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h')
 package.path = root .. '/lua/?.lua;' .. root .. '/lua/?/init.lua;' .. package.path
 
 local Connection = require('harness.servers.acp.Connection')
-local Session = require('harness.Session')
+local Session = require('harness.session.Session')
 local BlockBuilder = require('harness.transcript.BlockBuilder')
 local display = require('harness.ui.display')
 local events = require('harness.servers.acp.updates')

@@ -2,7 +2,7 @@ local async = require('harness.async')
 local actions = require('harness.ui.actions')
 local display = require('harness.ui.display')
 local fake_agent = require('harness.servers.acp.fake_agent')
-local hub = require('harness.hub')
+local hub = require('harness.session.hub')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
 local transcript = require('harness.ui.transcript')
 

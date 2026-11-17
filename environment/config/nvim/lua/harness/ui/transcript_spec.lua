@@ -1,6 +1,6 @@
 local acp_config = require('harness.servers.acp.config')
 local Connection = require('harness.servers.acp.Connection')
-local Session = require('harness.Session')
+local Session = require('harness.session.Session')
 local events = require('harness.types.events')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local jsonrpc = require('harness.servers.acp.jsonrpc')

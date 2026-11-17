@@ -1,6 +1,6 @@
 local async = require('harness.async')
 local fake_agent = require('harness.servers.acp.fake_agent')
-local hub = require('harness.hub')
+local hub = require('harness.session.hub')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
 local permissions = require('harness.permissions')
 local tools = require('nvim_mcp.tools')

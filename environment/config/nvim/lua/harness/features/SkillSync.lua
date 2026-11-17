@@ -8,7 +8,7 @@ local console = lazy('core.console')
 local process = lazy('core.process')
 local FileWatch = lazy('core.FileWatch')
 local settings = lazy('harness.settings.skills')
-local session_store = lazy('harness.session_store')
+local session_store = lazy('harness.session.store')
 
 local SkillSync = Object:extend()
 

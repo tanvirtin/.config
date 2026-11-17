@@ -5,7 +5,7 @@ local Object = lazy('core.Object')
 local buffers = lazy('core.buffers')
 local events = lazy('harness.types.events')
 local permissions = lazy('harness.permissions')
-local session_store = lazy('harness.session_store')
+local session_store = lazy('harness.session.store')
 
 local EditCheckTime = Object:extend()
 

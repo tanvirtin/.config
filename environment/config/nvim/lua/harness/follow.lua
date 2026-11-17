@@ -11,7 +11,7 @@ local follow = {}
 local followers = {}
 
 function follow.reload_session(session)
-  return require('harness.hub').reload(session)
+  return require('harness.session.hub').reload(session)
 end
 
 local function own_writes(session)
@@ -78,7 +78,7 @@ local function watch_file(session, follower, path)
 end
 
 local function visible(follower)
-  require('harness.session_store').on('close', function(session)
+  require('harness.session.store').on('close', function(session)
     follow.stop(session)
   end)
 

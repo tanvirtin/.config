@@ -1,6 +1,6 @@
 local settings = require('harness.settings.follow')
 local Connection = require('harness.servers.acp.Connection')
-local Session = require('harness.Session')
+local Session = require('harness.session.Session')
 local async = require('harness.async')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local follow = require('harness.follow')
