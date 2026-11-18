@@ -1,8 +1,8 @@
 local lazy = require('core.lazy')
 
+local asks = lazy('harness.asks')
 local Window = lazy('core.Window')
 local keymap = lazy('core.keymap')
-local asks = lazy('harness.ui.asks')
 local Block = require('harness.transcript.model.Block')
 
 local motions = {}

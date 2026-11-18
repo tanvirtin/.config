@@ -1,21 +1,23 @@
 local lazy = require('core.lazy')
 
+local asks = lazy('harness.asks')
 local Object = lazy('core.Object')
 local async = lazy('harness.async')
 local console = lazy('core.console')
 local settings = lazy('harness.settings')
 local ASK = require('harness.types.events').ASK
+local presenter = lazy('harness.asks.presenter')
 local elicitation = require('harness.types.elicitation')
 
 local FIELD = elicitation.FIELD
 
 local CHOICE = elicitation.CHOICE
 
-local ElicitationPrompt = Object:extend()
+local Elicitation = Object:extend()
 
-ElicitationPrompt.MAX_KEYS = 9
+Elicitation.MAX_KEYS = 9
 
-function ElicitationPrompt:_steps_of(request)
+function Elicitation:_steps_of(request)
   if request.mode ~= elicitation.MODE.form then return {} end
 
   local companion = elicitation.companions(request)
@@ -25,7 +27,7 @@ function ElicitationPrompt:_steps_of(request)
   end, request.fields)
 end
 
-function ElicitationPrompt:_by_key(request)
+function Elicitation:_by_key(request)
   local out = {}
 
   for _, field in ipairs(request.fields) do
@@ -35,7 +37,7 @@ function ElicitationPrompt:_by_key(request)
   return out
 end
 
-function ElicitationPrompt:_defaults(request)
+function Elicitation:_defaults(request)
   local picked = {}
 
   for _, field in ipairs(request.fields) do
@@ -51,7 +53,7 @@ function ElicitationPrompt:_defaults(request)
   return picked
 end
 
-function ElicitationPrompt:constructor(ask)
+function Elicitation:constructor(ask)
   local request = ask.request
 
   return {
@@ -69,41 +71,41 @@ function ElicitationPrompt:constructor(ask)
   }
 end
 
-function ElicitationPrompt:is_open()
+function Elicitation:is_open()
   return not self.future.done
 end
 
-function ElicitationPrompt:current()
+function Elicitation:current()
   return self.steps[self.step]
 end
 
-function ElicitationPrompt:writing()
+function Elicitation:writing()
   return self.writing_key and self.fields[self.writing_key] or nil
 end
 
-function ElicitationPrompt:writing_label()
+function Elicitation:writing_label()
   local field = self:writing()
 
   return field and elicitation.name(field) or nil
 end
 
-function ElicitationPrompt:is_picked(value)
+function Elicitation:is_picked(value)
   local field = self:current()
 
   return field ~= nil and (self.picked[field.key] or {})[value] == true
 end
 
-function ElicitationPrompt:_box(field, checked)
+function Elicitation:_box(field, checked)
   if field.kind == FIELD.multi then return checked end
 end
 
-function ElicitationPrompt:_shown_default(field)
+function Elicitation:_shown_default(field)
   if field.kind == FIELD.boolean then return field.default and 'yes' or 'no' end
 
   return tostring(field.default)
 end
 
-function ElicitationPrompt:_extras(field)
+function Elicitation:_extras(field)
   local extras = {}
 
   if field.kind == FIELD.text or field.kind == FIELD.number or field.kind == FIELD.integer then
@@ -132,7 +134,7 @@ function ElicitationPrompt:_extras(field)
   return extras
 end
 
-function ElicitationPrompt:_options(field)
+function Elicitation:_options(field)
   if field.kind == FIELD.boolean then
     return {
       { value = true, label = 'Yes' },
@@ -143,7 +145,7 @@ function ElicitationPrompt:_options(field)
   return field.options
 end
 
-function ElicitationPrompt:choices()
+function Elicitation:choices()
   local choices = {}
 
   local function add(spec)
@@ -162,7 +164,7 @@ function ElicitationPrompt:choices()
 
   local extras = self:_extras(field)
   local options = self:_options(field)
-  local room = ElicitationPrompt.MAX_KEYS - #extras
+  local room = Elicitation.MAX_KEYS - #extras
   local shown = #options > room and room - 1 or #options
   local multi = field.kind == FIELD.multi
 
@@ -187,7 +189,7 @@ function ElicitationPrompt:choices()
   return choices
 end
 
-function ElicitationPrompt:choice(key)
+function Elicitation:choice(key)
   if not self:is_open() or self:writing() then return nil end
 
   if key == settings.keymaps:get('transcript').decline then
@@ -199,7 +201,7 @@ function ElicitationPrompt:choice(key)
   end
 end
 
-function ElicitationPrompt:answer(key)
+function Elicitation:answer(key)
   local chosen = self:choice(key)
 
   if not chosen then return false end
@@ -231,7 +233,7 @@ function ElicitationPrompt:answer(key)
   return action
 end
 
-function ElicitationPrompt:pick(value)
+function Elicitation:pick(value)
   local field = self:current()
 
   if not field or not self:is_open() then return false end
@@ -256,13 +258,13 @@ function ElicitationPrompt:pick(value)
   return true
 end
 
-function ElicitationPrompt:options()
+function Elicitation:options()
   local field = self:current()
 
   return field and self:_options(field) or {}
 end
 
-function ElicitationPrompt:_count(field)
+function Elicitation:_count(field)
   local count = 0
 
   for _ in pairs(self.picked[field.key] or {}) do
@@ -272,7 +274,7 @@ function ElicitationPrompt:_count(field)
   return count + (field.other and self.values[field.other] ~= nil and 1 or 0)
 end
 
-function ElicitationPrompt:_done(field)
+function Elicitation:_done(field)
   local least = field.min or (field.required and 1) or 0
 
   if self:_count(field) < least then
@@ -290,13 +292,13 @@ function ElicitationPrompt:_done(field)
   self:_advance()
 end
 
-function ElicitationPrompt:_length(text)
+function Elicitation:_length(text)
   local _, count = text:gsub('[^\128-\191]', '')
 
   return count
 end
 
-function ElicitationPrompt:_parse(field, text)
+function Elicitation:_parse(field, text)
   if field.kind == FIELD.number or field.kind == FIELD.integer then
     local number = tonumber(text)
 
@@ -318,7 +320,7 @@ function ElicitationPrompt:_parse(field, text)
   return text
 end
 
-function ElicitationPrompt:submit_text(text)
+function Elicitation:submit_text(text)
   local field = self:writing()
 
   if not field or not self:is_open() then return nil, 'nothing is waiting for an answer' end
@@ -341,19 +343,19 @@ function ElicitationPrompt:submit_text(text)
   return true
 end
 
-function ElicitationPrompt:stop_writing()
+function Elicitation:stop_writing()
   self.writing_key = nil
 
   return self
 end
 
-function ElicitationPrompt:_advance()
+function Elicitation:_advance()
   self.step = self.step + 1
 
   if self.step > #self.steps then self:_settle(elicitation.accept(self:content())) end
 end
 
-function ElicitationPrompt:content()
+function Elicitation:content()
   local content = {}
 
   for key, value in pairs(self.values) do
@@ -363,7 +365,7 @@ function ElicitationPrompt:content()
   return content
 end
 
-function ElicitationPrompt:_settle(answer)
+function Elicitation:_settle(answer)
   if self.future.done then return end
 
   self.writing_key = nil
@@ -371,19 +373,19 @@ function ElicitationPrompt:_settle(answer)
   async.drain()
 end
 
-function ElicitationPrompt:decline()
+function Elicitation:decline()
   self:_settle(elicitation.decline())
 
   return self
 end
 
-function ElicitationPrompt:dismiss()
+function Elicitation:dismiss()
   self:_settle(elicitation.cancel())
 
   return self
 end
 
-function ElicitationPrompt:view()
+function Elicitation:view()
   local field = self:current()
   local writing = self:writing_label()
 
@@ -399,4 +401,38 @@ function ElicitationPrompt:view()
   })
 end
 
-return ElicitationPrompt
+function Elicitation.ask(ask)
+  return presenter.present(ask.session, Elicitation(ask))
+end
+
+function Elicitation.select(prompt)
+  local field = prompt:current()
+
+  if not field then return end
+
+  local multi = field.kind == FIELD.multi
+
+  console.select(prompt:options(), {
+    prompt = field.title or field.description or prompt.request.message,
+    format_item = function(option)
+      local checked = multi and (prompt:is_picked(option.value) and '[x] ' or '[ ] ') or ''
+
+      return checked .. option.label .. (option.description and (' — ' .. option.description) or '')
+    end,
+  }, function(option)
+    if option and prompt:is_open() then prompt:pick(option.value) end
+    asks.changed(prompt.session)
+  end)
+end
+
+function Elicitation.follow(view, prompt, action)
+  if action == CHOICE.write and view.composer then
+    view.composer.open(view.session, { insert = true, display = view.display, answer = prompt })
+  elseif action == CHOICE.pick then
+    Elicitation.select(prompt)
+  end
+
+  asks.changed(view.session)
+end
+
+return Elicitation

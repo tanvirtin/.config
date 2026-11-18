@@ -1,12 +1,13 @@
 local lazy = require('core.lazy')
 
 local Fold = lazy('core.Fold')
+local asks = lazy('harness.asks')
 local core_text = lazy('core.text')
 local glyph = lazy('ui.design.glyph')
 local display = lazy('harness.ui.display')
+local Permission = lazy('harness.asks.Permission')
+local Elicitation = lazy('harness.asks.Elicitation')
 local winbar = lazy('harness.transcript.view.winbar')
-local permission_prompt = lazy('harness.ui.permission_prompt')
-local elicitation_prompt = lazy('harness.ui.elicitation_prompt')
 local TranscriptView = lazy('harness.transcript.view.TranscriptView')
 
 local transcript = {}
@@ -21,10 +22,10 @@ transcript.window = display.window
 transcript.open = display.open
 transcript.forget = display.forget
 transcript.winbar = winbar.transcript
-transcript.asks_of = permission_prompt.asks_of
-transcript.ask = permission_prompt.ask
-transcript.answer = permission_prompt.answer
-transcript.elicit = elicitation_prompt.ask
+transcript.asks_of = asks.asks_of
+transcript.ask = Permission.ask
+transcript.answer = asks.answer
+transcript.elicit = Elicitation.ask
 transcript.report = TranscriptView.report
 
 function transcript.render(history, title)

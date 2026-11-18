@@ -1,6 +1,6 @@
 local lazy = require('core.lazy')
 
-local asks = lazy('harness.ui.asks')
+local asks = lazy('harness.asks')
 local PromptDestination = require('harness.composer.PromptDestination')
 
 local AnswerDestination = PromptDestination:extend()

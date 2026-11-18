@@ -1,4 +1,4 @@
-local WaitingNotice = require('harness.ui.WaitingNotice')
+local WaitingNotice = require('harness.asks.WaitingNotice')
 local Toast = require('harness.ui.Toast')
 
 local eq = assert.are.same
@@ -12,7 +12,7 @@ local function session(waiting)
   }
 end
 
-describe('harness.ui.WaitingNotice:', function()
+describe('harness.asks.WaitingNotice:', function()
   local shown
   local original
 

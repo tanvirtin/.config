@@ -2,14 +2,14 @@ local console = require('core.console')
 local elicitation = require('harness.types.elicitation')
 local translate = require('harness.servers.acp.translate')
 local fake_agent = require('harness.servers.acp.fake_agent')
-local ElicitationPrompt = require('harness.ui.ElicitationPrompt')
+local Elicitation = require('harness.asks.Elicitation')
 
 local eq = assert.are.same
 
 local function prompt_for(params)
   local request = assert(translate.elicitation_request(params))
 
-  return ElicitationPrompt({ request = request, session = {} })
+  return Elicitation({ request = request, session = {} })
 end
 
 local function form(properties, required)
@@ -26,7 +26,7 @@ local function result(prompt)
   return prompt.future.done and prompt.future.result or nil
 end
 
-describe('harness.ui.ElicitationPrompt:', function()
+describe('harness.asks.Elicitation:', function()
   describe('a single choice with a free-text other', function()
     local prompt
 

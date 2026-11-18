@@ -1,7 +1,7 @@
 local lazy = require('core.lazy')
 
 local Timer = lazy('core.Timer')
-local asks = require('harness.ui.asks')
+local asks = require('harness.asks')
 local display = lazy('harness.ui.display')
 local NOTICE = require('harness.types.events').NOTICE
 

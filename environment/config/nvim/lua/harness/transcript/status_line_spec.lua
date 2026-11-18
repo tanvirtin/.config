@@ -342,7 +342,7 @@ describe('harness.transcript.status_line:', function()
   describe('a question from the agent', function()
     local translate = require('harness.servers.acp.translate')
     local fake_agent = require('harness.servers.acp.fake_agent')
-    local ElicitationPrompt = require('harness.ui.ElicitationPrompt')
+    local ElicitationPrompt = require('harness.asks.Elicitation')
 
     local function prompt_for(params)
       return ElicitationPrompt({ request = assert(translate.elicitation_request(params)), session = {} })

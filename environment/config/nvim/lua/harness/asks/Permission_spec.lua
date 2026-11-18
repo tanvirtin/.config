@@ -1,11 +1,12 @@
 local Connection = require('harness.servers.acp.Connection')
 local Session = require('harness.session.Session')
 local fake_agent = require('harness.servers.acp.fake_agent')
-local permission_prompt = require('harness.ui.permission_prompt')
+local asks = require('harness.asks')
+local Permission = require('harness.asks.Permission')
 
 local eq = assert.are.same
 
-describe('harness.ui.permission_prompt:', function()
+describe('harness.asks.Permission:', function()
   local session
 
   before_each(function()
@@ -16,55 +17,55 @@ describe('harness.ui.permission_prompt:', function()
   end)
 
   it('queues asks per session and answers the oldest first', function()
-    local first = permission_prompt.ask({ session = session, tool = 'Bash', input = { command = 'ls' } })
-    local second = permission_prompt.ask({ session = session, tool = 'Edit' })
+    local first = Permission.ask({ session = session, tool = 'Bash', input = { command = 'ls' } })
+    local second = Permission.ask({ session = session, tool = 'Edit' })
 
-    eq(2, #permission_prompt.asks_of(session))
-    assert.is_true(permission_prompt.answer(session, Connection.DECISION.allow_once))
+    eq(2, #asks.asks_of(session))
+    assert.is_true(asks.answer(session, Connection.DECISION.allow_once))
     eq(Connection.DECISION.allow_once, first.result.kind)
     eq(
       { second },
       vim.tbl_map(function(ask)
         return ask.future
-      end, permission_prompt.asks_of(session))
+      end, asks.asks_of(session))
     )
   end)
 
   it('answers nothing when nothing is asked', function()
-    assert.is_false(permission_prompt.answer(session, Connection.DECISION.allow_once))
+    assert.is_false(asks.answer(session, Connection.DECISION.allow_once))
   end)
 
   it('dismisses an ask as cancelled', function()
-    local future = permission_prompt.ask({ session = session, tool = 'Bash' })
+    local future = Permission.ask({ session = session, tool = 'Bash' })
 
     future.dismiss()
 
     eq(Connection.DECISION.cancelled, future.result.kind)
-    eq(0, #permission_prompt.asks_of(session))
+    eq(0, #asks.asks_of(session))
   end)
 
   it('forgets a settled ask instead of retaining it', function()
-    local future = permission_prompt.ask({ session = session, tool = 'Bash' })
+    local future = Permission.ask({ session = session, tool = 'Bash' })
 
-    assert.is_true(permission_prompt.answer(session, Connection.DECISION.allow_once))
+    assert.is_true(asks.answer(session, Connection.DECISION.allow_once))
     eq(Connection.DECISION.allow_once, future.result.kind)
 
-    local _, asks
+    local _, open
 
     for i = 1, 10 do
-      local name, value = debug.getupvalue(permission_prompt.asks_of, i)
+      local name, value = debug.getupvalue(asks.asks_of, i)
 
       if name == 'open' then
-        asks = value
+        open = value
         break
       end
     end
 
-    eq(nil, asks[session])
+    eq(nil, open[session])
   end)
 
   it('opens the transcript in the background so the ask has somewhere to show', function()
-    permission_prompt.ask({ session = session, tool = 'Bash' })
+    Permission.ask({ session = session, tool = 'Bash' })
 
     vim.wait(500, function()
       return require('harness.ui.display').buffer_of(session) ~= nil

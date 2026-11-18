@@ -4,11 +4,16 @@ local Object = lazy('core.Object')
 local async = lazy('harness.async')
 local permissions = lazy('harness.permissions')
 local ASK = require('harness.types.events').ASK
+local presenter = lazy('harness.asks.presenter')
 local permission = require('harness.types.permission')
 
-local PermissionPrompt = Object:extend()
+local Permission = Object:extend()
 
-function PermissionPrompt:constructor(request)
+function Permission.ask(request)
+  return presenter.present(request.session, Permission(request))
+end
+
+function Permission:constructor(request)
   return {
     kind = ASK.permission,
     session = request.session,
@@ -19,17 +24,17 @@ function PermissionPrompt:constructor(request)
   }
 end
 
-function PermissionPrompt:is_open()
+function Permission:is_open()
   return not self.future.done
 end
 
-function PermissionPrompt:choice(key)
+function Permission:choice(key)
   for _, choice in ipairs(self.choices) do
     if choice.key == key or choice.kind == key then return choice end
   end
 end
 
-function PermissionPrompt:answer(key)
+function Permission:answer(key)
   local chosen = self:choice(key)
 
   if not chosen then return false end
@@ -40,11 +45,11 @@ function PermissionPrompt:answer(key)
   return true
 end
 
-function PermissionPrompt:dismiss()
+function Permission:dismiss()
   self.future:set_result(permission.decision(permission.DECISION.cancelled))
   async.drain()
 
   return self
 end
 
-return PermissionPrompt
+return Permission
