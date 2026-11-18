@@ -71,7 +71,7 @@ function content_table.render(block, spec, ctx)
   for i = first, last do
     local line = lines[i]
 
-    if line and line ~= '' and not line:match('^…%s+%d+ more lines$') then
+    if line and line ~= '' and not line:match('^─%s+%d+ more lines$') then
       local cells = parse(line, delimiter)
 
       rows[#rows + 1] = { index = i, cells = cells }
@@ -129,7 +129,7 @@ hit_test.bind('csv', function(block, row, col)
 
   local line = lines[index]
 
-  if not line or line == '' or line:match('^…%s+%d+ more lines$') then return nil end
+  if not line or line == '' or line:match('^─%s+%d+ more lines$') then return nil end
 
   local delimiter = block.lang == 'tsv' and '\t' or ','
   local cells, ranges = parse(line, delimiter)

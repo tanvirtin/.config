@@ -77,7 +77,7 @@ function block_text.output(output)
 
   if hidden > 0 then
     lines = vim.list_slice(lines, 1, settings:get('output_max'))
-    lines[#lines + 1] = string.format('… %d more lines', hidden)
+    lines[#lines + 1] = string.format('─ %d more lines', hidden)
   end
 
   return lines

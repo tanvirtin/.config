@@ -27,7 +27,7 @@ describe('harness.transcript.model.tool_label:', function()
     local long = string.rep('x', 200)
 
     eq(long, label({ name = 'Bash', category = 'execute', input = { command = long } })[2])
-    eq(string.rep('x', 119) .. '…', label({ name = 'Read', category = 'read', input = { file_path = long } })[2])
+    eq(string.rep('x', 119) .. '─', label({ name = 'Read', category = 'read', input = { file_path = long } })[2])
   end)
 
   it('shows paths relative to the directory', function()

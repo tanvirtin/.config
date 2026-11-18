@@ -20,7 +20,7 @@ function compact.line(text, width)
 
   local line = compact.raw(text)
 
-  if vim.fn.strchars(line) > width then line = vim.fn.strcharpart(line, 0, width - 1) .. '…' end
+  if vim.fn.strchars(line) > width then line = vim.fn.strcharpart(line, 0, width - 1) .. '─' end
 
   return line
 end
@@ -28,7 +28,7 @@ end
 local function more(hidden, files, next_offset)
   local where = files > 1 and string.format(' in %d files', files) or ''
 
-  return string.format('… %d more%s (offset=%d)', hidden, where, next_offset)
+  return string.format('─ %d more%s (offset=%d)', hidden, where, next_offset)
 end
 
 function compact.order(items)
@@ -120,7 +120,7 @@ end
 local function excerpt_line(number, text, hit, width)
   text = (text or ''):gsub('%s+$', '')
 
-  if vim.fn.strchars(text) > width then text = vim.fn.strcharpart(text, 0, width - 1) .. '…' end
+  if vim.fn.strchars(text) > width then text = vim.fn.strcharpart(text, 0, width - 1) .. '─' end
 
   return string.format('  %d%s %s', number, hit and ':' or '-', text)
 end
@@ -156,7 +156,7 @@ function compact.excerpts(items, opts)
 
     if #lines == 0 then first = item.line end
 
-    if covered > 0 and first > covered + 1 then chunk[#chunk + 1] = '  …' end
+    if covered > 0 and first > covered + 1 then chunk[#chunk + 1] = '  ─' end
 
     for number = first, last do
       chunk[#chunk + 1] = excerpt_line(number, lines[number] or item.text, hits[number], width)
@@ -206,7 +206,7 @@ function compact.rows(rows, columns, opts)
     local line = table.concat(cells, ' | ')
 
     if size + #line > budget then
-      out[#out + 1] = string.format('… %d more rows (offset=%d)', #rows - i + 1, i - 1)
+      out[#out + 1] = string.format('─ %d more rows (offset=%d)', #rows - i + 1, i - 1)
       break
     end
 
@@ -241,9 +241,9 @@ function compact.text(text, budget)
 
   local omitted = last - first + 1
 
-  if omitted <= 0 then return text:sub(1, budget) .. '…' end
+  if omitted <= 0 then return text:sub(1, budget) .. '─' end
 
-  return table.concat(head, '\n') .. string.format('\n… %d lines omitted …\n', omitted) .. table.concat(tail, '\n')
+  return table.concat(head, '\n') .. string.format('\n─ %d lines omitted ─\n', omitted) .. table.concat(tail, '\n')
 end
 
 local stats = {}

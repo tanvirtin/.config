@@ -86,7 +86,7 @@ describe('harness.vgit:', function()
       assert.is_true(vim.fn.strchars(line) <= 100)
     end
 
-    assert.truthy(table.concat(patch.lines, '\n'):find('…', 1, true))
+    assert.truthy(table.concat(patch.lines, '\n'):find('─', 1, true))
   end)
 
   it('lays a hunk too wide for the window out unified, keeping the hunks that fit split', function()

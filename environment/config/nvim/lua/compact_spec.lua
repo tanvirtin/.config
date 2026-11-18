@@ -10,7 +10,7 @@ describe('compact:', function()
   describe('line', function()
     it('collapses whitespace and trims to a width', function()
       eq('local x = 1', compact.line('  local   x =\t1  '))
-      eq('abcd…', compact.line('abcdefgh', 5))
+      eq('abcd─', compact.line('abcdefgh', 5))
       eq('', compact.line(nil))
     end)
   end)
@@ -44,7 +44,7 @@ describe('compact:', function()
       local hidden = 50 - info.shown
 
       assert.is_true(#text < 420)
-      assert.is_truthy(text:find('… ' .. hidden .. ' more in 2 files %(offset=' .. info.shown .. '%)$'))
+      assert.is_truthy(text:find('─ ' .. hidden .. ' more in 2 files %(offset=' .. info.shown .. '%)$'))
 
       local rest, rest_info = compact.locations(items, { offset = info.shown, budget = 100000 })
 
@@ -82,7 +82,7 @@ describe('compact:', function()
 
     it('joins matches whose lines touch, and marks a gap between ones that do not', function()
       eq(
-        '/x/a.lua (3)\n  1- one\n  2:   two\n  3: three\n  4- four\n  …\n  6- six\n  7: seven\n  8- eight',
+        '/x/a.lua (3)\n  1- one\n  2:   two\n  3: three\n  4- four\n  ─\n  6- six\n  7: seven\n  8- eight',
         (
           excerpts({
             { path = '/x/a.lua', line = 2 },
@@ -100,7 +100,7 @@ describe('compact:', function()
       }, { budget = 40 })
 
       eq({ shown = 1, total = 2 }, counts)
-      assert.is_truthy(text:find('… 1 more (offset=1)', 1, true))
+      assert.is_truthy(text:find('─ 1 more (offset=1)', 1, true))
       assert.is_truthy(excerpts({
         { path = '/x/a.lua', line = 2 },
         { path = '/x/a.lua', line = 7 },
