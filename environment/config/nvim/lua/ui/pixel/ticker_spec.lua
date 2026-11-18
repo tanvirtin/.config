@@ -1,5 +1,6 @@
 local Timer = require('core.Timer')
 local console = require('core.console')
+local motion = require('ui.design.motion')
 local ticker = require('ui.pixel.ticker')
 
 local eq = assert.are.same
@@ -22,8 +23,8 @@ describe('ui.pixel.ticker:', function()
     console.notify_now = original_notify
   end)
 
-  it('ticks every 33 milliseconds', function()
-    eq(33, ticker.FRAME_MS)
+  it('ticks on the stepped clock', function()
+    eq(motion.STEP_MS, ticker.STEP_MS)
   end)
 
   it('starts its timer when the first step is added and closes it with the last one', function()

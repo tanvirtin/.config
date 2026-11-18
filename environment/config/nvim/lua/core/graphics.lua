@@ -7,6 +7,7 @@ local supported
 local directory
 local images = 0
 local files = 0
+local uploaded = {}
 
 local function apc(control, payload)
   return '\27_G' .. control .. (payload and (';' .. payload) or '') .. '\27\\'
@@ -71,6 +72,7 @@ end
 
 function graphics.reset()
   supported = nil
+  uploaded = {}
 end
 
 function graphics.sequence(id, bytes, width, height, place, replaced)
@@ -142,6 +144,12 @@ function graphics.upload_sequence(id, bytes, width, height, cols, rows)
 end
 
 function graphics.upload(id, bytes, width, height, cols, rows)
+  local placement = string.format('%d,%d,%d,%d', width, height, cols, rows)
+  local last = uploaded[id]
+
+  if last and last.placement == placement and last.bytes == bytes then return end
+
+  uploaded[id] = { placement = placement, bytes = bytes }
   vim.api.nvim_ui_send(graphics.upload_sequence(id, bytes, width, height, cols, rows))
 end
 
@@ -167,6 +175,7 @@ function graphics.cells(cols, rows)
 end
 
 function graphics.delete(id)
+  uploaded[id] = nil
   vim.api.nvim_ui_send(apc(string.format('a=d,d=I,i=%d,q=2', id)))
 end
 

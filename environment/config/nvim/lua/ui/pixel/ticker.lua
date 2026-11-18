@@ -1,9 +1,10 @@
 local Timer = require('core.Timer')
 local console = require('core.console')
+local motion = require('ui.design.motion')
 
 local ticker = {}
 
-ticker.FRAME_MS = 33
+ticker.STEP_MS = motion.STEP_MS
 
 local steps, order, timer = {}, {}, nil
 
@@ -20,7 +21,7 @@ function ticker.add(key, step)
 
   if not timer then
     timer = Timer()
-    timer:every(ticker.FRAME_MS, function()
+    timer:every(ticker.STEP_MS, function()
       ticker.step(Timer.now())
     end)
   end
