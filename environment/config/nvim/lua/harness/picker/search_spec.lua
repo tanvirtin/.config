@@ -1,8 +1,8 @@
-local search = require('harness.ui.session_search')
+local search = require('harness.picker.search')
 
 local eq = assert.are.same
 
-describe('harness.ui.session_search:', function()
+describe('harness.picker.search:', function()
   it('finds a query as one run when it can, and as a spread of letters when it must', function()
     local score, positions = search.find('Fix the scroll pin', 'scroll')
 

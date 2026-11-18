@@ -276,7 +276,7 @@ function actions.new(opts)
 end
 
 function actions.switch()
-  return require('harness.ui.SessionPicker').launch({ dir = hub.dir() })
+  return require('harness.picker.SessionPicker').launch({ dir = hub.dir() })
 end
 
 require('harness.session.store').on('start', function(session)

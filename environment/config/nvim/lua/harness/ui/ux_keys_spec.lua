@@ -50,7 +50,7 @@ describe('keys the harness names on screen:', function()
 
   it('lists the sessions picker keys from the settings', function()
     with_keys('sessions', { fork = '<C-k>', delete = '<C-d>' }, function()
-      local picker = require('harness.ui.SessionPicker')({ dir = '/w' })
+      local picker = require('harness.picker.SessionPicker')({ dir = '/w' })
 
       eq('<C-k>', picker:_fork_key())
       eq('<C-d>', picker:_delete_key())

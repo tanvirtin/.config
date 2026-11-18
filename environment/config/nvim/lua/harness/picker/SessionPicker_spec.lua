@@ -7,7 +7,7 @@ local graphics = require('core.graphics')
 local ticker = require('ui.pixel.ticker')
 local indicators = require('ui.pixel.indicators')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
-local SessionPicker = require('harness.ui.SessionPicker')
+local SessionPicker = require('harness.picker.SessionPicker')
 local fake_agent = require('harness.servers.acp.fake_agent')
 
 local eq = assert.are.same
@@ -89,7 +89,7 @@ local function glitches(element)
   end, marks)
 end
 
-describe('harness.ui.SessionPicker:', function()
+describe('harness.picker.SessionPicker:', function()
   local fake, original, agent_names
 
   before_each(function()
