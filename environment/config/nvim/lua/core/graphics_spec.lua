@@ -43,6 +43,13 @@ describe('core.graphics:', function()
     eq('a=T,U=1,i=7,f=32,s=2,v=1,t=t,c=4,r=2,q=2', control)
   end)
 
+  it('uploads without its own synchronized update, which would end the editor frame it lands in', function()
+    local sequence = graphics.upload_sequence(7, 'abcdefgh', 2, 1, 4, 2)
+
+    eq('\27_G', sequence:sub(1, 3))
+    eq(nil, sequence:find('2026', 1, true))
+  end)
+
   it('places every upload again, so an animated image keeps resolving its placeholder', function()
     local first = graphics.upload_sequence(7, 'abcdefgh', 2, 1, 4, 2):match('\27_G([^;]*);')
     local second = graphics.upload_sequence(7, 'abcdefgh', 2, 1, 4, 2):match('\27_G([^;]*);')

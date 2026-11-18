@@ -23,8 +23,8 @@ describe('ui.pixel.ticker:', function()
     console.notify_now = original_notify
   end)
 
-  it('ticks on the stepped clock', function()
-    eq(motion.STEP_MS, ticker.STEP_MS)
+  it('ticks on the frame clock', function()
+    eq(motion.FRAME_MS, ticker.FRAME_MS)
   end)
 
   it('starts its timer when the first step is added and closes it with the last one', function()
