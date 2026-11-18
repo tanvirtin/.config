@@ -73,9 +73,9 @@ Four presets, used as the density of glitched characters or pixel blocks.
 
 | Preset | Density | Used for |
 |---|---|---|
-| `whisper` | 0.3 | live thought top line, picker listing, a clean finish, faint rules |
+| `whisper` | 0.3 | live thought top line, picker listing, a clean finish |
 | `light` | 0.45 | a failed finish, plan step done, a loading row |
-| `medium` | 0.6 | selection tune-in, streamed thought tune-in, the picker band, turn rules |
+| `medium` | 0.6 | selection tune-in, streamed thought tune-in, the picker band |
 | `heavy` | 0.85 | tune-in on open, closing card squash |
 
 Transient static reseeds every frame (`static.seed(now)`); ambient static
@@ -109,7 +109,6 @@ styling.
 | Loader | `ui/pixel/indicators.lua`, `theme.loader` | busy ring, thinking, waiting, loading, idle, rail; one per state |
 | Mascot | `harness/transcript/mascot.lua` | the hollow: working line, five acts, moods work/wait/fail |
 | Static | `ui/glitch.lua`, `ui/pixel/static.lua` | scramble, overlay cells and snow for text; blocks and noise for pixels |
-| Rule | `harness/transcript/rule.lua` | `static` for turns, `faint` for artifacts |
 | Surface | `ui/pixel/surface.lua` | elevations `surface`, `raised`, `modal` |
 | Ring, Badge, Card, Bar | `ui/pixel/components/` | catalog components for `ui_draw` |
 

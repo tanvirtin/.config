@@ -23,7 +23,7 @@ decorators.BORDER = { top = { top = true }, both = { top = true, bottom = true }
 
 local function border(block, ctx)
   local inset = block.depth and text.width(theme.GUTTER) or 0
-  local line = theme.rule(ctx, theme.ARTIFACT_RULE, 'UiArtifactBorder', 'faint', inset)
+  local line = theme.rule(ctx, theme.ARTIFACT_RULE, 'UiArtifactBorder', inset)
 
   if block.depth then table.insert(line, 1, { theme.GUTTER, 'UiMuted' }) end
 

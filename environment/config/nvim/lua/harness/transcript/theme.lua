@@ -1,7 +1,6 @@
 local text = require('core.text')
 local design = require('ui.design')
 local layer = require('ui.design.layer')
-local rule = require('harness.transcript.rule')
 local meter = require('harness.transcript.meter')
 local indicators = require('ui.pixel.indicators')
 local settings = require('harness.settings.theme')
@@ -99,16 +98,10 @@ function theme.rule_width(ctx)
   return ctx and ctx.width or theme.RULE_WIDTH
 end
 
-function theme.rule(ctx, glyph, group, style, inset)
+function theme.rule(ctx, glyph, group, inset)
   local width = theme.rule_width(ctx) - (inset or 0)
 
-  if ctx and ctx.width then
-    local pixels = rule.chunks(width, group, style)
-
-    if pixels then return pixels, true end
-  end
-
-  return { { string.rep(glyph, width), group } }, false
+  return { { string.rep(glyph, width), group } }
 end
 
 function theme.diffstat(added, removed)

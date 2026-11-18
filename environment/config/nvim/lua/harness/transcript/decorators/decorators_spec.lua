@@ -1,6 +1,5 @@
 local Tile = require('ui.pixel.Tile')
 local graphics = require('core.graphics')
-local rule = require('harness.transcript.rule')
 local indicators = require('ui.pixel.indicators')
 local meter = require('harness.transcript.meter')
 local Block = require('harness.transcript.model.Block')
@@ -853,6 +852,7 @@ describe('harness.transcript.decorators:', function()
     local original
 
     before_each(function()
+      require('ui.hl').define()
       original = { available = Tile.available, upload = graphics.upload, delete = graphics.delete }
       Tile.available = function()
         return true
@@ -862,26 +862,9 @@ describe('harness.transcript.decorators:', function()
     end)
 
     after_each(function()
-      rule.stop()
       meter.stop()
       Tile.drain()
       Tile.available, graphics.upload, graphics.delete = original.available, original.upload, original.delete
-    end)
-
-    it('draws a turn rule as pixels, and its summary without the glyph tail', function()
-      local placeholder = vim.fn.nr2char(0x10EEEE)
-      local stop = make(Block.KIND.stop, { 'x' }, { reason = 'end_turn' })
-      local marks = decorators.decorate(stop, { width = 60 })
-      local overlay = find(marks, function(opts)
-        return opts.virt_text_pos == 'overlay'
-      end)
-      local summary = find(marks, function(opts)
-        return opts.virt_text_pos == 'right_align'
-      end)
-
-      eq(60, width_of(overlay.opts.virt_text))
-      assert.truthy(overlay.opts.virt_text[1][1]:find(placeholder, 1, true))
-      eq(' done ', virt(summary.opts))
     end)
 
     it('ends a diff path with its counts and a pixel diffstat', function()
@@ -913,7 +896,7 @@ describe('harness.transcript.decorators:', function()
       assert.truthy(folded.opts.virt_text[2][1]:find(placeholder, 1, true))
     end)
 
-    it('borders an artifact with pixels, keeping its nested gutter in front', function()
+    it('borders an artifact with a rule line, keeping its nested gutter in front', function()
       local settings = require('harness.settings.theme')
       local saved = settings:get('artifact_border')
       local fields = { start = 4, frame_top = true, depth = 1, name = 'Bash' }
@@ -928,7 +911,7 @@ describe('harness.transcript.decorators:', function()
       end).opts.virt_lines[1]
 
       eq(theme.GUTTER, line[1][1])
-      assert.truthy(line[2][1]:find(vim.fn.nr2char(0x10EEEE), 1, true))
+      assert.truthy(#line == 2 and line[2][1]:find(theme.ARTIFACT_RULE, 1, true))
       eq(60, width_of(line))
     end)
   end)
