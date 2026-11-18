@@ -29,6 +29,14 @@ local function drawn(kind, step, form, wane)
   return bitmap
 end
 
+local function body_drawn(form)
+  local bitmap = Bitmap.new(mascot.COLS * Tile.CELL[1], Tile.CELL[2])
+
+  mascot.body(bitmap, 10, roles.rgb(mascot.BODY), mascot.pose(10, 'work', form, 0))
+
+  return bitmap
+end
+
 describe('harness.transcript.mascot:', function()
   local original, uploads
 
@@ -78,7 +86,7 @@ describe('harness.transcript.mascot:', function()
   it('forms out of loose static, and grows eyes once it is whole', function()
     local eyes = roles.rgb(mascot.EYES.work)
 
-    assert.is_true(lit(drawn('work', 10, 0.3)) < lit(drawn('work', 10, 1)))
+    assert.is_true(lit(body_drawn(0.3)) < lit(body_drawn(1)))
     eq(0, lit(drawn('work', 10, 0.5), eyes))
     eq(12 * mascot.BLOCK * mascot.BLOCK, lit(drawn('work', 10, 1), eyes))
   end)
@@ -89,21 +97,21 @@ describe('harness.transcript.mascot:', function()
     assert.are_not.same(one:crop(0, 0, 47, 31), two:crop(0, 0, 47, 31))
   end)
 
-  it('blinks, and holds its eyes open and still while it waits on you', function()
+  it('blinks its visor to a slit, and holds it open and still while it waits on you', function()
     local eyes = roles.rgb(mascot.EYES.work)
     local open, shut = lit(drawn('work', 10), eyes), lit(drawn('work', 0), eyes)
 
-    eq(open / 3, shut)
+    eq(open / 2, shut)
 
     local wait = roles.rgb(mascot.EYES.wait)
 
     eq(lit(drawn('wait', 10), wait), lit(drawn('wait', 45), wait))
   end)
 
-  it('shuts its eyes in the error colour when the turn fails', function()
+  it('narrows its visor to a slit in the error colour when the turn fails', function()
     local fail = roles.rgb(mascot.EYES.fail)
 
-    eq(4 * mascot.BLOCK * mascot.BLOCK, lit(drawn('fail', 10), fail))
+    eq(6 * mascot.BLOCK * mascot.BLOCK, lit(drawn('fail', 10), fail))
   end)
 
   it('dissolves back into static as it wanes, losing its eyes on the way', function()

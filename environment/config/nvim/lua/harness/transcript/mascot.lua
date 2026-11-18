@@ -20,23 +20,23 @@ mascot.REST_STEPS = 20
 mascot.ACT_STEPS = 40
 
 mascot.ART = {
-  '....ssSSSSss....',
-  '..sSSSssssSSSs..',
-  '.sSSs......sSSs.',
+  '.....sSSSSs.....',
+  '...sSSSSSSSSs...',
+  '..SSSs....sSSS..',
   '.SSs........sSS.',
-  'sSs.ee....ee.sSs',
-  'sSs.ee....ee.sSs',
-  'sSs.ee....ee.sSs',
-  'sSs..........sSs',
+  '.SS..eeeeee..SS.',
+  '.SS..eeeeee..SS.',
+  '.SS..........SS.',
   '.SSs........sSS.',
-  '.sSSs......sSSs.',
-  '..sSSSssssSSSs..',
-  '....ssSSSSss....',
+  '..SSs.S..S.sSS..',
+  '..sSsS.SS.SsSs..',
+  '..f.f..f..f..f..',
+  '.f...f...f..f...',
 }
 
 local GRID = { 24, 16 }
 local ORIGIN = { 4, 2 }
-local EYE_ROWS = { 5, 7 }
+local EYE_ROWS = { 5, 6 }
 local BOB_STEPS, BLINK_EVERY, BLINK_STEPS = 6, 34, 2
 local LOOK_EVERY, LOOK_FROM, LOOK_STEPS = 60, 40, 10
 local FORM_SEED, WANE_SEED = 21, 23
@@ -218,6 +218,10 @@ function mascot.body(bitmap, step, rgb, pose)
         elseif h < 60 then
           place(bitmap, pose, x, y, rgb, 0.2 + h / 200)
         end
+      elseif cell == 'f' and present(x, y, pose.form, pose.wane) then
+        local h = static.hash(x, y, step)
+
+        if h < 40 then place(bitmap, pose, x, y + static.hash(x, math.floor(step / 3), 79) % 2, rgb, 0.15 + h / 200) end
       end
     end
   end
@@ -231,13 +235,12 @@ function mascot.eyes(bitmap, step, kind, pose)
   local shut = kind == 'fail' or (step % BLINK_EVERY < BLINK_STEPS)
   local glance = not steady and step % LOOK_EVERY >= LOOK_FROM and step % LOOK_EVERY < LOOK_FROM + LOOK_STEPS
   local look = pose.look or { glance and 1 or 0, 0 }
-  local middle = (EYE_ROWS[1] + EYE_ROWS[2]) / 2
 
   for row = EYE_ROWS[1], EYE_ROWS[2] do
     local line = mascot.ART[row]
 
     for col = 1, #line do
-      if line:sub(col, col) == 'e' and (not shut or row == middle) then
+      if line:sub(col, col) == 'e' and (not shut or row == EYE_ROWS[2]) then
         local y = ORIGIN[2] + row - 1
 
         place(bitmap, pose, ORIGIN[1] + col - 1 + look[1], y + look[2], rgb, 1)
