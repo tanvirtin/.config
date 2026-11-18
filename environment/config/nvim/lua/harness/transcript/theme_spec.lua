@@ -51,7 +51,7 @@ describe('harness.transcript.theme:', function()
       eq({ { '⠋', 'UiAccent' } }, theme.working(0))
       eq({ { '⠙', 'UiAccent' } }, theme.working(100))
       eq({ { '⠉', 'UiWarn' } }, theme.working(0, nil, 'wait'))
-      eq(require('ui.pixel.indicators').GLYPHS.busy[8], theme.working_text(700))
+      eq('⠙', theme.working_text(700))
     end)
   end)
 

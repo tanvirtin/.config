@@ -17,38 +17,9 @@ indicators.FINISH_MS = tokens.DURATION.slow
 indicators.GRID = 6
 indicators.INSET = 1
 indicators.SPIN = { 0x0B, 0x19, 0x38, 0x34, 0x26, 0x07 }
-indicators.SPIN_FRAMES = 36
-
-local function braille(dots)
-  return string.char(0xE2, 0xA0 + bit.rshift(dots, 6), 0x80 + bit.band(dots, 0x3F))
-end
-
-local function dot(i, salt, step)
-  return bit.lshift(1, static.hash(i, salt, step) % 8)
-end
-
-local function distorted()
-  local frames = {}
-
-  for i = 0, indicators.SPIN_FRAMES - 1 do
-    local dots = indicators.SPIN[i % #indicators.SPIN + 1]
-    local h = i > 0 and static.hash(i, 7, 17) or 50
-
-    if i > 0 and h < 12 then
-      dots = bit.bor(dot(i, 1, 3), dot(i, 2, 5), dot(i, 3, 9))
-    else
-      if i > 0 and h < 70 then dots = bit.bor(dots, dot(i, 4, 11)) end
-      if h > 85 then dots = bit.band(dots, bit.bnot(dot(i, 5, 13))) end
-    end
-
-    frames[#frames + 1] = braille(dots)
-  end
-
-  return frames
-end
 
 indicators.GLYPHS = {
-  busy = distorted(),
+  busy = { '⠋', '⠙', '⠸', '⠴', '⠦', '⠇' },
   thinking = { '⠢', '⠔', '⠑', '⠊' },
   waiting = { '⠉', '⠒', '⠤', '⣀' },
   loading = { '⡇', '⢸' },
