@@ -1,4 +1,4 @@
-local PromptDestination = require('harness.ui.PromptDestination')
+local PromptDestination = require('harness.composer.PromptDestination')
 
 local eq = assert.are.same
 
@@ -30,7 +30,7 @@ end
 
 local KEYS = { steer = '<C-s>', interrupt = '<C-c>' }
 
-describe('harness.ui.PromptDestination:', function()
+describe('harness.composer.PromptDestination:', function()
   it('is not answering anything, keeps a draft and offers the history', function()
     local destination = PromptDestination(session(), {}, nil)
 

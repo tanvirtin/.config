@@ -80,6 +80,7 @@ local LAYERS = {
   { 'harness.transcript.view', 7 },
   { 'harness.transcript.effects', 7 },
   { 'harness.ui', 7 },
+  { 'harness.composer', 7 },
   { 'harness.cli', 8 },
   { 'harness', 8 },
 }

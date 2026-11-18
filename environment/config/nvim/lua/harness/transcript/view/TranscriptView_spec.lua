@@ -1022,7 +1022,7 @@ describe('harness.transcript.view.TranscriptView:', function()
       session:_emit(events.prompt('turn ' .. i))
     end
 
-    local composer = require('harness.ui.composer')
+    local composer = require('harness.composer')
     local view = TranscriptView(session, { composer = composer }):mount()
     local win = vim.api.nvim_get_current_win()
     local Window = require('core.Window')
@@ -1062,7 +1062,7 @@ describe('harness.transcript.view.TranscriptView:', function()
       session:_emit(events.prompt('turn ' .. i))
     end
 
-    local composer = require('harness.ui.composer')
+    local composer = require('harness.composer')
     local view = TranscriptView(session, { composer = composer }):mount()
     local win = vim.api.nvim_get_current_win()
     local Window = require('core.Window')

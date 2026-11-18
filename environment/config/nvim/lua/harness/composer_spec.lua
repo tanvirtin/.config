@@ -1,7 +1,7 @@
 local async = require('harness.async')
-local composer = require('harness.ui.composer')
+local composer = require('harness.composer')
 local actions = require('harness.ui.actions')
-local ComposerView = require('harness.ui.ComposerView')
+local ComposerView = require('harness.composer.View')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local hub = require('harness.session.hub')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
@@ -52,7 +52,7 @@ local function prompts(fake)
   )
 end
 
-describe('harness.ui.composer:', function()
+describe('harness.composer:', function()
   local fake, session, code
 
   before_each(function()

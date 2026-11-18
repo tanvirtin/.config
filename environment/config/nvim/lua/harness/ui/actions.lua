@@ -11,8 +11,8 @@ local hub = lazy('harness.session.hub')
 local context = lazy('harness.context')
 local notice = lazy('harness.ui.notice')
 local status = lazy('harness.ui.status')
+local composer = lazy('harness.composer')
 local display = lazy('harness.ui.display')
-local composer = lazy('harness.ui.composer')
 local transcript = lazy('harness.transcript.view')
 local global_keys = lazy('harness.ui.global_keys')
 local edits = lazy('harness.transcript.view.edits')
@@ -109,7 +109,7 @@ function actions.cancel()
     end
   end
 
-  if session then require('harness.ui.composer').interrupt(session) end
+  if session then require('harness.composer').interrupt(session) end
 end
 
 function actions.fork()

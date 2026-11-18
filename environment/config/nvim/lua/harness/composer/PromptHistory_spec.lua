@@ -1,9 +1,9 @@
-local PromptHistory = require('harness.ui.PromptHistory')
+local PromptHistory = require('harness.composer.PromptHistory')
 local events = require('harness.types.events')
 
 local eq = assert.are.same
 
-describe('harness.ui.PromptHistory:', function()
+describe('harness.composer.PromptHistory:', function()
   it('lists the prompts of a session oldest first, once each', function()
     local session = {
       history = {

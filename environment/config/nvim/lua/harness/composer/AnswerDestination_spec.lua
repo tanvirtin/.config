@@ -1,4 +1,4 @@
-local AnswerDestination = require('harness.ui.AnswerDestination')
+local AnswerDestination = require('harness.composer.AnswerDestination')
 
 local eq = assert.are.same
 
@@ -36,7 +36,7 @@ local function destination(fake)
   return AnswerDestination({ key = 'h1', dir = '/w', can = function() end }, {}, nil, fake)
 end
 
-describe('harness.ui.AnswerDestination:', function()
+describe('harness.composer.AnswerDestination:', function()
   it('answers the prompt it was given, keeps no draft, and shows the question as its label', function()
     local fake = prompt()
     local answering = destination(fake)

@@ -61,7 +61,7 @@ describe('harness.ui.actions:', function()
 
   after_each(function()
     require('surfaces').close_all()
-    require('harness.ui.composer').close(true)
+    require('harness.composer').close(true)
     async.drain()
     hub.shutdown()
     hub.config = vim.deepcopy(defaults)

@@ -782,13 +782,13 @@ describe('harness.transcript.view:', function()
         end)
 
         assert.is_truthy(transcript.buffer_of(asked))
-        assert.is_truthy(require('harness.ui.composer').winbar(asked):find('answer in the transcript', 1, true))
+        assert.is_truthy(require('harness.composer').winbar(asked):find('answer in the transcript', 1, true))
         transcript.asks_of(asked)[1].future:set_result('reject_once')
         async.drain()
       end)
 
       describe('a question from the agent', function()
-        local composer = require('harness.ui.composer')
+        local composer = require('harness.composer')
         local console = require('core.console')
 
         local function questioning_session(params, opts)

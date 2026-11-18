@@ -17,11 +17,11 @@ local Element = lazy('ui.elements.Element')
 local Renderer = lazy('ui.markdown.Renderer')
 local theme = lazy('harness.transcript.theme')
 local session_types = lazy('harness.types.session')
-local PromptHistory = lazy('harness.ui.PromptHistory')
+local composer_geometry = lazy('harness.composer.geometry')
+local PromptHistory = lazy('harness.composer.PromptHistory')
 local Animator = lazy('harness.transcript.effects.Animator')
-local AnswerDestination = lazy('harness.ui.AnswerDestination')
-local PromptDestination = lazy('harness.ui.PromptDestination')
-local composer_geometry = lazy('harness.ui.composer_geometry')
+local AnswerDestination = lazy('harness.composer.AnswerDestination')
+local PromptDestination = lazy('harness.composer.PromptDestination')
 
 local ComposerView = Object:extend()
 
@@ -39,9 +39,9 @@ local function eases()
   return settings.composer:get('ease_ms') > 0 and settings.composer:get('height') > 1 and not theme.reduced()
 end
 
-ComposerView.WINBAR = '%!v:lua.require\'harness.ui.composer\'.winbar()'
+ComposerView.WINBAR = '%!v:lua.require\'harness.composer\'.winbar()'
 
-ComposerView.OMNIFUNC = 'v:lua.require\'harness.ui.composer\'.complete'
+ComposerView.OMNIFUNC = 'v:lua.require\'harness.composer\'.complete'
 
 function ComposerView.has_text(lines)
   return vim.trim(table.concat(lines, '\n')) ~= ''

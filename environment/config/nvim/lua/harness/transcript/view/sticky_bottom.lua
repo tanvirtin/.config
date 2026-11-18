@@ -1,4 +1,4 @@
-local geometry = require('harness.ui.composer_geometry')
+local geometry = require('harness.composer.geometry')
 
 local sticky_bottom = {}
 
