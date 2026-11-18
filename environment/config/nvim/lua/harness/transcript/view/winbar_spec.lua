@@ -124,7 +124,7 @@ describe('harness.transcript.view.winbar:', function()
   end)
 
   it('warns as the context fills, and draws a ring where there are pixels', function()
-    local graphics = require('core.graphics')
+    local graphics = require('core.editor.graphics')
     local meter = require('harness.transcript.meter')
     local available, upload, delete = Tile.available, graphics.upload, graphics.delete
     local function context(used)

@@ -1,6 +1,6 @@
 local Timer = require('core.Timer')
 local text = require('core.text')
-local process = require('core.process')
+local process = require('core.system.process')
 
 local sources = {}
 

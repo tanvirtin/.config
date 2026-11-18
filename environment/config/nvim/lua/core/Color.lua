@@ -3,7 +3,7 @@ local lazy = require('core.lazy')
 local bit = lazy('vendor.bit')
 local utils = lazy('core.utils')
 local Object = lazy('core.Object')
-local highlight = lazy('core.highlight')
+local highlight = lazy('core.editor.highlight')
 
 local Color = Object:extend()
 

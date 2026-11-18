@@ -1,7 +1,7 @@
 local lazy = require('core.lazy')
 
 local Object = lazy('core.Object')
-local buffers = lazy('core.buffers')
+local buffers = lazy('core.editor.buffers')
 local events = lazy('harness.types.events')
 local editor_context = lazy('harness.context')
 

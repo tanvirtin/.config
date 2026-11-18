@@ -1,6 +1,6 @@
-local process = require('core.process')
+local process = require('core.system.process')
 
-describe('core.process:', function()
+describe('core.system.process:', function()
   it('runs a command and reports its exit', function()
     local result = process.system({ 'sh', '-c', 'printf hi' }, { text = true }):wait()
 

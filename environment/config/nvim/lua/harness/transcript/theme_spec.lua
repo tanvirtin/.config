@@ -1,6 +1,6 @@
 local text = require('core.text')
 local Tile = require('ui.pixel.Tile')
-local graphics = require('core.graphics')
+local graphics = require('core.editor.graphics')
 local ticker = require('ui.pixel.ticker')
 local indicators = require('ui.pixel.indicators')
 local theme = require('harness.transcript.theme')
@@ -101,7 +101,7 @@ describe('harness.transcript.theme:', function()
 
     it('never flashes a finished tool', function()
       local Flashes = require('harness.transcript.effects.Flashes')
-      local flashes = Flashes(require('core.Buffer')():create(false, true))
+      local flashes = Flashes(require('core.editor.Buffer')():create(false, true))
 
       eq(false, flashes:scan({ { kind = 'tool', id = 't', start = 0, finished = 1000, status = 'completed' } }, 1000))
     end)

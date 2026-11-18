@@ -1,8 +1,8 @@
-local fs = require('core.fs')
+local fs = require('core.system.fs')
 local spy = require('luassert.spy')
-local Window = require('core.Window')
-local Buffer = require('core.Buffer')
-local renderer = require('core.renderer')
+local Window = require('core.editor.Window')
+local Buffer = require('core.editor.Buffer')
+local renderer = require('core.editor.renderer')
 
 local eq = assert.are.same
 

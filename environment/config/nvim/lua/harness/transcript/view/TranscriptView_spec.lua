@@ -46,7 +46,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
 
-    view:show_in(require('core.Window').get_current())
+    view:show_in(require('core.editor.Window').get_current())
 
     local function lines()
       return table.concat(vim.api.nvim_buf_get_lines(view.bufnr, 0, -1, false), '\n')
@@ -96,7 +96,7 @@ describe('harness.transcript.view.TranscriptView:', function()
       session:_emit(events.stop('end_turn'))
 
       view = TranscriptView(session):mount()
-      view:show_in(require('core.Window').get_current())
+      view:show_in(require('core.editor.Window').get_current())
       view:bind(view:bindings())
       vim.wait(100, function()
         return not view.scheduled
@@ -460,7 +460,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
 
-    view:show_in(require('core.Window').get_current())
+    view:show_in(require('core.editor.Window').get_current())
 
     local win = vim.api.nvim_get_current_win()
     local margin =
@@ -501,7 +501,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
 
-    view:show_in(require('core.Window').get_current())
+    view:show_in(require('core.editor.Window').get_current())
 
     local win = vim.api.nvim_get_current_win()
     local document = require('harness.transcript.view.Document')
@@ -530,7 +530,7 @@ describe('harness.transcript.view.TranscriptView:', function()
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
 
-    view:show_in(require('core.Window').get_current())
+    view:show_in(require('core.editor.Window').get_current())
 
     eq(vim.api.nvim_buf_line_count(view.bufnr), vim.api.nvim_win_get_cursor(win)[1])
     view:dispose()
@@ -545,7 +545,7 @@ describe('harness.transcript.view.TranscriptView:', function()
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
 
-    view:show_in(require('core.Window').get_current())
+    view:show_in(require('core.editor.Window').get_current())
     vim.cmd('normal! gg')
     session:_notify({ kind = events.NOTICE.loaded })
     view:render()
@@ -560,7 +560,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
     local sticky_bottom = require('harness.transcript.view.sticky_bottom')
 
     view:show_in(Window.get_current())
@@ -589,7 +589,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
     local w = Window(win)
 
     view:show_in(w)
@@ -622,7 +622,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
     local sticky_bottom = require('harness.transcript.view.sticky_bottom')
 
     view:show_in(Window.get_current())
@@ -648,7 +648,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
 
     view:show_in(Window.get_current())
     vim.cmd('normal! gg')
@@ -673,7 +673,7 @@ describe('harness.transcript.view.TranscriptView:', function()
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
 
-    view:show_in(require('core.Window').get_current())
+    view:show_in(require('core.editor.Window').get_current())
     vim.cmd('enew')
     session:_emit(events.new({ kind = 'message', text = string.rep('\n\nmore', 80) }))
     view:render()
@@ -691,7 +691,7 @@ describe('harness.transcript.view.TranscriptView:', function()
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
 
-    view:show_in(require('core.Window').get_current())
+    view:show_in(require('core.editor.Window').get_current())
     vim.cmd('normal! gg')
     vim.cmd('enew')
     session:_emit(events.new({ kind = 'message', text = 'later' }))
@@ -709,9 +709,11 @@ describe('harness.transcript.view.TranscriptView:', function()
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
 
-    view:show_in(require('core.Window').get_current())
+    view:show_in(require('core.editor.Window').get_current())
     vim.cmd(
-      'normal! ' .. (require('harness.transcript.view.sticky_bottom').margin(require('core.Window')(win)) + 3) .. '\25'
+      'normal! '
+        .. (require('harness.transcript.view.sticky_bottom').margin(require('core.editor.Window')(win)) + 3)
+        .. '\25'
     )
 
     local top = vim.fn.line('w0', win)
@@ -729,7 +731,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
     local sticky_bottom = require('harness.transcript.view.sticky_bottom')
 
     view:show_in(Window.get_current())
@@ -754,7 +756,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
     local sticky_bottom = require('harness.transcript.view.sticky_bottom')
 
     view:show_in(Window.get_current())
@@ -780,7 +782,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
     local sticky_bottom = require('harness.transcript.view.sticky_bottom')
 
     view:show_in(Window.get_current())
@@ -805,7 +807,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
     local sticky_bottom = require('harness.transcript.view.sticky_bottom')
 
     view:show_in(Window.get_current())
@@ -831,7 +833,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
 
     view:show_in(Window.get_current())
     vim.wait(100)
@@ -857,7 +859,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
     local sticky_bottom = require('harness.transcript.view.sticky_bottom')
     local decorate = view.document.decorate_visible
 
@@ -893,7 +895,7 @@ describe('harness.transcript.view.TranscriptView:', function()
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
 
-    view:show_in(require('core.Window').get_current())
+    view:show_in(require('core.editor.Window').get_current())
     session.state = 'loading'
     view:render()
 
@@ -922,7 +924,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
 
-    view:show_in(require('core.Window').get_current())
+    view:show_in(require('core.editor.Window').get_current())
     vim.cmd('normal! gg')
     vim.cmd('tabnew')
 
@@ -939,7 +941,7 @@ describe('harness.transcript.view.TranscriptView:', function()
     end
 
     local view = TranscriptView(session):mount()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
 
     view:show_in(Window.get_current())
 
@@ -982,7 +984,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
 
     view:show_in(Window.get_current())
 
@@ -1007,7 +1009,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
 
     view:show_in(Window.get_current())
     vim.cmd('new')
@@ -1025,7 +1027,7 @@ describe('harness.transcript.view.TranscriptView:', function()
     local composer = require('harness.composer')
     local view = TranscriptView(session, { composer = composer }):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
     local sticky_bottom = require('harness.transcript.view.sticky_bottom')
 
     view:show_in(Window.get_current())
@@ -1065,7 +1067,7 @@ describe('harness.transcript.view.TranscriptView:', function()
     local composer = require('harness.composer')
     local view = TranscriptView(session, { composer = composer }):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
     local sticky_bottom = require('harness.transcript.view.sticky_bottom')
 
     view:show_in(Window.get_current())
@@ -1108,7 +1110,7 @@ describe('harness.transcript.view.TranscriptView:', function()
 
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
     local sticky_bottom = require('harness.transcript.view.sticky_bottom')
 
     view:show_in(Window.get_current())
@@ -1166,7 +1168,7 @@ describe('harness.transcript.view.TranscriptView:', function()
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
 
-    view:show_in(require('core.Window').get_current())
+    view:show_in(require('core.editor.Window').get_current())
     vim.api.nvim_win_set_cursor(win, { 1, 0 })
     vim.fn.winrestview({ topline = 1 })
     eq(1, vim.fn.line('w0', win))
@@ -1186,7 +1188,7 @@ describe('harness.transcript.view.TranscriptView:', function()
     local view = TranscriptView(session):mount()
     local win = vim.api.nvim_get_current_win()
 
-    view:show_in(require('core.Window').get_current())
+    view:show_in(require('core.editor.Window').get_current())
     vim.cmd('normal! gg')
     view:hold_end()
     eq(1, vim.fn.line('w0', win))

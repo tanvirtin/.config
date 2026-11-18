@@ -2,8 +2,8 @@ local lazy = require('core.lazy')
 local glyph = require('ui.design.glyph')
 
 local fences = lazy('core.fences')
-local Window = lazy('core.Window')
-local Buffer = lazy('core.Buffer')
+local Window = lazy('core.editor.Window')
+local Buffer = lazy('core.editor.Buffer')
 local settings = lazy('harness.settings')
 local Block = require('harness.transcript.model.Block')
 

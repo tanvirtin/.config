@@ -1,8 +1,8 @@
 local lazy = require('core.lazy')
 
-local fs = lazy('core.fs')
 local text = lazy('core.text')
 local Timer = lazy('core.Timer')
+local fs = lazy('core.system.fs')
 local async = lazy('harness.async')
 local console = lazy('core.console')
 local tools = lazy('nvim_mcp.tools')

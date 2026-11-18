@@ -1,4 +1,4 @@
-local editor = require('core.editor')
+local editor = require('core.editor.editor')
 local schema = require('nvim_mcp.schema')
 local script = require('nvim_mcp.script')
 

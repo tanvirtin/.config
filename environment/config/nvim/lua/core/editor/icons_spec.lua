@@ -2,7 +2,7 @@ describe('icons:', function()
   local icons
 
   before_each(function()
-    icons = require('core.icons')
+    icons = require('core.editor.icons')
   end)
 
   describe('get', function()

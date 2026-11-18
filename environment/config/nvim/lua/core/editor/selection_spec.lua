@@ -1,4 +1,4 @@
-local selection = require('core.selection')
+local selection = require('core.editor.selection')
 
 local eq = assert.are.same
 

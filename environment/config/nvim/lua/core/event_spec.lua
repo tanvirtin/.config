@@ -1,6 +1,6 @@
 local event = require('core.event')
-local Buffer = require('core.Buffer')
-local shutdown = require('core.shutdown')
+local Buffer = require('core.editor.Buffer')
+local shutdown = require('core.system.shutdown')
 
 local eq = assert.are.same
 

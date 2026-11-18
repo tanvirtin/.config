@@ -145,7 +145,7 @@ describe('harness.transcript.view.edits:', function()
 
       assert.is_true(edits.quickfix(transcript.view(), edits.SCOPE.turn))
 
-      local list = require('core.quickfix').get()
+      local list = require('core.editor.quickfix').get()
 
       eq(string.format('Harness %s: turn edits', session.key), list.title)
       eq({ 2, '+1 −1  · second' }, { #list.items, list.items[1].text })
@@ -166,7 +166,7 @@ describe('harness.transcript.view.edits:', function()
       eq(false, actions.quickfix('turn'))
       eq(false, actions.revert('nonsense'))
       eq(true, actions.quickfix(''))
-      eq(3, #require('core.quickfix').get().items)
+      eq(3, #require('core.editor.quickfix').get().items)
     end)
   end)
 end)

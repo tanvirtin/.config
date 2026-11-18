@@ -1,5 +1,5 @@
-local Window = require('core.Window')
-local graphics = require('core.graphics')
+local Window = require('core.editor.Window')
+local graphics = require('core.editor.graphics')
 local Backdrop = require('ui.pixel.Backdrop')
 
 local eq = assert.are.same

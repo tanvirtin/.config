@@ -1,8 +1,8 @@
 local lazy = require('core.lazy')
 
-local fs = lazy('core.fs')
 local View = require('ui.View')
 local Timer = lazy('core.Timer')
+local fs = lazy('core.system.fs')
 local compact = require('compact')
 local console = lazy('core.console')
 local glyph = lazy('ui.design.glyph')

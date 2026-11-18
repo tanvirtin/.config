@@ -2,8 +2,8 @@ local lazy = require('core.lazy')
 
 local Timer = lazy('core.Timer')
 local async = lazy('harness.async')
-local FileWatch = lazy('core.FileWatch')
 local events = lazy('harness.types.events')
+local FileWatch = lazy('core.system.FileWatch')
 local settings = lazy('harness.settings.follow')
 
 local follow = {}

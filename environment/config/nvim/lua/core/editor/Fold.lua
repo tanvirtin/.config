@@ -5,7 +5,7 @@ function Fold.setup_window(win_id)
     foldmethod = 'manual',
     foldlevel = 0,
     foldenable = true,
-    foldtext = 'v:lua.require("core.Fold").foldtext()',
+    foldtext = 'v:lua.require("core.editor.Fold").foldtext()',
   }
 
   for key, value in pairs(options) do

@@ -1,12 +1,12 @@
 local lazy = require('core.lazy')
 
 local vgit = lazy('harness.vgit')
-local Window = lazy('core.Window')
 local core_text = lazy('core.text')
-local buffers = lazy('core.buffers')
 local console = lazy('core.console')
-local quickfix = lazy('core.quickfix')
+local Window = lazy('core.editor.Window')
 local settings = lazy('harness.settings')
+local buffers = lazy('core.editor.buffers')
+local quickfix = lazy('core.editor.quickfix')
 local EditLog = lazy('harness.edits.EditLog')
 local Block = lazy('harness.transcript.model.Block')
 

@@ -1,11 +1,11 @@
 local lazy = require('core.lazy')
 
-local Buffer = lazy('core.Buffer')
 local Object = lazy('core.Object')
 local tools = lazy('nvim_mcp.tools')
 local hub = lazy('harness.session.hub')
 local context = lazy('harness.context')
 local notice = lazy('harness.ui.notice')
+local Buffer = lazy('core.editor.Buffer')
 local settings = lazy('harness.settings')
 
 local PromptDestination = Object:extend()

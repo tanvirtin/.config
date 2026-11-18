@@ -1,8 +1,8 @@
-local quickfix = require('core.quickfix')
+local quickfix = require('core.editor.quickfix')
 
 local eq = assert.are.same
 
-describe('core.quickfix:', function()
+describe('core.editor.quickfix:', function()
   after_each(function()
     vim.cmd('silent! cclose')
     vim.fn.setqflist({}, 'r')

@@ -1,7 +1,7 @@
 local lazy = require('core.lazy')
 
 local async = lazy('core.async')
-local shutdown = lazy('core.shutdown')
+local shutdown = lazy('core.system.shutdown')
 local utils_math = lazy('core.utils.math')
 
 local event = {}

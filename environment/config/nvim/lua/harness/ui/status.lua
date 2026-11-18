@@ -104,7 +104,7 @@ function status.to_waiting()
 
   if not view then return end
 
-  local window = require('core.Window').get_current()
+  local window = require('core.editor.Window').get_current()
 
   if window:get_buffer().bufnr == view.bufnr then
     window:set_cursor({ 1, 0 })

@@ -1,6 +1,6 @@
 local Timer = require('core.Timer')
 local Tile = require('ui.pixel.Tile')
-local graphics = require('core.graphics')
+local graphics = require('core.editor.graphics')
 local ticker = require('ui.pixel.ticker')
 local catalog = require('ui.pixel.catalog')
 

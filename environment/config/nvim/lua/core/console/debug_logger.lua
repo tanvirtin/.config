@@ -1,5 +1,5 @@
-local env = require('core.env')
-local File = require('core.File')
+local env = require('core.system.env')
+local File = require('core.system.File')
 local LogFormatter = require('core.console.LogFormatter')
 
 local _file = File(string.format('/tmp/tin_%d.log', vim.fn.getpid()))

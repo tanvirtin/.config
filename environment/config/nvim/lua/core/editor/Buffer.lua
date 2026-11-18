@@ -1,11 +1,11 @@
 local lazy = require('core.lazy')
 
-local fs = lazy('core.fs')
+local fs = lazy('core.system.fs')
 local event = lazy('core.event')
 local Extmark = lazy('ui.Extmark')
 local Object = lazy('core.Object')
-local keymap = lazy('core.keymap')
-local renderer = lazy('core.renderer')
+local keymap = lazy('core.editor.keymap')
+local renderer = lazy('core.editor.renderer')
 
 local Buffer = Object:extend()
 
@@ -186,7 +186,7 @@ function Buffer.exists(bufnr)
 end
 
 function Buffer:get_windows()
-  local Window = require('core.Window')
+  local Window = require('core.editor.Window')
 
   return vim.tbl_map(Window, vim.fn.win_findbuf(self.bufnr))
 end

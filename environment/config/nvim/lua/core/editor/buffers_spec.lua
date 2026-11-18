@@ -1,8 +1,8 @@
-local buffers = require('core.buffers')
+local buffers = require('core.editor.buffers')
 
 local eq = assert.are.same
 
-describe('core.buffers:', function()
+describe('core.editor.buffers:', function()
   describe('lines_of', function()
     it('prefers the loaded buffer, so unsaved edits count', function()
       local path = vim.fn.tempname()

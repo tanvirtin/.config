@@ -3,7 +3,7 @@ local surfaces = require('surfaces')
 local Tile = require('ui.pixel.Tile')
 local agent = require('harness.agent')
 local async = require('harness.async')
-local graphics = require('core.graphics')
+local graphics = require('core.editor.graphics')
 local ticker = require('ui.pixel.ticker')
 local indicators = require('ui.pixel.indicators')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
@@ -434,7 +434,7 @@ describe('harness.picker.SessionPicker:', function()
   end)
 
   it('leaves insert mode when it closes, so the transcript it opens is normal', function()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
     local picker = open()
     local stopped = false
     local original = Window.stop_insert

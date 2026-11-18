@@ -8,6 +8,6 @@ return {
     output = 'gtest',
     pattern = '_spec%.lua$',
     ROOT = { 'lua/' },
-    helper = 'lua/core/settings_fixture.lua',
+    helper = 'lua/core/testing/settings_fixture.lua',
   },
 }

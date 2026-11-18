@@ -1,4 +1,4 @@
-local Buffer = require('core.Buffer')
+local Buffer = require('core.editor.Buffer')
 local outline = require('nvim_mcp.outline')
 
 local eq = assert.are.same

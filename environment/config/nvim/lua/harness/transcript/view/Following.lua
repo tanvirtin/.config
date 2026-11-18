@@ -1,5 +1,5 @@
-local Buffer = require('core.Buffer')
 local Object = require('core.Object')
+local Buffer = require('core.editor.Buffer')
 local sticky_bottom = require('harness.transcript.view.sticky_bottom')
 
 local Following = Object:extend()

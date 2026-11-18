@@ -1,9 +1,9 @@
 local lazy = require('core.lazy')
 
-local fs = lazy('core.fs')
-local Buffer = lazy('core.Buffer')
-local Window = lazy('core.Window')
-local buffers = lazy('core.buffers')
+local fs = lazy('core.system.fs')
+local Buffer = lazy('core.editor.Buffer')
+local Window = lazy('core.editor.Window')
+local buffers = lazy('core.editor.buffers')
 local content = lazy('harness.types.content')
 
 local context = {}

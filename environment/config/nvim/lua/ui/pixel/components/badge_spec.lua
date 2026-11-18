@@ -1,8 +1,8 @@
 local Tile = require('ui.pixel.Tile')
 local Tiles = require('ui.pixel.Tiles')
 local badge = require('ui.pixel.components.badge')
-local graphics = require('core.graphics')
-local highlight = require('core.highlight')
+local graphics = require('core.editor.graphics')
+local highlight = require('core.editor.highlight')
 
 local eq = assert.are.same
 

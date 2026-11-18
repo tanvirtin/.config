@@ -1,4 +1,4 @@
-local treesitter = require('core.treesitter')
+local treesitter = require('core.editor.treesitter')
 local MarkSpec = require('ui.MarkSpec')
 local table_layout = require('ui.markdown.table')
 local layer = require('ui.design.layer')

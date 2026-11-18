@@ -488,7 +488,7 @@ describe('harness.transcript.view:', function()
       vim.api.nvim_win_set_cursor(0, { row, 10 })
 
       local view = transcript.view(buf)
-      local target = view:_target_at(require('core.Window').get_current())
+      local target = view:_target_at(require('core.editor.Window').get_current())
 
       eq({ vim.fs.normalize(dir .. '/a.lua'), 2 }, { vim.fs.normalize(target.path), target.line })
 
@@ -1143,7 +1143,7 @@ describe('harness.transcript.view:', function()
   end)
 
   describe('foldtext', function()
-    local Fold = require('core.Fold')
+    local Fold = require('core.editor.Fold')
     local original
 
     before_each(function()

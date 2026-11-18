@@ -1,7 +1,7 @@
 local Tile = require('ui.pixel.Tile')
 local Tiles = require('ui.pixel.Tiles')
 local card = require('ui.pixel.components.card')
-local graphics = require('core.graphics')
+local graphics = require('core.editor.graphics')
 local markup = require('ui.markup')
 
 local eq = assert.are.same

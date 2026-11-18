@@ -1,8 +1,8 @@
-local register = require('core.register')
+local register = require('core.editor.register')
 
 local eq = assert.are.same
 
-describe('core.register:', function()
+describe('core.editor.register:', function()
   it('sets a register linewise by default and reads it back', function()
     register.set({ 'a', 'b' }, 'z')
 

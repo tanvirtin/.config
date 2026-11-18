@@ -1,5 +1,5 @@
-local Buffer = require('core.Buffer')
-local fs = require('core.fs')
+local Buffer = require('core.editor.Buffer')
+local fs = require('core.system.fs')
 
 local eq = assert.are.same
 

@@ -1,5 +1,5 @@
-local Window = require('core.Window')
-local Buffer = require('core.Buffer')
+local Window = require('core.editor.Window')
+local Buffer = require('core.editor.Buffer')
 
 local eq = assert.are.same
 

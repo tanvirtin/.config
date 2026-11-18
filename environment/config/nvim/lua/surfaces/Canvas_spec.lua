@@ -1,4 +1,4 @@
-local graphics = require('core.graphics')
+local graphics = require('core.editor.graphics')
 local surfaces = require('surfaces')
 local catalog = require('ui.pixel.catalog')
 local ticker = require('ui.pixel.ticker')

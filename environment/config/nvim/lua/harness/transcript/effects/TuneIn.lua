@@ -1,9 +1,9 @@
 local glitch = require('ui.glitch')
 local Timer = require('core.Timer')
 local design = require('ui.design')
-local Buffer = require('core.Buffer')
 local Object = require('core.Object')
 local layer = require('ui.design.layer')
+local Buffer = require('core.editor.Buffer')
 local theme = require('harness.transcript.theme')
 
 local TuneIn = Object:extend()

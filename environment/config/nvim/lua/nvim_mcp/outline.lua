@@ -1,5 +1,5 @@
 local compact = require('compact')
-local treesitter = require('core.treesitter')
+local treesitter = require('core.editor.treesitter')
 
 local outline = {}
 

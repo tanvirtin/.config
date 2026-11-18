@@ -1,5 +1,5 @@
 local PlanPanel = require('harness.transcript.view.PlanPanel')
-local Window = require('core.Window')
+local Window = require('core.editor.Window')
 
 local eq = assert.are.same
 

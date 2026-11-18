@@ -1,8 +1,8 @@
 local lazy = require('core.lazy')
 
-local Fold = lazy('core.Fold')
 local asks = lazy('harness.asks')
 local core_text = lazy('core.text')
+local Fold = lazy('core.editor.Fold')
 local glyph = lazy('ui.design.glyph')
 local display = lazy('harness.ui.display')
 local Permission = lazy('harness.asks.Permission')

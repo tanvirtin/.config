@@ -19,7 +19,7 @@ describe('lazy:', function()
 
   describe('deferred loading', function()
     it('should not require module until first property access', function()
-      local module_path = 'core.assertion'
+      local module_path = 'core.testing.assertion'
 
       package.loaded[module_path] = nil
 

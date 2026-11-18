@@ -1,5 +1,5 @@
 local spy = require('luassert.spy')
-local renderer = require('core.renderer')
+local renderer = require('core.editor.renderer')
 
 local eq = assert.are.same
 

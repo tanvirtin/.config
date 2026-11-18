@@ -1,8 +1,8 @@
 local lazy = require('core.lazy')
 
-local Window = require('core.Window')
 local Object = require('core.Object')
 local Toast = lazy('harness.ui.Toast')
+local Window = require('core.editor.Window')
 local theme = lazy('harness.transcript.theme')
 local ASK = require('harness.types.events').ASK
 

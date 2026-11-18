@@ -1,9 +1,9 @@
 local lazy = require('core.lazy')
 local settings = require('core.settings')
 
-local fs = lazy('core.fs')
+local fs = lazy('core.system.fs')
 local utils = lazy('core.utils')
-local icons = lazy('core.icons')
+local icons = lazy('core.editor.icons')
 local Component = lazy('ui.Component')
 local LayoutSpec = lazy('ui.layout.LayoutSpec')
 local symbols_setting = settings.get('symbols')

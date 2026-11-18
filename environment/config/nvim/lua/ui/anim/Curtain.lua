@@ -1,5 +1,5 @@
-local Window = require('core.Window')
-local highlight = require('core.highlight')
+local Window = require('core.editor.Window')
+local highlight = require('core.editor.highlight')
 local Float = require('ui.anim.Float')
 
 local Curtain = {}

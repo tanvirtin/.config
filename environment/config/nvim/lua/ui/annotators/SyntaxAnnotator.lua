@@ -1,7 +1,7 @@
 local lazy = require('core.lazy')
 
 local Object = lazy('core.Object')
-local treesitter = lazy('core.treesitter')
+local treesitter = lazy('core.editor.treesitter')
 
 local SyntaxAnnotator = Object:extend()
 

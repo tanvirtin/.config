@@ -1,4 +1,4 @@
-local Buffer = require('core.Buffer')
+local Buffer = require('core.editor.Buffer')
 local LiveReload = require('features.LiveReload')
 
 local eq = assert.are.same

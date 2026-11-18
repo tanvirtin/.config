@@ -1,4 +1,4 @@
-local assertion = require('core.assertion')
+local assertion = require('core.testing.assertion')
 
 local eq = assert.are.same
 

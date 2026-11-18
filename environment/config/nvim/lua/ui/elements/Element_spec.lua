@@ -446,7 +446,7 @@ describe('Element:', function()
   end)
 
   describe('surface', function()
-    local graphics = require('core.graphics')
+    local graphics = require('core.editor.graphics')
     local Backdrop = require('ui.pixel.Backdrop')
 
     local original, drawn

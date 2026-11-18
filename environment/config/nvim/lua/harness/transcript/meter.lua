@@ -3,8 +3,8 @@ local Tiles = require('ui.pixel.Tiles')
 local Bitmap = require('ui.pixel.Bitmap')
 local static = require('ui.pixel.static')
 local catalog = require('ui.pixel.catalog')
-local highlight = require('core.highlight')
 local indicators = require('ui.pixel.indicators')
+local highlight = require('core.editor.highlight')
 
 local floor, min, max = math.floor, math.min, math.max
 

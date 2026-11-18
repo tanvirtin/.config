@@ -1,5 +1,5 @@
-local graphics = require('core.graphics')
-local highlight = require('core.highlight')
+local graphics = require('core.editor.graphics')
+local highlight = require('core.editor.highlight')
 local Bitmap = require('ui.pixel.Bitmap')
 
 local Tile = {}

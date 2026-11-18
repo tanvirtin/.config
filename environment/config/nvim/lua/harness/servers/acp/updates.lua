@@ -1,4 +1,4 @@
-local fs = require('core.fs')
+local fs = require('core.system.fs')
 local fences = require('core.fences')
 local types = require('harness.types.events')
 local acp_config = require('harness.servers.acp.config')

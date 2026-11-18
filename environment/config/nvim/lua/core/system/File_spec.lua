@@ -1,4 +1,4 @@
-local File = require('core.File')
+local File = require('core.system.File')
 
 local eq = assert.are.same
 

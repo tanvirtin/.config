@@ -1,4 +1,4 @@
-local buffers = require('core.buffers')
+local buffers = require('core.editor.buffers')
 local EditLog = require('harness.edits.EditLog')
 local BlockBuilder = require('harness.transcript.model.BlockBuilder')
 

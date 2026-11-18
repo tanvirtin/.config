@@ -1,5 +1,5 @@
 local tone = require('ui.tone')
-local highlight = require('core.highlight')
+local highlight = require('core.editor.highlight')
 local palette = require('ui.design.color')
 
 local hl = {}

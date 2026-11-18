@@ -1,8 +1,8 @@
 local lazy = require('core.lazy')
 
-local fs = lazy('core.fs')
-local env = lazy('core.env')
+local fs = lazy('core.system.fs')
 local Object = lazy('core.Object')
+local env = lazy('core.system.env')
 local console = lazy('core.console')
 
 local agent = {}

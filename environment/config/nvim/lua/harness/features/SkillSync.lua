@@ -1,12 +1,12 @@
 local lazy = require('core.lazy')
 
-local fs = lazy('core.fs')
 local Timer = lazy('core.Timer')
 local event = lazy('core.event')
+local fs = lazy('core.system.fs')
 local Object = lazy('core.Object')
 local console = lazy('core.console')
-local process = lazy('core.process')
-local FileWatch = lazy('core.FileWatch')
+local process = lazy('core.system.process')
+local FileWatch = lazy('core.system.FileWatch')
 local settings = lazy('harness.settings.skills')
 local session_store = lazy('harness.session.store')
 

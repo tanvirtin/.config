@@ -1,6 +1,6 @@
 local utils = require('core.utils')
 local Object = require('core.Object')
-local assertion = require('core.assertion')
+local assertion = require('core.testing.assertion')
 
 local LogFormatter = Object:extend()
 

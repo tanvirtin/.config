@@ -1,4 +1,4 @@
-local keymap = require('core.keymap')
+local keymap = require('core.editor.keymap')
 
 local global_keys = {}
 

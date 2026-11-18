@@ -1,8 +1,8 @@
-local graphics = require('core.graphics')
+local graphics = require('core.editor.graphics')
 
 local eq = assert.are.same
 
-describe('core.graphics:', function()
+describe('core.editor.graphics:', function()
   before_each(function()
     graphics.reset()
   end)

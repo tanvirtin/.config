@@ -1,4 +1,4 @@
-local Fold = require('core.Fold')
+local Fold = require('core.editor.Fold')
 
 describe('Fold:', function()
   local bufnr

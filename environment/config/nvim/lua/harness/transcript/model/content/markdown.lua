@@ -1,4 +1,4 @@
-local treesitter = require('core.treesitter')
+local treesitter = require('core.editor.treesitter')
 local hit_test = require('harness.transcript.model.content.hit_test')
 
 local function cell(block, row, col)

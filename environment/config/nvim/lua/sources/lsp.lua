@@ -1,7 +1,7 @@
-local fs = require('core.fs')
+local fs = require('core.system.fs')
 local Timer = require('core.Timer')
-local Window = require('core.Window')
-local lsp = require('core.lsp')
+local Window = require('core.editor.Window')
+local lsp = require('core.editor.lsp')
 
 local METHODS = {
   definition = 'textDocument/definition',

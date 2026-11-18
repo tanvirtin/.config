@@ -1,4 +1,4 @@
-local fs = require('core.fs')
+local fs = require('core.system.fs')
 local vgit = require('harness.vgit')
 local Object = require('core.Object')
 local edit_text = require('harness.edits.edit_text')

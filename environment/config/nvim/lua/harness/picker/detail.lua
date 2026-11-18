@@ -1,9 +1,9 @@
 local lazy = require('core.lazy')
 
-local Buffer = lazy('core.Buffer')
 local agent = lazy('harness.agent')
 local glyph = lazy('ui.design.glyph')
 local catalog = lazy('ui.pixel.catalog')
+local Buffer = lazy('core.editor.Buffer')
 local display = lazy('harness.ui.display')
 local theme = lazy('harness.transcript.theme')
 local format = require('harness.picker.format')

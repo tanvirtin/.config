@@ -1,7 +1,7 @@
-local fs = require('core.fs')
+local fs = require('core.system.fs')
 local Timer = require('core.Timer')
-local Buffer = require('core.Buffer')
-local diagnostics = require('core.diagnostics')
+local Buffer = require('core.editor.Buffer')
+local diagnostics = require('core.editor.diagnostics')
 
 local SEVERITY = { 'ERROR', 'WARN', 'INFO', 'HINT' }
 

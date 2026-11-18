@@ -1,4 +1,4 @@
-local Window = require('core.Window')
+local Window = require('core.editor.Window')
 local Camera = require('ui.anim.Camera')
 local Curtain = require('ui.anim.Curtain')
 local Layer = require('ui.anim.Layer')

@@ -1,4 +1,4 @@
-local highlight = require('core.highlight')
+local highlight = require('core.editor.highlight')
 local settings = require('core.settings')
 local mock = require('luassert.mock')
 

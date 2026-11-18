@@ -44,8 +44,8 @@ describe('mouse:', function()
   end
 
   before_each(function()
-    package.loaded['core.mouse'] = nil
-    mouse = require('core.mouse')
+    package.loaded['core.editor.mouse'] = nil
+    mouse = require('core.editor.mouse')
 
     mappings = {}
     set_calls = {}

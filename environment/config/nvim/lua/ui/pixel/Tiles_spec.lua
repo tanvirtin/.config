@@ -1,4 +1,4 @@
-local graphics = require('core.graphics')
+local graphics = require('core.editor.graphics')
 local Tile = require('ui.pixel.Tile')
 local Tiles = require('ui.pixel.Tiles')
 

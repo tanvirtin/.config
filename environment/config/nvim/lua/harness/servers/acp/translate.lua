@@ -1,4 +1,4 @@
-local fs = require('core.fs')
+local fs = require('core.system.fs')
 local fences = require('core.fences')
 local dataclass = require('core.dataclass')
 local permission = require('harness.types.permission')

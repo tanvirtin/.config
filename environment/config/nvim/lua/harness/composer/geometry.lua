@@ -1,4 +1,4 @@
-local Window = require('core.Window')
+local Window = require('core.editor.Window')
 local settings = require('harness.settings')
 
 local composer_geometry = {}

@@ -1,4 +1,4 @@
-local process = require('core.process')
+local process = require('core.system.process')
 local transport = require('harness.servers.acp.transport')
 
 local eq = assert.are.same

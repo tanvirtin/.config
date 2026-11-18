@@ -1,9 +1,9 @@
 local lazy = require('core.lazy')
 
 local api = lazy('vgit.api')
-local fs = require('core.fs')
 local text = require('core.text')
 local event = require('core.event')
+local fs = require('core.system.fs')
 local scene = lazy('vgit.settings.scene')
 local symbols = lazy('vgit.settings.symbols')
 

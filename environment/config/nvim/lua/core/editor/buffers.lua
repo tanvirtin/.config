@@ -1,6 +1,6 @@
 local lazy = require('core.lazy')
 
-local Buffer = lazy('core.Buffer')
+local Buffer = lazy('core.editor.Buffer')
 
 local buffers = {}
 

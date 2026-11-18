@@ -1,7 +1,7 @@
 local lazy = require('core.lazy')
 
 local Object = lazy('core.Object')
-local assertion = lazy('core.assertion')
+local assertion = lazy('core.testing.assertion')
 
 local Window = Object:extend()
 
@@ -138,7 +138,7 @@ function Window:reset_options(names)
 end
 
 function Window:get_buffer()
-  local Buffer = require('core.Buffer')
+  local Buffer = require('core.editor.Buffer')
 
   return Buffer(vim.api.nvim_win_get_buf(self.win_id))
 end

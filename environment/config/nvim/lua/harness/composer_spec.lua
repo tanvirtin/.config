@@ -211,7 +211,7 @@ describe('harness.composer:', function()
     end)
 
     it('says how to send from the mode you are in', function()
-      local Window = require('core.Window')
+      local Window = require('core.editor.Window')
       local real = Window.inserting
 
       open_composer(session)
@@ -338,7 +338,7 @@ describe('harness.composer:', function()
   end)
 
   it('opens at its eased height, focused, so the card never flashes its full size', function()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
     local original = Window.open
     local seen
 
@@ -975,7 +975,7 @@ describe('harness.composer:', function()
 
     it('gives each visible transcript its own, under it, keeping every draft', function()
       local first_win, other_win = side_by_side()
-      local Window = require('core.Window')
+      local Window = require('core.editor.Window')
 
       vim.api.nvim_set_current_win(first_win)
       open_composer(session)
@@ -1208,7 +1208,7 @@ describe('harness.composer:', function()
       eq(vim.api.nvim_win_get_width(transcript_win), vim.api.nvim_win_get_width(win))
       eq(vim.api.nvim_win_get_position(transcript_win)[2], vim.api.nvim_win_get_position(win)[2])
       eq(code_width, vim.api.nvim_win_get_width(code_win))
-      eq(true, require('core.Window')(win):is_below(require('core.Window')(transcript_win)))
+      eq(true, require('core.editor.Window')(win):is_below(require('core.editor.Window')(transcript_win)))
     end)
 
     it('closes with its transcript window and keeps the draft', function()
@@ -1252,7 +1252,7 @@ describe('harness.composer:', function()
 
     it('follows its transcript when the window is moved', function()
       local transcript_win = layout()
-      local Window = require('core.Window')
+      local Window = require('core.editor.Window')
 
       open_composer(session)
       vim.wait(300)
@@ -1565,7 +1565,7 @@ describe('harness.composer:', function()
   end)
 
   it('takes the completion with <CR> and <Tab>, going into a folder', function()
-    local Window = require('core.Window')
+    local Window = require('core.editor.Window')
     local real = Window.completion
 
     Window.completion = function()

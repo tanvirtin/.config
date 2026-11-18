@@ -1,4 +1,4 @@
-local shutdown = require('core.shutdown')
+local shutdown = require('core.system.shutdown')
 
 local eq = assert.are.same
 

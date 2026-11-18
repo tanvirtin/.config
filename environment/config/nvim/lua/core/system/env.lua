@@ -1,7 +1,7 @@
 local lazy = require('core.lazy')
 
 local utils = lazy('core.utils')
-local assertion = lazy('core.assertion')
+local assertion = lazy('core.testing.assertion')
 
 local is_registered = false
 

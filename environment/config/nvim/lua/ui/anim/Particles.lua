@@ -1,4 +1,4 @@
-local Window = require('core.Window')
+local Window = require('core.editor.Window')
 local Emitter = require('ui.anim.Emitter')
 local Float = require('ui.anim.Float')
 

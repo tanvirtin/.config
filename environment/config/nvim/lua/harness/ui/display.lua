@@ -1,7 +1,7 @@
 local lazy = require('core.lazy')
 
-local Buffer = lazy('core.Buffer')
-local Window = lazy('core.Window')
+local Buffer = lazy('core.editor.Buffer')
+local Window = lazy('core.editor.Window')
 local composer = require('harness.composer')
 local TranscriptView = lazy('harness.transcript.view.TranscriptView')
 

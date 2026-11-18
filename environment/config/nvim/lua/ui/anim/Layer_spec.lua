@@ -1,4 +1,4 @@
-local graphics = require('core.graphics')
+local graphics = require('core.editor.graphics')
 local Layer = require('ui.anim.Layer')
 
 local eq = assert.are.same

@@ -1,4 +1,4 @@
-local keymap = require('core.keymap')
+local keymap = require('core.editor.keymap')
 
 describe('keymap:', function()
   local original_set

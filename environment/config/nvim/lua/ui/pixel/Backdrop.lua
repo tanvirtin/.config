@@ -1,9 +1,9 @@
 local event = require('core.event')
 local Timer = require('core.Timer')
 local Object = require('core.Object')
-local Window = require('core.Window')
+local Window = require('core.editor.Window')
 local Bitmap = require('ui.pixel.Bitmap')
-local graphics = require('core.graphics')
+local graphics = require('core.editor.graphics')
 
 local Backdrop = Object:extend()
 

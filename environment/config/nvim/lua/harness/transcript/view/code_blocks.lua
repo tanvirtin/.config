@@ -1,11 +1,11 @@
 local lazy = require('core.lazy')
 
-local fs = lazy('core.fs')
-local Buffer = lazy('core.Buffer')
-local Window = lazy('core.Window')
-local keymap = lazy('core.keymap')
+local fs = lazy('core.system.fs')
 local hub = lazy('harness.session.hub')
 local context = lazy('harness.context')
+local Buffer = lazy('core.editor.Buffer')
+local Window = lazy('core.editor.Window')
+local keymap = lazy('core.editor.keymap')
 local code_spans = lazy('harness.transcript.model.code_spans')
 
 local code_blocks = {}

@@ -1,7 +1,7 @@
-local Window = require('core.Window')
+local Window = require('core.editor.Window')
 local roles = require('ui.pixel.roles')
 local Bitmap = require('ui.pixel.Bitmap')
-local graphics = require('core.graphics')
+local graphics = require('core.editor.graphics')
 
 local Layer = {}
 

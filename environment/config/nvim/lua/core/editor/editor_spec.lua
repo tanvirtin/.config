@@ -1,9 +1,9 @@
-local editor = require('core.editor')
-local Window = require('core.Window')
+local editor = require('core.editor.editor')
+local Window = require('core.editor.Window')
 
 local eq = assert.are.same
 
-describe('core.editor:', function()
+describe('core.editor.editor:', function()
   it('reports the mode and the tab it is in', function()
     eq('n', editor.mode())
     eq(vim.fn.tabpagenr(), editor.tab_number())

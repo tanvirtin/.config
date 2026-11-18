@@ -1,4 +1,4 @@
-local Buffer = require('core.Buffer')
+local Buffer = require('core.editor.Buffer')
 local TuneIn = require('harness.transcript.effects.TuneIn')
 
 local eq = assert.are.same
@@ -10,7 +10,7 @@ describe('harness.transcript.effects.TuneIn:', function()
     buffer = Buffer():create(false, true)
     buffer:set_lines({ 'the first line of a loaded session', 'and a second one', 'third' })
     vim.api.nvim_win_set_buf(0, buffer.bufnr)
-    window = require('core.Window').get_current()
+    window = require('core.editor.Window').get_current()
     view = {
       buffer = buffer,
       document = { state = { loading = true } },

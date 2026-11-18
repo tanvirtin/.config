@@ -1,5 +1,5 @@
 local Timer = require('core.Timer')
-local process = require('core.process')
+local process = require('core.system.process')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
 
 local transport = {}

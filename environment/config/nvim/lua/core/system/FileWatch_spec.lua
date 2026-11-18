@@ -1,8 +1,8 @@
-local FileWatch = require('core.FileWatch')
+local FileWatch = require('core.system.FileWatch')
 
 local eq = assert.are.same
 
-describe('core.FileWatch:', function()
+describe('core.system.FileWatch:', function()
   local dir, path, changes, watch
 
   before_each(function()

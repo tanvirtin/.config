@@ -1,5 +1,5 @@
 local compact = require('compact')
-local lsp = require('core.lsp')
+local lsp = require('core.editor.lsp')
 local sources = require('sources')
 local util = require('nvim_mcp.tools.util')
 

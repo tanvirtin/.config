@@ -16,7 +16,7 @@ describe('harness.features.EditCheckTime:', function()
   end)
 
   it('reloads on the store\'s tool updates while registered, and stops after cleanup', function()
-    local buffers = require('core.buffers')
+    local buffers = require('core.editor.buffers')
     local session_store = require('harness.session.store')
     local original = buffers.checktime
     local reloads = 0

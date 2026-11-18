@@ -1,7 +1,7 @@
-local Buffer = require('core.Buffer')
+local Buffer = require('core.editor.Buffer')
 local motion = require('ui.motion')
 local text = require('core.text')
-local highlight = require('core.highlight')
+local highlight = require('core.editor.highlight')
 local layer = require('ui.design.layer')
 
 local TextFx = {}

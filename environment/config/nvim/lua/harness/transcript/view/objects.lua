@@ -1,6 +1,6 @@
 local lazy = require('core.lazy')
 
-local Window = lazy('core.Window')
+local Window = lazy('core.editor.Window')
 local Block = require('harness.transcript.model.Block')
 
 local objects = {}

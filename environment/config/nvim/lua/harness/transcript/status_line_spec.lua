@@ -1,5 +1,5 @@
 local Tile = require('ui.pixel.Tile')
-local graphics = require('core.graphics')
+local graphics = require('core.editor.graphics')
 local ticker = require('ui.pixel.ticker')
 local indicators = require('ui.pixel.indicators')
 local theme = require('harness.transcript.theme')

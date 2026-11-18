@@ -1,7 +1,7 @@
 local lazy = require('core.lazy')
 
 local Object = lazy('core.Object')
-local Window = lazy('core.Window')
+local Window = lazy('core.editor.Window')
 
 local LayoutBounds = Object:extend()
 

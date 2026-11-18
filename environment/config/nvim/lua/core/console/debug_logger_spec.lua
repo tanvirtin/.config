@@ -1,5 +1,5 @@
-local env = require('core.env')
-local fs = require('core.fs')
+local env = require('core.system.env')
+local fs = require('core.system.fs')
 
 local eq = assert.are.same
 

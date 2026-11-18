@@ -1,5 +1,5 @@
 local Timer = require('core.Timer')
-local Window = require('core.Window')
+local Window = require('core.editor.Window')
 local console = require('core.console')
 local text = require('core.text')
 local Surface = require('surfaces.Surface')

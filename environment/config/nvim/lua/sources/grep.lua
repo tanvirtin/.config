@@ -1,4 +1,4 @@
-local fs = require('core.fs')
+local fs = require('core.system.fs')
 local Timer = require('core.Timer')
 local sources = require('sources')
 

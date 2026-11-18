@@ -1,4 +1,4 @@
-local fs = require('core.fs')
+local fs = require('core.system.fs')
 local Timer = require('core.Timer')
 local settings = require('harness.settings.skills')
 local SkillSync = require('harness.features.SkillSync')

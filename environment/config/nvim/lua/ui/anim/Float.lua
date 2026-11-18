@@ -1,5 +1,5 @@
-local Buffer = require('core.Buffer')
-local Window = require('core.Window')
+local Buffer = require('core.editor.Buffer')
+local Window = require('core.editor.Window')
 local markup = require('ui.markup')
 
 local Float = {}

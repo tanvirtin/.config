@@ -1,6 +1,6 @@
 local Tile = require('ui.pixel.Tile')
 local Toast = require('harness.ui.Toast')
-local graphics = require('core.graphics')
+local graphics = require('core.editor.graphics')
 local ticker = require('ui.pixel.ticker')
 local theme_settings = require('harness.settings.theme')
 

@@ -1,6 +1,6 @@
 local Tile = require('ui.pixel.Tile')
 local roles = require('ui.pixel.roles')
-local graphics = require('core.graphics')
+local graphics = require('core.editor.graphics')
 local Bitmap = require('ui.pixel.Bitmap')
 local ticker = require('ui.pixel.ticker')
 local mascot = require('harness.transcript.mascot')

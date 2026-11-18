@@ -1,6 +1,6 @@
 local lazy = require('core.lazy')
 
-local fs = lazy('core.fs')
+local fs = lazy('core.system.fs')
 local utils = lazy('core.utils')
 local Object = lazy('core.Object')
 

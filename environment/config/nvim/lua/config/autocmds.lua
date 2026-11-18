@@ -29,4 +29,4 @@ autocmd({ 'FocusGained', 'BufEnter', 'CursorHold', 'CursorHoldI' }, {
 
 require('features.LiveReload')():register_events()
 
-require('core.shutdown').setup()
+require('core.system.shutdown').setup()

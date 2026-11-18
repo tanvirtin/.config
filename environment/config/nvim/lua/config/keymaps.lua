@@ -119,17 +119,17 @@ map('n', '<leader>gcb', '<Cmd>VGit buffer_conflict_accept_both<CR>', { desc = 'C
 map(
   'v',
   '<leader>sy',
-  '<Esc><Cmd>lua require("core.selection").yank()<CR>',
+  '<Esc><Cmd>lua require("core.editor.selection").yank()<CR>',
   { desc = 'Yank the selection for the agent' }
 )
 map(
   'v',
   '<leader>sa',
-  '<Esc><Cmd>lua require("core.selection").add()<CR>',
+  '<Esc><Cmd>lua require("core.editor.selection").add()<CR>',
   { desc = 'Add the selection for the agent' }
 )
-map('n', '<leader>sf', '<Cmd>lua require("core.selection").flush()<CR>', { desc = 'Flush the selection' })
-map('n', '<leader>sc', '<Cmd>lua require("core.selection").clear()<CR>', { desc = 'Clear the selection' })
+map('n', '<leader>sf', '<Cmd>lua require("core.editor.selection").flush()<CR>', { desc = 'Flush the selection' })
+map('n', '<leader>sc', '<Cmd>lua require("core.editor.selection").clear()<CR>', { desc = 'Clear the selection' })
 
 map('n', '<leader>.', '<Cmd>lua require("harness").switch()<CR>', { desc = 'Sessions' })
 

@@ -1,9 +1,9 @@
 local lazy = require('core.lazy')
 
-local fs = lazy('core.fs')
-local Window = lazy('core.Window')
+local fs = lazy('core.system.fs')
 local console = lazy('core.console')
 local notice = lazy('harness.ui.notice')
+local Window = lazy('core.editor.Window')
 local ComposerView = lazy('harness.composer.View')
 local session_store = lazy('harness.session.store')
 local ComposerStore = lazy('harness.composer.Store')

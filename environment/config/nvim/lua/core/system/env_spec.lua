@@ -1,4 +1,4 @@
-local env = require('core.env')
+local env = require('core.system.env')
 
 local eq = assert.are.same
 

@@ -1,6 +1,6 @@
 local markup = require('ui.markup')
 local Bitmap = require('ui.pixel.Bitmap')
-local highlight = require('core.highlight')
+local highlight = require('core.editor.highlight')
 
 local roles = {}
 

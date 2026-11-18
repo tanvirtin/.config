@@ -1,6 +1,6 @@
 local lazy = require('core.lazy')
 
-local fs = lazy('core.fs')
+local fs = lazy('core.system.fs')
 local permission = require('harness.types.permission')
 local claude = require('harness.permission_rules.claude')
 

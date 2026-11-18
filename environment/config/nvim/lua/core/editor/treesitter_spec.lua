@@ -1,4 +1,4 @@
-local treesitter = require('core.treesitter')
+local treesitter = require('core.editor.treesitter')
 
 local eq = assert.are.same
 
@@ -16,7 +16,7 @@ local function headings()
   return found
 end
 
-describe('core.treesitter:', function()
+describe('core.editor.treesitter:', function()
   it('compiles a query and finds its capture in a parsed string', function()
     local found = headings()
 

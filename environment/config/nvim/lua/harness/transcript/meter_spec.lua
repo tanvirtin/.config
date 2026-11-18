@@ -1,5 +1,5 @@
 local Tile = require('ui.pixel.Tile')
-local graphics = require('core.graphics')
+local graphics = require('core.editor.graphics')
 local meter = require('harness.transcript.meter')
 
 local eq = assert.are.same

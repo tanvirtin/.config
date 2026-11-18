@@ -1,4 +1,4 @@
-local Window = require('core.Window')
+local Window = require('core.editor.Window')
 local sticky_bottom = require('harness.transcript.view.sticky_bottom')
 
 local eq = assert.are.same

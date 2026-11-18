@@ -1,4 +1,4 @@
-local Buffer = require('core.Buffer')
+local Buffer = require('core.editor.Buffer')
 local Fades = require('harness.transcript.effects.Fades')
 
 local eq = assert.are.same

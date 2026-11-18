@@ -3,7 +3,7 @@ local text = require('core.text')
 local Tile = require('ui.pixel.Tile')
 local roles = require('ui.pixel.roles')
 local Bitmap = require('ui.pixel.Bitmap')
-local highlight = require('core.highlight')
+local highlight = require('core.editor.highlight')
 
 local INSET = 6
 local RADIUS = 10

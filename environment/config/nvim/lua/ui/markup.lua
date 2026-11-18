@@ -1,6 +1,6 @@
 local text = require('core.text')
 local widgets = require('ui.widgets')
-local highlight = require('core.highlight')
+local highlight = require('core.editor.highlight')
 
 local markup = {}
 

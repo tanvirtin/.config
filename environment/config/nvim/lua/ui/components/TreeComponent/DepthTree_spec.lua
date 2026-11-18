@@ -1,5 +1,5 @@
 local DepthTree = require('ui.components.TreeComponent.DepthTree')
-local fs = require('core.fs')
+local fs = require('core.system.fs')
 
 local eq = assert.are.same
 

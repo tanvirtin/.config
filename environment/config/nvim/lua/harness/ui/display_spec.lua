@@ -168,7 +168,7 @@ describe('harness.ui.display:', function()
     it('marks the current one only while several are in sight', function()
       local other = second()
       local first_win = vim.api.nvim_get_current_win()
-      local Window = require('core.Window')
+      local Window = require('core.editor.Window')
 
       display.open(session)
       eq(false, display.is_target(display.view_of(session), Window(first_win)))

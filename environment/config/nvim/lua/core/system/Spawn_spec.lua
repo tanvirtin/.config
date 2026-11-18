@@ -1,4 +1,4 @@
-local Spawn = require('core.Spawn')
+local Spawn = require('core.system.Spawn')
 
 local eq = assert.are.same
 
