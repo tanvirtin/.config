@@ -75,6 +75,12 @@ function fs.glob(pattern)
   return vim.fn.glob(pattern, false, true)
 end
 
+function fs.runtime_file(path)
+  local found = vim.api.nvim_get_runtime_file(path, false)
+
+  return type(found) == 'table' and found[1] or found
+end
+
 function fs.complete(prefix)
   return vim.fn.getcompletion(prefix, 'file')
 end

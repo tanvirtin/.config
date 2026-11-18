@@ -23,10 +23,12 @@ SessionHub.DEFAULTS = {
   spawn = nil,
 }
 
-local function lua_root()
-  local source = debug.getinfo(1, 'S').source:sub(2)
+local function editor_script()
+  local found = fs.runtime_file('lua/nvim_mcp/run.lua')
 
-  return fs.normalize(fs.dirname(source) .. '/..')
+  assert(found and found ~= '', 'harness cannot find nvim_mcp/run.lua on its runtime path')
+
+  return found
 end
 
 function SessionHub:constructor(store)
@@ -71,7 +73,7 @@ function SessionHub:editor_server(key)
   return {
     name = permissions.MCP_NAME,
     command = env.progpath(),
-    args = { '--headless', '-u', 'NONE', '-l', lua_root() .. '/nvim_mcp/run.lua', env.server_address() },
+    args = { '--headless', '-u', 'NONE', '-l', editor_script(), env.server_address() },
     env = { { name = 'HARNESS_SESSION', value = key or '' } },
   }
 end
