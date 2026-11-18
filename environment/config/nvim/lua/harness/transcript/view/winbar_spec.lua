@@ -140,6 +140,7 @@ describe('harness.transcript.view.winbar:', function()
     end
     graphics.upload = function() end
     graphics.delete = function() end
+    require('ui.hl').define()
 
     local text = context(40)
 

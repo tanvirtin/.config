@@ -83,7 +83,8 @@ local function status(session, prompt, target)
   if session.external and follow.is_following(session) then parts[#parts + 1] = '%#UiWarn#⇄ external  ' end
 
   if session:running() then
-    parts[#parts + 1] = render({ theme.loader('busy', Timer.now()) }) .. '%#UiAccent#running'
+    parts[#parts + 1] = render({ { theme.working_text(Timer.now()) .. ' ', theme.LOADER_GROUPS.busy } })
+      .. '%#UiAccent#running'
   elseif session.state == 'closed' then
     parts[#parts + 1] = '%#' .. theme.IDLE_ICON[2] .. '#' .. theme.IDLE_ICON[1] .. 'closed'
   else
