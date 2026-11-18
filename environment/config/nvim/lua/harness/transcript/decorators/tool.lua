@@ -2,10 +2,10 @@ local text = require('core.text')
 local MarkSpec = require('ui.MarkSpec')
 local layer = require('ui.design.layer')
 local glyph = require('ui.design.glyph')
-local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
-local output_style = require('harness.transcript.output_style')
+local Block = require('harness.transcript.model.Block')
 local context = require('harness.transcript.decorators.context')
+local output_style = require('harness.transcript.model.output_style')
 
 local OUTPUT_PRIORITY = layer.of('output')
 

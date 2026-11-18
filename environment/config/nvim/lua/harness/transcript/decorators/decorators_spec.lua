@@ -3,7 +3,7 @@ local graphics = require('core.graphics')
 local rule = require('harness.transcript.rule')
 local indicators = require('ui.pixel.indicators')
 local meter = require('harness.transcript.meter')
-local Block = require('harness.transcript.Block')
+local Block = require('harness.transcript.model.Block')
 local theme = require('harness.transcript.theme')
 local decorators = require('harness.transcript.decorators')
 

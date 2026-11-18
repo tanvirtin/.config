@@ -1,6 +1,6 @@
 local MarkSpec = require('ui.MarkSpec')
 local theme = require('harness.transcript.theme')
-local plan_summary = require('harness.transcript.plan_summary')
+local plan_summary = require('harness.transcript.model.plan_summary')
 
 local ENTRY_PREFIX = #'- [ ] '
 

@@ -40,7 +40,7 @@ describe('keys the harness names on screen:', function()
     vim.keymap.set('n', '<leader>zq', '<Cmd>lua require("harness").switch()<CR>')
 
     with_keys('transcript', { help = 'g!' }, function()
-      local hints = require('harness.ui.winbar').hints()
+      local hints = require('harness.transcript.view.winbar').hints()
 
       assert.truthy(hints:find('<leader>zq', 1, true))
       assert.truthy(hints:find('g!', 1, true))

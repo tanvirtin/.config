@@ -1,5 +1,5 @@
 local Tile = require('ui.pixel.Tile')
-local Block = require('harness.transcript.Block')
+local Block = require('harness.transcript.model.Block')
 local decorators = require('harness.transcript.decorators')
 
 local eq = assert.are.same

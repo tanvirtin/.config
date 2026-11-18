@@ -5,7 +5,7 @@ local ComposerView = require('harness.ui.ComposerView')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local hub = require('harness.session.hub')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
-local transcript = require('harness.ui.transcript')
+local transcript = require('harness.transcript.view')
 local display = require('harness.ui.display')
 
 local eq = assert.are.same
@@ -1427,7 +1427,7 @@ describe('harness.ui.composer:', function()
       eq({ 'next question' }, session:queued())
 
       local buf = transcript.buffer_of(session)
-      local Document = require('harness.ui.Document')
+      local Document = require('harness.transcript.view.Document')
 
       local function shown()
         local text = {}

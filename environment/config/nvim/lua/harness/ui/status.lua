@@ -108,7 +108,7 @@ function status.to_waiting()
 
   if window:get_buffer().bufnr == view.bufnr then
     window:set_cursor({ 1, 0 })
-    require('harness.ui.motions').jump(view, require('harness.ui.motions').KIND.waiting, 1)
+    require('harness.transcript.view.motions').jump(view, require('harness.transcript.view.motions').KIND.waiting, 1)
   end
 
   return view

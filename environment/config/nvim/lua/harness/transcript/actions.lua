@@ -1,4 +1,4 @@
-local content = require('harness.transcript.content')
+local content = require('harness.transcript.model.content')
 
 local actions = {}
 

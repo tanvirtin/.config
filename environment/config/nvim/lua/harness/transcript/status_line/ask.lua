@@ -5,7 +5,7 @@ local theme = require('harness.transcript.theme')
 local keymaps = require('harness.settings.keymaps')
 local settings = require('harness.settings.transcript')
 local card = require('harness.transcript.status_line.card')
-local plan_summary = require('harness.transcript.plan_summary')
+local plan_summary = require('harness.transcript.model.plan_summary')
 
 local ask = { id = 'ask', order = 20, exclusive = true }
 

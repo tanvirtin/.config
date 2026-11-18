@@ -1,7 +1,7 @@
-local Block = require('harness.transcript.Block')
+local Block = require('harness.transcript.model.Block')
 local actions = require('harness.transcript.actions')
-local content = require('harness.transcript.content')
-local builtin = require('harness.transcript.content.builtin')
+local content = require('harness.transcript.model.content')
+local builtin = require('harness.transcript.model.content.builtin')
 
 local eq = assert.are.same
 

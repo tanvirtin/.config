@@ -2,8 +2,8 @@ local lazy = require('core.lazy')
 
 local harness = lazy('harness')
 local agent = lazy('harness.agent')
-local edits = lazy('harness.ui.edits')
 local notice = lazy('harness.ui.notice')
+local edits = lazy('harness.transcript.view.edits')
 
 local command = {}
 

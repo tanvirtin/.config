@@ -4,7 +4,7 @@ local acp_config = require('harness.servers.acp.config')
 local async = require('harness.async')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
-local builtin = require('harness.transcript.content.builtin')
+local builtin = require('harness.transcript.model.content.builtin')
 
 local eq = assert.are.same
 

@@ -77,6 +77,8 @@ local LAYERS = {
   { 'harness.follow', 6 },
   { 'harness.features', 6 },
   { 'harness.transcript', 6 },
+  { 'harness.transcript.view', 7 },
+  { 'harness.transcript.effects', 7 },
   { 'harness.ui', 7 },
   { 'harness.cli', 8 },
   { 'harness', 8 },

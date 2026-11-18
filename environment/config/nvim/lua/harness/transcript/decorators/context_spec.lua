@@ -1,4 +1,4 @@
-local Block = require('harness.transcript.Block')
+local Block = require('harness.transcript.model.Block')
 local context = require('harness.transcript.decorators.context')
 
 local eq = assert.are.same

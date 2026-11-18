@@ -7,13 +7,13 @@ local router = lazy('harness.cli.router')
 local settings = lazy('harness.settings')
 local actions = lazy('harness.ui.actions')
 local composer = lazy('harness.ui.composer')
-local transcript = lazy('harness.ui.transcript')
+local transcript = lazy('harness.transcript.view')
 local SkillSync = lazy('harness.features.SkillSync')
 local instructions = lazy('harness.types.instructions')
 local EditCheckTime = lazy('harness.features.EditCheckTime')
 local StaleRunNotice = lazy('harness.features.StaleRunNotice')
 
-require('harness.transcript.content.builtin')()
+require('harness.transcript.model.content.builtin')()
 
 local harness = {}
 

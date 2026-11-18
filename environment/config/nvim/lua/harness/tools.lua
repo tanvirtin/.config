@@ -3,7 +3,7 @@ local lazy = require('core.lazy')
 local tools = lazy('nvim_mcp.tools')
 local schema = lazy('nvim_mcp.schema')
 local hub = lazy('harness.session.hub')
-local text_renderer = lazy('harness.transcript.text_renderer')
+local text_renderer = lazy('harness.transcript.model.text_renderer')
 
 local session_tools = {}
 

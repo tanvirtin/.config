@@ -100,7 +100,7 @@ describe('harness.transcript.theme:', function()
     end)
 
     it('never flashes a finished tool', function()
-      local Flashes = require('harness.ui.Flashes')
+      local Flashes = require('harness.transcript.effects.Flashes')
       local flashes = Flashes(require('core.Buffer')():create(false, true))
 
       eq(false, flashes:scan({ { kind = 'tool', id = 't', start = 0, finished = 1000, status = 'completed' } }, 1000))

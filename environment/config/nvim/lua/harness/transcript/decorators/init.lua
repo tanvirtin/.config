@@ -1,8 +1,8 @@
 local text = require('core.text')
 local MarkSpec = require('ui.MarkSpec')
-local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
-local BlockBuilder = require('harness.transcript.BlockBuilder')
+local Block = require('harness.transcript.model.Block')
+local BlockBuilder = require('harness.transcript.model.BlockBuilder')
 
 local decorators = {}
 

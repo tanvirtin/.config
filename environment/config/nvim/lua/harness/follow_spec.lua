@@ -137,7 +137,7 @@ describe('harness.follow:', function()
     fake.stored = { { sessionId = 's1', cwd = dir, updatedAt = 't1' } }
     session.connection.agent_capabilities = { sessionCapabilities = { list = {} } }
 
-    local transcript = require('harness.ui.transcript')
+    local transcript = require('harness.transcript.view')
     local visible = transcript.buffer_of
 
     transcript.buffer_of = function()

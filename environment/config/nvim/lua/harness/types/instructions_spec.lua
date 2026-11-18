@@ -1,5 +1,5 @@
 local instructions = require('harness.types.instructions')
-local builtin = require('harness.transcript.content.builtin')
+local builtin = require('harness.transcript.model.content.builtin')
 
 local eq = assert.are.same
 

@@ -1,7 +1,7 @@
 local MarkSpec = require('ui.MarkSpec')
 local layer = require('ui.design.layer')
-local Block = require('harness.transcript.Block')
 local theme = require('harness.transcript.theme')
+local Block = require('harness.transcript.model.Block')
 
 local LINE_HL = { GitSignsAddLn = true, GitSignsDeleteLn = true }
 local NUMBER_GROUP = {

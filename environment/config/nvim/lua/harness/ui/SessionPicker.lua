@@ -18,16 +18,16 @@ local hub = lazy('harness.session.hub')
 local notice = lazy('harness.ui.notice')
 local Surface = lazy('surfaces.Surface')
 local catalog = lazy('ui.pixel.catalog')
-local winbar = lazy('harness.ui.winbar')
 local display = lazy('harness.ui.display')
 local Element = lazy('ui.elements.Element')
 local theme = lazy('harness.transcript.theme')
 local indicators = lazy('ui.pixel.indicators')
 local LayoutSpec = lazy('ui.layout.LayoutSpec')
-local transcript = lazy('harness.ui.transcript')
 local keymaps = lazy('harness.settings.keymaps')
 local confirm = lazy('harness.settings.sessions')
+local transcript = lazy('harness.transcript.view')
 local session_types = lazy('harness.types.session')
+local winbar = lazy('harness.transcript.view.winbar')
 local session_search = lazy('harness.ui.session_search')
 
 local PROMPT = '> '
@@ -854,7 +854,7 @@ function SessionPicker:_live_facts(session, status, agent_name)
   local now = Timer.now()
 
   if status == 'running' then
-    local started = lazy('harness.ui.TranscriptView').turn_started(session)
+    local started = lazy('harness.transcript.view.TranscriptView').turn_started(session)
     local elapsed = started and theme.duration(now - started)
 
     parts[#parts + 1] = elapsed and ('working ' .. elapsed) or 'working'

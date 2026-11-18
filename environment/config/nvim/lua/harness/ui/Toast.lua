@@ -8,9 +8,9 @@ local Tile = require('ui.pixel.Tile')
 local roles = require('ui.pixel.roles')
 local glyph = require('ui.design.glyph')
 local settings = require('harness.settings')
-local Animator = require('harness.ui.Animator')
 local Animation = require('ui.pixel.Animation')
 local theme = require('harness.transcript.theme')
+local Animator = require('harness.transcript.effects.Animator')
 
 local Toast = Object:extend()
 

@@ -4,7 +4,7 @@ local display = require('harness.ui.display')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local hub = require('harness.session.hub')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
-local transcript = require('harness.ui.transcript')
+local transcript = require('harness.transcript.view')
 
 local eq = assert.are.same
 
