@@ -18,11 +18,11 @@ test-file:
 	$(GIT_ENV) vusted $(FILE)
 
 bench:
-	nvim --headless -c 'luafile bench/sn.lua'
+	nvim --headless -c 'luafile bench/harness.lua'
 
 bench-check:
 	@test -n "$(BENCH_BUDGET_MS)" || (echo "set BENCH_BUDGET_MS to a millisecond budget" && exit 1)
-	BENCH_BUDGET_MS=$(BENCH_BUDGET_MS) nvim --headless -c 'luafile bench/sn.lua'
+	BENCH_BUDGET_MS=$(BENCH_BUDGET_MS) nvim --headless -c 'luafile bench/harness.lua'
 
 coverage:
 	$(GIT_ENV) vusted --coverage
@@ -50,14 +50,14 @@ lint:
 
 format:
 	@if [ -n "$(STYLUA)" ]; then \
-		$(STYLUA) --config-path stylua.toml lua/; \
+		$(STYLUA) --config-path stylua.toml lua/ harness/lua/; \
 	else \
 		echo "stylua not installed. Skipping..."; \
 	fi
 
 format-check:
 	@if [ -n "$(STYLUA)" ]; then \
-		$(STYLUA) --check --config-path stylua.toml lua/; \
+		$(STYLUA) --check --config-path stylua.toml lua/ harness/lua/; \
 	else \
 		echo "stylua not installed. Skipping..."; \
 	fi

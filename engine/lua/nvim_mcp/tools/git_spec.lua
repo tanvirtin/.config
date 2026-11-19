@@ -1,4 +1,4 @@
-local permissions = require('sn.permissions')
+local permissions = require('harness.permissions')
 local tools = require('nvim_mcp.tools')
 
 local eq = assert.are.same

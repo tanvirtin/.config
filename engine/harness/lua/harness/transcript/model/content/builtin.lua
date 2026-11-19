@@ -1,0 +1,166 @@
+local Block = require('harness.transcript.model.Block')
+local content = require('harness.transcript.model.content')
+local content_settings = require('harness.settings.content')
+
+local function yank(view, block)
+  local text, code = view:yank_token(block)
+
+  if text then return text, code end
+
+  return view:yank_block(block)
+end
+
+return function()
+  content.register({
+    id = 'title',
+    kind = Block.KIND.title,
+    render = { mode = 'markdown' },
+  })
+
+  content.register({
+    id = 'message',
+    kind = Block.KIND.message,
+    render = { mode = 'markdown' },
+    hit_test = 'markdown',
+    actions = {
+      {
+        key = 'yank',
+        label = 'yank the table cell',
+        handler = yank,
+      },
+    },
+  })
+
+  content.register({
+    id = 'thought',
+    kind = Block.KIND.thought,
+    render = { mode = 'markdown', quote = true, live = true },
+  })
+
+  content.register({
+    id = 'prompt',
+    kind = Block.KIND.prompt,
+    render = { mode = 'raw' },
+  })
+
+  content.register({
+    id = 'note',
+    kind = Block.KIND.note,
+    render = { mode = 'raw' },
+  })
+
+  content.register({
+    id = 'plan',
+    kind = Block.KIND.plan,
+    render = { mode = 'raw' },
+  })
+
+  content.register({
+    id = 'execute',
+    kind = Block.KIND.tool,
+    category = Block.CATEGORY.execute,
+    priority = 10,
+    render = { mode = 'markdown' },
+    instructions = {
+      agent = 'Keep terminal commands and output verbatim; do not wrap or reflow them.',
+      when = { categories = { Block.CATEGORY.execute } },
+    },
+  })
+
+  content.register({
+    id = 'json',
+    match = function(block)
+      return block.kind == Block.KIND.tool and block.lang == 'json'
+    end,
+    priority = 20,
+    render = {
+      mode = 'markdown',
+      treesitter = {
+        language = 'json',
+        first = 3,
+        trim = 1,
+        captures = {
+          property = function()
+            return content_settings:get('json').property
+          end,
+        },
+      },
+    },
+    hit_test = 'json',
+    actions = {
+      {
+        key = 'yank',
+        label = 'yank the JSON token',
+        handler = yank,
+      },
+    },
+  })
+
+  content.register({
+    id = 'csv',
+    match = function(block)
+      return block.kind == Block.KIND.tool and (block.lang == 'csv' or block.lang == 'tsv')
+    end,
+    priority = 20,
+    render = {
+      mode = 'markdown',
+      table = { first = 3, trim = 1 },
+    },
+    hit_test = 'csv',
+    actions = {
+      {
+        key = 'yank',
+        label = 'yank the table cell',
+        handler = yank,
+      },
+    },
+  })
+
+  content.register({
+    id = 'tool',
+    kind = Block.KIND.tool,
+    render = { mode = 'markdown' },
+  })
+
+  content.register({
+    id = 'diff',
+    kind = Block.KIND.diff,
+    render = { mode = 'markdown' },
+    instructions = {
+      agent = 'When showing diffs, keep paths relative and do not reflow the patch.',
+      when = { categories = { Block.CATEGORY.edit, Block.CATEGORY.delete, Block.CATEGORY.move } },
+    },
+    actions = {
+      {
+        key = 'diff',
+        label = 'open edit in vgit',
+      },
+      {
+        key = 'open',
+        label = 'open the file',
+        handler = function(view)
+          return view:open_target()
+        end,
+      },
+      {
+        key = 'yank',
+        label = 'yank the patch',
+        handler = function(view, block)
+          return view:yank_block(block)
+        end,
+      },
+    },
+  })
+
+  content.register({
+    id = 'stop',
+    kind = Block.KIND.stop,
+    render = { mode = 'markdown' },
+  })
+
+  content.register({
+    id = 'collapsed',
+    kind = Block.KIND.collapsed,
+    render = { mode = 'markdown' },
+  })
+end

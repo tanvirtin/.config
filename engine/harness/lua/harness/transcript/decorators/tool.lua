@@ -1,0 +1,187 @@
+local text = require('core.text')
+local MarkSpec = require('ui.MarkSpec')
+local layer = require('ui.design.layer')
+local glyph = require('ui.design.glyph')
+local theme = require('harness.transcript.theme')
+local Block = require('harness.transcript.model.Block')
+local context = require('harness.transcript.decorators.context')
+local output_style = require('harness.transcript.model.output_style')
+
+local OUTPUT_PRIORITY = layer.of('output')
+
+local function count_lines(output)
+  local trimmed = (output or ''):gsub('%s+$', '')
+
+  if trimmed == '' then return 0 end
+
+  return select(2, trimmed:gsub('\n', '')) + 1
+end
+
+local SUMMARY = {
+  [Block.CATEGORY.read] = function(block)
+    local n = count_lines(block.output)
+    return n > 0 and theme.plural(n, 'line') or nil
+  end,
+  [Block.CATEGORY.search] = function(block)
+    return theme.plural(count_lines(block.output), 'result')
+  end,
+}
+
+local function icon_of(block, live, waiting, ctx)
+  if waiting then return { theme.loader('waiting', ctx.now) } end
+  if live then return { theme.loader('busy', ctx.now) } end
+  if block.interrupted then return { { theme.TOOL_ICONS.failed[1], 'UiMuted' } } end
+
+  local burst = theme.burst(block.id, block.finished, ctx.now, block.status == Block.STATUS.failed)
+
+  if burst then return { burst } end
+
+  return { theme.TOOL_ICONS[block.status] or theme.TOOL_ICONS[Block.STATUS.pending] }
+end
+
+local function verb_of(block)
+  local verb = block.grouped and block.name:sub(1, 1):lower() .. block.name:sub(2) or block.name:lower()
+
+  if not block.argument then return verb end
+
+  return verb .. string.rep(' ', math.max(theme.VERB_WIDTH - text.width(verb), 2))
+end
+
+local function subagent_summary(block, live, ctx)
+  local tools = theme.plural(block.nested, 'tool')
+
+  if live and block.started and ctx.now then
+    local ms = math.max(0, ctx.now - block.started)
+
+    return tools .. glyph.SEPARATOR .. (theme.duration(ms) or math.floor(ms / 1000) .. 's')
+  end
+
+  if live or not context.FINISHED[block.status] or block.finished == nil then return tools end
+
+  local duration = block.started and theme.duration(block.finished - block.started)
+
+  return (duration and duration .. glyph.SEPARATOR or '') .. tools
+end
+
+local function took(block)
+  if block.nested or not block.started or not block.finished then return nil end
+
+  return theme.duration(block.finished - block.started)
+end
+
+local function tail_of(block, ctx, live, waiting)
+  local parts = {}
+
+  local function add(...)
+    if #parts > 0 then parts[#parts + 1] = { '  ' } end
+
+    for _, chunk in ipairs({ ... }) do
+      parts[#parts + 1] = chunk
+    end
+  end
+
+  if block.nested then add({ subagent_summary(block, live, ctx), 'UiMuted' }) end
+  if block.added or block.removed then
+    local squares = theme.diffstat(block.added or 0, block.removed or 0)
+
+    add(
+      { '+' .. (block.added or 0), 'UiAdded' },
+      { ' ' },
+      { '−' .. (block.removed or 0), 'UiRemoved' },
+      squares[1],
+      squares[2]
+    )
+  end
+
+  if block.denied then
+    add({ block.denied, 'UiWarn' })
+  elseif block.interrupted and not live then
+    add({ 'interrupted', 'UiMuted' })
+  end
+
+  if waiting then
+    add({ 'waiting for you', 'UiWarn' })
+  elseif live and not block.nested and block.started and ctx.now then
+    local elapsed = theme.duration(ctx.now - block.started)
+    if elapsed then add({ elapsed, 'UiMuted' }) end
+  elseif not live and context.FINISHED[block.status] then
+    local summary = SUMMARY[block.category] and #block.lines == 1 and SUMMARY[block.category](block)
+    local duration = took(block)
+
+    if summary then add({ summary, 'UiMuted' }) end
+    if duration then add({ duration, 'UiMuted' }) end
+  end
+
+  return parts
+end
+
+local function width_of(chunks)
+  local width = 0
+
+  for _, chunk in ipairs(chunks) do
+    width = width + text.width(chunk[1])
+  end
+
+  return width
+end
+
+local function tail_position(block, head, tail, ctx)
+  if not ctx.width or block.first_child then return 'eol' end
+
+  return head + width_of(tail) + 2 <= ctx.width and 'right_align' or 'eol'
+end
+
+return function(block, ctx)
+  local out = {}
+  local row = block.start
+  local live = context.live_tool(block, ctx)
+  local waiting = live and context.waiting_for(block, ctx)
+  local icon = icon_of(block, live, waiting, ctx)
+  local verb = verb_of(block)
+  local hidden = 3 + #block.name + (block.argument and 1 or 0)
+
+  local surface = block.category == Block.CATEGORY.execute and 'UiTerminal' or 'UiSurface'
+
+  MarkSpec.add(out, row, 0, { end_col = math.min(hidden, #block.lines[1]), conceal = '', line_hl_group = surface })
+  local head_chunks = vim.list_extend(vim.list_slice(icon), { { verb, 'UiToolName' } })
+
+  MarkSpec.add(out, row, 0, { virt_text = head_chunks, virt_text_pos = 'inline' })
+
+  local tail = tail_of(block, ctx, live, waiting)
+
+  if #tail > 0 then
+    local head = width_of(head_chunks)
+      + text.width(block.argument or '')
+      + (block.depth and text.width(theme.GUTTER) or 0)
+    local position = tail_position(block, head, tail, ctx)
+
+    if position == 'eol' then table.insert(tail, 1, { '  ' }) end
+
+    MarkSpec.add(out, row, 0, { virt_text = tail, virt_text_pos = position })
+  end
+
+  if #block.lines > 1 then
+    local failed = block.status == Block.STATUS.failed
+    local plain = not block.ansi and not failed and not block.lang
+
+    for body_row = row + 2, block.start + #block.lines - 2 do
+      if failed and not block.ansi then
+        MarkSpec.add(out, body_row, 0, { end_row = body_row + 1, hl_group = 'UiError', hl_eol = false })
+      elseif plain then
+        for _, span in ipairs(output_style.rules(block.lines[body_row - block.start + 1])) do
+          MarkSpec.add(out, body_row, span[1], { end_col = span[2], hl_group = span[3], priority = OUTPUT_PRIORITY })
+        end
+      end
+    end
+
+    for _, span in ipairs(block.ansi or {}) do
+      local body_row = row + 1 + span[1]
+
+      if body_row < block.start + #block.lines - 1 then
+        MarkSpec.add(out, body_row, span[2], { end_col = span[3], hl_group = span[4], priority = OUTPUT_PRIORITY })
+      end
+    end
+  end
+
+  return out
+end

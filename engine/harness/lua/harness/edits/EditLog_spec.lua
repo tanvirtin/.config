@@ -1,0 +1,184 @@
+local Block = require('harness.transcript.model.Block')
+local EditLog = require('harness.edits.EditLog')
+local Session = require('harness.session.Session')
+
+local eq = assert.are.same
+
+describe('harness.edits.EditLog:', function()
+  local diff = { path = '/a.lua', old = 'x = 1', new = 'x = 2' }
+
+  it('resolves an edit against the file and lays it out with vgit, once per file state', function()
+    local file, reads = { 'x = 1' }, 0
+    local edits = EditLog(function()
+      reads = reads + 1
+      return file
+    end)
+
+    local pending = edits:get(diff, 't:1', false)
+
+    eq('pending', pending.resolved.kind)
+    eq({ 'x = 1', 'x = 2' }, pending:patch().lines)
+    eq(pending, edits:get(diff, 't:1', false))
+
+    file = { 'x = 2' }
+
+    local applied = edits:get(diff, 't:1', true)
+
+    eq('applied', applied.resolved.kind)
+    eq({ '@@ -1 +1 @@', '-x = 1', '+x = 2' }, applied:text())
+    eq(3, reads)
+  end)
+
+  it('keeps a finished edit as it was, whatever happens to the file later', function()
+    local file = { 'x = 2' }
+    local edits = EditLog(function()
+      return file
+    end)
+    local first = edits:get(diff, 't:1', true)
+
+    file = { 'something else' }
+
+    eq(first, edits:get(diff, 't:1', true))
+  end)
+
+  describe('a session opened after its edits', function()
+    local function tool(id, old, new)
+      return {
+        kind = 'tool_update',
+        id = id,
+        status = 'completed',
+        diffs = { { path = '/a.lua', old = old, new = new } },
+      }
+    end
+
+    local history = {
+      tool('t1', 'local M = {}\nreturn M\n', 'local M = {}\nM.a = 1\nreturn M\n'),
+      tool('t2', 'M.a = 1', 'M.b = 1'),
+    }
+
+    it('finds each edit in the file as it was then, newest first, not as it is now', function()
+      local reads = 0
+      local edits = EditLog(function()
+        reads = reads + 1
+        return { 'local M = {}', 'M.b = 1', 'return M' }
+      end)
+
+      edits:prime(history)
+
+      local first, second = edits:get(history[1].diffs[1], 't1:1', true), edits:get(history[2].diffs[1], 't2:1', true)
+
+      eq('applied', first.resolved.kind)
+      eq({ 'local M = {}', 'return M' }, first.resolved.old_lines)
+      eq({ 'local M = {}', 'M.a = 1', 'return M' }, first.resolved.new_lines)
+      eq({ 'local M = {}', 'M.a = 1', 'return M' }, second.resolved.old_lines)
+      eq(1, reads)
+
+      edits:prime(history)
+
+      eq(1, reads)
+    end)
+
+    it('leaves edits it already finished as they were, and reads the file before them from them', function()
+      local file = { 'local M = {}', 'M.b = 1', 'return M' }
+      local edits = EditLog(function()
+        return file
+      end)
+      local second = edits:get(history[2].diffs[1], 't2:1', true)
+
+      file = { 'something else' }
+      edits:prime(history)
+
+      eq(second, edits:get(history[2].diffs[1], 't2:1', true))
+      eq('applied', edits:get(history[1].diffs[1], 't1:1', true).resolved.kind)
+    end)
+  end)
+
+  it('highlights syntax on demand exactly as vgit would, mapped onto the patch rows', function()
+    local file = { 'local a = 0', 'local x = 2', 'return x' }
+    local edit = EditLog(function()
+      return file
+    end):get({ path = '/a.lua', old = 'local x = 1', new = 'local x = 2' }, 't:1', true)
+    local expected = {}
+
+    for _, hl in
+      ipairs(require('vgit.api').patch({ edit.file }, { header = false, context = 3, syntax = true }).highlights)
+    do
+      if hl.syntax then
+        expected[#expected + 1] =
+          { row = hl.row, col_start = hl.col_start, col_end = hl.col_end, hl_group = hl.hl_group }
+      end
+    end
+
+    assert.is_nil(edit:patch().highlights[1] and edit:patch().highlights[1].syntax)
+    assert.is_true(#expected > 0)
+    eq(expected, edit:syntax())
+    eq(edit:syntax(), edit:syntax())
+  end)
+
+  it('maps syntax onto both columns of a split patch', function()
+    local settings = require('harness.settings.transcript')
+    local saved = settings:get('diff_layout')
+
+    settings:assign({ diff_layout = 'split' })
+
+    local file = { 'local a = 0', 'local x = 2', 'return x' }
+    local edit = EditLog(function()
+      return file
+    end):get({ path = '/a.lua', old = 'local x = 1', new = 'local x = 2' }, 't:1', true)
+    local syntax = edit:syntax()
+    local layout = edit:patch().layout
+
+    settings:assign({ diff_layout = saved })
+
+    eq('split', layout)
+
+    local left, right = 0, 0
+
+    for _, hl in ipairs(syntax) do
+      if hl.row == 1 and hl.col_start < 10 then left = left + 1 end
+      if hl.row == 1 and hl.col_start >= 10 then right = right + 1 end
+    end
+
+    assert.is_true(left > 0)
+    assert.is_true(right > 0)
+  end)
+
+  it('leaves a snippet split without line numbers, since they are not the file lines', function()
+    local settings = require('harness.settings.transcript')
+    local saved = settings:get('diff_layout')
+
+    settings:assign({ diff_layout = 'split' })
+
+    local edit = EditLog(function()
+      return {}
+    end):get({ path = '/a.lua', old = 'local x = 1', new = 'local x = 2' }, 't:1', true, true)
+    local patch = edit:patch()
+
+    settings:assign({ diff_layout = saved })
+
+    eq(false, edit.whole)
+    eq('split', patch.layout)
+    eq('  local x = 1', patch.lines[1]:sub(1, 13))
+  end)
+
+  it('belongs to its session, so every reader of a session sees the same frozen edits', function()
+    local one, two = Session({ key = 'h1', id = 's1' }), Session({ key = 'h2', id = 's2' })
+
+    assert.is_true(one.edits:is(EditLog))
+    assert.are_not.equal(one.edits, two.edits)
+  end)
+
+  it('finds the file line under a patch row, only when the edit was found in the file', function()
+    local block = {
+      start = 10,
+      whole = true,
+      patch = { rows = { { kind = 'remove', old_lnum = 4 }, { kind = 'add', new_lnum = 4 }, { kind = 'hunk' } } },
+    }
+
+    eq({ 4, 4 }, { Block.file_line(block, 12), Block.file_line(block, 13) })
+    assert.is_nil(Block.file_line(block, 14))
+
+    block.whole = false
+    assert.is_nil(Block.file_line(block, 13))
+  end)
+end)

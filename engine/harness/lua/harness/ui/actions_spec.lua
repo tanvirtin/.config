@@ -1,0 +1,201 @@
+local async = require('harness.async')
+local actions = require('harness.ui.actions')
+local display = require('harness.ui.display')
+local fake_agent = require('harness.servers.acp.fake_agent')
+local hub = require('harness.session.hub')
+local jsonrpc = require('harness.servers.acp.jsonrpc')
+local transcript = require('harness.transcript.view')
+
+local eq = assert.are.same
+
+local defaults = vim.deepcopy(hub.config)
+local fakes
+
+local function use_fakes(script)
+  fakes = {}
+  hub.config.spawn = function()
+    local fake = fake_agent.new(script)
+    fakes[#fakes + 1] = fake
+    return fake
+  end
+end
+
+local function lines(buf)
+  return vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+end
+
+local function settle(predicate)
+  vim.wait(1000, predicate or function()
+    return false
+  end)
+end
+
+local function prompt_text(fake, n)
+  local count = 0
+
+  for _, message in ipairs(fake.sent) do
+    if message.method == 'session/prompt' then
+      count = count + 1
+      if count == (n or 1) then return message.params.prompt end
+    end
+  end
+end
+
+describe('harness.ui.actions:', function()
+  before_each(function()
+    async.drain()
+    hub.shutdown()
+    hub.config = vim.deepcopy(defaults)
+    use_fakes({
+      ['session/prompt'] = function(message)
+        return {
+          fake_agent.chunk(message.params.sessionId, 'reply to ' .. message.params.prompt[2].text),
+          jsonrpc.result(message.id, { stopReason = 'end_turn' }),
+        }
+      end,
+    })
+    vim.cmd('silent! tabonly!')
+    vim.cmd('silent! only!')
+    vim.cmd('enew!')
+  end)
+
+  after_each(function()
+    require('surfaces').close_all()
+    require('harness.composer').close(true)
+    async.drain()
+    hub.shutdown()
+    hub.config = vim.deepcopy(defaults)
+  end)
+
+  it('starts a session and shows its buffer in the current window', function()
+    local win = vim.api.nvim_get_current_win()
+
+    actions.ask('what is here?'):wait()
+
+    local buf = vim.api.nvim_win_get_buf(win)
+
+    settle(function()
+      return vim.tbl_contains(lines(buf), '*end_turn*')
+    end)
+
+    eq(1, #vim.api.nvim_tabpage_list_wins(0))
+    assert.is_truthy(transcript.view(buf))
+    eq({ '# untitled', '', '> what is here?', '', 'reply to what is here?', '', '*end_turn*', '' }, lines(buf))
+  end)
+
+  it('tells the agent where the user was, and points the tools there, behind the session buffer', function()
+    local source = vim.api.nvim_get_current_buf()
+
+    actions.ask('explain', { range = { 2, 4 } }):wait()
+
+    local blocks = prompt_text(fakes[1])
+
+    assert.is_truthy(blocks[1].text:find('(bufnr ' .. source .. ')', 1, true))
+    assert.is_truthy(blocks[1].text:find('selected lines 2-4', 1, true))
+    assert.is_truthy(blocks[2].text:find('Selected lines 2-4', 1, true))
+    eq('explain', blocks[3].text)
+    assert.is_truthy(require('nvim_mcp.tools').run('editor_state', {}):find('bufnr ' .. source .. ',', 1, true))
+  end)
+
+  it('continues the session the user was last in, from their code or from the session', function()
+    local code = vim.api.nvim_get_current_buf()
+
+    vim.api.nvim_buf_set_name(code, vim.fn.tempname() .. '.lua')
+
+    actions.ask('first'):wait()
+
+    local buf = vim.api.nvim_get_current_buf()
+
+    vim.cmd('buffer ' .. code)
+    actions.ask('second'):wait()
+    eq(buf, vim.api.nvim_get_current_buf())
+
+    actions.ask('third'):wait()
+    settle(function()
+      return #vim.tbl_filter(function(line)
+        return line == '*end_turn*'
+      end, lines(buf)) == 3
+    end)
+
+    local out = table.concat(lines(buf), '\n')
+
+    assert.is_truthy(out:find('> first\n\nreply to first', 1, true))
+    assert.is_truthy(out:find('> second\n\nreply to second', 1, true))
+    assert.is_truthy(out:find('> third\n\nreply to third', 1, true))
+    eq(1, fakes[1]:count('session/new'))
+
+    assert.is_truthy(prompt_text(fakes[1], 3)[1].text:find('(bufnr ' .. code .. ')', 1, true))
+  end)
+
+  it('warns instead of failing when the agent cannot start', function()
+    hub.config.spawn = function()
+      error('claude-agent-acp: not found')
+    end
+
+    local notify = vim.notify
+    local warned
+
+    vim.notify = function(message)
+      warned = message
+    end
+
+    pcall(function()
+      actions.ask('hi'):wait()
+    end)
+    settle(function()
+      return warned ~= nil
+    end)
+    vim.notify = notify
+
+    assert.is_truthy(warned:find('not found', 1, true))
+  end)
+
+  it('opens a session without prompting', function()
+    local session = actions.new():wait()
+
+    eq(session, transcript.view().session)
+    eq(0, fakes[1]:count('session/prompt'))
+  end)
+
+  it('keeps the session when its buffer is closed, and reopens it from the picker', function()
+    local session = actions.new():wait()
+
+    vim.api.nvim_buf_delete(0, { force = true })
+    async.drain()
+
+    eq('idle', session.state)
+    eq(session, hub.session(session.key))
+
+    local picker = actions.switch()
+
+    picker:command('query', { text = session.agent.name })
+    assert.is_truthy(picker:snapshot():find('selected:', 1, true))
+    assert.is_truthy(picker:snapshot():find(session.agent.name, 1, true))
+    picker:command('select')
+    settle(function()
+      return display.view_of(session) ~= nil
+    end)
+
+    eq(session, display.view_of(session).session)
+
+    picker:close()
+  end)
+
+  it('cancels the running turn of the transcript', function()
+    use_fakes({
+      ['session/prompt'] = function()
+        return {}
+      end,
+    })
+
+    local session = actions.new():wait()
+
+    actions.ask('long')
+    settle(function()
+      return session:running() and fakes[1]:count('session/prompt') == 1
+    end)
+    actions.cancel()
+
+    eq('s1', fakes[1]:sent_method('session/cancel').params.sessionId)
+  end)
+end)

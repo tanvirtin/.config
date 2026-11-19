@@ -3,9 +3,16 @@ local roles = require('ui.pixel.roles')
 local eq = assert.are.same
 
 describe('ui.pixel.roles:', function()
+  local accent, surface
+
+  before_each(function()
+    accent = vim.api.nvim_get_hl(0, { name = 'UiAccent' })
+    surface = vim.api.nvim_get_hl(0, { name = 'UiSurface' })
+  end)
+
   after_each(function()
-    vim.api.nvim_set_hl(0, 'UiAccent', {})
-    vim.api.nvim_set_hl(0, 'UiSurface', {})
+    vim.api.nvim_set_hl(0, 'UiAccent', accent)
+    vim.api.nvim_set_hl(0, 'UiSurface', surface)
   end)
 
   it('passes a number through as its colour', function()

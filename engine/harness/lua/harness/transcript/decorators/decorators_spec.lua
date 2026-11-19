@@ -1,0 +1,918 @@
+local Tile = require('ui.pixel.Tile')
+local graphics = require('core.editor.graphics')
+local indicators = require('ui.pixel.indicators')
+local meter = require('harness.transcript.meter')
+local Block = require('harness.transcript.model.Block')
+local theme = require('harness.transcript.theme')
+local decorators = require('harness.transcript.decorators')
+
+local eq = assert.are.same
+
+local function make(kind, lines, fields)
+  local block = Block.make(kind, lines, fields)
+
+  block.start = fields and fields.start or 0
+  block.finish = block.start + #lines + 1
+
+  return block
+end
+
+local function find(marks, predicate)
+  for _, mark in ipairs(marks) do
+    if predicate(mark.opts, mark) then return mark end
+  end
+end
+
+local function width_of(chunks)
+  local total = 0
+
+  for _, chunk in ipairs(chunks) do
+    total = total + vim.fn.strdisplaywidth(chunk[1])
+  end
+
+  return total
+end
+
+local function virt(opts)
+  return opts.virt_text and table.concat(vim.tbl_map(function(chunk)
+    return chunk[1]
+  end, opts.virt_text))
+end
+
+describe('harness.transcript.decorators:', function()
+  local function first_chunk(opts)
+    return opts.virt_text and opts.virt_text[1][1]
+  end
+
+  it('marks a prompt\'s first row with the prompt icon and makes its text bold', function()
+    local marks = decorators.decorate(make(Block.KIND.prompt, { '> a', '> b' }), {})
+
+    eq({ theme.PROMPT_ICON, ' ' }, {
+      find(marks, function(opts, mark)
+        return mark.row == 0 and opts.virt_text_pos == 'overlay'
+      end).opts.virt_text[1][1],
+      find(marks, function(opts, mark)
+        return mark.row == 1 and opts.virt_text_pos == 'overlay'
+      end).opts.virt_text[1][1],
+    })
+    eq(2, #vim.tbl_filter(function(mark)
+      return mark.opts.hl_group == 'UiPromptText'
+    end, marks))
+  end)
+
+  it('says a prompt steered the turn', function()
+    local marks = decorators.decorate(make(Block.KIND.prompt, { '> a' }, { steered = true }), {})
+
+    assert.truthy(find(marks, function(opts)
+      return virt(opts) == '   steered '
+    end))
+  end)
+
+  it('shows a tool as its status icon and lowercase verb, its result aligned right when it fits', function()
+    local block = make(Block.KIND.tool, { '-> Read a.lua' }, {
+      name = 'Read',
+      argument = 'a.lua',
+      status = Block.STATUS.completed,
+      category = Block.CATEGORY.read,
+      output = 'a\nb\n',
+    })
+    local wide = decorators.decorate(block, { running = false, width = 80 })
+
+    eq(theme.TOOL_ICONS[Block.STATUS.completed][1] .. 'read    ', virt(wide[2].opts))
+    eq({ 0, 8 }, { wide[1].col, wide[1].opts.end_col })
+    assert.truthy(find(wide, function(opts)
+      return opts.virt_text_pos == 'right_align' and virt(opts) == '2 lines'
+    end))
+    assert.truthy(find(decorators.decorate(block, { running = false, width = 15 }), function(opts)
+      return opts.virt_text_pos == 'eol' and virt(opts) == '  2 lines'
+    end))
+
+    block.first_child = true
+    assert.truthy(find(decorators.decorate(block, { running = false, width = 80 }), function(opts)
+      return opts.virt_text_pos == 'eol' and virt(opts) == '  2 lines'
+    end))
+  end)
+
+  it('keeps how long a finished tool took, once it took a second', function()
+    local block = make(Block.KIND.tool, { '-> Bash make' }, {
+      name = 'Bash',
+      argument = 'make',
+      status = Block.STATUS.completed,
+      category = Block.CATEGORY.execute,
+      started = 0,
+      finished = 12000,
+    })
+
+    assert.truthy(find(decorators.decorate(block, { running = false, width = 80 }), function(opts)
+      return opts.virt_text_pos == 'right_align' and virt(opts) == '12s'
+    end))
+
+    block.finished = 400
+    local short = find(decorators.decorate(block, { running = false, width = 80 }), function(opts)
+      return opts.virt_text_pos == 'right_align'
+    end)
+
+    eq(true, short == nil)
+  end)
+
+  it('marks edits, failed tools and troubled notes in the sign column, row by row', function()
+    local function sign_rows(block)
+      local rows = {}
+
+      for _, mark in ipairs(decorators.decorate(block, {})) do
+        if mark.opts.sign_text then rows[#rows + 1] = { mark.row, mark.opts.sign_hl_group } end
+      end
+
+      return rows
+    end
+
+    eq(
+      { { 0, 'UiAdded' }, { 1, 'UiAdded' } },
+      sign_rows(make(Block.KIND.diff, { '```edit', '```' }, { path = 'a', patch = { rows = {} } }))
+    )
+    eq(
+      { { 0, 'UiToolFailed' } },
+      sign_rows(make(Block.KIND.tool, { '-> Bash x' }, { name = 'Bash', status = Block.STATUS.failed }))
+    )
+    eq({}, sign_rows(make(Block.KIND.tool, { '-> Bash x' }, { name = 'Bash', status = Block.STATUS.completed })))
+    eq({ { 0, 'UiError' } }, sign_rows(make(Block.KIND.note, { 'error boom' }, { label = 'error' })))
+  end)
+
+  it('totals a turn\'s edits on its stop rule', function()
+    local block = make(
+      Block.KIND.stop,
+      { '*end_turn*' },
+      { reason = 'end_turn', duration = 3000, added = 4, removed = 2, files = 2 }
+    )
+
+    assert.truthy(find(decorators.decorate(block, { width = 80 }), function(opts)
+      return opts.virt_text_pos == 'right_align' and virt(opts) == ' 3s · +4 −2 in 2 files ──'
+    end))
+  end)
+
+  it('shows a live tool as running and times it, or says it waits for you', function()
+    local block = make(
+      Block.KIND.tool,
+      { '-> Bash' },
+      { id = 't', name = 'Bash', status = Block.STATUS.pending, started = 0 }
+    )
+    local ctx = { running = true, frame = 3, now = 3000 }
+    local marks = decorators.decorate(block, ctx)
+
+    assert.truthy(find(marks, function(opts)
+      return first_chunk(opts) == theme.loader('busy', 3000)[1]
+    end))
+    assert.truthy(find(marks, function(opts)
+      return opts.virt_text_pos == 'eol' and virt(opts) == '  3s'
+    end))
+
+    ctx.waiting = { { id = 't' } }
+    assert.truthy(find(decorators.decorate(block, ctx), function(opts)
+      return virt(opts) == '  waiting for you'
+    end))
+    assert.truthy(find(decorators.decorate(block, ctx), function(opts)
+      return first_chunk(opts) == theme.loader('waiting', 3000)[1] and opts.virt_text[1][2] == 'UiWarn'
+    end))
+  end)
+
+  it('draws a vgit patch: file line numbers, line backgrounds and changed words', function()
+    local function block(whole)
+      return make(Block.KIND.diff, { '```edit', '--- a.lua', 'x = 1', 'x = 2', '@@ -9 +9 @@', 'y', '```' }, {
+        path = 'a.lua',
+        whole = whole,
+        patch = {
+          rows = {
+            { kind = 'remove', old_lnum = 4, number = { text = '  4 ', hl = 'GitSignsDelete' } },
+            { kind = 'add', new_lnum = 4, number = { text = '  4 ', hl = 'GitSignsAdd' } },
+            { kind = 'hunk' },
+            { kind = 'context', old_lnum = 9, new_lnum = 9, number = { text = '  9 ', hl = 'GitLineNr' } },
+          },
+          highlights = {
+            { row = 0, hl_group = 'GitSignsDeleteLn', line = true },
+            { row = 1, hl_group = 'GitSignsAddLn', line = true },
+            { row = 2, col_start = 0, col_end = 2, hl_group = 'GitPatchHeaderMarker' },
+            { row = 3, hl_group = 'GitPatchContext', line = true },
+          },
+          words = { { row = 1, col = 4, texts = { { '2', 'GitWordAdd' } } } },
+          syntax = function()
+            return { { row = 3, col_start = 0, col_end = 1, hl_group = '@variable' } }
+          end,
+        },
+      })
+    end
+
+    local marks = decorators.decorate(block(true), {})
+
+    local function at(row, predicate)
+      return find(marks, function(opts, mark)
+        return mark.row == row and predicate(opts)
+      end)
+    end
+
+    assert.truthy(at(2, function(opts)
+      return virt(opts) == '  4 ' and opts.hl_mode == 'combine' and opts.virt_text[1][2] == 'UiDiffDeleteNumber'
+    end))
+    assert.truthy(at(2, function(opts)
+      return opts.line_hl_group == 'GitSignsDeleteLn'
+    end))
+    assert.truthy(at(3, function(opts)
+      return opts.virt_text_pos == 'overlay'
+        and opts.hl_mode == 'combine'
+        and virt(opts) == '2'
+        and opts.virt_text[1][2] == 'GitWordAdd'
+    end))
+    assert.truthy(at(4, function(opts)
+      return virt(opts) == theme.HUNK
+    end))
+    assert.truthy(at(5, function(opts)
+      return opts.hl_group == '@variable' and opts.end_col == 1 and opts.priority == theme.SYNTAX_PRIORITY
+    end))
+    eq(false, at(4, function(opts)
+      return opts.hl_group == 'GitPatchHeaderMarker'
+    end) ~= nil)
+    eq(false, at(5, function(opts)
+      return opts.line_hl_group ~= nil
+    end) ~= nil)
+    assert.truthy(find(decorators.decorate(block(false), {}), function(opts, mark)
+      return mark.row == 2 and virt(opts) == '    '
+    end))
+  end)
+
+  it('borders an artifact with a rule above it, below it too when asked, keeping a nested rail', function()
+    local settings = require('harness.settings.theme')
+    local saved = settings:get('artifact_border')
+    local fields = { start = 4, frame_top = true, frame_bottom = true, depth = 1, name = 'Bash' }
+    local lines = { '-> Bash ls', '```output', 'a', '```' }
+
+    local function borders()
+      local out = {}
+
+      for _, mark in ipairs(decorators.decorate(make(Block.KIND.tool, lines, fields), {})) do
+        local line = mark.opts.virt_lines and mark.opts.virt_lines[1]
+
+        if line then out[#out + 1] = { mark.row, mark.opts.virt_lines_above == true, line[1][1], line[2][2] } end
+      end
+
+      return out
+    end
+
+    settings:assign({ artifact_border = 'top' })
+    local top = borders()
+    settings:assign({ artifact_border = 'both' })
+    local both = borders()
+    settings:assign({ artifact_border = 'none' })
+    local none = borders()
+    settings:assign({ artifact_border = saved })
+
+    eq({ { 4, true, theme.GUTTER, 'UiArtifactBorder' } }, top)
+    eq({ { 4, true, theme.GUTTER, 'UiArtifactBorder' }, { 8, true, theme.GUTTER, 'UiArtifactBorder' } }, both)
+    eq({}, none)
+  end)
+
+  it('draws a split patch: two columns, a hunk rule and per-side colours', function()
+    local block = make(
+      Block.KIND.diff,
+      { '```edit', '--- a.lua', ' 1 x  │  1 x', ' 2 y  │  2 Y', '', ' 9 z  │  9 z', '```' },
+      {
+        path = 'a.lua',
+        whole = true,
+        patch = {
+          layout = 'split',
+          rows = {
+            { kind = 'context', old_lnum = 1, new_lnum = 1, old_code = 5, new_code = 15 },
+            { kind = 'remove', old_lnum = 2, new_lnum = 2, old_code = 5, new_code = 15 },
+            { kind = 'hunk' },
+            { kind = 'context', old_lnum = 9, new_lnum = 9, old_code = 5, new_code = 15 },
+          },
+          highlights = {
+            { row = 1, col_start = 0, col_end = 4, hl_group = 'GitSignsDeleteLn' },
+            { row = 1, col_start = 13, col_end = 16, hl_group = 'GitSignsAddLn' },
+          },
+          words = { { row = 1, col = 5, texts = { { 'y', 'GitWordDelete' } } } },
+          voids = { { row = 1, col = 0, text = '⣿⣿' } },
+          syntax = function()
+            return {}
+          end,
+        },
+      }
+    )
+
+    local marks = decorators.decorate(block, {})
+
+    local function at(row, predicate)
+      return find(marks, function(opts, mark)
+        return mark.row == row and predicate(opts)
+      end)
+    end
+
+    assert.truthy(at(3, function(opts)
+      return opts.hl_group == 'GitSignsDeleteLn' and opts.end_col == 4 and opts.priority > theme.SYNTAX_PRIORITY
+    end))
+    assert.truthy(find(marks, function(opts, mark)
+      return mark.row == 3 and mark.col == 13 and opts.hl_group == 'GitSignsAddLn' and opts.end_col == 16
+    end))
+    assert.truthy(at(4, function(opts)
+      return virt(opts) == theme.HUNK
+    end))
+    assert.truthy(find(marks, function(opts, mark)
+      return mark.row == 3 and mark.col == 5 and opts.virt_text_pos == 'overlay' and virt(opts) == 'y'
+    end))
+    assert.truthy(find(marks, function(opts, mark)
+      return mark.row == 3 and mark.col == 0 and opts.virt_text_pos == 'overlay' and virt(opts) == '⣿⣿'
+    end))
+    assert.truthy(at(0, function(opts)
+      return opts.line_hl_group == 'UiMarkdownCode'
+    end))
+    assert.truthy(at(1, function(opts)
+      return opts.line_hl_group == 'UiMarkdownCode'
+    end))
+    assert.truthy(at(6, function(opts)
+      return opts.line_hl_group == 'UiMarkdownCode'
+    end))
+  end)
+
+  it('ends a turn with a rule that carries its duration and tool count, and names any other reason', function()
+    local function label(fields)
+      local marks = decorators.decorate(make(Block.KIND.stop, { '*x*' }, fields), {})
+
+      return virt(find(marks, function(opts)
+        return opts.virt_text_pos == 'right_align'
+      end).opts)
+    end
+
+    eq(' 4s · 2 tools ──', label({ reason = 'end_turn', duration = 4000, tools = 2 }))
+    eq(' interrupted · 4s ──', label({ reason = 'cancelled', duration = 4000 }))
+    eq(' done ──', label({ reason = 'end_turn' }))
+  end)
+
+  it(
+    'sums up a finished thought by its first line, or its bold heading, cut to fit, and shows only the time of a live one',
+    function()
+      local lines = { '> [!thought]', '>', '> the first idea `here` ' .. string.rep('x', 100), '> later' }
+      local function eol(marks)
+        local found = find(marks, function(opts)
+          return opts.virt_text_pos == 'eol'
+        end)
+
+        return found and found.opts.virt_text
+      end
+
+      local done =
+        eol(decorators.decorate(make(Block.KIND.thought, lines, { started = 0, finished = 2000 }), { width = 60 }))
+
+      eq({ '  for 2s', 'UiMuted' }, done[1])
+      eq(' · ', done[2][1])
+      eq('UiThought', done[3][2])
+      assert.truthy(done[3][1]:find('^the first idea here'))
+      assert.is_true(vim.fn.strchars(done[3][1]) <= 36)
+
+      local headed =
+        eol(decorators.decorate(make(Block.KIND.thought, { '> [!thought]', '> **Planning the fix**', '> body' }), {}))
+
+      eq({ { '  ', 'UiMuted' }, { 'Planning the fix', 'UiThought' } }, headed)
+
+      local live = eol(
+        decorators.decorate(
+          make(Block.KIND.thought, lines, { live = true, started = 0 }),
+          { running = true, now = 4200 }
+        )
+      )
+
+      eq({ { '  4s', 'UiMuted' } }, live)
+    end
+  )
+
+  it('conceals a live thought\'s older body rows, row by row, until it finishes', function()
+    local lines = { '> [!thought]', '> one', '> two', '> three', '> four', '> five' }
+    local function hidden(marks)
+      return vim.tbl_map(
+        function(mark)
+          return mark.row
+        end,
+        vim.tbl_filter(function(mark)
+          return mark.opts.conceal_lines ~= nil
+        end, marks)
+      )
+    end
+
+    eq(
+      { 1, 2 },
+      hidden(decorators.decorate(make(Block.KIND.thought, lines, { live = true }), { running = true, now = 0 }))
+    )
+    eq({}, hidden(decorators.decorate(make(Block.KIND.thought, lines, {}), {})))
+    eq(
+      {},
+      hidden(
+        decorators.decorate(
+          make(Block.KIND.thought, lines, { live = true, first_event = 7 }),
+          { running = true, now = 0, revealed = { [7] = true } }
+        )
+      )
+    )
+  end)
+
+  it('breaks the top row of a live thought into static as it scrolls away, and nothing else', function()
+    local lines = { '> [!thought]', '> one', '> two', '> three idea', '> four', '> five' }
+    local function static(marks)
+      return vim.tbl_filter(function(mark)
+        return mark.opts.virt_text_pos == 'overlay'
+      end, marks)
+    end
+
+    local live =
+      static(decorators.decorate(make(Block.KIND.thought, lines, { live = true }), { running = true, now = 0 }))
+
+    assert.is_true(#live > 0)
+
+    for _, mark in ipairs(live) do
+      eq(3, mark.row)
+      assert.is_true(mark.col >= 2)
+    end
+
+    eq({}, static(decorators.decorate(make(Block.KIND.thought, lines, {}), {})))
+    eq(
+      {},
+      static(decorators.decorate(make(Block.KIND.thought, { '> [!thought]', '> one', '> two' }, { live = true }), {
+        running = true,
+        now = 0,
+      }))
+    )
+  end)
+
+  it('dims the whole body of a thought with one mark beneath the markdown styling, leaving the header alone', function()
+    local marks = decorators.decorate(make(Block.KIND.thought, { '> [!thought]', '> one', '>', '> two' }), {})
+    local dimmed = vim.tbl_filter(function(mark)
+      return mark.opts.hl_group == 'UiThought'
+    end, marks)
+
+    eq(1, #dimmed)
+    eq({ 1, 3, 5, 90 }, { dimmed[1].row, dimmed[1].opts.end_row, dimmed[1].opts.end_col, dimmed[1].opts.priority })
+  end)
+
+  it('folds an inline plan to its progress while the plan panel shows it', function()
+    local plan = make(
+      Block.KIND.plan,
+      { 'plan', '- [x] read', '- [ ] edit' },
+      { statuses = { 'completed', 'pending' } }
+    )
+    local open = decorators.decorate(plan, { plan_open = true })
+    local closed = decorators.decorate(plan, {})
+
+    eq(2, #vim.tbl_filter(function(mark)
+      return mark.opts.conceal_lines ~= nil
+    end, open))
+    eq(0, #vim.tbl_filter(function(mark)
+      return mark.opts.conceal_lines ~= nil
+    end, closed))
+    assert.truthy(find(open, function(opts)
+      return virt(opts) == '  1/2 ▰▰▰▰▱▱▱▱'
+    end))
+  end)
+
+  it('animates a live thought\'s icon and times a finished one', function()
+    local live = decorators.decorate(make(Block.KIND.thought, { 'x' }, { live = true }), { running = true, now = 0 })
+    local done = decorators.decorate(make(Block.KIND.thought, { 'x' }, { started = 0, finished = 2000 }), {})
+    local function head(marks)
+      return find(marks, function(opts)
+        return opts.virt_text_pos == 'inline'
+      end).opts.virt_text
+    end
+
+    eq({ theme.loader('thinking', 0), { 'Thinking', 'UiMuted' } }, head(live))
+    eq({ { 'Thought', 'UiMuted' } }, head(done))
+    eq(
+      '  for 2s',
+      virt(find(done, function(opts)
+        return opts.virt_text_pos == 'eol'
+      end).opts)
+    )
+  end)
+
+  it('draws every note as a cross, its label and its detail, with errors in the error colour', function()
+    local error =
+      decorators.decorate(make(Block.KIND.note, { 'error: not logged in', 'retry' }, { label = 'error' }), {})
+    local refused = decorators.decorate(make(Block.KIND.note, { 'refused: Bash' }, { label = 'refused' }), {})
+
+    eq(theme.TOOL_ICONS.failed[1], virt(error[1].opts))
+    eq({ 0, 6, 'UiError' }, { error[2].col, error[2].opts.end_col, error[2].opts.hl_group })
+    eq('UiError', error[3].opts.hl_group)
+    eq('UiError', error[5].opts.hl_group)
+    eq('UiMuted', refused[3].opts.hl_group)
+    eq(0, #decorators.decorate(make(Block.KIND.note, { 'a' }), {}))
+  end)
+
+  it('draws plan entries with the plan marks, muting what is done', function()
+    local marks = decorators.decorate(
+      make(Block.KIND.plan, { 'plan', '- [x] read', '- [ ] edit' }, { statuses = { 'completed', 'in_progress' } }),
+      {}
+    )
+
+    assert.truthy(find(marks, function(opts, mark)
+      return mark.row == 1 and virt(opts) == theme.PLAN_ICONS.completed[1]
+    end))
+    assert.truthy(find(marks, function(opts, mark)
+      return mark.row == 2 and virt(opts) == theme.PLAN_ICONS.in_progress[1]
+    end))
+    assert.truthy(find(marks, function(opts, mark)
+      return mark.row == 2 and opts.conceal == '' and opts.end_col == 6
+    end))
+  end)
+
+  it('marks a tool its turn left unfinished, and one whose permission was refused or cancelled', function()
+    local function tail(fields, ctx)
+      local marks = decorators.decorate(
+        make(Block.KIND.tool, { '-> Bash ls' }, vim.tbl_extend('force', { name = 'Bash', argument = 'ls' }, fields)),
+        ctx or { running = false }
+      )
+      local found = find(marks, function(opts)
+        return opts.virt_text_pos == 'eol'
+      end)
+
+      return found and virt(found.opts), marks
+    end
+
+    local text, marks = tail({ status = 'in_progress', interrupted = true })
+
+    eq('  interrupted', text)
+    eq(theme.TOOL_ICONS.failed[1], marks[2].opts.virt_text[1][1])
+    eq('  refused', tail({ status = 'failed', denied = 'refused' }))
+    eq('  cancelled', tail({ status = 'failed', denied = 'cancelled' }))
+  end)
+
+  it('rails nested blocks, branching at tools and closing the tree after the last child', function()
+    local message = decorators.decorate(make(Block.KIND.message, { 'a' }, { depth = 1 }), {})
+    local tool = decorators.decorate(make(Block.KIND.tool, { '-> Read' }, { name = 'Read', depth = 1 }), {})
+    local last =
+      decorators.decorate(make(Block.KIND.message, { '  a' }, { depth = 1, indented = true, last_child = true }), {})
+
+    eq(2, #vim.tbl_filter(function(mark)
+      return virt(mark.opts) == theme.GUTTER
+    end, message))
+    assert.truthy(find(tool, function(opts, mark)
+      return mark.row == 0 and virt(opts) == theme.BRANCH
+    end))
+    assert.truthy(find(last, function(opts, mark)
+      return mark.row == 0 and virt(opts) == theme.GUTTER and opts.virt_text_repeat_linebreak
+    end))
+    assert.truthy(find(last, function(opts, mark)
+      return mark.row == 1 and virt(opts) == theme.BRANCH_END
+    end))
+  end)
+
+  it('hides the blank row after a tool packed tight against the next, unless it closes a tree', function()
+    local function hidden(fields)
+      return find(decorators.decorate(make(Block.KIND.tool, { '-> Read' }, fields), {}), function(opts, mark)
+        return mark.row == 1 and opts.conceal_lines == ''
+      end) ~= nil
+    end
+
+    local base = { name = 'Read', status = Block.STATUS.completed }
+
+    eq({ true, false, false }, {
+      hidden(vim.tbl_extend('force', base, { tight = true })),
+      hidden(base),
+      hidden(vim.tbl_extend('force', base, { tight = true, depth = 1, last_child = true })),
+    })
+  end)
+
+  it('shows a collapsed block muted behind an icon, with the key to open it accented', function()
+    local block = make(Block.KIND.collapsed, { '3 earlier turns · <CR> to show' })
+    local marks = decorators.decorate(block, {})
+
+    eq(theme.COLLAPSED_ICON, virt(marks[1].opts))
+    eq('UiMuted', marks[2].opts.hl_group)
+    eq({ 19, 23, 'UiAccent' }, { marks[3].col, marks[3].opts.end_col, marks[3].opts.hl_group })
+  end)
+
+  it('sums up a finished sub-agent by time and tools, and counts tools while it runs', function()
+    local function tail(fields, ctx)
+      local marks = decorators.decorate(make(Block.KIND.tool, { '-> Task' }, fields), ctx or {})
+      local found = find(marks, function(opts)
+        return opts.virt_text_pos == 'eol'
+      end)
+
+      return found and virt(found.opts)
+    end
+
+    local base = { name = 'Task', nested = 3, started = 0, finished = 4000 }
+
+    eq('  4s · 3 tools', tail(vim.tbl_extend('force', base, { status = Block.STATUS.completed })))
+    eq('  4s · 3 tools', tail(vim.tbl_extend('force', base, { status = Block.STATUS.failed })))
+    assert.truthy(tail(vim.tbl_extend('force', base, { status = Block.STATUS.in_progress, finished = nil }), {
+      running = true,
+      now = 2000,
+    }):find('^  3 tools', 1))
+  end)
+
+  it('shows a delegating tool as running while its sub-agent runs, even after the call returned', function()
+    local block = make(
+      Block.KIND.tool,
+      { '-> Agent' },
+      { id = 'A', name = 'Agent', status = Block.STATUS.completed, nested = 2 }
+    )
+    local marks = decorators.decorate(block, { running = false, frame = 2, active = { A = true } })
+
+    assert.truthy(find(marks, function(opts)
+      return first_chunk(opts) == theme.loader('busy', nil)[1]
+    end))
+    assert.truthy(find(marks, function(opts)
+      return opts.virt_text_pos == 'eol' and virt(opts) == '  2 tools'
+    end))
+  end)
+
+  describe('command output', function()
+    local function output(lines, fields)
+      local all = { '-> Bash make', '```output' }
+
+      vim.list_extend(all, lines)
+      all[#all + 1] = '```'
+
+      return make(
+        Block.KIND.tool,
+        all,
+        vim.tbl_extend('force', {
+          name = 'Bash',
+          argument = 'make',
+          category = 'execute',
+          status = Block.STATUS.completed,
+        }, fields or {})
+      )
+    end
+
+    local function highlights(marks)
+      local out = {}
+
+      for _, mark in ipairs(marks) do
+        if mark.opts.hl_group and mark.opts.end_col then
+          out[#out + 1] = { mark.row, mark.col, mark.opts.end_col, mark.opts.hl_group }
+        end
+      end
+
+      return out
+    end
+
+    it('colours plain output the way a terminal would', function()
+      local marks = decorators.decorate(output({ 'error: boom', 'fine' }), {})
+
+      eq({ { 2, 0, 11, 'UiError' } }, highlights(marks))
+    end)
+
+    it('uses the colours the command printed instead, when it printed some', function()
+      local marks = decorators.decorate(output({ 'error: boom', 'ok' }, { ansi = { { 2, 0, 2, 'UiAnsi2' } } }), {})
+
+      eq({ { 3, 0, 2, 'UiAnsi2' } }, highlights(marks))
+    end)
+
+    it('leaves output in a known language to its syntax', function()
+      local marks = decorators.decorate(output({ 'error: in json' }, { lang = 'json' }), {})
+
+      eq({}, highlights(marks))
+    end)
+
+    it('sits the command on the terminal surface too, so the operation reads as one panel', function()
+      local marks = decorators.decorate(output({ 'ok' }), {})
+
+      assert.truthy(find(marks, function(opts, mark)
+        return mark.row == 0 and opts.line_hl_group == 'UiTerminal'
+      end))
+    end)
+
+    it('leaves other operations off the terminal surface', function()
+      local read = make(
+        Block.KIND.tool,
+        { '-> Read a.lua', '```output', 'x', '```' },
+        { name = 'Read', category = 'read', status = Block.STATUS.completed }
+      )
+
+      assert.is_nil(find(decorators.decorate(read, {}), function(opts)
+        return opts.line_hl_group == 'UiTerminal'
+      end))
+    end)
+  end)
+
+  describe('card surfaces', function()
+    local function surfaces(marks)
+      return vim.tbl_map(
+        function(mark)
+          return mark.row .. ':' .. mark.opts.line_hl_group
+        end,
+        vim.tbl_filter(function(mark)
+          return mark.opts.line_hl_group ~= nil
+        end, marks)
+      )
+    end
+
+    it('shades every row of a prompt', function()
+      eq({ '0:UiSurface', '1:UiSurface' }, surfaces(decorators.decorate(make(Block.KIND.prompt, { '> a', '> b' }), {})))
+    end)
+
+    it('shades a tool head, keeping the terminal surface for commands', function()
+      local read = make(Block.KIND.tool, { '-> Read a.lua' }, { name = 'Read', argument = 'a.lua', category = 'read' })
+      local run = make(Block.KIND.tool, { '-> Bash ls' }, { name = 'Bash', argument = 'ls', category = 'execute' })
+
+      eq({ '0:UiSurface' }, surfaces(decorators.decorate(read, {})))
+      eq({ '0:UiTerminal' }, surfaces(decorators.decorate(run, {})))
+    end)
+
+    it('tints an error note red and a refused one amber, and leaves a settled one plain', function()
+      local function note(label)
+        return surfaces(decorators.decorate(make(Block.KIND.note, { label .. ' x', 'more' }, { label = label }), {}))
+      end
+
+      eq({ '0:UiSurfaceError', '1:UiSurfaceError' }, note('error'))
+      eq({ '0:UiSurfaceWarn', '1:UiSurfaceWarn' }, note('refused'))
+    end)
+
+    it('colours nested rails by depth', function()
+      local function rail_hl(depth)
+        local block = make(Block.KIND.tool, { '-> Read a' }, { name = 'Read', depth = depth })
+
+        return find(decorators.nesting.marks(block), function()
+          return true
+        end).opts.virt_text[1][2]
+      end
+
+      eq('UiRailMuted', rail_hl(1))
+      eq('UiRailInfo', rail_hl(2))
+      eq('UiRailAccent', rail_hl(3))
+    end)
+
+    it('hides a running sub-agent\'s older children, and counts them above the newest', function()
+      local function child(i, siblings)
+        local block = make(Block.KIND.tool, { '  Bash ' .. i }, { name = 'Bash', depth = 1, start = (i - 1) * 2 })
+
+        block.open_parent = true
+        block.sibling = i
+        block.siblings = siblings
+
+        return block
+      end
+
+      local function conceals(marks)
+        return find(marks, function(opts)
+          return opts.conceal_lines ~= nil
+        end) ~= nil
+      end
+
+      local six = decorators.decorate(child(1, 6), {})
+
+      eq(2, #six)
+      eq({ '', '' }, { six[1].opts.conceal_lines, six[2].opts.conceal_lines })
+      eq(2, #decorators.decorate(child(2, 6), {}))
+
+      local first_shown = decorators.decorate(child(3, 6), {})
+      local earlier = find(first_shown, function(opts)
+        return opts.virt_lines_above
+      end)
+
+      eq(4, earlier.row)
+      eq({ '+2 earlier', 'UiMuted' }, earlier.opts.virt_lines[1][2])
+      assert.is_false(conceals(first_shown))
+
+      for i = 4, 6 do
+        assert.is_false(conceals(decorators.decorate(child(i, 6), {})))
+      end
+
+      for i = 1, 3 do
+        local plain = decorators.decorate(child(i, 3), {})
+
+        assert.is_false(conceals(plain))
+        assert.is_nil(find(plain, function(opts)
+          return opts.virt_lines_above
+        end))
+      end
+    end)
+
+    it('shows the elapsed time on a running sub-agent header, beside its tool count', function()
+      local block = make(
+        Block.KIND.tool,
+        { '-> Agent' },
+        { id = 'A', name = 'Agent', status = Block.STATUS.in_progress, nested = 3, started = 0 }
+      )
+      local marks = decorators.decorate(block, { running = true, now = 4000 })
+
+      assert.truthy(find(marks, function(opts)
+        return opts.virt_text_pos == 'eol' and virt(opts) == '  3 tools · 4s'
+      end))
+    end)
+
+    it('draws the turn rule and artifact borders as wide as the window, not a fixed 400 columns', function()
+      local stop = make(Block.KIND.stop, { 'x' }, { reason = 'end_turn' })
+      local rule = find(decorators.decorate(stop, { width = 60 }), function(opts)
+        return opts.virt_text_pos == 'overlay'
+      end)
+      local fixed = find(decorators.decorate(stop, {}), function(opts)
+        return opts.virt_text_pos == 'overlay'
+      end)
+
+      eq(60, vim.fn.strchars(rule.opts.virt_text[1][1]))
+      eq(theme.RULE_WIDTH, vim.fn.strchars(fixed.opts.virt_text[1][1]))
+    end)
+  end)
+
+  describe('finished tools', function()
+    local original
+
+    before_each(function()
+      original = { available = Tile.available, upload = graphics.upload, delete = graphics.delete }
+      Tile.available = function()
+        return true
+      end
+      graphics.upload = function() end
+      graphics.delete = function() end
+    end)
+
+    after_each(function()
+      indicators.stop()
+      Tile.available, graphics.upload, graphics.delete = original.available, original.upload, original.delete
+    end)
+
+    local function finished_tool()
+      return make(
+        Block.KIND.tool,
+        { '-> Bash' },
+        { id = 't', name = 'Bash', status = Block.STATUS.completed, finished = 1000 }
+      )
+    end
+
+    it('bursts the icon right after the tool finishes, then settles to its completed icon', function()
+      local placeholder = vim.fn.nr2char(0x10EEEE)
+      local glyph = theme.TOOL_ICONS[Block.STATUS.completed][1]
+
+      assert.truthy(find(decorators.decorate(finished_tool(), { running = false, now = 1100 }), function(opts)
+        return opts.virt_text and opts.virt_text[1][1]:find(placeholder, 1, true)
+      end))
+      assert.truthy(find(decorators.decorate(finished_tool(), { running = false, now = 5000 }), function(opts)
+        return opts.virt_text and opts.virt_text[1][1] == glyph
+      end))
+    end)
+  end)
+
+  describe('pixel rules', function()
+    local original
+
+    before_each(function()
+      require('ui.hl').define()
+      original = { available = Tile.available, upload = graphics.upload, delete = graphics.delete }
+      Tile.available = function()
+        return true
+      end
+      graphics.upload = function() end
+      graphics.delete = function() end
+    end)
+
+    after_each(function()
+      meter.stop()
+      Tile.drain()
+      Tile.available, graphics.upload, graphics.delete = original.available, original.upload, original.delete
+    end)
+
+    it('ends a diff path with its counts and a pixel diffstat', function()
+      local placeholder = vim.fn.nr2char(0x10EEEE)
+      local diff = make(Block.KIND.diff, { '```edit', 'a.lua', '```' }, { path = 'a.lua', added = 4, removed = 2 })
+      local stat = find(decorators.decorate(diff, {}), function(opts)
+        return opts.virt_text_pos == 'eol'
+      end)
+      local chunks = stat.opts.virt_text
+
+      eq(5, #chunks)
+      eq({ ' +4', ' −2', ' ' }, { chunks[1][1], chunks[2][1], chunks[3][1] })
+      assert.truthy(chunks[4][1]:find(placeholder, 1, true))
+      eq(' ', chunks[5][1])
+    end)
+
+    it('folds a plan to a pixel progress bar', function()
+      local placeholder = vim.fn.nr2char(0x10EEEE)
+      local plan = make(
+        Block.KIND.plan,
+        { 'plan', '- [x] read', '- [ ] edit' },
+        { statuses = { 'completed', 'pending' } }
+      )
+      local folded = find(decorators.decorate(plan, { plan_open = true }), function(opts)
+        return opts.virt_text_pos == 'eol'
+      end)
+
+      eq('  1/2 ', folded.opts.virt_text[1][1])
+      assert.truthy(folded.opts.virt_text[2][1]:find(placeholder, 1, true))
+    end)
+
+    it('borders an artifact with a rule line, keeping its nested gutter in front', function()
+      local settings = require('harness.settings.theme')
+      local saved = settings:get('artifact_border')
+      local fields = { start = 4, frame_top = true, depth = 1, name = 'Bash' }
+      local lines = { '-> Bash ls', '```output', 'a', '```' }
+
+      settings:assign({ artifact_border = 'top' })
+      local marks = decorators.decorate(make(Block.KIND.tool, lines, fields), { width = 60 })
+      settings:assign({ artifact_border = saved })
+
+      local line = find(marks, function(opts)
+        return opts.virt_lines_above == true
+      end).opts.virt_lines[1]
+
+      eq(theme.GUTTER, line[1][1])
+      assert.truthy(#line == 2 and line[2][1]:find(theme.ARTIFACT_RULE, 1, true))
+      eq(60, width_of(line))
+    end)
+  end)
+end)

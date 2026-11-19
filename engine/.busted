@@ -1,13 +1,13 @@
 return {
   _all = {
-    lpath = 'lua/?.lua;lua/?/init.lua;?.lua;?/init.lua',
-    ROOT = { 'lua/' },
+    lpath = 'lua/?.lua;lua/?/init.lua;harness/lua/?.lua;harness/lua/?/init.lua;?.lua;?/init.lua',
+    ROOT = { 'lua/', 'harness/lua/' },
   },
   default = {
     verbose = true,
     output = 'gtest',
     pattern = '_spec%.lua$',
-    ROOT = { 'lua/' },
+    ROOT = { 'lua/', 'harness/lua/' },
     helper = 'lua/core/testing/settings_fixture.lua',
   },
 }
