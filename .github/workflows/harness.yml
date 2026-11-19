@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 20
     defaults:
       run:
-        working-directory: environment/config/nvim
+        working-directory: engine
     steps:
       - uses: actions/checkout@v4
 

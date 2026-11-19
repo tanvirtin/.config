@@ -1,0 +1,13 @@
+local settings = require('sn.settings.content')
+
+local eq = assert.are.same
+
+describe('sn.settings.content:', function()
+  it('should expose per-content defaults', function()
+    eq('UiPath', settings:get('json').property)
+    eq('UiToolName', settings:get('csv').header)
+    eq('auto', settings:get('csv').cell)
+    eq(' │ ', settings:get('csv').separator)
+    eq(12, settings:get('csv').max_columns)
+  end)
+end)

@@ -46,16 +46,16 @@ return {
         lualine_x = {
           {
             function()
-              local ok, status = pcall(require, 'harness.ui.status')
+              local ok, status = pcall(require, 'sn.ui.status')
               if not ok then return '' end
               return status.text()
             end,
             cond = function()
-              local ok, status = pcall(require, 'harness.ui.status')
+              local ok, status = pcall(require, 'sn.ui.status')
               return ok and status.visible()
             end,
             on_click = function()
-              local ok, status = pcall(require, 'harness.ui.status')
+              local ok, status = pcall(require, 'sn.ui.status')
               if ok then status.jump() end
             end,
             color = 'UiAccent',

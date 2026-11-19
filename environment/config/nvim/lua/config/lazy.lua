@@ -26,6 +26,7 @@ require('lazy').setup({
   },
   performance = {
     rtp = {
+      paths = { vim.g.tin_engine },
       disabled_plugins = {
         'gzip',
         'tarPlugin',

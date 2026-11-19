@@ -1,4 +1,0 @@
-statsfile = "luacov.stats.out"
-reportfile = "luacov.report.out"
-include = { "harness" }
-exclude = { "harness.*_spec" }

@@ -131,18 +131,18 @@ map(
 map('n', '<leader>sf', '<Cmd>lua require("core.editor.selection").flush()<CR>', { desc = 'Flush the selection' })
 map('n', '<leader>sc', '<Cmd>lua require("core.editor.selection").clear()<CR>', { desc = 'Clear the selection' })
 
-map('n', '<leader>.', '<Cmd>lua require("harness").switch()<CR>', { desc = 'Sessions' })
+map('n', '<leader>.', '<Cmd>lua require("sn").switch()<CR>', { desc = 'Sessions' })
 
-map('n', '<leader>as', '<Cmd>lua require("harness").switch()<CR>', { desc = 'Sessions' })
+map('n', '<leader>as', '<Cmd>lua require("sn").switch()<CR>', { desc = 'Sessions' })
 
 map('n', '<leader>an', function()
-  require('harness').new({ choose = true })
+  require('sn').new({ choose = true })
 end, { desc = 'New session, choosing the agent' })
 
 map('n', '<leader>aw', function()
-  require('harness').waiting()
+  require('sn').waiting()
 end, { desc = 'Go to the waiting request' })
 
 map({ 'n', 'v' }, '<leader>aa', function()
-  require('harness').attach()
+  require('sn').attach()
 end, { desc = 'Attach the current line or the selection' })
