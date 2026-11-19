@@ -75,6 +75,7 @@ local LAYERS = {
   { 'harness.session.Admission', 5 },
   { 'harness.tools', 6 },
   { 'harness.follow', 6 },
+  { 'harness.client', 6 },
   { 'harness.features', 6 },
   { 'harness.transcript', 6 },
   { 'harness.transcript.view', 7 },
@@ -105,6 +106,20 @@ local WIRE = {
 local NEOVIM_ALLOWED = {}
 
 local UPWARD_ALLOWED = {}
+
+local UI = { 'harness.transcript', 'harness.composer', 'harness.asks', 'harness.picker', 'harness.ui' }
+
+local DOMAIN = {
+  'harness.session',
+  'harness.agent',
+  'harness.follow',
+  'harness.permissions',
+  'harness.permission_rules',
+  'harness.edits',
+  'harness.servers',
+  'harness.tools',
+  'harness.connection',
+}
 
 local function modules()
   local out = {}
@@ -348,6 +363,30 @@ describe('harness architecture:', function()
     for _, module in ipairs(modules()) do
       if module.name ~= 'harness.vgit' and module.source:find('[\'"]vgit[%.\'"]') then
         found[#found + 1] = module.name
+      end
+    end
+
+    eq({}, found)
+  end)
+
+  it('lets the UI reach the session domain only through harness.client', function()
+    local found = {}
+
+    for _, module in ipairs(modules()) do
+      local ui = false
+
+      for _, prefix in ipairs(UI) do
+        ui = ui or module.name == prefix or module.name:sub(1, #prefix + 1) == prefix .. '.'
+      end
+
+      if ui then
+        for target in module.source:gmatch('[%(]%s*\'(harness%.[%w_.]+)\'') do
+          for _, domain in ipairs(DOMAIN) do
+            if target == domain or target:sub(1, #domain + 1) == domain .. '.' then
+              found[#found + 1] = module.name .. ' -> ' .. target
+            end
+          end
+        end
       end
     end
 

@@ -3,11 +3,11 @@ local lazy = require('core.lazy')
 local vgit = lazy('harness.vgit')
 local core_text = lazy('core.text')
 local console = lazy('core.console')
+local client = lazy('harness.client')
 local Window = lazy('core.editor.Window')
 local settings = lazy('harness.settings')
 local buffers = lazy('core.editor.buffers')
 local quickfix = lazy('core.editor.quickfix')
-local EditLog = lazy('harness.edits.EditLog')
 local Block = lazy('harness.transcript.model.Block')
 
 local edits = {}
@@ -82,19 +82,19 @@ end
 function edits.scoped(view, scope)
   local history = view.session.history
 
-  if scope == edits.SCOPE.session then return EditLog.tools(history) end
+  if scope == edits.SCOPE.session then return client.edit_tools(history) end
 
   if scope == edits.SCOPE.edit then
     local _, id = edits.at(view)
 
     return vim.tbl_filter(function(edit)
       return edit.id == id
-    end, id and EditLog.tools(history) or {})
+    end, id and client.edit_tools(history) or {})
   end
 
   local from, to = edits.turn_range(view)
 
-  return from and EditLog.tools(history, from, to) or {}
+  return from and client.edit_tools(history, from, to) or {}
 end
 
 function edits.scope_at(view)

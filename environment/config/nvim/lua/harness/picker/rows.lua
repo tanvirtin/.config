@@ -1,9 +1,8 @@
 local lazy = require('core.lazy')
 
 local Timer = lazy('core.Timer')
-local agent = lazy('harness.agent')
 local glyph = lazy('ui.design.glyph')
-local hub = lazy('harness.session.hub')
+local client = lazy('harness.client')
 local theme = lazy('harness.transcript.theme')
 local format = require('harness.picker.format')
 local session_types = lazy('harness.types.session')
@@ -17,7 +16,7 @@ local rows = {}
 function rows:_live_sessions()
   local out = {}
 
-  for _, session in ipairs(hub.sessions()) do
+  for _, session in ipairs(client.sessions()) do
     if session.state ~= 'closed' then out[#out + 1] = session end
   end
 
@@ -102,7 +101,7 @@ function rows:_session_rows()
 
   local open = {}
 
-  for _, session in ipairs(hub.sessions()) do
+  for _, session in ipairs(client.sessions()) do
     if session.state ~= 'closed' then open[session.id] = true end
   end
 
@@ -136,8 +135,8 @@ function rows:_session_rows()
 end
 
 function rows:_agent_rows()
-  local default = agent.get().name
-  local names = agent.names()
+  local default = client.agent().name
+  local names = client.agents()
 
   table.sort(names, function(a, b)
     if a == default or b == default then return a == default end
@@ -160,7 +159,7 @@ function rows:_agent_rows()
   end
 
   for _, name in ipairs(names) do
-    local spec = agent.get(name)
+    local spec = client.agent(name)
 
     rows[#rows + 1] = {
       action = 'agent',

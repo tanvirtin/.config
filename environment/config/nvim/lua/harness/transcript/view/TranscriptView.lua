@@ -5,7 +5,7 @@ local Timer = require('core.Timer')
 local event = require('core.event')
 local asks = require('harness.asks')
 local Object = require('core.Object')
-local follow = lazy('harness.follow')
+local client = lazy('harness.client')
 local console = require('core.console')
 local notice = lazy('harness.ui.notice')
 local Buffer = require('core.editor.Buffer')
@@ -185,13 +185,12 @@ function TranscriptView:style(window)
   end
 end
 
-TranscriptView.ACTIVE = require('harness.session.Subagents').ACTIVE
-
 function TranscriptView.active_subagents(session)
   local active = {}
+  local states = client.active_subagent_states()
 
   for _, child in pairs(session.children or {}) do
-    if child.tool and TranscriptView.ACTIVE[child.state] then active[child.tool] = true end
+    if child.tool and states[child.state] then active[child.tool] = true end
   end
 
   return active
@@ -708,7 +707,7 @@ function TranscriptView:mount(callbacks)
     if callbacks.on_dispose then callbacks.on_dispose(self) end
   end, { buffer = self.buffer, once = true })
 
-  follow.start(self.session, {
+  client.follow(self.session, {
     visible = function()
       return self.buffer:is_valid() and self:is_visible()
     end,
@@ -731,7 +730,7 @@ function TranscriptView:dispose()
   if self.unsubscribe then self.unsubscribe() end
   if self.unwatch then self.unwatch() end
 
-  follow.stop(self.session)
+  client.unfollow(self.session)
   self.plan:hide()
   self.timer:close()
   self.pacer:close()

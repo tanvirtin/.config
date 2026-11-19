@@ -4,7 +4,7 @@ local glyph = require('ui.design.glyph')
 
 local compact = lazy('compact')
 local core_text = lazy('core.text')
-local follow = lazy('harness.follow')
+local client = lazy('harness.client')
 local theme = lazy('harness.transcript.theme')
 local keymaps = lazy('harness.settings.keymaps')
 local global_keys = lazy('harness.ui.global_keys')
@@ -80,7 +80,7 @@ local function status(session, prompt, target)
 
   if target then parts[#parts + 1] = '%#UiAccent#' .. glyph.STATUS.current .. ' selections go here  ' end
 
-  if session.external and follow.is_following(session) then parts[#parts + 1] = '%#UiWarn#⇄ external  ' end
+  if session.external and client.following(session) then parts[#parts + 1] = '%#UiWarn#⇄ external  ' end
 
   if session:running() then
     parts[#parts + 1] = render({ { theme.working_text(Timer.now()) .. ' ', theme.LOADER_GROUPS.busy } })

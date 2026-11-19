@@ -1,6 +1,6 @@
 local lazy = require('core.lazy')
 
-local agent = lazy('harness.agent')
+local client = lazy('harness.client')
 local glyph = lazy('ui.design.glyph')
 local catalog = lazy('ui.pixel.catalog')
 local Buffer = lazy('core.editor.Buffer')
@@ -94,7 +94,7 @@ function detail:_detail_of(row)
     extras.badge = status
   elseif row and row.stored then
     local entry = row.stored
-    local spec = agent.get(entry.agent)
+    local spec = client.agent(entry.agent)
 
     put(' ' .. (entry.title or 'untitled'), 'UiTitle')
     field('agent', entry.agent)

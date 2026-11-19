@@ -1,8 +1,8 @@
 local compact = require('compact')
 local Object = require('core.Object')
 local fences = require('core.fences')
+local client = require('harness.client')
 local context = require('harness.context')
-local EditLog = require('harness.edits.EditLog')
 local EVENT = require('harness.types.events').KIND
 local Block = require('harness.transcript.model.Block')
 local settings = require('harness.settings.transcript')
@@ -40,7 +40,7 @@ function TurnBuilder:constructor(history, range, opts)
     updates = range.updates,
     opts = opts,
     times = opts.times or {},
-    edits = opts.edits or EditLog(),
+    edits = opts.edits or client.edit_log(),
     text = opts.outputs == false,
     list = {},
     tools = {},

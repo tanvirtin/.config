@@ -4,7 +4,7 @@ local Timer = lazy('core.Timer')
 local surfaces = lazy('surfaces')
 local async = lazy('harness.async')
 local tools = lazy('nvim_mcp.tools')
-local hub = lazy('harness.session.hub')
+local client = lazy('harness.client')
 local context = lazy('harness.context')
 local notice = lazy('harness.ui.notice')
 local status = lazy('harness.ui.status')
@@ -31,7 +31,7 @@ end
 local function current_view()
   local view = transcript.view() or transcript.last()
 
-  if not view or view.session.state == 'closed' or view.session.dir ~= hub.dir() then return nil end
+  if not view or view.session.state == 'closed' or view.session.dir ~= client.dir() then return nil end
 
   return view
 end
@@ -58,14 +58,14 @@ function actions.ask(prompt, opts)
     local session, err = view and view.session, nil
 
     if not session then
-      session, err = async.await(hub.start({ agent = opts.agent }))
+      session, err = async.await(client.start({ agent = opts.agent }))
     end
     if err then return nil, err end
 
     tools.set_focus(from.win, from.buf)
     transcript.open(session, { source_win = from.win, source_buf = from.buf })
 
-    local sent, send_err = hub.send(session, prompt, where)
+    local sent, send_err = client.send(session, prompt, where)
 
     if send_err then return nil, send_err end
     if not sent.task then return nil end
@@ -83,7 +83,7 @@ end
 local function start(agent_name)
   local from = source()
   local task = async.run(function()
-    local session, err = async.await(hub.start({ agent = agent_name }))
+    local session, err = async.await(client.start({ agent = agent_name }))
 
     if err then return nil, err end
 
@@ -104,7 +104,7 @@ function actions.cancel()
   local session = view and view.session
 
   if not (session and session:running()) then
-    for _, candidate in ipairs(hub.sessions()) do
+    for _, candidate in ipairs(client.sessions()) do
       if candidate:running() then session = candidate end
     end
   end
@@ -233,9 +233,8 @@ function actions.permissions()
 end
 
 local function choose_agent()
-  local agents = require('harness.agent')
-  local default = agents.get().name
-  local names = agents.names()
+  local default = client.agent().name
+  local names = client.agents()
 
   if #names <= 1 then return start(default) end
 
@@ -249,7 +248,7 @@ local function choose_agent()
     title = 'New session with',
     hints = choice_hints('start'),
     items = vim.tbl_map(function(name)
-      return { label = name, description = agents.get(name).description, agent = name }
+      return { label = name, description = client.agent(name).description, agent = name }
     end, names),
     width = '50vw',
     max_height = 10,
@@ -276,10 +275,10 @@ function actions.new(opts)
 end
 
 function actions.switch()
-  return require('harness.picker.SessionPicker').launch({ dir = hub.dir() })
+  return require('harness.picker.SessionPicker').launch({ dir = client.dir() })
 end
 
-require('harness.session.store').on('start', function(session)
+client.on('start', function(session)
   if session.parent then
     require('core.Timer').defer(0, function()
       transcript.open(session, { background = true })

@@ -2,7 +2,7 @@ local lazy = require('core.lazy')
 
 local Object = lazy('core.Object')
 local async = lazy('harness.async')
-local permissions = lazy('harness.permissions')
+local client = lazy('harness.client')
 local ASK = require('harness.types.events').ASK
 local presenter = lazy('harness.asks.presenter')
 local permission = require('harness.types.permission')
@@ -18,9 +18,9 @@ function Permission:constructor(request)
     kind = ASK.permission,
     session = request.session,
     future = async.Future(),
-    text = permissions.describe(request),
+    text = client.describe_permission(request),
     tool = request.tool,
-    choices = permissions.choices(request),
+    choices = client.permission_choices(request),
   }
 end
 

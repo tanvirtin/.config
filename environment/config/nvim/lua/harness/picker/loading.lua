@@ -4,7 +4,7 @@ local glitch = lazy('ui.glitch')
 local Timer = lazy('core.Timer')
 local motion = lazy('ui.motion')
 local design = lazy('ui.design')
-local agent = lazy('harness.agent')
+local client = lazy('harness.client')
 local Buffer = lazy('core.editor.Buffer')
 local theme = lazy('harness.transcript.theme')
 local format = require('harness.picker.format')
@@ -29,7 +29,7 @@ end
 function loading:_begin_listing()
   if self._mode ~= 'sessions' or theme.reduced() then return end
 
-  local names = agent.names()
+  local names = client.agents()
 
   if #names == 0 then return end
 

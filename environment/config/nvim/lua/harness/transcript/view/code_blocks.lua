@@ -1,7 +1,7 @@
 local lazy = require('core.lazy')
 
 local fs = lazy('core.system.fs')
-local hub = lazy('harness.session.hub')
+local client = lazy('harness.client')
 local context = lazy('harness.context')
 local Buffer = lazy('core.editor.Buffer')
 local Window = lazy('core.editor.Window')
@@ -107,7 +107,7 @@ function code_blocks.apply(view)
   })
 
   local prompt = code_blocks.APPLY:format(name ~= '' and fs.display(name) or 'the current buffer')
-  local _, err = hub.send(view.session, prompt, captured)
+  local _, err = client.send(view.session, prompt, captured)
 
   if err then return false, tostring(err) end
 

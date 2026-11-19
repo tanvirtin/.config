@@ -5,6 +5,7 @@ local Timer = lazy('core.Timer')
 local fs = lazy('core.system.fs')
 local compact = require('compact')
 local console = lazy('core.console')
+local client = lazy('harness.client')
 local glyph = lazy('ui.design.glyph')
 local schema = require('nvim_mcp.schema')
 local settings = lazy('harness.settings')
@@ -13,7 +14,6 @@ local Surface = require('surfaces.Surface')
 local theme = lazy('harness.transcript.theme')
 local events = require('harness.types.events')
 local permission = require('harness.types.permission')
-local permission_rules = lazy('harness.permission_rules')
 local LinesComponent = require('ui.components.LinesComponent')
 
 local PermissionsView = Surface:extend()
@@ -50,14 +50,14 @@ function PermissionsView:constructor(session)
 end
 
 function PermissionsView.model(session)
-  local rules, problems = permission_rules.load(session.agent, session.dir)
+  local rules, problems = client.rules(session.agent, session.dir)
   local mode = session:mode()
 
   return {
     mode = mode and (mode.name or mode.id) or nil,
     waiting = session:waiting(),
     grants = session.permissions:grants(),
-    supported = permission_rules.supported(session.agent),
+    supported = client.rules_supported(session.agent),
     rules = rules,
     problems = problems,
     decisions = session.permissions:decisions(),
@@ -187,7 +187,7 @@ end
 
 function PermissionsView:delete(rule, confirmed)
   local function remove()
-    local ok, why = permission_rules.remove(rule)
+    local ok, why = client.remove_rule(rule)
 
     if not ok then console.notify_now('Harness: could not delete ' .. rule.text .. ': ' .. tostring(why), 'warn') end
 

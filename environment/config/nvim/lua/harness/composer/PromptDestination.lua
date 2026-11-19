@@ -2,7 +2,7 @@ local lazy = require('core.lazy')
 
 local Object = lazy('core.Object')
 local tools = lazy('nvim_mcp.tools')
-local hub = lazy('harness.session.hub')
+local client = lazy('harness.client')
 local context = lazy('harness.context')
 local notice = lazy('harness.ui.notice')
 local Buffer = lazy('core.editor.Buffer')
@@ -67,7 +67,7 @@ function PromptDestination:submit(text, message, opts)
 
   if #problems > 0 then PromptDestination.warn(table.concat(problems, '; ')) end
 
-  local sent, err = hub.send(session, text, where, opts)
+  local sent, err = client.send(session, text, where, opts)
 
   if err then return false, tostring(err) end
 

@@ -1,15 +1,15 @@
 local lazy = require('core.lazy')
+
 local compact = require('compact')
 local Timer = require('core.Timer')
+local client = lazy('harness.client')
 local glyph = require('ui.design.glyph')
-
-local hub = lazy('harness.session.hub')
 local theme = lazy('harness.transcript.theme')
 
 local status = {}
 
 function status.list()
-  local ok, sessions = pcall(hub.sessions)
+  local ok, sessions = pcall(client.sessions)
 
   return ok and (sessions or {}) or {}
 end
@@ -88,7 +88,7 @@ function status.jump()
 
   if #active_sessions == 1 then return require('harness.ui.display').open(active_sessions[1]) end
 
-  return require('harness.picker.SessionPicker').launch({ dir = hub.dir() })
+  return require('harness.picker.SessionPicker').launch({ dir = client.dir() })
 end
 
 function status.to_waiting()
@@ -96,7 +96,7 @@ function status.to_waiting()
 
   if #waiting == 0 then return require('core.console').notify_now('Harness: no session is waiting for you', 'info') end
 
-  if #waiting > 1 then return require('harness.picker.SessionPicker').launch({ dir = hub.dir() }) end
+  if #waiting > 1 then return require('harness.picker.SessionPicker').launch({ dir = client.dir() }) end
 
   local session = waiting[1]
   local display = require('harness.ui.display')

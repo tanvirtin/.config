@@ -2,10 +2,10 @@ local lazy = require('core.lazy')
 
 local fs = lazy('core.system.fs')
 local console = lazy('core.console')
+local client = lazy('harness.client')
 local notice = lazy('harness.ui.notice')
 local Window = lazy('core.editor.Window')
 local ComposerView = lazy('harness.composer.View')
-local session_store = lazy('harness.session.store')
 local ComposerStore = lazy('harness.composer.Store')
 local NOTICE = require('harness.types.events').NOTICE
 
@@ -321,7 +321,7 @@ local dispose
 function composer.register_events()
   if dispose then dispose() end
 
-  dispose = session_store.on(session_store.EVENT.event, composer.on_session_event)
+  dispose = client.on(client.events().event, composer.on_session_event)
 
   return composer
 end

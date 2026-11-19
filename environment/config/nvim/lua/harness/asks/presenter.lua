@@ -2,6 +2,7 @@ local lazy = require('core.lazy')
 
 local Timer = lazy('core.Timer')
 local asks = require('harness.asks')
+local client = lazy('harness.client')
 local display = lazy('harness.ui.display')
 local NOTICE = require('harness.types.events').NOTICE
 
@@ -23,7 +24,7 @@ function ask_presenter.present(session, prompt)
 
   Timer.schedule(function()
     if not display.buffer_of(session) then display.open(session, { background = true }) end
-    session:_notify({ kind = NOTICE.waiting })
+    client.notify(session, { kind = NOTICE.waiting })
   end)
 
   return future

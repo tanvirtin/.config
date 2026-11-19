@@ -2,9 +2,9 @@ local compact = require('compact')
 local Object = require('core.Object')
 local fences = require('core.fences')
 local glyph = require('ui.design.glyph')
+local client = require('harness.client')
 local theme = require('harness.transcript.theme')
 local keymaps = require('harness.settings.keymaps')
-local TurnIndex = require('harness.session.TurnIndex')
 local Block = require('harness.transcript.model.Block')
 local TurnBuilder = require('harness.transcript.model.TurnBuilder')
 
@@ -276,7 +276,7 @@ end
 function BlockBuilder:run(history, title)
   local opts = self.opts
   local list = { Block.make(Block.KIND.title, { '# ' .. compact.line(title or 'untitled', 200) }) }
-  local index = TurnIndex.of(history, opts.index)
+  local index = client.turns(history, opts.index)
   local starts, updates = index.starts, index.updates
   local cache = opts.cache
 

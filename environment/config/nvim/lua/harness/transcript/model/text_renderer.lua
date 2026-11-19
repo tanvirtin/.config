@@ -1,5 +1,5 @@
+local client = require('harness.client')
 local buffers = require('core.editor.buffers')
-local EditLog = require('harness.edits.EditLog')
 local BlockBuilder = require('harness.transcript.model.BlockBuilder')
 
 local text_renderer = {}
@@ -9,7 +9,7 @@ function text_renderer.render(history, title, opts)
 
   return BlockBuilder.lines(BlockBuilder.build(history, title, {
     outputs = false,
-    edits = opts.edits or EditLog(buffers.lines_of),
+    edits = opts.edits or client.edit_log(buffers.lines_of),
   }))
 end
 

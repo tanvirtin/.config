@@ -3,11 +3,10 @@ local lazy = require('core.lazy')
 local View = lazy('ui.View')
 local Timer = lazy('core.Timer')
 local event = lazy('core.event')
-local agent = lazy('harness.agent')
 local async = lazy('harness.async')
+local client = lazy('harness.client')
 local schema = lazy('nvim_mcp.schema')
 local Component = lazy('ui.Component')
-local hub = lazy('harness.session.hub')
 local notice = lazy('harness.ui.notice')
 local Surface = lazy('surfaces.Surface')
 local Buffer = lazy('core.editor.Buffer')
@@ -32,7 +31,7 @@ local function active_agent(dir)
 
   local latest, at
 
-  for _, session in ipairs(hub.sessions(dir)) do
+  for _, session in ipairs(client.sessions(dir)) do
     local seen = session.times[#session.times] or 0
 
     if not at or seen > at then
@@ -211,7 +210,7 @@ function SessionPicker:constructor(opts)
   instance._badge = nil
   instance._pending_delete = nil
   instance._select_pending = true
-  instance._dir = opts.dir or hub.dir()
+  instance._dir = opts.dir or client.dir()
   instance._corpus = {}
   instance._lines = {}
   instance._rows_at = {}
@@ -260,8 +259,8 @@ function SessionPicker:open()
 end
 
 function SessionPicker:_load_stored()
-  for _, name in ipairs(agent.names()) do
-    hub.list(self._dir, name):on_complete(function(err, listed)
+  for _, name in ipairs(client.agents()) do
+    client.list(self._dir, name):on_complete(function(err, listed)
       if err then
         return Timer.schedule(function()
           self:_listed()
@@ -293,7 +292,7 @@ end
 function SessionPicker:_resume(entry)
   if not self:_begin_loading(entry) then return self end
 
-  hub
+  client
     .load({ dir = self._dir, agent = entry.agent, id = entry.id, title = entry.title })
     :on_complete(function(err, session)
       Timer.schedule(function()
@@ -437,7 +436,7 @@ function SessionPicker:_start(name)
   self:close()
 
   Timer.schedule(function()
-    hub.start({ agent = name, dir = self._dir }):on_complete(function(err, session)
+    client.start({ agent = name, dir = self._dir }):on_complete(function(err, session)
       if err then return notice.warn('could not start ' .. name .. ': ' .. tostring(err)) end
 
       Timer.schedule(function()
@@ -476,7 +475,7 @@ function SessionPicker:_fork_live(session)
     return self
   end
 
-  hub.fork(session):on_complete(function(err, forked)
+  client.fork(session):on_complete(function(err, forked)
     Timer.schedule(function()
       if err then return notice.warn('could not fork: ' .. tostring(err)) end
 
@@ -489,7 +488,7 @@ function SessionPicker:_fork_live(session)
 end
 
 function SessionPicker:_fork_stored(entry)
-  local spec = agent.get(entry.agent)
+  local spec = client.agent(entry.agent)
 
   if not spec or not spec.fork_at_message then
     notice.info('this agent cannot fork sessions')
@@ -499,7 +498,7 @@ function SessionPicker:_fork_stored(entry)
 
   if not self:_begin_loading(entry) then return self end
 
-  hub
+  client
     .load({ dir = self._dir, agent = entry.agent, id = entry.id, title = entry.title })
     :on_complete(function(err, session)
       Timer.schedule(function()
@@ -530,7 +529,7 @@ function SessionPicker:delete()
 
   self._pending_delete = nil
 
-  hub.delete({ dir = self._dir, agent = entry.agent, id = entry.id }):on_complete(function(err)
+  client.delete({ dir = self._dir, agent = entry.agent, id = entry.id }):on_complete(function(err)
     Timer.schedule(function()
       if err then return notice.warn(tostring(err)) end
 
@@ -680,7 +679,7 @@ function SessionPicker:_draw_count()
   elseif self._listing then
     text = 'scanning'
   elseif self._mode == 'agents' then
-    text = #agent.names() .. ' agents'
+    text = #client.agents() .. ' agents'
   else
     text = string.format('%d live', #self._live)
   end
@@ -699,7 +698,7 @@ function SessionPicker:_draw_tabs()
   if not title:is_valid() then return end
 
   local sessions_label = 'Sessions ' .. #self._live
-  local agents_label = 'New session ' .. #agent.names()
+  local agents_label = 'New session ' .. #client.agents()
   local line = ' Harness  ' .. sessions_label .. '    ' .. agents_label
   local sessions_from = #' Harness  '
   local agents_from = sessions_from + #sessions_label + 4

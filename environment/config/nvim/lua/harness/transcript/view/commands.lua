@@ -5,7 +5,7 @@ local fences = lazy('core.fences')
 local async = lazy('harness.async')
 local Timer = require('core.Timer')
 local console = lazy('core.console')
-local hub = require('harness.session.hub')
+local client = require('harness.client')
 local Window = require('core.editor.Window')
 local register = lazy('core.editor.register')
 local Renderer = lazy('ui.markdown.Renderer')
@@ -200,7 +200,7 @@ function commands.fork(view)
     console.notify_now('Harness: no reply before this point; forking from the latest message')
   end
 
-  hub.fork(session, message_id):on_complete(function(err, forked)
+  client.fork(session, message_id):on_complete(function(err, forked)
     Timer.schedule(function()
       if err then return console.notify_now('Harness: could not fork: ' .. tostring(err), 'warn') end
 

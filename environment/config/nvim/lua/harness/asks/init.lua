@@ -1,6 +1,7 @@
 local lazy = require('core.lazy')
 
 local Timer = lazy('core.Timer')
+local client = lazy('harness.client')
 local NOTICE = require('harness.types.events').NOTICE
 
 local asks = {}
@@ -59,7 +60,7 @@ end
 
 function asks.changed(session)
   Timer.schedule(function()
-    session:_notify({ kind = NOTICE.waiting })
+    client.notify(session, { kind = NOTICE.waiting })
   end)
 end
 
