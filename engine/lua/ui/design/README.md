@@ -60,6 +60,7 @@ WCAG large text) is lifted toward the text until it reads.
 |---|---|---|
 | `STEP_MS` | 100 | the stepped clock: loaders, mascot, ambient static |
 | `FRAME_MS` | 33 | the animator frame: transient effects |
+| `LOOP_STEPS` | 24 | the steps a pixel loader repeats over |
 | `DURATION.fast` | 150 | text fade-in, toast in |
 | `DURATION.moderate` | 250 | selection tune-in, toast out, listing floor |
 | `DURATION.slow` | 450 | finish static, tune-in on open, closing card, loader finish |
@@ -80,6 +81,12 @@ Four presets, used as the density of glitched characters or pixel blocks.
 
 Transient static reseeds every frame (`static.seed(now)`); ambient static
 reseeds every step (`static.seed(now, true)`).
+
+Pixel animations loop (`motion.loop`): loaders over `LOOP_STEPS`, the mascot
+over one pass of its acts. A tile uploads each distinct frame once and then
+switches between uploaded images, because Ghostty flashes the screen on every
+image upload. A pixel animation that never repeats keeps uploading, and
+flickers.
 
 ### Layers (`layer.lua`)
 

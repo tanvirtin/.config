@@ -195,7 +195,7 @@ local function frame(spec, role)
   end
 
   return function(bitmap, now)
-    spec.draw(bitmap, motion.step(now), roles.rgb(role))
+    spec.draw(bitmap, motion.loop(now), roles.rgb(role))
   end
 end
 

@@ -49,7 +49,7 @@ return {
         w = width,
         h = height,
         draw = function(bitmap)
-          indicators[props.kind](bitmap, motion.step(now), rgb)
+          indicators[props.kind](bitmap, motion.loop(now), rgb)
         end,
       },
     }

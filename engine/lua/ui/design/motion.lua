@@ -2,6 +2,7 @@ local motion = {}
 
 motion.STEP_MS = 100
 motion.FRAME_MS = 33
+motion.LOOP_STEPS = 24
 
 motion.DURATION = {
   instant = 0,

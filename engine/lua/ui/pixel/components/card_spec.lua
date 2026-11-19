@@ -21,15 +21,17 @@ local function width(row)
 end
 
 describe('ui.pixel.components.card:', function()
-  local original, deleted
+  local original, deleted, uploaded
 
   before_each(function()
     original = { available = Tile.available, upload = graphics.upload, delete = graphics.delete }
-    deleted = 0
+    deleted, uploaded = 0, 0
     Tile.available = function()
       return true
     end
-    graphics.upload = function() end
+    graphics.upload = function()
+      uploaded = uploaded + 1
+    end
     graphics.delete = function()
       deleted = deleted + 1
     end
@@ -114,16 +116,17 @@ describe('ui.pixel.components.card:', function()
     eq({ { '╰──╯', markup.group('#ff0000') } }, rows[3])
   end)
 
-  it('frees every tile of the card on release, once', function()
+  it('frees every image of the card on release, once', function()
     local tiles = Tiles()
 
     card.render(props({ 'ab', 'c' }), tiles)
     tiles:release()
 
     eq(0, tiles:count())
-    eq(4, deleted)
+    assert.is_true(uploaded > 0)
+    eq(uploaded, deleted)
 
     tiles:release()
-    eq(4, deleted)
+    eq(uploaded, deleted)
   end)
 end)

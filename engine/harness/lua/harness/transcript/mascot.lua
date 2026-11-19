@@ -18,6 +18,7 @@ mascot.EYES = { work = 'accent', wait = 'warn', fail = 'error' }
 mascot.ACTS = { 'drift', 'glitch', 'jump', 'roll', 'scan' }
 mascot.REST_STEPS = 20
 mascot.ACT_STEPS = 40
+mascot.LOOP_STEPS = (mascot.REST_STEPS + mascot.ACT_STEPS) * #mascot.ACTS
 
 mascot.ART = {
   '.....sSSSSs.....',
@@ -264,7 +265,7 @@ local animation = Animation({
     local form = motion.clamp(anim:elapsed(at) / mascot.FORM_MS)
     local wane = motion.clamp((at - (anim.last_wanted or at) - mascot.GRACE_MS) / mascot.WANE_MS)
 
-    mascot.draw(bitmap, motion.step(at), mood, form, wane)
+    mascot.draw(bitmap, motion.loop(at, mascot.LOOP_STEPS), mood, form, wane)
   end,
 })
 

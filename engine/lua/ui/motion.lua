@@ -4,10 +4,15 @@ local motion = {}
 
 motion.STEP_MS = tokens.STEP_MS
 motion.FRAME_MS = tokens.FRAME_MS
+motion.LOOP_STEPS = tokens.LOOP_STEPS
 motion.DURATION = tokens.DURATION
 
 function motion.step(now)
   return math.floor((now or 0) / motion.STEP_MS)
+end
+
+function motion.loop(now, steps)
+  return motion.step(now) % (steps or motion.LOOP_STEPS)
 end
 
 function motion.clamp(t)

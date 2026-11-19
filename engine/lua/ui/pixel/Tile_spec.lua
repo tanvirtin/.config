@@ -49,25 +49,108 @@ describe('ui.pixel.Tile:', function()
 
     tile:paint(red):paint(red)
     eq(1, #uploads)
-    eq({ id = tile.id, size = 32 * 32 * 4, width = 32, height = 32, cols = 2, rows = 1 }, uploads[1])
+    eq({ size = 32 * 32 * 4, width = 32, height = 32, cols = 2, rows = 1 }, {
+      size = uploads[1].size,
+      width = uploads[1].width,
+      height = uploads[1].height,
+      cols = uploads[1].cols,
+      rows = uploads[1].rows,
+    })
 
     tile:paint(function(bitmap)
       bitmap:rect(8, 8, 4, 4, { 255, 0, 0 }, 1)
     end)
     eq(2, #uploads)
-    eq(uploads[1], uploads[2])
+    assert.is_true(uploads[1].id ~= uploads[2].id)
   end)
 
-  it('frees its image once, and only if it sent one', function()
+  it('shows each picture from its own image, uploading a picture only the first time it is drawn', function()
     local tile = Tile.new(1, 1)
+    local function fill(shade)
+      return function(bitmap)
+        bitmap:rect(0, 0, 4, 4, { shade, 0, 0 }, 1)
+      end
+    end
+    local function shown()
+      return vim.api.nvim_get_hl(0, { name = tile:chunks(1)[1][2] }).fg
+    end
 
+    tile:paint(fill(10))
+    eq(uploads[1].id, shown())
+
+    tile:paint(fill(20))
+    eq(uploads[2].id, shown())
+
+    tile:paint(fill(10))
+    eq(2, #uploads)
+    eq(uploads[1].id, shown())
+  end)
+
+  it('shares a picture between tiles of the same size', function()
+    local function red(bitmap)
+      bitmap:rect(0, 0, 4, 4, { 255, 0, 0 }, 1)
+    end
+
+    Tile.new(1, 1):paint(red)
+    Tile.new(1, 1):paint(red)
+    Tile.new(2, 1):paint(red)
+
+    eq(2, #uploads)
+  end)
+
+  it('frees the picture of a still tile once no tile shows it', function()
+    local function red(bitmap)
+      bitmap:rect(0, 0, 4, 4, { 255, 0, 0 }, 1)
+    end
+    local first, second = Tile.new(1, 1):paint(red), Tile.new(1, 1):paint(red)
+
+    first:destroy()
+    eq({}, deleted)
+
+    second:destroy()
+    second:destroy()
+    eq({ uploads[1].id }, deleted)
+    eq(second.id, vim.api.nvim_get_hl(0, { name = second:chunks(1)[1][2] }).fg)
+  end)
+
+  it('keeps the frames of an animated tile for the next run that draws them', function()
+    local tile = Tile.new(1, 1)
+    local function fill(shade)
+      return function(bitmap)
+        bitmap:rect(0, 0, 4, 4, { shade, 0, 0 }, 1)
+      end
+    end
+
+    tile:paint(fill(10)):paint(fill(20))
     tile:destroy()
     eq({}, deleted)
 
-    tile:paint(function() end)
-    tile:destroy()
-    tile:destroy()
-    eq({ tile.id }, deleted)
+    Tile.new(1, 1):paint(fill(10)):paint(fill(20))
+    eq(2, #uploads)
+  end)
+
+  it('frees the least recently used image no tile shows once it holds too many', function()
+    local frames = Tile.FRAMES
+    local function fill(shade)
+      return function(bitmap)
+        bitmap:rect(0, 0, 4, 4, { shade, 0, 0 }, 1)
+      end
+    end
+
+    Tile.FRAMES = 2
+
+    local still = Tile.new(1, 1):paint(fill(10))
+    local moving = Tile.new(1, 1)
+
+    moving:paint(fill(20))
+    moving:paint(fill(30))
+    moving:paint(fill(40))
+
+    Tile.FRAMES = frames
+
+    eq({ uploads[2].id }, deleted)
+    eq(3, Tile.frames())
+    eq(uploads[1].id, vim.api.nvim_get_hl(0, { name = still:chunks(1)[1][2] }).fg)
   end)
 
   it('hands a released tile out again for the same size', function()
@@ -85,17 +168,6 @@ describe('ui.pixel.Tile:', function()
 
     assert.is_true(Tile.acquire(3, 1) ~= tile)
     assert.is_true(Tile.acquire(2, 2) ~= tile)
-  end)
-
-  it('deletes the image of a released tile', function()
-    local tile = Tile.acquire(1, 1)
-
-    tile:paint(function(bitmap)
-      bitmap:rect(0, 0, 4, 4, { 255, 0, 0 }, 1)
-    end)
-    tile:release()
-
-    eq({ tile.id }, deleted)
   end)
 
   it('hands out a tile once per release, even when released twice', function()
