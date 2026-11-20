@@ -1,6 +1,6 @@
 local root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h')
 
-package.path = root .. '/lua/?.lua;' .. root .. '/lua/?/init.lua;' .. root .. '/harness/lua/?.lua;' .. root .. '/harness/lua/?/init.lua;' .. package.path
+package.path = root .. '/lua/?.lua;' .. root .. '/lua/?/init.lua;' .. package.path
 
 local Connection = require('harness.servers.acp.Connection')
 local Session = require('harness.session.Session')
@@ -78,7 +78,7 @@ wrap('harness.transcript.model.output_style', 'strip', 'output_style.strip')
 wrap('harness.transcript.model.output_style', 'language', 'output_style.language')
 wrap('ui.markdown.Renderer', 'syntax', 'Renderer.syntax')
 
-local files = vim.fn.glob(root .. '/harness/lua/harness/**/*.lua', false, true)
+local files = vim.fn.glob(root .. '/lua/harness/**/*.lua', false, true)
 local session = Session({ key = 'bench', id = 'bench', dir = root, connection = Connection(fake_agent.new()) })
 
 local function update(fields)

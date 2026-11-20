@@ -1,6 +1,6 @@
 local eq = assert.are.same
 
-local ROOTS = { 'lua/ui', 'harness/lua/harness', 'lua/surfaces', 'lua/nvim_mcp', 'lua/sources' }
+local ROOTS = { 'lua/ui', 'lua/harness', 'lua/surfaces', 'lua/nvim_mcp', 'lua/sources' }
 
 local RULES = {
   { pattern = '[Pp][Rr][Ii][Oo][Rr][Ii][Tt][Yy]%s*=%s*%d', says = 'a raw extmark priority; use ui.design.layer' },
@@ -24,8 +24,8 @@ local function raw_glyph(line)
 end
 
 local ALLOWED = {
-  ['harness/lua/harness/transcript/model/content/builtin.lua'] = 'orders content handlers, not extmarks',
-  ['harness/lua/harness/transcript/model/output_style.lua'] = 'matches glyphs that tools print, it does not draw them',
+  ['lua/harness/transcript/model/content/builtin.lua'] = 'orders content handlers, not extmarks',
+  ['lua/harness/transcript/model/output_style.lua'] = 'matches glyphs that tools print, it does not draw them',
   ['lua/ui/anim/presets.lua'] = 'is particle art for ui_animate',
   ['lua/ui/pixel/components/ring.lua'] = 'draws its own fill frames as a text fallback',
 }

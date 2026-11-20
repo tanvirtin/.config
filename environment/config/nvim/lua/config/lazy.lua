@@ -26,7 +26,6 @@ require('lazy').setup({
   },
   performance = {
     rtp = {
-      paths = { vim.g.tin_engine, vim.g.tin_engine .. '/harness' },
       disabled_plugins = {
         'gzip',
         'tarPlugin',

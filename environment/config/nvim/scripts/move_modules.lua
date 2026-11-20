@@ -8,14 +8,8 @@ end
 
 local mapping = dofile(mapping_path)
 
-local function tree(module)
-  if module == 'harness' or module:match('^harness%.') then return '/harness/lua/' end
-
-  return '/lua/'
-end
-
 local function file_of(module)
-  local base = root .. tree(module) .. module:gsub('%.', '/')
+  local base = root .. '/lua/' .. module:gsub('%.', '/')
 
   if vim.fn.filereadable(base .. '.lua') == 1 then return base .. '.lua', 'file' end
   if vim.fn.isdirectory(base) == 1 then return base, 'dir' end
@@ -24,9 +18,9 @@ end
 local function destination(module)
   local init = module:match('^(.*)%.init$')
 
-  if init then return root .. tree(init) .. init:gsub('%.', '/') .. '/init.lua', init end
+  if init then return root .. '/lua/' .. init:gsub('%.', '/') .. '/init.lua', init end
 
-  return root .. tree(module) .. module:gsub('%.', '/') .. '.lua', module
+  return root .. '/lua/' .. module:gsub('%.', '/') .. '.lua', module
 end
 
 local function run(cmd)
@@ -61,7 +55,7 @@ for _, old in ipairs(olds) do
   end
 
   if kind == 'dir' then
-    move(from, root .. tree(new) .. new:gsub('%.', '/'))
+    move(from, root .. '/lua/' .. new:gsub('%.', '/'))
     renames[#renames + 1] = { old = old, new = new, prefix = true }
   else
     local to, module = destination(new)
@@ -103,7 +97,7 @@ local PATTERNS = {
 
 local changed = 0
 
-for _, dir in ipairs({ 'lua', 'harness/lua', 'scripts', 'bench' }) do
+for _, dir in ipairs({ 'lua', 'scripts', 'bench' }) do
   for _, path in ipairs(vim.fn.globpath(root .. '/' .. dir, '**/*.lua', false, true)) do
     local text = table.concat(vim.fn.readfile(path, 'b'), '\n')
     local out = text
@@ -126,6 +120,6 @@ for _, dir in ipairs({ 'lua', 'harness/lua', 'scripts', 'bench' }) do
 end
 
 run({ 'nvim', '-l', 'scripts/sort_requires.lua' })
-run({ 'stylua', '--config-path', 'stylua.toml', 'lua', 'harness/lua', 'scripts' })
+run({ 'stylua', '--config-path', 'stylua.toml', 'lua', 'scripts' })
 
 print(string.format('moved %d modules, rewrote %d files', #renames, changed))

@@ -1,4 +1,4 @@
 statsfile = "luacov.stats.out"
 reportfile = "luacov.report.out"
-include = { "sn" }
-exclude = { "sn.*_spec" }
+include = { "harness" }
+exclude = { "harness.*_spec" }

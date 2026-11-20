@@ -57,7 +57,7 @@ end
 
 local changed = 0
 
-for _, path in ipairs(vim.fn.glob(root .. '/harness/lua/harness/**/*.lua', false, true)) do
+for _, path in ipairs(vim.fn.glob(root .. '/lua/harness/**/*.lua', false, true)) do
   if path:match('_spec%.lua$') then goto continue end
 
   local file = assert(io.open(path, 'r'))

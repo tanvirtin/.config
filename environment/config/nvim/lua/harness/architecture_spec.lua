@@ -1,6 +1,6 @@
 local eq = assert.are.same
 
-local ROOT = 'harness/lua/harness'
+local ROOT = 'lua/harness'
 
 local NEOVIM = {
   'api',
@@ -126,7 +126,7 @@ local function modules()
 
   for _, path in ipairs(vim.fn.globpath(ROOT, '**/*.lua', false, true)) do
     if not path:match('_spec%.lua$') then
-      local name = path:gsub('^harness/lua/', ''):gsub('%.lua$', ''):gsub('/init$', ''):gsub('/', '.')
+      local name = path:gsub('^lua/', ''):gsub('%.lua$', ''):gsub('/init$', ''):gsub('/', '.')
       out[#out + 1] = { name = name, path = path, source = table.concat(vim.fn.readfile(path), '\n') }
     end
   end
