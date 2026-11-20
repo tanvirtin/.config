@@ -28,13 +28,21 @@ local function forget(key)
 end
 
 local function evict()
-  local oldest, key
+  local spare, spare_key, oldest, oldest_key
 
   for k, frame in pairs(frames) do
-    if not showing[frame.id] and (not oldest or frame.used < oldest.used) then
-      oldest, key = frame, k
+    if not showing[frame.id] then
+      if frame.hits < 2 then
+        if not spare or frame.used < spare.used then
+          spare, spare_key = frame, k
+        end
+      elseif not oldest or frame.used < oldest.used then
+        oldest, oldest_key = frame, k
+      end
     end
   end
+
+  local key = spare_key or oldest_key
 
   if key then forget(key) end
 end
@@ -45,12 +53,13 @@ local function image(key, bytes, width, height, cols, rows)
   if not frame then
     if count >= Tile.FRAMES then evict() end
 
-    frame = { id = graphics.id() }
+    frame = { id = graphics.id(), hits = 0 }
     frames[key] = frame
     count = count + 1
     graphics.upload(frame.id, bytes, width, height, cols, rows)
   end
 
+  frame.hits = frame.hits + 1
   clock = clock + 1
   frame.used = clock
 

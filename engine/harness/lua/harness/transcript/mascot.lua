@@ -19,6 +19,9 @@ mascot.ACTS = { 'drift', 'glitch', 'jump', 'roll', 'scan' }
 mascot.REST_STEPS = 20
 mascot.ACT_STEPS = 40
 mascot.LOOP_STEPS = (mascot.REST_STEPS + mascot.ACT_STEPS) * #mascot.ACTS
+mascot.FORM_RUNGS = 6
+mascot.WANE_RUNGS = 6
+mascot.STILL_STEPS = 5
 
 mascot.ART = {
   '.....sSSSSs.....',
@@ -259,13 +262,22 @@ function mascot.draw(bitmap, step, kind, form, wane)
   mascot.eyes(bitmap, step, kind, pose)
 end
 
+local function rung(value, steps)
+  return math.min(steps, math.ceil(motion.clamp(value) * steps)) / steps
+end
+
 local animation = Animation({
   cols = mascot.COLS,
   draw = function(bitmap, at, anim)
-    local form = motion.clamp(anim:elapsed(at) / mascot.FORM_MS)
+    local elapsed = anim:elapsed(at)
+    local form = motion.clamp(elapsed / mascot.FORM_MS)
     local wane = motion.clamp((at - (anim.last_wanted or at) - mascot.GRACE_MS) / mascot.WANE_MS)
 
-    mascot.draw(bitmap, motion.loop(at, mascot.LOOP_STEPS), mood, form, wane)
+    if form >= 1 and wane <= 0 then
+      mascot.draw(bitmap, motion.loop(elapsed, mascot.LOOP_STEPS), mood, 1, 0)
+    else
+      mascot.draw(bitmap, mascot.STILL_STEPS, mood, rung(form, mascot.FORM_RUNGS), rung(wane, mascot.WANE_RUNGS))
+    end
   end,
 })
 

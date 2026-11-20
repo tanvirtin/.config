@@ -203,6 +203,38 @@ describe('harness.transcript.mascot:', function()
 
     mascot.chunks('work', doc)
 
-    assert.is_true(uploads > settled)
+    assert.is_true(mascot.waning(doc))
+    eq(settled, uploads)
+  end)
+
+  it('reforms over the frames it already sent, without a single new upload', function()
+    Tile.available = function()
+      return true
+    end
+
+    mascot.GRACE_MS, mascot.WANE_MS, mascot.HOLD_MS = 30, 240, 20
+
+    local doc, rounds = {}, {}
+
+    local function appear(ms)
+      mascot.chunks('work', doc)
+
+      vim.wait(ms, function()
+        mascot.chunks('work', doc)
+        return false
+      end, 20)
+
+      vim.wait(mascot.GRACE_MS + mascot.WANE_MS + mascot.HOLD_MS + 60, function()
+        return false
+      end, 20)
+
+      rounds[#rounds + 1] = uploads
+    end
+
+    appear(mascot.FORM_MS + 60)
+    appear(mascot.FORM_MS - 60)
+
+    assert.is_true(rounds[1] > 0)
+    eq(rounds[1], rounds[2])
   end)
 end)

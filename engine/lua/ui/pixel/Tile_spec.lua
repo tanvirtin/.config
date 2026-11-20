@@ -153,6 +153,38 @@ describe('ui.pixel.Tile:', function()
     eq(uploads[1].id, vim.api.nvim_get_hl(0, { name = still:chunks(1)[1][2] }).fg)
   end)
 
+  it('evicts a frame it never replayed before a replayed one, which then replays free', function()
+    local frames = Tile.FRAMES
+    local function fill(shade)
+      return function(bitmap)
+        bitmap:rect(0, 0, 4, 4, { shade, 0, 0 }, 1)
+      end
+    end
+
+    Tile.FRAMES = 4
+
+    local one, two, three = Tile.new(1, 1), Tile.new(1, 1), Tile.new(1, 1)
+
+    one:paint(fill(10))
+    two:paint(fill(10))
+    one:destroy()
+    two:paint(fill(20))
+    two:paint(fill(30))
+    two:paint(fill(40))
+    three:paint(fill(50))
+
+    Tile.FRAMES = frames
+
+    eq({ uploads[2].id }, deleted)
+    eq(5, #uploads)
+    eq(4, Tile.frames())
+
+    two:paint(fill(10))
+
+    eq(5, #uploads)
+    eq(uploads[1].id, vim.api.nvim_get_hl(0, { name = two:chunks(1)[1][2] }).fg)
+  end)
+
   it('hands a released tile out again for the same size', function()
     local tile = Tile.acquire(2, 1)
 
