@@ -121,5 +121,71 @@ describe('SearchFilter:', function()
       eq(1, #result)
       eq('test.file', result[1].label)
     end)
+
+    it('should keep items that share a label', function()
+      local filter = SearchFilter()
+      local items = { { label = 'a.lua', value = 1 }, { label = 'a.lua', value = 2 } }
+
+      local result = filter:filter(items, 'a')
+
+      eq({ 1, 2 }, { result[1].value, result[2].value })
+    end)
+  end)
+
+  describe('match', function()
+    it('should rank a match in the file name above one in a directory', function()
+      local filter = SearchFilter()
+      local items = { { label = 'lua/views/u.lua' }, { label = 'lua/ui/View.lua' } }
+
+      local result = filter:match(items, 'view')
+
+      eq('lua/ui/View.lua', result[1].label)
+    end)
+
+    it('should rank a match at the start of the file name first', function()
+      local filter = SearchFilter()
+      local items = { { label = 'src/preview.lua' }, { label = 'src/view.lua' } }
+
+      local result = filter:match(items, 'view')
+
+      eq('src/view.lua', result[1].label)
+    end)
+
+    it('should return byte ranges of the matched characters', function()
+      local filter = SearchFilter()
+
+      local _, positions = filter:match({ { label = 'lua/ui/View.lua' } }, 'view')
+
+      eq({ { 7, 11 } }, positions[1])
+    end)
+
+    it('should return byte ranges for multibyte labels', function()
+      local filter = SearchFilter()
+
+      local _, positions = filter:match({ { label = 'é/ab' } }, 'ab')
+
+      eq({ { 3, 5 } }, positions[1])
+    end)
+
+    it('should return at most LIMIT matches', function()
+      local filter = SearchFilter()
+      local items = {}
+
+      for i = 1, SearchFilter.LIMIT + 10 do
+        items[i] = { label = 'file' .. i }
+      end
+
+      eq(SearchFilter.LIMIT, #filter:match(items, 'file'))
+    end)
+
+    it('should see items appended to the same list', function()
+      local filter = SearchFilter()
+      local items = { { label = 'alpha' } }
+
+      filter:match(items, 'a')
+      items[2] = { label = 'beta' }
+
+      eq(2, #filter:match(items, 'a'))
+    end)
   end)
 end)

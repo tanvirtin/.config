@@ -4,6 +4,7 @@ color.ROLE = {
   ['text'] = 'Normal',
   ['text.muted'] = 'Comment',
   ['text.accent'] = 'Special',
+  ['text.match'] = 'Special',
   ['text.title'] = 'Title',
   ['text.path'] = 'Directory',
   ['text.link'] = 'Underlined',

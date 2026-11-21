@@ -24,6 +24,7 @@ hl.GROUPS = {
   UiSelected = role('element.selected'),
   UiMuted = role('text.muted'),
   UiAccent = role('text.accent'),
+  UiMatch = role('text.match'),
   UiPath = role('text.path'),
   UiLineNr = role('line_number'),
   UiAdded = role('created'),

@@ -16,6 +16,8 @@ local HOW = schema.literal({ 'edit', 'split', 'vsplit', 'tab' })
 
 local LIVE_DELAY_MS = 120
 
+Picker.PAGE_SIZE = 200
+
 function Picker:constructor(opts)
   local instance = Surface.constructor(self, { kind = 'picker', title = opts.title or opts.source, owner = opts.owner })
 
@@ -145,6 +147,7 @@ function Picker:open()
     items = self._opts.items and vim.tbl_map(entry, self._opts.items) or {},
     width = self._opts.width,
     max_height = self._opts.max_height,
+    page_size = Picker.PAGE_SIZE,
     footer = Picker.footer(self:hints()),
     placeholder = live and 'Type to search…' or 'No matches',
     on_select = function()

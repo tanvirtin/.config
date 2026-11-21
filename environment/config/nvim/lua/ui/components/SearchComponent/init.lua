@@ -196,6 +196,8 @@ function SearchComponent:set_items(items)
   local filtered_items = self.props.items
   local page_size = self.props.page_size
 
+  self._positions = {}
+
   self:set_state({
     filtered_items = filtered_items,
     selected_index = 1,
@@ -248,12 +250,14 @@ function SearchComponent:_apply_filter()
     return
   end
 
-  local filtered_items
+  local filtered_items, positions
   if self.props.on_search then
     filtered_items = self.props.on_search(query, items)
   else
-    filtered_items = self._filter:filter(items, query)
+    filtered_items, positions = self._filter:match(items, query)
   end
+
+  self._positions = positions or {}
 
   filtered_items = filtered_items or {}
   local page_size = self.props.page_size
@@ -450,6 +454,8 @@ function SearchComponent:render()
   local lines = {}
   local description_hls = {}
   local icon_hls = {}
+  local match_hls = {}
+  local positions = self._positions or {}
 
   for i = 1, visible_count do
     local item = items[i]
@@ -464,6 +470,12 @@ function SearchComponent:render()
         col_to = icon_start + #item.icon,
         hl = item.icon_hl or 'UiAccent',
       }
+    end
+
+    local label_start = #line
+
+    for _, range in ipairs(positions[i] or {}) do
+      match_hls[#match_hls + 1] = { row = i - 1, col_from = label_start + range[1], col_to = label_start + range[2] }
     end
 
     line = line .. (item.label or '')
@@ -507,6 +519,18 @@ function SearchComponent:render()
     local hl = description_hls[i]
     self.elements.list:place_extmark_highlight({
       hl = 'UiMuted',
+      row = hl.row,
+      col_range = {
+        from = hl.col_from,
+        to = hl.col_to,
+      },
+    })
+  end
+
+  for i = 1, #match_hls do
+    local hl = match_hls[i]
+    self.elements.list:place_extmark_highlight({
+      hl = 'UiMatch',
       row = hl.row,
       col_range = {
         from = hl.col_from,
