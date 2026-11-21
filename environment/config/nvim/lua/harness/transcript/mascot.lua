@@ -1,5 +1,6 @@
 local motion = require('ui.motion')
 local Timer = require('core.Timer')
+local Tile = require('ui.pixel.Tile')
 local roles = require('ui.pixel.roles')
 local static = require('ui.pixel.static')
 local tokens = require('ui.design.motion')
@@ -306,6 +307,19 @@ function mascot.idle_chunks(owner, kind)
   tint(kind)
 
   return animation.tile:chunks(1)
+end
+
+local portrait
+
+function mascot.still()
+  if not Tile.available() then return nil end
+
+  portrait = portrait or Tile.new(mascot.COLS, 1)
+  portrait:paint(function(bitmap)
+    mascot.draw(bitmap, mascot.STILL_STEPS, 'work', 1, 0)
+  end)
+
+  return portrait:chunks(1)
 end
 
 function mascot.stop()

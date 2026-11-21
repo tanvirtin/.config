@@ -2,6 +2,7 @@ local lazy = require('core.lazy')
 
 local fs = lazy('core.system.fs')
 local console = lazy('core.console')
+local panes = lazy('core.editor.panes')
 local Buffer = lazy('core.editor.Buffer')
 local Window = lazy('core.editor.Window')
 local INLINE = require('ui.markdown.Renderer').INLINE
@@ -103,7 +104,7 @@ function links.icon(target)
   return links.ICONS.path
 end
 
-function links.open(target)
+function links.open(target, from)
   if not target or target.missing then return false end
 
   if target.url then
@@ -112,6 +113,15 @@ function links.open(target)
   end
 
   if target.path and fs.is_dir(target.path) then return false end
+
+  if from then
+    panes.show(from.owner, from.anchor, 'code', target.bufnr and Buffer(target.bufnr) or target.path, {
+      line = target.line,
+      focus = true,
+    })
+
+    return true
+  end
 
   local window = target.bufnr and Window.tab_with(Buffer(target.bufnr)) or Window.tab_edit(target.path)
 

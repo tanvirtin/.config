@@ -93,6 +93,13 @@ map('n', '<leader>lq', function()
 end, { desc = 'Diagnostics to quickfix' })
 map('n', '<leader>lD', pick('Diagnostics', 'diagnostics'), { desc = 'Diagnostics picker' })
 
+map('n', ']g', function()
+  require('ui.guides').jump(require('core.editor.Window').get_current(), 1)
+end, { desc = 'Next guide' })
+map('n', '[g', function()
+  require('ui.guides').jump(require('core.editor.Window').get_current(), -1)
+end, { desc = 'Previous guide' })
+
 map('n', '<leader>gs', '<Cmd>VGit buffer_hunk_stage<CR>', { desc = 'Stage hunk' })
 map('n', '<leader>gr', '<Cmd>VGit buffer_hunk_reset<CR>', { desc = 'Reset hunk' })
 map('n', '<leader>gp', '<Cmd>VGit hunk<CR>', { desc = 'Preview hunk' })

@@ -231,6 +231,13 @@ hl.COMPUTED = {
 
     return { fg = hl.blend(foreground, background, palette.MIX.border) }
   end,
+  UiGuide = function()
+    local foreground, background = color('Comment', 'fg'), color('Normal', 'bg')
+
+    if not foreground or not background then return { link = 'Comment' } end
+
+    return { fg = foreground, bg = hl.blend(foreground, background, palette.MIX.border), bold = true, italic = true }
+  end,
   UiDiffNumber = number('GitLineNr', 'LineNr'),
   UiDiffAddNumber = number('GitSignsAdd', 'Added'),
   UiDiffDeleteNumber = number('GitSignsDelete', 'Removed'),

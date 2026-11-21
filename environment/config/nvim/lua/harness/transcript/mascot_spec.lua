@@ -72,6 +72,25 @@ describe('harness.transcript.mascot:', function()
     eq(nil, mascot.chunks('work', {}))
   end)
 
+  it('gives a still portrait for guides, uploaded once, and nothing without pixels', function()
+    Tile.available = function()
+      return false
+    end
+
+    eq(nil, mascot.still())
+
+    Tile.available = function()
+      return true
+    end
+
+    local chunks = mascot.still()
+    local before = uploads
+
+    eq(1, #chunks)
+    eq(chunks, mascot.still())
+    eq(before, uploads)
+  end)
+
   it('fits its art in the tile, on blocks of two pixels', function()
     local width, height = mascot.COLS * Tile.CELL[1], Tile.CELL[2]
 

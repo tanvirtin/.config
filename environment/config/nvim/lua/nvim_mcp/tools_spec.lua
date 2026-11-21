@@ -443,6 +443,77 @@ describe('nvim_mcp.tools:', function()
     end)
   end)
 
+  describe('show and hide', function()
+    local dir = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':h')
+    local guides = require('ui.guides')
+
+    after_each(function()
+      run('hide')
+      vim.cmd('silent! only!')
+    end)
+
+    it('opens a symbol beside the chat as numbered steps, keeping focus', function()
+      local here = vim.api.nvim_get_current_win()
+
+      local out = run('show', {
+        spots = {
+          { at = dir .. '/outline.lua#outline.find', note = 'match a symbol' },
+          { at = '#outline.span' },
+        },
+      })
+
+      eq(here, vim.api.nvim_get_current_win())
+      eq(2, #vim.api.nvim_tabpage_list_wins(0))
+      assert.is_truthy(out:find('^1%. code .-outline%.lua:%d+%-%d+  match a symbol\n2%. code .-outline%.lua:%d+%-%d+$'))
+      eq(2, #guides.list('agent'))
+    end)
+
+    it('puts a second file in the peek pane and paints a third', function()
+      local out = run('show', {
+        spots = {
+          { at = dir .. '/outline.lua:3' },
+          { at = dir .. '/spots.lua:1-2' },
+          { at = dir .. '/schema.lua' },
+        },
+      })
+
+      eq(3, #vim.api.nvim_tabpage_list_wins(0))
+      assert.is_truthy(out:find('2%. peek .-spots%.lua:1%-2'))
+      assert.is_truthy(out:find('3%. painted .-schema%.lua:1%-1'))
+    end)
+
+    it('replaces the last guides unless asked to keep them', function()
+      run('show', { spots = { { at = dir .. '/outline.lua:1' }, { at = dir .. '/outline.lua:2' } } })
+      run('show', { spots = { { at = dir .. '/outline.lua:3', note = 'c' } } })
+
+      eq(1, #guides.list('agent'))
+
+      run('show', { spots = { { at = dir .. '/outline.lua:4', note = 'd' } }, keep = true })
+
+      eq(2, #guides.list('agent'))
+    end)
+
+    it('shows what it can and names the spots it could not find', function()
+      local out =
+        run('show', { spots = { { at = dir .. '/outline.lua#no_such_thing' }, { at = dir .. '/outline.lua:1' } } })
+
+      assert.is_truthy(
+        out:find('^1%. code .-outline%.lua:1%-1\nfailed: ".-#no_such_thing": no definition of no_such_thing$')
+      )
+    end)
+
+    it('lists panes and guides in editor_state, and hide clears both', function()
+      run('show', { spots = { { at = dir .. '/outline.lua:3', note = 'here' } } })
+
+      local state = run('editor_state')
+
+      assert.is_truthy(state:find('pane code: .-outline%.lua:3 %(win %d+%)'))
+      assert.is_truthy(state:find('guides: 1 painted', 1, true))
+      eq('cleared 1 guide, closed 1 pane', run('hide'))
+      eq(1, #vim.api.nvim_tabpage_list_wins(0))
+    end)
+  end)
+
   describe('diagnostics and lsp', function()
     it('reports diagnostics 1-based', function()
       vim.diagnostic.set(vim.api.nvim_create_namespace('tools_spec'), buf, {

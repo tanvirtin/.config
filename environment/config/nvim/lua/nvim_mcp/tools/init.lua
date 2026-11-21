@@ -4,7 +4,7 @@ local util = require('nvim_mcp.tools.util')
 
 local tools = {}
 
-tools.BUILTIN = { 'editor', 'buffer', 'lsp', 'ui', 'exec' }
+tools.BUILTIN = { 'editor', 'buffer', 'lsp', 'ui', 'layout', 'exec' }
 
 tools.set_focus = util.set_focus
 tools.locations = util.locations

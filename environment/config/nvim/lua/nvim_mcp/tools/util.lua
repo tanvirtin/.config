@@ -53,6 +53,20 @@ function util.focused_cursor()
   return mark[1] > 0 and mark or { 1, 0 }
 end
 
+local anchor_of
+
+function util.set_anchor(fn)
+  anchor_of = fn
+end
+
+function util.anchor(caller)
+  local win = anchor_of and caller and anchor_of(caller)
+
+  if win and Window(win):is_valid() then return Window(win) end
+
+  return Window.get_current()
+end
+
 function util.fail(message)
   error(message, 0)
 end

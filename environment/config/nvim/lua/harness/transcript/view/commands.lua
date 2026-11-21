@@ -105,7 +105,7 @@ function commands.activate(view)
     return true
   end
 
-  if links.open(view:_target_at(window)) then return true end
+  if links.open(view:_target_at(window), { owner = view.session.key, anchor = window }) then return true end
 
   local head = view.document:block_at(row - 1)
 
@@ -146,7 +146,9 @@ function commands.activate(view)
 end
 
 function commands.open_target(view)
-  return links.open(view:_target_at(Window.get_current())) or false
+  local window = Window.get_current()
+
+  return links.open(view:_target_at(window), { owner = view.session.key, anchor = window }) or false
 end
 
 function commands.run_block_action(view, key)

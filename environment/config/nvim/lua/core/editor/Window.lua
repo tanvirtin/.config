@@ -221,6 +221,28 @@ function Window:split_right(buffer)
   return Window(0)
 end
 
+function Window:open_split(buffer, side)
+  return Window(vim.api.nvim_open_win(buffer.bufnr, false, { split = side, win = self.win_id }))
+end
+
+function Window:is_floating()
+  local ok, config = pcall(vim.api.nvim_win_get_config, self.win_id)
+
+  return ok and config.relative ~= ''
+end
+
+function Window:get_var(name)
+  local ok, value = pcall(vim.api.nvim_win_get_var, self.win_id, name)
+
+  return ok and value or nil
+end
+
+function Window:set_var(name, value)
+  pcall(vim.api.nvim_win_set_var, self.win_id, name, value)
+
+  return self
+end
+
 function Window:diff_this()
   self:call(function()
     vim.cmd('diffthis')

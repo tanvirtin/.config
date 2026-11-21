@@ -71,6 +71,10 @@ local function editor_state(_, ctx)
     lines[#lines + 1] = string.format('  %d: %s', tab.number, table.concat(windows, ', '))
   end
 
+  local layout = require('nvim_mcp.tools.layout')
+
+  vim.list_extend(lines, layout.describe(layout.owner(ctx)))
+
   local text = table.concat(lines, '\n')
 
   return compact.reply(ctx.caller, text, text)
@@ -104,7 +108,7 @@ return {
   {
     name = 'editor_state',
     risk = 'read',
-    summary = 'Where the user is, compactly: cwd and mode; the focused file with its bufnr, window and cursor; the last visual selection; open buffers ([+] unsaved); tabs with their windows.',
+    summary = 'Where the user is, compactly: cwd and mode; the focused file with its bufnr, window and cursor; the last visual selection; open buffers ([+] unsaved); tabs with their windows; your panes and guides.',
     params = {},
     fn = editor_state,
   },

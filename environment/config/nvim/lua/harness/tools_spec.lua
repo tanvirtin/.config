@@ -63,6 +63,29 @@ describe('harness.tools:', function()
     eq('claude', listed[1].agent)
   end)
 
+  it('clears a session\'s guides when the user prompts it, and keeps other sessions\' guides', function()
+    local guides = require('ui.guides')
+    local me = hub.start({ dir = '/w' }):wait()
+    local other = hub.start({ dir = '/w' }):wait()
+    local path = vim.fn.tempname() .. '.lua'
+
+    vim.fn.writefile({ 'a', 'b' }, path)
+    run('show', { spots = { { at = path .. ':1-2', note = 'here' } } }, me.key)
+    run('show', { spots = { { at = path .. ':2', note = 'there' } } }, other.key)
+
+    me:prompt('next')
+    settle(function()
+      return me.state == 'idle'
+    end)
+
+    eq(0, #guides.list(me.key))
+    eq(1, #guides.list(other.key))
+
+    run('hide', {}, me.key)
+    run('hide', {}, other.key)
+    vim.fn.delete(path)
+  end)
+
   it('starts a child in the background and returns its key at once', function()
     local me = hub.start({ dir = '/w' }):wait()
     local win = vim.api.nvim_get_current_win()

@@ -115,6 +115,24 @@ function outline.find(entries, symbol)
   return {}
 end
 
+function outline.span(buffer, symbol)
+  local root = buffer:syntax_root()
+
+  if not root then return nil, nil, 'no syntax tree' end
+
+  local found = outline.find(outline.of(root, buffer.bufnr, buffer:get_lines()), symbol)
+
+  if #found == 0 then return nil, nil, 'no definition of ' .. symbol end
+
+  local others = {}
+
+  for i = 2, #found do
+    others[#others + 1] = found[i].first
+  end
+
+  return found[1].first, found[1].last, #others > 0 and ('also defined at ' .. table.concat(others, ', ')) or nil
+end
+
 function outline.format(entries)
   if #entries == 0 then return 'no definitions' end
 
