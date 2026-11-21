@@ -68,5 +68,6 @@ return Config({
     older = '<C-p>',
     newer = '<C-n>',
     history = '<C-f>',
+    retarget = '<C-t>',
   },
 })

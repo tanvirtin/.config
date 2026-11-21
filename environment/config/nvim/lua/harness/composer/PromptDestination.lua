@@ -1,6 +1,7 @@
 local lazy = require('core.lazy')
 
 local Object = lazy('core.Object')
+local scene = lazy('harness.scene')
 local tools = lazy('nvim_mcp.tools')
 local client = lazy('harness.client')
 local context = lazy('harness.context')
@@ -59,7 +60,8 @@ function PromptDestination:submit(text, message, opts)
   if text == '' then return true end
   if session.state == 'closed' then return false, 'this session has ended; your text is kept' end
 
-  local where = Buffer.exists(source.buf) and context.capture_buffer(source.buf) or nil
+  local notes = scene.notes(session, { win = source.win, from = message.from })
+  local where = Buffer.exists(source.buf) and context.capture_buffer(source.buf, nil, notes) or nil
 
   local problems
   where, problems =

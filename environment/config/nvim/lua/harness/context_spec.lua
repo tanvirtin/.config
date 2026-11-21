@@ -38,6 +38,26 @@ describe('harness.context:', function()
     )
   end)
 
+  it('adds notes about the scene inside the tag, for a file and for an empty buffer', function()
+    local notes = { 'First.', 'Second.' }
+    local win = vim.api.nvim_get_current_win()
+
+    assert.is_truthy(context.capture(win, nil, notes).where:find('col 2%. First%. Second%.</editor%-context>$'))
+
+    vim.cmd('enew!')
+
+    eq(
+      '<editor-context>The user has no file open. First. Second.</editor-context>',
+      context.capture(vim.api.nvim_get_current_win(), nil, notes).where
+    )
+  end)
+
+  it('adds nothing for no notes', function()
+    local win = vim.api.nvim_get_current_win()
+
+    eq(context.capture(win).where, context.capture(win, nil, {}).where)
+  end)
+
   it('mentions a selected range', function()
     assert.is_truthy(
       context.capture(vim.api.nvim_get_current_win(), { 2, 3 }).where:find('selected lines 2-3', 1, true)

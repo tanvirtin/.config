@@ -24,6 +24,20 @@ function lsp.locations_to_items(locations, encoding)
   return vim.lsp.util.locations_to_items(locations, encoding)
 end
 
+function lsp.markdown_lines(contents)
+  local lines = vim.lsp.util.convert_input_to_markdown_lines(contents)
+
+  while #lines > 0 and lines[#lines]:match('^%s*$') do
+    lines[#lines] = nil
+  end
+
+  while #lines > 0 and lines[1]:match('^%s*$') do
+    table.remove(lines, 1)
+  end
+
+  return lines
+end
+
 function lsp.uri_from_bufnr(buf)
   return vim.uri_from_bufnr(buf)
 end

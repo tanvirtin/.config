@@ -1,10 +1,12 @@
 local lazy = require('core.lazy')
 
+local Lens = lazy('ui.Lens')
 local fs = lazy('core.system.fs')
 local console = lazy('core.console')
 local client = lazy('harness.client')
 local notice = lazy('harness.ui.notice')
 local Window = lazy('core.editor.Window')
+local geometry = lazy('harness.composer.geometry')
 local ComposerView = lazy('harness.composer.View')
 local ComposerStore = lazy('harness.composer.Store')
 local NOTICE = require('harness.types.events').NOTICE
@@ -203,6 +205,39 @@ local function release(view)
   if views[view.session.key] == view then views[view.session.key] = nil end
 end
 
+local chooser
+
+function composer.set_chooser(fn)
+  chooser = fn
+end
+
+function composer.retarget(view, session)
+  if session.key == view.session.key then return view:focus(true) end
+
+  local lines, source, display = view:lines(), view.source, view.display
+  local inline = view.place and view.place:request() or nil
+
+  composer.close(true, view.session)
+
+  if ComposerView.has_text(lines) then
+    local existing = store:draft(session.key)
+
+    if existing and ComposerView.has_text(existing) then
+      lines = vim.list_extend(vim.list_extend(vim.deepcopy(existing), { '' }), lines)
+    end
+
+    store:set_draft(session.key, lines)
+  end
+
+  return composer.open(session, {
+    display = display,
+    insert = true,
+    source = source,
+    inline = inline,
+    from = ComposerView.has_text(lines) and view.session.key or nil,
+  })
+end
+
 composer.delegate = {
   interrupt = composer.interrupt,
   model = composer.model,
@@ -212,6 +247,9 @@ composer.delegate = {
   next_item = composer.next_item,
   closed = release,
   wiped = release,
+  retarget = function(view)
+    if chooser then chooser(view) end
+  end,
   entered = function(view)
     last = view.session.key
 
@@ -226,10 +264,15 @@ function composer.open(session, opts)
 
   local display = opts.display
   local existing = composer.view(session)
+  local request = opts.inline and geometry.inline_fits(Window(opts.inline.win)) and opts.inline or nil
 
   if existing then
-    if existing.destination:answers() == opts.answer then
+    local placed = request == nil or (existing.place ~= nil and existing.place:matches(request))
+
+    if placed and existing.destination:answers() == opts.answer then
       last = session.key
+      if opts.source then existing.source = opts.source end
+      if opts.from then existing.moved_from = opts.from end
       existing:focus(opts.insert)
 
       return existing.element
@@ -240,12 +283,19 @@ function composer.open(session, opts)
 
   if session.state == 'closed' then return notice.info('this session has ended') end
 
-  local view =
-    ComposerView(session, store, { display = display, answering = opts.answer, delegate = composer.delegate })
+  local view = ComposerView(session, store, {
+    display = display,
+    answering = opts.answer,
+    delegate = composer.delegate,
+    place = request and Lens(Window(request.win), request.line) or nil,
+  })
 
   views[session.key] = view
   last = session.key
   view:mount(opts.insert)
+
+  if opts.source then view.source = opts.source end
+  if opts.from then view.moved_from = opts.from end
 
   return view.element
 end

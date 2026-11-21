@@ -73,6 +73,34 @@ function status.text(list)
   return glyph.join(parts)
 end
 
+function status.current()
+  local view = require('harness.ui.display').last()
+  local session = view and view.session
+
+  if not session or session.state == 'closed' then return nil end
+
+  return session
+end
+
+function status.current_text()
+  local session = status.current()
+
+  if not session then return '' end
+
+  local state = #(session:waiting() or {}) > 0 and 'waiting' or session:running() and 'running' or 'idle'
+  local title = compact.line(require('harness.types.session').label(session), 32)
+
+  return glyph.STATUS.current .. ' ' .. session.key .. ' ' .. title .. glyph.SEPARATOR .. state
+end
+
+function status.open_current()
+  local session = status.current()
+
+  if session then return require('harness.ui.display').open(session) end
+
+  return status.jump()
+end
+
 function status.visible(list)
   local counts = status.summary(list or status.list())
 

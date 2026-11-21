@@ -93,6 +93,10 @@ map('n', '<leader>lq', function()
 end, { desc = 'Diagnostics to quickfix' })
 map('n', '<leader>lD', pick('Diagnostics', 'diagnostics'), { desc = 'Diagnostics picker' })
 
+map('n', '<leader>lh', function()
+  require('surfaces').info()
+end, { desc = 'Info lens: hover and uses' })
+
 map('n', ']g', function()
   require('ui.guides').jump(require('core.editor.Window').get_current(), 1)
 end, { desc = 'Next guide' })
@@ -149,6 +153,10 @@ end, { desc = 'New session, choosing the agent' })
 map('n', '<leader>aw', function()
   require('harness').waiting()
 end, { desc = 'Go to the waiting request' })
+
+map('n', '<leader>ai', function()
+  require('harness').talk()
+end, { desc = 'Talk to the current session' })
 
 map({ 'n', 'v' }, '<leader>aa', function()
   require('harness').attach()

@@ -46,16 +46,32 @@ return {
         lualine_x = {
           {
             function()
-              local ok, status = pcall(require, 'sn.ui.status')
+              local ok, status = pcall(require, 'harness.ui.status')
+              if not ok then return '' end
+              return status.current_text()
+            end,
+            cond = function()
+              local ok, status = pcall(require, 'harness.ui.status')
+              return ok and status.current() ~= nil
+            end,
+            on_click = function()
+              local ok, status = pcall(require, 'harness.ui.status')
+              if ok then status.open_current() end
+            end,
+            color = 'UiTitle',
+          },
+          {
+            function()
+              local ok, status = pcall(require, 'harness.ui.status')
               if not ok then return '' end
               return status.text()
             end,
             cond = function()
-              local ok, status = pcall(require, 'sn.ui.status')
+              local ok, status = pcall(require, 'harness.ui.status')
               return ok and status.visible()
             end,
             on_click = function()
-              local ok, status = pcall(require, 'sn.ui.status')
+              local ok, status = pcall(require, 'harness.ui.status')
               if ok then status.jump() end
             end,
             color = 'UiAccent',

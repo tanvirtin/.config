@@ -26,8 +26,20 @@ harness.list = hub.list
 harness.session = hub.session
 harness.sessions = hub.sessions
 
-harness.VERBS =
-  { 'ask', 'new', 'switch', 'cancel', 'attach', 'fork', 'changes', 'revert', 'quickfix', 'permissions', 'waiting' }
+harness.VERBS = {
+  'ask',
+  'talk',
+  'new',
+  'switch',
+  'cancel',
+  'attach',
+  'fork',
+  'changes',
+  'revert',
+  'quickfix',
+  'permissions',
+  'waiting',
+}
 
 for _, name in ipairs(harness.VERBS) do
   harness[name] = function(...)

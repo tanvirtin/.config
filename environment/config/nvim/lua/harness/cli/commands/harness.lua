@@ -85,6 +85,14 @@ command.SUBCOMMANDS = {
     end,
   },
   {
+    name = 'talk',
+    desc = 'Open the current session\'s composer from anywhere',
+    arguments = {},
+    run = function()
+      return harness.talk()
+    end,
+  },
+  {
     name = 'waiting',
     desc = 'Go to the request waiting for you',
     arguments = {},
@@ -153,7 +161,7 @@ return {
     nargs = '*',
     range = true,
     complete = command.complete,
-    desc = 'Drive Harness: ask, new, switch, cancel, fork, changes, revert, quickfix, waiting, permissions',
+    desc = 'Drive Harness: ask, talk, new, switch, cancel, fork, changes, revert, quickfix, waiting, permissions',
   },
   execute = command.execute,
   command = command,

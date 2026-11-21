@@ -306,6 +306,14 @@ function Window:move_cursor(row, col)
   return self
 end
 
+function Window:get_word()
+  local ok, word = pcall(vim.api.nvim_win_call, self.win_id, function()
+    return vim.fn.expand('<cword>')
+  end)
+
+  return ok and word or ''
+end
+
 function Window:get_lnum()
   return self:get_cursor()[1]
 end
@@ -503,6 +511,14 @@ function Window:scroll_down(rows)
 
   return self:call(function()
     vim.cmd(string.format('norm! %d\5', rows))
+  end)
+end
+
+function Window:scroll_up(rows)
+  if rows < 1 then return self end
+
+  return self:call(function()
+    vim.cmd(string.format('norm! %d\25', rows))
   end)
 end
 

@@ -13,6 +13,7 @@ local Buffer = lazy('core.editor.Buffer')
 local Window = lazy('core.editor.Window')
 local keymap = lazy('core.editor.keymap')
 local display = lazy('harness.ui.display')
+local geometry = lazy('harness.composer.geometry')
 local transcript = lazy('harness.transcript.view')
 local global_keys = lazy('harness.ui.global_keys')
 local edits = lazy('harness.transcript.view.edits')
@@ -274,9 +275,84 @@ function actions.new(opts)
   return start(opts.agent)
 end
 
+local function pick_session(title, current, on_pick)
+  local items = {}
+
+  for _, session in ipairs(client.sessions(client.dir())) do
+    if session.state ~= 'closed' then
+      items[#items + 1] = {
+        label = session.key .. ' ' .. session_types.label(session),
+        description = (session:running() and 'running' or 'idle') .. (session.key == current and ', current' or ''),
+        session = session,
+      }
+    end
+  end
+
+  items[#items + 1] = { label = 'New session', description = client.agent().name, new = true }
+
+  surfaces.pick({
+    title = title,
+    items = items,
+    width = '50vw',
+    max_height = 10,
+    hints = choice_hints('choose'),
+    on_select = function(item)
+      Timer.schedule(function()
+        if not item.new then return on_pick(item.session) end
+
+        start():on_complete(function(err, session)
+          if not err and session then on_pick(session) end
+        end)
+      end)
+    end,
+  })
+
+  return true
+end
+
+local function talk_to(session, from, inline)
+  local view = display.view_of(session)
+
+  if view then display.set_current(view) end
+
+  return composer.open(session, { display = display, insert = true, source = from, inline = inline })
+end
+
+local function inline_request()
+  local window = Window.get_current()
+
+  if not geometry.inline_fits(window) then return nil end
+
+  return { win = window.win_id, line = window:get_cursor()[1] }
+end
+
+function actions.talk()
+  local from = source()
+  local inline = inline_request()
+  local view = display.target()
+
+  if view and view.session.state ~= 'closed' then return talk_to(view.session, from, inline) end
+
+  return pick_session('Talk to', nil, function(session)
+    talk_to(session, from, inline)
+  end)
+end
+
+function actions.retarget(view)
+  return pick_session('Send this to', view.session.key, function(session)
+    local shown = display.view_of(session)
+
+    if shown then display.set_current(shown) end
+
+    composer.retarget(view, session)
+  end)
+end
+
 function actions.switch()
   return require('harness.picker.SessionPicker').launch({ dir = client.dir() })
 end
+
+composer.set_chooser(actions.retarget)
 
 client.on('start', function(session)
   if session.parent then

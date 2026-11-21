@@ -103,6 +103,10 @@ function surfaces.panel(opts)
   return surfaces.add(require('surfaces.Panel')(opts)):open()
 end
 
+function surfaces.info(opts)
+  return surfaces.add(require('surfaces.InfoLens')(opts or {})):begin()
+end
+
 function surfaces.scene(opts)
   local scene = surfaces.add(require('surfaces.Scene')(opts))
   local ok, err = pcall(scene.open, scene)

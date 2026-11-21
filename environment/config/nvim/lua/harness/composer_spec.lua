@@ -965,6 +965,202 @@ describe('harness.composer:', function()
       return first, vim.api.nvim_get_current_win()
     end
 
+    it('retargets a draft to another session, merging it and leaving nothing behind', function()
+      local first_win, other_win = side_by_side()
+
+      vim.api.nvim_set_current_win(other_win)
+      open_composer(other)
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'theirs' })
+      press('q')
+
+      vim.api.nvim_set_current_win(first_win)
+      open_composer(session, { source = { win = first_win, buf = code } })
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'mine' })
+
+      composer.retarget(composer.view(session), other)
+
+      eq(false, composer.is_open(session))
+      eq({ 'theirs', '', 'mine' }, input(other))
+      eq(code, composer.view(other).source.buf)
+
+      composer.close(false, other)
+      open_composer(session)
+      eq({ '' }, input(session))
+    end)
+
+    it('tells the receiving agent a retargeted draft was written for another session', function()
+      local first_win, other_win = side_by_side()
+
+      vim.api.nvim_set_current_win(first_win)
+      open_composer(session, { source = { win = first_win, buf = code } })
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'explain that' })
+
+      composer.retarget(composer.view(session), other)
+      vim.wait(50)
+      composer.view(other):send()
+      vim.wait(500, function()
+        return #prompts(fake) > 0
+      end)
+
+      local sent = vim.tbl_filter(function(message)
+        return message.method == 'session/prompt' and message.params.sessionId == other.id
+      end, fake.sent)
+
+      eq(1, #sent)
+      assert.is_truthy(
+        vim.json.encode(sent[1].params.prompt):find('drafted for session ' .. session.key .. ' and moved here', 1, true)
+      )
+      eq(other_win, other_win)
+    end)
+
+    it('talks to the current session from a code window, with that window as the context', function()
+      local view = display.view_of(session)
+
+      vim.cmd('vsplit')
+      vim.api.nvim_win_set_buf(0, code)
+      display.set_current(view)
+
+      local here = vim.api.nvim_get_current_win()
+
+      actions.talk()
+
+      eq(true, composer.is_open(session))
+      eq({ win = here, buf = code }, composer.view(session).source)
+      assert.is_truthy(require('harness.ui.status').current_text():find(session.key, 1, true))
+    end)
+
+    describe('inline', function()
+      local Lens = require('ui.Lens')
+      local geometry = require('harness.composer.geometry')
+      local columns, host
+
+      local function inline_marks()
+        return vim.api.nvim_buf_get_extmarks(code, Lens.NAMESPACE, 0, -1, { details = true })
+      end
+
+      before_each(function()
+        columns = vim.o.columns
+        vim.o.columns = 200
+
+        local text = {}
+
+        for i = 1, 60 do
+          text[i] = 'line ' .. i
+        end
+
+        vim.cmd('vsplit')
+        host = vim.api.nvim_get_current_win()
+        vim.api.nvim_win_set_buf(host, code)
+        vim.api.nvim_buf_set_lines(code, 0, -1, false, text)
+        vim.wo[host].scrolloff = 0
+        vim.api.nvim_win_set_cursor(host, { 15, 0 })
+      end)
+
+      after_each(function()
+        vim.o.columns = columns
+      end)
+
+      it('opens a float over reserved room above the cursor line, and gives the room back on close', function()
+        open_composer(session, { inline = { win = host, line = 15 }, source = { win = host, buf = code } })
+
+        local view = composer.view(session)
+        local config = vim.api.nvim_win_get_config(view.element:get_window().win_id)
+
+        assert.is_truthy(view.place)
+        eq({ 'win', 'SW', host }, { config.relative, config.anchor, config.win })
+        eq({ 14, 0 }, config.bufpos)
+        eq(1, #inline_marks())
+        eq(true, inline_marks()[1][4].virt_lines_above)
+        eq('none', config.border)
+
+        local reserved = inline_marks()[1][4].virt_lines
+
+        eq(geometry.inline_height() + Lens.CHROME_ROWS, #reserved)
+        assert.is_truthy(reserved[1][1][1]:find(session.key, 1, true))
+        eq(geometry.inline_height(), vim.api.nvim_win_get_height(view.element:get_window().win_id))
+
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'half a thought' })
+        press('q')
+
+        eq(false, composer.is_open(session))
+        eq(0, #inline_marks())
+
+        open_composer(session)
+        eq({ 'half a thought' }, input(session))
+      end)
+
+      it('stays a split under the transcript when no inline spot is given', function()
+        open_composer(session)
+
+        eq(nil, composer.view(session).place)
+        eq(0, #inline_marks())
+      end)
+
+      it('falls back to the split when the window cannot hold it', function()
+        vim.api.nvim_win_set_width(host, Lens.MIN_WIDTH - 10)
+
+        open_composer(session, { inline = { win = host, line = 15 } })
+
+        eq(nil, composer.view(session).place)
+      end)
+
+      it('moves to the new spot when asked again somewhere else', function()
+        open_composer(session, { inline = { win = host, line = 15 } })
+        open_composer(session, { inline = { win = host, line = 30 } })
+
+        eq(1, #composers())
+        eq(30, composer.view(session).place:current())
+        eq(1, #inline_marks())
+      end)
+
+      it('stays inline, on the same line, when its draft is retargeted', function()
+        local other = hub.start({ dir = '/w' }):wait()
+
+        open_composer(session, { inline = { win = host, line = 15 } })
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'move me' })
+
+        composer.retarget(composer.view(session), other)
+
+        eq(nil, composer.view(session))
+        eq(15, composer.view(other).place:current())
+        eq(1, #inline_marks())
+        eq({ 'move me' }, input(other))
+      end)
+
+      it('sends from the float and leaves no room reserved behind', function()
+        open_composer(session, { inline = { win = host, line = 15 }, source = { win = host, buf = code } })
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'what does this do?' })
+
+        composer.view(session):send()
+        vim.wait(500, function()
+          return #prompts(fake) > 0
+        end)
+
+        eq(false, composer.is_open(session))
+        eq(0, #inline_marks())
+        eq(1, #prompts(fake))
+      end)
+
+      it('is where actions.talk opens it from a code window', function()
+        vim.api.nvim_set_current_win(host)
+        display.set_current(display.view_of(session))
+
+        actions.talk()
+
+        assert.is_truthy(composer.view(session).place)
+        eq(15, composer.view(session).place:current())
+      end)
+
+      it('is not where actions.talk opens it from a transcript', function()
+        local view = display.view_of(session)
+
+        vim.api.nvim_set_current_win(view:windows()[1].win_id)
+        actions.talk()
+
+        eq(nil, composer.view(session).place)
+      end)
+    end)
+
     it('focuses the open one when asked again for the same session', function()
       local first = open_composer(session)
 

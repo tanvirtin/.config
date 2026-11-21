@@ -1,5 +1,6 @@
 local lazy = require('core.lazy')
 
+local Lens = lazy('ui.Lens')
 local Timer = lazy('core.Timer')
 local event = lazy('core.event')
 local motion = lazy('ui.motion')
@@ -110,6 +111,7 @@ function ComposerView:constructor(session, store, opts)
     destination = destination,
     delegate = opts.delegate or ComposerView.IDLE,
     element = nil,
+    place = opts.place,
     anchor = nil,
     contained = nil,
     height = nil,
@@ -185,6 +187,43 @@ function ComposerView:winbar()
   return table.concat(parts)
 end
 
+function ComposerView:chrome()
+  local session = self.session
+  local title = { { ' ' .. session.key .. ' ' .. session_types.label(session) .. ' ', 'UiTitle' } }
+  local footer = {}
+  local mode = session:mode()
+
+  if mode then title[#title + 1] = { theme.MODE_FORMAT:format(mode.name or mode.id) .. ' ', 'UiAccent' } end
+
+  if #session.queue > 0 then
+    footer[#footer + 1] = { string.format('%s%d queued ', theme.QUEUE_ICON[1], #session.queue), 'UiMuted' }
+  end
+
+  if session.external then footer[#footer + 1] = { '⇄ also driven elsewhere: sending forks it ', 'UiWarn' } end
+
+  local answering = self.destination:label()
+
+  if answering then
+    footer[#footer + 1] = { theme.WAITING_ICON[1] .. 'answering: ' .. answering .. ' ', 'UiWarn' }
+  elseif #asks.asks_of(session) > 0 then
+    footer[#footer + 1] = { theme.WAITING_ICON[1] .. 'answer in the transcript ', 'UiWarn' }
+  end
+
+  vim.list_extend(footer, self:hints())
+
+  return title, footer
+end
+
+function ComposerView:_header()
+  if not (self.place and self:is_open()) then return self end
+
+  local title, footer = self:chrome()
+
+  self.place:header(Lens.band(vim.list_extend(vim.list_extend(title, { { ' ' } }), footer)))
+
+  return self
+end
+
 function ComposerView:hints()
   local session = self.session
   local keys = settings.keymaps:get('composer')
@@ -206,6 +245,7 @@ function ComposerView:hints()
   if self.destination:history_hint() then key(keys.history, 'history') end
   if session:mode() then key(keys.cycle_mode, 'mode') end
   if not inserting and session:choice('model') then key(keys.model, 'model') end
+  if not inserting then key(keys.retarget, 'session') end
   if not inserting then key(keys.close, 'close') end
 
   return chunks
@@ -223,6 +263,8 @@ function ComposerView:refresh()
   if signature ~= self.signature then
     self.signature = signature
     Window.redraw_bars()
+
+    self:_header()
   end
 
   return self
@@ -276,7 +318,7 @@ function ComposerView:_decorate()
 end
 
 function ComposerView:_ease_open()
-  if not eases() then return self end
+  if self.place or not eases() then return self end
 
   local ms = settings.composer:get('ease_ms')
   local target = settings.composer:get('height')
@@ -348,6 +390,18 @@ function ComposerView:_release()
   if self.group then self.group.dispose() end
 
   self.contained, self.group = nil, nil
+
+  return self
+end
+
+function ComposerView:_hold_inline()
+  local function leave()
+    Timer.schedule(function()
+      if self:is_open() and not self.closing then self:close(false, { keep_focus = true }) end
+    end)
+  end
+
+  self.contained = self.place:follow(self.session.key, self.element, leave)
 
   return self
 end
@@ -426,7 +480,13 @@ function ComposerView:close(discard, opts)
 end
 
 function ComposerView:_outgoing()
-  return { session = self.session, lines = self:lines(), source = self.source, origin = self.origin }
+  return {
+    session = self.session,
+    lines = self:lines(),
+    source = self.source,
+    origin = self.origin,
+    from = self.moved_from,
+  }
 end
 
 function ComposerView:_deliver(message, opts)
@@ -611,6 +671,13 @@ function ComposerView:_bind(keys)
     self.delegate.model(session, self.display)
   end, 'Session model')
 
+  for _, mode in ipairs({ 'n', 'i' }) do
+    element:set_keymap(mode, keys.retarget, function()
+      Window.stop_insert()
+      self.delegate.retarget(self)
+    end, 'Send to another session, taking the draft along')
+  end
+
   element:set_buf_var('completion', false)
   element:set_buf_option('omnifunc', ComposerView.OMNIFUNC)
   element:set_buf_option('completeopt', 'menuone,noinsert')
@@ -690,8 +757,35 @@ end
 
 function ComposerView:mount(insert)
   local session = self.session
-  local view = self.display and self.display.view_of(session)
+  local place = self.place
+  local view = not place and self.display and self.display.view_of(session) or nil
   local anchor = ComposerView.anchor_for(view)
+  local win_options = {
+    winbar = ComposerView.WINBAR,
+    winfixheight = true,
+    wrap = true,
+    linebreak = true,
+    conceallevel = 2,
+    concealcursor = '',
+    number = false,
+    relativenumber = false,
+    signcolumn = 'no',
+    winhl = 'Normal:UiComposer,EndOfBuffer:UiComposer',
+  }
+  local win_plot = {
+    split = 'below',
+    win = anchor and anchor.win_id or -1,
+    height = eases() and 1 or settings.composer:get('height'),
+    focus = true,
+  }
+
+  if place then
+    win_options.winbar, win_options.winfixheight = nil, nil
+    place:reserve(composer_geometry.inline_height())
+
+    win_plot = place:plot(composer_geometry.inline_height())
+  end
+
   local element = Element({
     buf_options = {
       buftype = 'acwrite',
@@ -700,29 +794,14 @@ function ComposerView:mount(insert)
       buflisted = false,
       filetype = ComposerView.FILETYPE,
     },
-    win_options = {
-      winbar = ComposerView.WINBAR,
-      winfixheight = true,
-      wrap = true,
-      linebreak = true,
-      conceallevel = 2,
-      concealcursor = '',
-      number = false,
-      relativenumber = false,
-      signcolumn = 'no',
-      winhl = 'Normal:UiComposer,EndOfBuffer:UiComposer',
-    },
-    win_plot = {
-      split = 'below',
-      win = anchor and anchor.win_id or -1,
-      height = eases() and 1 or settings.composer:get('height'),
-      focus = true,
-    },
-    surface = { elevation = 'raised', fill = 'UiComposer', focus = 'UiAccent' },
+    window_mode = place and 'floating' or nil,
+    win_options = win_options,
+    win_plot = win_plot,
+    surface = not place and { elevation = 'raised', fill = 'UiComposer', focus = 'UiAccent' } or nil,
   })
 
   self.anchor = anchor
-  self.origin = Window.get_current().win_id
+  self.origin = place and place.window.win_id or Window.get_current().win_id
   self.source = { win = view and view.source_win, buf = view and view.source_buf }
   self.element = element
 
@@ -743,7 +822,12 @@ function ComposerView:mount(insert)
   element:set_cursor({ element:get_line_count(), #(element:get_lines()[element:get_line_count()] or '') })
 
   self:_bind(settings.keymaps:get('composer')):_listen():_decorate()
-  self:_contain(view and view.bufnr)
+
+  if place then
+    self:_header():_hold_inline()
+  else
+    self:_contain(view and view.bufnr)
+  end
 
   if insert then element:start_insert() end
 

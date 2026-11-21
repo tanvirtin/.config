@@ -42,8 +42,12 @@ local function tagged(text)
   return string.format('<%s>%s</%s>', context.TAG, text, context.TAG)
 end
 
-local function describe(buffer, line, col, range)
-  if not range and blank(buffer) then return content.context({ where = tagged('The user has no file open.') }) end
+local function describe(buffer, line, col, range, notes)
+  local extra = notes and #notes > 0 and (' ' .. table.concat(notes, ' ')) or ''
+
+  if not range and blank(buffer) then
+    return content.context({ where = tagged('The user has no file open.' .. extra) })
+  end
 
   local parts = {
     string.format(
@@ -59,7 +63,7 @@ local function describe(buffer, line, col, range)
   if range then parts[#parts + 1] = string.format('They selected lines %d-%d.', range[1], range[2]) end
 
   return content.context({
-    where = tagged(table.concat(parts, ' ')),
+    where = tagged(table.concat(parts, ' ') .. extra),
     attachments = range and { context.selection(buffer, range) } or {},
   })
 end
@@ -290,22 +294,22 @@ function context.attach_tokens(where, text, dir, opts)
   return where, problems
 end
 
-function context.capture(win, range)
+function context.capture(win, range, notes)
   local window = Window(win)
   local cursor = window:get_cursor()
 
-  return describe(window:get_buffer(), cursor[1], cursor[2], range)
+  return describe(window:get_buffer(), cursor[1], cursor[2], range, notes)
 end
 
-function context.capture_buffer(buf, range)
+function context.capture_buffer(buf, range, notes)
   for _, window in ipairs(Window.list()) do
-    if window:get_buffer().bufnr == buf then return context.capture(window.win_id, range) end
+    if window:get_buffer().bufnr == buf then return context.capture(window.win_id, range, notes) end
   end
 
   local buffer = Buffer(buf)
   local mark = buffer:get_mark('"')
 
-  return describe(buffer, mark[1] > 0 and mark[1] or 1, mark[2], range)
+  return describe(buffer, mark[1] > 0 and mark[1] or 1, mark[2], range, notes)
 end
 
 function context.attach(captured, attachment)
