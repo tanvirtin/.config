@@ -3,6 +3,8 @@ local Config = require('core.Config')
 
 local vgit_lua = (os.getenv('VGIT_DIR') or (os.getenv('HOME') .. '/workspace/vgit.nvim')) .. '/lua/'
 
+vim.o.swapfile = false
+
 if not package.path:find(vgit_lua, 1, true) then
   package.path = vgit_lua .. '?.lua;' .. vgit_lua .. '?/init.lua;' .. package.path
 end
