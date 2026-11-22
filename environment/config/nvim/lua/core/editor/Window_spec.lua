@@ -31,6 +31,31 @@ describe('Window:', function()
     end
   end)
 
+  describe('find', function()
+    it('should give a Window for a live id', function()
+      local current = vim.api.nvim_get_current_win()
+
+      eq(current, Window.find(current).win_id)
+    end)
+
+    it('should give nothing for nil, a closed window, or something that is not an id', function()
+      vim.cmd('vsplit')
+
+      local closed = vim.api.nvim_get_current_win()
+
+      vim.cmd('close')
+
+      eq(nil, Window.find(nil))
+      eq(nil, Window.find(closed))
+      eq(nil, Window.find('1000'))
+      eq(nil, Window.find(false))
+    end)
+
+    it('should treat 0 as the current window, as the constructor does', function()
+      eq(vim.api.nvim_get_current_win(), Window.find(0).win_id)
+    end)
+  end)
+
   describe('constructor', function()
     it('should create a new Window instance with given win_id', function()
       win = Window(vim.api.nvim_get_current_win())

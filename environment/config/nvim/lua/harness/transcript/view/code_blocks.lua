@@ -51,9 +51,9 @@ function code_blocks.select(view, around)
 end
 
 local function window_showing(view)
-  local preferred = view.source_win and Window(view.source_win)
+  local preferred = Window.find(view.source_win)
 
-  if preferred and preferred:is_valid() and preferred:get_buffer().bufnr == view.source_buf then return preferred end
+  if preferred and preferred:get_buffer().bufnr == view.source_buf then return preferred end
 
   for _, window in ipairs(Window.list_tab()) do
     if window:get_buffer().bufnr == view.source_buf then return window end

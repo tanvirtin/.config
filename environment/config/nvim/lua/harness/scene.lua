@@ -39,8 +39,8 @@ function scene.notes(session, opts)
     notes[#notes + 1] = 'Your chat is not on screen: keep the reply short and use show to put code in front of them.'
   end
 
-  local window = opts.win and Window(opts.win)
-  local tag = window and window:is_valid() and window:get_var(panes.VAR)
+  local window = Window.find(opts.win)
+  local tag = window and window:get_var(panes.VAR)
 
   if type(tag) == 'table' and tag.owner == session.key then
     notes[#notes + 1] = string.format('They are in the "%s" pane you opened.', tag.name)

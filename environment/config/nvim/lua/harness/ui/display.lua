@@ -188,19 +188,17 @@ end
 
 function display.reveal(session, origin, source)
   local view = display.view_of(session)
-  local window = origin and Window(origin)
+  local window = Window.find(origin)
 
   if view and view:is_visible() then
-    if not (window and window:is_valid() and window:get_buffer().bufnr == view.bufnr) then
-      window = view:windows()[1]
-    end
+    if not (window and window:get_buffer().bufnr == view.bufnr) then window = view:windows()[1] end
 
     view:land(window)
 
     return window.win_id
   end
 
-  if window and window:is_valid() then
+  if window then
     window:focus()
   else
     window = Window.split_top()

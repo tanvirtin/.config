@@ -68,9 +68,9 @@ function surfaces.close_all()
 end
 
 function surfaces.jump(item, how, win)
-  local origin = win and Window(win)
+  local origin = Window.find(win)
 
-  if origin and origin:is_valid() then origin:focus() end
+  if origin then origin:focus() end
 
   local bufnr = item.data and item.data.bufnr
 

@@ -9,6 +9,12 @@ function Window.get_current()
   return Window(vim.api.nvim_get_current_win())
 end
 
+function Window.find(win_id)
+  if type(win_id) ~= 'number' or not vim.api.nvim_win_is_valid(win_id) then return nil end
+
+  return Window(win_id)
+end
+
 function Window.set_current(win_id)
   vim.api.nvim_set_current_win(win_id)
 end

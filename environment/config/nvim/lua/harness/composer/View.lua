@@ -53,7 +53,7 @@ function ComposerView.warn(message)
 end
 
 function ComposerView.focus_window(win)
-  local window = type(win) == 'number' and Window(win)
+  local window = Window.find(win)
 
   if window and window:is_valid() then window:focus() end
 end

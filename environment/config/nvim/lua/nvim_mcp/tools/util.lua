@@ -12,19 +12,21 @@ local util = {}
 local focus = {}
 
 function util.set_focus(win, buf)
+  local target = Window.find(win)
+
   focus.win = win
-  focus.buf = buf or (win and Window(win):is_valid() and Window(win):get_buffer().bufnr) or nil
+  focus.buf = buf or (target and target:get_buffer().bufnr) or nil
 end
 
 local function focus_buf()
   if not (focus.buf and Buffer.exists(focus.buf)) then return nil end
-  if focus.win and Window(focus.win):is_valid() then return focus.buf end
+  if Window.find(focus.win) then return focus.buf end
   if #Buffer(focus.buf):get_windows() > 0 then return focus.buf end
 end
 
 function util.focused_win()
   local buf = focus_buf()
-  local win = focus.win and Window(focus.win):is_valid() and focus.win or nil
+  local win = Window.find(focus.win) and focus.win or nil
 
   if win and (not buf or Window(win):get_buffer().bufnr == buf) then return win end
 
@@ -62,9 +64,7 @@ end
 function util.anchor(caller)
   local win = anchor_of and caller and anchor_of(caller)
 
-  if win and Window(win):is_valid() then return Window(win) end
-
-  return Window.get_current()
+  return Window.find(win) or Window.get_current()
 end
 
 function util.fail(message)
