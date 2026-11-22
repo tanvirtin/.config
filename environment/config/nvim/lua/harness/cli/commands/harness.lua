@@ -85,11 +85,11 @@ command.SUBCOMMANDS = {
     end,
   },
   {
-    name = 'talk',
-    desc = 'Open the current session\'s composer from anywhere',
+    name = 'compose',
+    desc = 'Open the composer for the current session, over the cursor line in a code window',
     arguments = {},
     run = function()
-      return harness.talk()
+      return harness.compose()
     end,
   },
   {
@@ -161,7 +161,7 @@ return {
     nargs = '*',
     range = true,
     complete = command.complete,
-    desc = 'Drive Harness: ask, talk, new, switch, cancel, fork, changes, revert, quickfix, waiting, permissions',
+    desc = 'Drive Harness: ask, compose, new, switch, cancel, fork, changes, revert, quickfix, waiting, permissions',
   },
   execute = command.execute,
   command = command,

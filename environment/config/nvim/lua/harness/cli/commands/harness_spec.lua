@@ -84,7 +84,7 @@ describe('harness.cli.commands.harness:', function()
     local names = command.names()
 
     for _, verb in ipairs(harness.VERBS) do
-      if verb ~= 'attach' then assert.truthy(vim.tbl_contains(names, verb), verb .. ' has no :Harness command') end
+      assert.truthy(vim.tbl_contains(names, verb), verb .. ' has no :Harness command')
     end
 
     for _, name in ipairs(names) do

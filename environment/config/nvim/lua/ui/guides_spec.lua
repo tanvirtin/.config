@@ -109,6 +109,17 @@ describe('ui.guides:', function()
     eq(3, marks()[1][2])
   end)
 
+  it('should count an owner\'s guides without copying them', function()
+    eq(0, guides.count('s1'))
+
+    guides.mark('s1', buffer, { from = 1, step = 1 })
+    guides.mark('s1', buffer, { from = 2, step = 2 })
+    guides.mark('s2', buffer, { from = 3, step = 1 })
+
+    eq(2, guides.count('s1'))
+    eq(1, guides.count('s2'))
+  end)
+
   it('should clear only the owner\'s guides', function()
     guides.mark('s1', buffer, { from = 1, step = 1 })
     guides.mark('s2', buffer, { from = 2, step = 1 })

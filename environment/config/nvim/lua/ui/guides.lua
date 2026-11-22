@@ -129,6 +129,10 @@ function guides.jump(window, direction)
   return target + 1
 end
 
+function guides.count(owner)
+  return #(placed[owner] or {})
+end
+
 function guides.list(owner)
   return vim.deepcopy(placed[owner] or {})
 end

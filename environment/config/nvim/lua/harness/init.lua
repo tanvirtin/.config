@@ -28,11 +28,10 @@ harness.sessions = hub.sessions
 
 harness.VERBS = {
   'ask',
-  'talk',
+  'compose',
   'new',
   'switch',
   'cancel',
-  'attach',
   'fork',
   'changes',
   'revert',

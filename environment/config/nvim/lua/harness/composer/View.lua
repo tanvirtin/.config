@@ -55,7 +55,7 @@ end
 function ComposerView.focus_window(win)
   local window = Window.find(win)
 
-  if window and window:is_valid() then window:focus() end
+  if window then window:focus() end
 end
 
 function ComposerView.anchor_for(view)
@@ -95,6 +95,7 @@ ComposerView.IDLE = {
   end,
   closed = function() end,
   wiped = function() end,
+  sent = function() end,
   entered = function() end,
 }
 
@@ -493,21 +494,29 @@ function ComposerView:_deliver(message, opts)
   return self.destination:submit(vim.trim(table.concat(message.lines, '\n')), message, opts)
 end
 
+function ComposerView:_sent(message, request)
+  if self.display and not request then self.display.reveal(message.session, message.origin, message.source) end
+
+  self:close(true)
+
+  if request and ComposerView.has_text(message.lines) then self.delegate.sent(self, request) end
+end
+
 function ComposerView:send(opts)
   local message = self:_outgoing()
+  local request = self.place and self.place:request()
   local sent, why = self:_deliver(message, opts)
 
   if not sent then return ComposerView.warn(why) end
 
-  if self.display then self.display.reveal(message.session, message.origin, message.source) end
-
-  self:close(true)
+  self:_sent(message, request)
 
   return self
 end
 
 function ComposerView:_send_after_write()
   local message = self:_outgoing()
+  local request = self.place and self.place:request()
 
   Timer.schedule(function()
     local sent, why = self:_deliver(message)
@@ -517,9 +526,11 @@ function ComposerView:_send_after_write()
       return ComposerView.warn(why)
     end
 
-    if self.display then self.display.reveal(message.session, message.origin, message.source) end
-
-    if self:is_open() then self:close(true) end
+    if self:is_open() then
+      self:_sent(message, request)
+    elseif not request and self.display then
+      self.display.reveal(message.session, message.origin, message.source)
+    end
   end)
 
   return self

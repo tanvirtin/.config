@@ -152,13 +152,28 @@ local function referenceable(buf)
   return name ~= '' and not name:match('^%w+://')
 end
 
-local function attach_to(session, buf, range)
-  if not composer.is_open(session) then composer.open(session, { display = display, insert = true }) end
+local function inline_request(line)
+  local window = Window.get_current()
+
+  if not geometry.inline_fits(window) then return nil end
+
+  return { win = window.win_id, line = line or window:get_cursor()[1] }
+end
+
+local function attach_to(session, buf, range, inline)
+  if inline or not composer.is_open(session) then
+    composer.open(session, {
+      display = display,
+      insert = true,
+      source = inline and { win = inline.win, buf = Window(inline.win):get_buffer().bufnr } or nil,
+      inline = inline,
+    })
+  end
 
   return composer.attach(buf, range, session)
 end
 
-local function choose_session(shown, buf, range)
+local function choose_session(shown, buf, range, inline)
   local items = {}
 
   for _, view in ipairs(shown) do
@@ -186,7 +201,7 @@ local function choose_session(shown, buf, range)
     on_select = function(item)
       Timer.schedule(function()
         display.set_current(item.view)
-        attach_to(item.view.session, buf, range)
+        attach_to(item.view.session, buf, range, inline)
       end)
     end,
   })
@@ -194,35 +209,18 @@ local function choose_session(shown, buf, range)
   return true
 end
 
-local function attach_range(buf, range)
+local function attach_range(buf, range, inline)
   if not referenceable(buf) then return transcript.report(false, 'select lines in a file to reference them') end
 
   local view, shown = display.target()
 
-  if shown then return choose_session(shown, buf, range) end
+  if shown then return choose_session(shown, buf, range, inline) end
 
   if not view or view.session.state == 'closed' then
     return transcript.report(false, 'no session to attach this to; start one with ' .. global_keys.sessions())
   end
 
-  local session = view.session
-
-  if not composer.is_open(session) then composer.open(session, { display = display, insert = true }) end
-
-  return composer.attach(buf, range, session)
-end
-
-function actions.attach()
-  local window = Window.get_current()
-  local range = window:visual_lines()
-
-  if not range then
-    local line = window:get_cursor()[1]
-
-    range = { line, line }
-  end
-
-  return attach_range(window:get_buffer().bufnr, range)
+  return attach_to(view.session, buf, range, inline)
 end
 
 function actions.permissions()
@@ -310,7 +308,7 @@ local function pick_session(title, current, on_pick)
   return true
 end
 
-local function talk_to(session, from, inline)
+local function compose_for(session, from, inline)
   local view = display.view_of(session)
 
   if view then display.set_current(view) end
@@ -318,23 +316,20 @@ local function talk_to(session, from, inline)
   return composer.open(session, { display = display, insert = true, source = from, inline = inline })
 end
 
-local function inline_request()
+function actions.compose()
   local window = Window.get_current()
+  local range = window:visual_lines()
 
-  if not geometry.inline_fits(window) then return nil end
+  if range then return attach_range(window:get_buffer().bufnr, range, inline_request(range[1])) end
 
-  return { win = window.win_id, line = window:get_cursor()[1] }
-end
-
-function actions.talk()
   local from = source()
   local inline = inline_request()
   local view = display.target()
 
-  if view and view.session.state ~= 'closed' then return talk_to(view.session, from, inline) end
+  if view and view.session.state ~= 'closed' then return compose_for(view.session, from, inline) end
 
-  return pick_session('Talk to', nil, function(session)
-    talk_to(session, from, inline)
+  return pick_session('Compose for', nil, function(session)
+    compose_for(session, from, inline)
   end)
 end
 

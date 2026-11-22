@@ -154,10 +154,6 @@ map('n', '<leader>aw', function()
   require('harness').waiting()
 end, { desc = 'Go to the waiting request' })
 
-map('n', '<leader>ai', function()
-  require('harness').talk()
-end, { desc = 'Talk to the current session' })
-
 map({ 'n', 'v' }, '<leader>aa', function()
-  require('harness').attach()
-end, { desc = 'Attach the current line or the selection' })
+  require('harness').compose()
+end, { desc = 'Compose a prompt, with the selection attached' })

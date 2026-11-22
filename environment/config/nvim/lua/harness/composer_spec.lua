@@ -820,7 +820,7 @@ describe('harness.composer:', function()
       vim.api.nvim_win_set_buf(0, file)
       press('Vj')
 
-      eq(true, actions.attach())
+      eq(true, actions.compose())
       eq(true, composer.is_open())
       eq(session, composer.target())
       assert.is_truthy(table.concat(input(session), '\n'):find('@/w/a.lua:1-2', 1, true))
@@ -830,7 +830,7 @@ describe('harness.composer:', function()
     end)
   end)
 
-  it('attaches the current line in normal mode', function()
+  it('only talks in normal mode: the composer opens over the cursor line with nothing attached', function()
     local line_file = vim.api.nvim_create_buf(true, false)
 
     vim.api.nvim_buf_set_name(line_file, '/w/current.lua')
@@ -841,8 +841,10 @@ describe('harness.composer:', function()
     vim.api.nvim_win_set_buf(0, line_file)
     vim.api.nvim_win_set_cursor(0, { 2, 0 })
 
-    eq(true, actions.attach())
-    assert.is_truthy(table.concat(input(session), '\n'):find('@/w/current.lua:2', 1, true))
+    assert.is_truthy(actions.compose())
+    assert.is_truthy(composer.view(session).place)
+    eq(2, composer.view(session).place:current())
+    eq({ '' }, input(session))
 
     vim.api.nvim_buf_delete(line_file, { force = true })
   end)
@@ -861,7 +863,7 @@ describe('harness.composer:', function()
       said = message
     end
 
-    local attached = actions.attach()
+    local attached = actions.compose()
 
     console.notify_now = notify
     eq(false, attached)
@@ -1022,7 +1024,7 @@ describe('harness.composer:', function()
 
       local here = vim.api.nvim_get_current_win()
 
-      actions.talk()
+      actions.compose()
 
       eq(true, composer.is_open(session))
       eq({ win = here, buf = code }, composer.view(session).source)
@@ -1032,7 +1034,7 @@ describe('harness.composer:', function()
     describe('inline', function()
       local Lens = require('ui.Lens')
       local geometry = require('harness.composer.geometry')
-      local columns, host
+      local columns, host, path
 
       local function inline_marks()
         return vim.api.nvim_buf_get_extmarks(code, Lens.NAMESPACE, 0, -1, { details = true })
@@ -1052,11 +1054,14 @@ describe('harness.composer:', function()
         host = vim.api.nvim_get_current_win()
         vim.api.nvim_win_set_buf(host, code)
         vim.api.nvim_buf_set_lines(code, 0, -1, false, text)
+        path = '/w/inline_' .. code .. '.lua'
+        vim.api.nvim_buf_set_name(code, path)
         vim.wo[host].scrolloff = 0
         vim.api.nvim_win_set_cursor(host, { 15, 0 })
       end)
 
       after_each(function()
+        require('harness.presence').clear_all()
         vim.o.columns = columns
       end)
 
@@ -1113,6 +1118,151 @@ describe('harness.composer:', function()
         eq(1, #inline_marks())
       end)
 
+      describe('opened again somewhere else', function()
+        local function go(line)
+          press('<Esc>')
+          vim.api.nvim_set_current_win(host)
+          vim.api.nvim_win_set_cursor(host, { line, 0 })
+          display.set_current(display.view_of(session))
+        end
+
+        local function write(text)
+          composer.view(session).element:set_lines({ text })
+        end
+
+        local function sent_text()
+          local sent = vim.tbl_filter(function(message)
+            return message.method == 'session/prompt'
+          end, fake.sent)[1].params.prompt
+          local text = {}
+
+          for _, block in ipairs(sent) do
+            text[#text + 1] = block.text or (block.resource and block.resource.text) or ''
+          end
+
+          return table.concat(text, '\n')
+        end
+
+        local function sent()
+          vim.wait(1000, function()
+            return #prompts(fake) == 1
+          end)
+
+          return sent_text()
+        end
+
+        for name, line in pairs({ below = 40, above = 5 }) do
+          it('keeps what you wrote when it is opened again ' .. name .. ', and leaves one room behind', function()
+            go(15)
+            actions.compose()
+            write('explain this part')
+
+            go(line)
+            actions.compose()
+
+            local view = composer.view(session)
+
+            eq({ 'explain this part' }, input(session))
+            eq(line, view.place:current())
+            eq(true, view.element:is_focused())
+            eq(1, #composers())
+            eq(1, #inline_marks())
+          end)
+        end
+
+        it('keeps a draft of several lines, with its cursor at the end, so you can carry on', function()
+          go(15)
+          actions.compose()
+          composer.view(session).element:set_lines({ 'first', 'second', 'third' })
+
+          go(40)
+          actions.compose()
+
+          local element = composer.view(session).element
+
+          eq({ 'first', 'second', 'third' }, input(session))
+          eq({ 3, #'third' }, element:get_cursor())
+        end)
+
+        it('takes you back to the same composer when it is opened again on the same line', function()
+          go(15)
+          actions.compose()
+          write('still here')
+
+          local view = composer.view(session)
+
+          go(15)
+          actions.compose()
+
+          eq(view, composer.view(session))
+          eq({ 'still here' }, input(session))
+          eq(1, #composers())
+          eq(1, #inline_marks())
+        end)
+
+        it('keeps what you attached, adds what you attach next, and sends all of it', function()
+          go(15)
+          press('V2j')
+          actions.compose()
+          write(input(session)[1] .. 'why these?')
+
+          go(40)
+          press('V1j')
+          actions.compose()
+
+          local draft = table.concat(input(session), '\n')
+
+          assert.is_truthy(draft:find('@' .. path .. ':15-17', 1, true))
+          assert.is_truthy(draft:find('why these?', 1, true))
+          assert.is_truthy(draft:find('@' .. path .. ':40-41', 1, true))
+          eq(40, composer.view(session).place:current())
+
+          composer.view(session):send()
+
+          local written = sent()
+
+          for _, expected in ipairs({ 'line 15', 'line 16', 'line 17', 'line 40', 'line 41', 'why these?' }) do
+            assert.is_truthy(written:find(expected, 1, true), expected)
+          end
+
+          assert.is_nil(written:find('line 30', 1, true))
+        end)
+
+        it('sends the position of the place you moved to, not the one you started from', function()
+          go(15)
+          actions.compose()
+          write('what is this?')
+
+          go(40)
+          actions.compose()
+          composer.view(session):send()
+
+          local written = sent()
+
+          assert.is_truthy(written:find('line 40, col 1', 1, true))
+          assert.is_nil(written:find('line 15, col', 1, true))
+        end)
+
+        it('is still there after being closed and opened again, from anywhere, once it has been moved', function()
+          go(15)
+          actions.compose()
+          write('moved once')
+
+          go(40)
+          actions.compose()
+          press('<Esc>')
+          press('q')
+
+          eq(false, composer.is_open(session))
+
+          go(25)
+          actions.compose()
+
+          eq({ 'moved once' }, input(session))
+          eq(25, composer.view(session).place:current())
+        end)
+      end)
+
       it('stays inline, on the same line, when its draft is retargeted', function()
         local other = hub.start({ dir = '/w' }):wait()
 
@@ -1127,35 +1277,136 @@ describe('harness.composer:', function()
         eq({ 'move me' }, input(other))
       end)
 
-      it('sends from the float and leaves no room reserved behind', function()
-        open_composer(session, { inline = { win = host, line = 15 }, source = { win = host, buf = code } })
-        vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'what does this do?' })
+      describe('sending from it', function()
+        local presence = require('harness.presence')
 
-        composer.view(session):send()
-        vim.wait(500, function()
-          return #prompts(fake) > 0
+        local function header()
+          local mark = inline_marks()[1]
+
+          if not mark then return '' end
+
+          local rows = {}
+
+          for _, line in ipairs(mark[4].virt_lines) do
+            rows[#rows + 1] = table.concat(vim.tbl_map(function(chunk)
+              return chunk[1]
+            end, line))
+          end
+
+          return table.concat(rows, '\n')
+        end
+
+        local function send(text)
+          open_composer(session, { inline = { win = host, line = 15 }, source = { win = host, buf = code } })
+          vim.api.nvim_buf_set_lines(0, 0, -1, false, { text })
+          composer.view(session):send()
+        end
+
+        it('sends, and closes the composer', function()
+          send('what does this do?')
+          vim.wait(500, function()
+            return #prompts(fake) > 0
+          end)
+
+          eq(false, composer.is_open(session))
+          eq(1, #prompts(fake))
         end)
 
-        eq(false, composer.is_open(session))
-        eq(0, #inline_marks())
-        eq(1, #prompts(fake))
+        it('leaves you in your code, with no transcript taking over the window', function()
+          send('what does this do?')
+
+          eq(host, vim.api.nvim_get_current_win())
+          eq(code, vim.api.nvim_win_get_buf(host))
+
+          local in_host = vim.tbl_filter(function(window)
+            return window.win_id == host
+          end, display.view_of(session):windows())
+
+          eq(0, #in_host)
+        end)
+
+        it('hands the room to the presence, on the line you asked from', function()
+          send('what does this do?')
+
+          assert.is_truthy(presence.get(session.key))
+          eq(1, #inline_marks())
+          eq(15, inline_marks()[1][2] + 1)
+        end)
+
+        it('shows what the agent said once it is done', function()
+          send('what does this do?')
+          vim.wait(1000, function()
+            local shown = presence.get(session.key)
+
+            return shown and shown.phase == 'done'
+          end)
+
+          local reply = presence.get(session.key).reply
+
+          assert.is_truthy(reply ~= '')
+          assert.is_truthy(header():find(reply, 1, true))
+          assert.is_truthy(header():find('✓', 1, true))
+        end)
+
+        it('gives the room to a new composer on the same session', function()
+          send('what does this do?')
+          vim.wait(1000, function()
+            local shown = presence.get(session.key)
+
+            return shown and shown.phase == 'done'
+          end)
+
+          vim.api.nvim_set_current_win(host)
+          vim.api.nvim_win_set_cursor(host, { 30, 0 })
+          actions.compose()
+
+          eq(nil, presence.get(session.key))
+          eq(30, composer.view(session).place:current())
+          eq(1, #inline_marks())
+        end)
+
+        it('is not shown for an empty send, which sends nothing', function()
+          open_composer(session, { inline = { win = host, line = 15 }, source = { win = host, buf = code } })
+          vim.api.nvim_buf_set_lines(0, 0, -1, false, { '   ' })
+          composer.view(session):send()
+
+          eq(nil, presence.get(session.key))
+          eq(0, #inline_marks())
+        end)
       end)
 
-      it('is where actions.talk opens it from a code window', function()
+      it('attaches a visual selection from a code window, with the lens above its first line', function()
+        vim.api.nvim_set_current_win(host)
+        vim.api.nvim_win_set_cursor(host, { 15, 0 })
+        display.set_current(display.view_of(session))
+        press('V2j')
+
+        eq(true, actions.compose())
+
+        local view = composer.view(session)
+
+        assert.is_truthy(view.place)
+        eq(15, view.place:current())
+        eq({ win = host, buf = code }, view.source)
+        assert.is_truthy(table.concat(input(session), '\n'):find('@' .. path .. ':15-17', 1, true))
+        eq(1, #inline_marks())
+      end)
+
+      it('is where actions.compose opens it from a code window', function()
         vim.api.nvim_set_current_win(host)
         display.set_current(display.view_of(session))
 
-        actions.talk()
+        actions.compose()
 
         assert.is_truthy(composer.view(session).place)
         eq(15, composer.view(session).place:current())
       end)
 
-      it('is not where actions.talk opens it from a transcript', function()
+      it('is not where actions.compose opens it from a transcript', function()
         local view = display.view_of(session)
 
         vim.api.nvim_set_current_win(view:windows()[1].win_id)
-        actions.talk()
+        actions.compose()
 
         eq(nil, composer.view(session).place)
       end)
@@ -1250,7 +1501,7 @@ describe('harness.composer:', function()
       vim.api.nvim_win_set_buf(0, file)
       press('Vj')
 
-      eq(true, actions.attach())
+      eq(true, actions.compose())
       surfaces.pick = pick
 
       assert.is_truthy(asked)
@@ -1289,7 +1540,7 @@ describe('harness.composer:', function()
       vim.cmd('botright vsplit')
       vim.api.nvim_win_set_buf(0, file)
       press('Vj')
-      eq(true, actions.attach())
+      eq(true, actions.compose())
       assert.is_truthy(table.concat(input(other), '\n'):find('@/w/c.lua:1-2', 1, true))
       assert.is_nil(table.concat(input(session), '\n'):find('@', 1, true))
       press('<Esc>')
@@ -1298,7 +1549,7 @@ describe('harness.composer:', function()
       vim.cmd('botright vsplit')
       vim.api.nvim_win_set_buf(0, file)
       press('Vj')
-      eq(true, actions.attach())
+      eq(true, actions.compose())
       assert.is_truthy(table.concat(input(session), '\n'):find('@/w/c.lua:1-2', 1, true))
       press('<Esc>')
     end)

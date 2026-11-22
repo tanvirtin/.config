@@ -5,6 +5,7 @@ local fs = lazy('core.system.fs')
 local console = lazy('core.console')
 local client = lazy('harness.client')
 local notice = lazy('harness.ui.notice')
+local presence = lazy('harness.presence')
 local Window = lazy('core.editor.Window')
 local geometry = lazy('harness.composer.geometry')
 local ComposerView = lazy('harness.composer.View')
@@ -247,6 +248,9 @@ composer.delegate = {
   next_item = composer.next_item,
   closed = release,
   wiped = release,
+  sent = function(view, request)
+    presence.show(view.session, request)
+  end,
   retarget = function(view)
     if chooser then chooser(view) end
   end,
@@ -282,6 +286,8 @@ function composer.open(session, opts)
   end
 
   if session.state == 'closed' then return notice.info('this session has ended') end
+
+  presence.clear(session.key)
 
   local view = ComposerView(session, store, {
     display = display,

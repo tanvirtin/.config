@@ -47,14 +47,15 @@ function Lens:constructor(window, line)
     mark = nil,
     rows = nil,
     title = nil,
+    body = nil,
   }
 end
 
 function Lens:_draw()
   local lines = { self.title or { { '' } } }
 
-  for _ = 1, self.rows - Lens.CHROME_ROWS do
-    lines[#lines + 1] = { { '' } }
+  for i = 1, self.rows - Lens.CHROME_ROWS do
+    lines[#lines + 1] = self.body and self.body[i] or { { '' } }
   end
 
   self.mark = self.buffer:set_extmark(Lens.NAMESPACE, self:current() - 1, 0, {
@@ -79,8 +80,10 @@ function Lens:reserve(height)
   return self:_draw()
 end
 
-function Lens:header(chunks)
+function Lens:header(chunks, body)
   self.title = chunks
+
+  if body then self.body = body end
 
   return self:_draw()
 end
@@ -136,7 +139,7 @@ function Lens:follow(key, element, leave)
   local group = event.augroup('ui.lens.' .. key)
 
   local function reposition()
-    if window:is_valid() and element:is_valid() then element:get_window():set_config(self:config()) end
+    if element and window:is_valid() and element:is_valid() then element:get_window():set_config(self:config()) end
   end
 
   group.on('WinClosed', function(args)
