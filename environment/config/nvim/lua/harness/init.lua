@@ -7,7 +7,9 @@ local hub = lazy('harness.session.hub')
 local router = lazy('harness.cli.router')
 local settings = lazy('harness.settings')
 local composer = lazy('harness.composer')
+local Window = lazy('core.editor.Window')
 local actions = lazy('harness.ui.actions')
+local display = lazy('harness.ui.display')
 local Renderer = lazy('ui.markdown.Renderer')
 local transcript = lazy('harness.transcript.view')
 local SkillSync = lazy('harness.features.SkillSync')
@@ -67,8 +69,18 @@ local function configure_settings(opts)
   hub.configure(vim.tbl_extend('force', { ask = ask, elicit = elicit }, rest))
 end
 
+local function anchor(key)
+  local session = hub.session(key)
+  local view = session and display.view_of(session)
+  local tab = Window.current_tab()
+
+  for _, window in ipairs(view and view:windows() or {}) do
+    if window:get_tab() == tab then return window.win_id end
+  end
+end
+
 local function register_modules()
-  tools.register()
+  tools.register(anchor)
   instructions.register('harness', instructions.HARNESS)
   router.setup()
 end

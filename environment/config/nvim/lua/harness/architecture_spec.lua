@@ -62,7 +62,6 @@ local LAYERS = {
   { 'harness.context', 2 },
   { 'harness.agent', 2 },
   { 'harness.servers', 2 },
-  { 'harness.connection', 2 },
   { 'harness.permissions', 2 },
   { 'harness.permission_rules', 2 },
   { 'harness.session.Session', 3 },
@@ -84,6 +83,8 @@ local LAYERS = {
   { 'harness.composer', 7 },
   { 'harness.asks', 7 },
   { 'harness.picker', 7 },
+  { 'harness.presence', 7 },
+  { 'harness.scene', 7 },
   { 'harness.cli', 8 },
   { 'harness', 8 },
 }
@@ -118,7 +119,6 @@ local DOMAIN = {
   'harness.edits',
   'harness.servers',
   'harness.tools',
-  'harness.connection',
 }
 
 local function modules()
@@ -200,11 +200,35 @@ local function rank(name)
   return best
 end
 
+local function dependencies(source, calls)
+  local out = {}
+
+  for _, call in ipairs(calls or { 'require', 'lazy' }) do
+    for target in source:gmatch('%f[%w_]' .. call .. '%(%s*\'(harness[%w_.]+)\'') do
+      out[#out + 1] = target
+    end
+  end
+
+  return out
+end
+
+local function placed(name)
+  if name == 'harness' then return true end
+
+  for _, layer in ipairs(LAYERS) do
+    local prefix = layer[1]
+
+    if prefix ~= 'harness' and (name == prefix or name:sub(1, #prefix + 1) == prefix .. '.') then return true end
+  end
+
+  return false
+end
+
 local function upward(module)
   local out = {}
   local own = rank(module.name)
 
-  for _, target in module.source:gmatch('(require|lazy)%(\'(harness[%w_.]*)\'%)') do
+  for _, target in ipairs(dependencies(module.source)) do
     local theirs = rank(target)
 
     if own and theirs and theirs > own then out[#out + 1] = module.name .. ' -> ' .. target end
@@ -287,7 +311,7 @@ describe('harness architecture:', function()
     eq({}, stale)
   end)
 
-  it('has no module cycles', function()
+  it('has no eager require cycles', function()
     local graph, names = {}, {}
 
     for _, module in ipairs(modules()) do
@@ -296,7 +320,7 @@ describe('harness architecture:', function()
     end
 
     for _, module in ipairs(modules()) do
-      for _, target in module.source:gmatch('(require|lazy)%(\'(harness[%w_.]*)\'%)') do
+      for _, target in ipairs(dependencies(module.source, { 'require' })) do
         if names[target] then graph[module.name][#graph[module.name] + 1] = target end
       end
     end
@@ -397,7 +421,7 @@ describe('harness architecture:', function()
     local unranked = {}
 
     for _, module in ipairs(modules()) do
-      if not rank(module.name) then unranked[#unranked + 1] = module.name end
+      if not placed(module.name) then unranked[#unranked + 1] = module.name end
     end
 
     eq({}, unranked)

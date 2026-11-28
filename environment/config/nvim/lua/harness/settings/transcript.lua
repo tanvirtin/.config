@@ -22,6 +22,4 @@ return Config({
   diff_overflow = 'truncate',
   argument_max = 120,
   hints = true,
-  tile_width = 0.35,
-  tile_min_width = 40,
 })

@@ -34,17 +34,6 @@ local function state_of(session)
   return 'idle', 'UiMuted'
 end
 
-local function ago(ms)
-  local seconds = math.floor(ms / 1000)
-
-  if seconds < 5 then return 'just now' end
-  if seconds < 60 then return seconds .. 's ago' end
-  if seconds < 3600 then return math.floor(seconds / 60) .. 'm ago' end
-  if seconds < 86400 then return math.floor(seconds / 3600) .. 'h ago' end
-
-  return math.floor(seconds / 86400) .. 'd ago'
-end
-
 local function turns_of(session)
   local total = 0
 
@@ -65,7 +54,7 @@ format.one_line = one_line
 format.shorten = shorten
 format.home = home
 format.state_of = state_of
-format.ago = ago
+format.ago = text.ago
 format.turns_of = turns_of
 format.usage_of = usage_of
 

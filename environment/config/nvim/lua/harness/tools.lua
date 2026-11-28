@@ -4,8 +4,6 @@ local guides = lazy('ui.guides')
 local tools = lazy('nvim_mcp.tools')
 local schema = lazy('nvim_mcp.schema')
 local hub = lazy('harness.session.hub')
-local Window = lazy('core.editor.Window')
-local display = lazy('harness.ui.display')
 local store = lazy('harness.session.store')
 local tool_util = lazy('nvim_mcp.tools.util')
 local mascot = lazy('harness.transcript.mascot')
@@ -283,19 +281,9 @@ session_tools.TOOLS = {
   },
 }
 
-function session_tools.anchor(key)
-  local session = hub.session(key)
-  local view = session and display.view_of(session)
-  local tab = Window.current_tab()
-
-  for _, window in ipairs(view and view:windows() or {}) do
-    if window:get_tab() == tab then return window.win_id end
-  end
-end
-
-function session_tools.register()
+function session_tools.register(anchor)
   tools.register('session', session_tools.TOOLS)
-  tool_util.set_anchor(session_tools.anchor)
+  tool_util.set_anchor(anchor)
   guides.set_icon(mascot.still)
   if session_tools._unsubscribe then session_tools._unsubscribe() end
 

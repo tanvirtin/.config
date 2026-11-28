@@ -131,7 +131,7 @@ function bindings.bindings(view)
         if not handled then ok = view:open_target() end
         if not ok then console.notify_now('Harness: nothing to open here', 'info') end
       end,
-      'Open the file under the cursor in a new tab',
+      'Open the file under the cursor in a pane',
     },
     {
       keys.yank,

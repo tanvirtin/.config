@@ -34,6 +34,27 @@ function text.width(value)
   return vim.fn.strdisplaywidth(value)
 end
 
+function text.width_of(chunks)
+  local width = 0
+
+  for _, chunk in ipairs(chunks) do
+    width = width + text.width(chunk[1])
+  end
+
+  return width
+end
+
+function text.ago(ms)
+  local seconds = math.floor(ms / 1000)
+
+  if seconds < 5 then return 'just now' end
+  if seconds < 60 then return seconds .. 's ago' end
+  if seconds < 3600 then return math.floor(seconds / 60) .. 'm ago' end
+  if seconds < 86400 then return math.floor(seconds / 3600) .. 'h ago' end
+
+  return math.floor(seconds / 86400) .. 'd ago'
+end
+
 function text.chars(value)
   return vim.fn.split(value, '\\zs')
 end

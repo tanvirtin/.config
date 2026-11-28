@@ -1,3 +1,4 @@
+local Timer = require('core.Timer')
 local Object = require('core.Object')
 local async = require('harness.async')
 local console = require('core.console')
@@ -17,11 +18,16 @@ Connection.CLIENT_INFO = { name = 'harness', title = 'Neovim harness', version =
 
 Connection.AUTH_REQUIRED = -32000
 
+Connection.REQUEST_TIMEOUT_MS = 30000
+Connection.CANCEL_GRACE_MS = 10000
+
 function Connection:constructor(transport)
   local conn = {
     _transport = transport,
     _next_id = 0,
     _pending = {},
+    _methods = {},
+    _timers = {},
     _listeners = {},
     _early = {},
     _early_asks = {},
@@ -76,8 +82,7 @@ function Connection:_closed(out)
   self.closed = true
 
   for id, future in pairs(self._pending) do
-    self._pending[id] = nil
-    self._scopes[id] = nil
+    self:_forget(id)
     future:set_exception(reason)
   end
 
@@ -86,6 +91,30 @@ function Connection:_closed(out)
   end
 
   async.drain()
+end
+
+function Connection:_forget(id)
+  self._pending[id] = nil
+  self._scopes[id] = nil
+  self._methods[id] = nil
+
+  local timer = self._timers[id]
+  if timer then timer:close() end
+  self._timers[id] = nil
+end
+
+function Connection:_expire(id, ms, reason)
+  local timer = self._timers[id] or Timer()
+  self._timers[id] = timer
+
+  timer:after(ms, function()
+    local future = self._pending[id]
+    if not future then return end
+
+    self:_forget(id)
+    future:set_exception(reason)
+    async.drain()
+  end)
 end
 
 function Connection:request(method, params)
@@ -97,10 +126,18 @@ function Connection:request(method, params)
 
   self._next_id = self._next_id + 1
 
+  local id = self._next_id
   local future = async.Future.new()
-  self._pending[self._next_id] = future
-  if type(params) == 'table' and params.sessionId then self._scopes[self._next_id] = params.sessionId end
-  self._transport:send(jsonrpc.request(self._next_id, method, params))
+
+  self._pending[id] = future
+  self._methods[id] = method
+  if type(params) == 'table' and params.sessionId then self._scopes[id] = params.sessionId end
+  self._transport:send(jsonrpc.request(id, method, params))
+
+  if method ~= 'session/prompt' then
+    local why = string.format('the agent did not answer %s within %d ms', method, self.REQUEST_TIMEOUT_MS)
+    self:_expire(id, self.REQUEST_TIMEOUT_MS, why)
+  end
 
   return future
 end
@@ -145,6 +182,7 @@ function Connection:detach(session_id)
 
   self._listeners[session_id] = nil
   self._detached[session_id] = true
+  self._early[session_id] = nil
 
   for _, message in ipairs(self._early_asks[session_id] or {}) do
     self:_refuse(message)
@@ -159,8 +197,7 @@ function Connection:_dispatch(message)
 
     if not future then return end
 
-    self._pending[message.id] = nil
-    self._scopes[message.id] = nil
+    self:_forget(message.id)
 
     if message.error then
       future:set_exception(self:_failure(message.error))
@@ -181,7 +218,7 @@ function Connection:_dispatch(message)
 
     if listener then
       self:_deliver(listener, params.update or {})
-    elseif params.sessionId then
+    elseif params.sessionId and not self._detached[params.sessionId] then
       local early = self._early[params.sessionId] or {}
       early[#early + 1] = params.update or {}
       self._early[params.sessionId] = early
@@ -540,6 +577,12 @@ end
 
 function Connection:cancel(session_id)
   self:notify('session/cancel', { sessionId = session_id })
+
+  for id, method in pairs(self._methods) do
+    if method == 'session/prompt' and self._scopes[id] == session_id then
+      self:_expire(id, self.CANCEL_GRACE_MS, 'the agent did not stop after cancel')
+    end
+  end
 end
 
 Connection.STEER_METHOD = '_session/steering'

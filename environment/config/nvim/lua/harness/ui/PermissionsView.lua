@@ -1,5 +1,6 @@
 local lazy = require('core.lazy')
 
+local text = lazy('core.text')
 local View = require('ui.View')
 local Timer = lazy('core.Timer')
 local fs = lazy('core.system.fs')
@@ -65,9 +66,7 @@ function PermissionsView.model(session)
 end
 
 local function ago(time)
-  local spent = time and theme.duration(math.max(Timer.now() - time, 0)) or ''
-
-  return spent ~= '' and (spent .. ' ago') or 'just now'
+  return time and text.ago(math.max(Timer.now() - time, 0)) or 'just now'
 end
 
 local function cut(text)

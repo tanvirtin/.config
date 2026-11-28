@@ -1,9 +1,10 @@
 # Sn client
 
-The one layer the UI talks to. Transcript, composer, asks, picker and the shell
-reach sessions, agents and their state only through `harness.client`; the
+The one layer the UI talks to. Transcript, composer, asks and picker reach
+sessions, agents and their state only through `harness.client`; the
 architecture spec fails if they require the session layer, agents, servers,
-permissions or edits directly.
+permissions or edits directly. The shell and CLI are the composition root and
+wire the domain directly.
 
 Today the client has one backend: the Lua harness in this tree. Milestone 2 adds
 a second, the Sn engine process speaking msgpack-RPC, behind the same API. The UI
@@ -13,7 +14,7 @@ does not change when the backend does.
 
 | Area | Functions |
 |---|---|
-| Sessions | `dir()`, `start(opts)`, `load(opts)`, `fork(session, message_id)`, `list(dir, agent)`, `delete(opts)`, `close(key)`, `send(session, text, context, opts)`, `session(key)`, `sessions(dir)` |
+| Sessions | `dir()`, `start(opts)`, `starting(key)`, `load(opts)`, `fork(session, message_id)`, `list(dir, agent)`, `delete(opts)`, `close(key)`, `send(session, text, context, opts)`, `session(key)`, `sessions(dir)` |
 | Events | `on(names, callback)`, `events()`, `notify(session, update)` |
 | Agents | `agent(name)`, `agents()` |
 | Following | `follow(session, opts)`, `unfollow(session)`, `following(session)` |
@@ -33,5 +34,5 @@ else, so a remote backend must rebuild exactly these from the event stream.
 | Identity | `key`, `id`, `title`, `dir`, `agent`, `parent`, `depth`, `external` |
 | History | `history` (event list), `times` (one timestamp per event), `log.turns` (turn index) |
 | State | `state`, `queue`, `children`, `subagents`, `permissions`, `commands`, `edits`, `auto_edits` |
-| Queries | `running()`, `waiting()`, `loading()`, `idle()`, `queued()`, `can(capability)`, `mode()`, `choice(key)`, `option(key)` |
+| Queries | `running()`, `waiting()`, `loading()`, `idle()`, `queued()`, `usage()`, `can(capability)`, `mode()`, `choice(key)`, `option(key)` |
 | Actions | `cancel()`, `cycle_mode()`, `set_option(key, value)`, `subscribe(callback)` |

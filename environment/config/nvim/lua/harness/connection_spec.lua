@@ -1,12 +1,39 @@
 local agent = require('harness.agent')
 local async = require('harness.async')
-local connection = require('harness.connection')
 local content = require('harness.types.content')
 local capabilities = require('harness.types.capabilities')
 local fake_agent = require('harness.servers.acp.fake_agent')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
 
 local eq = assert.are.same
+
+local METHODS = {
+  'capabilities',
+  'new_session',
+  'load_session',
+  'fork_session',
+  'list_sessions',
+  'close_session',
+  'delete_session',
+  'prompt',
+  'steer',
+  'cancel',
+  'set_option',
+  'use_model',
+  'attach',
+  'detach',
+  'close',
+}
+
+local function missing(candidate)
+  local out = {}
+
+  for _, name in ipairs(METHODS) do
+    if type(candidate) ~= 'table' or type(candidate[name]) ~= 'function' then out[#out + 1] = name end
+  end
+
+  return out
+end
 
 local function run(fn)
   return async.run(fn):wait()
@@ -62,7 +89,7 @@ for _, server in ipairs(SERVERS) do
     end)
 
     it('implements every method of the interface', function()
-      eq({}, connection.missing(conn))
+      eq({}, missing(conn))
       eq(false, conn.closed)
     end)
 

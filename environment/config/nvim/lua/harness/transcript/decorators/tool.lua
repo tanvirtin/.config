@@ -115,15 +115,7 @@ local function tail_of(block, ctx, live, waiting)
   return parts
 end
 
-local function width_of(chunks)
-  local width = 0
-
-  for _, chunk in ipairs(chunks) do
-    width = width + text.width(chunk[1])
-  end
-
-  return width
-end
+local width_of = text.width_of
 
 local function tail_position(block, head, tail, ctx)
   if not ctx.width or block.first_child then return 'eol' end

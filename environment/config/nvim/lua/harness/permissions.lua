@@ -1,10 +1,8 @@
 local lazy = require('core.lazy')
 
 local text = lazy('core.text')
-local Timer = lazy('core.Timer')
 local fs = lazy('core.system.fs')
 local async = lazy('harness.async')
-local console = lazy('core.console')
 local tools = lazy('nvim_mcp.tools')
 local permission = require('harness.types.permission')
 
@@ -102,39 +100,6 @@ function permissions.describe(request)
   end
 
   return require('compact').line(request.tool .. (detail and (': ' .. detail) or ''), WIDTH)
-end
-
-function permissions.ui_ask(request)
-  local future = async.Future.new()
-
-  Timer.schedule(function()
-    if future.done then return end
-
-    local picker = console.select(permissions.choices(request), {
-      prompt = 'Harness wants to run ' .. permissions.describe(request),
-      format_item = function(choice)
-        return choice.label
-      end,
-    }, function(choice)
-      future:set_result(permission.decision(choice or DECISION.reject_once))
-      async.drain()
-    end)
-
-    if future.done and type(picker) == 'table' and picker.close then pcall(picker.close, picker) end
-    future.picker = picker
-  end)
-
-  function future.dismiss()
-    if future.done then return end
-
-    future:set_result(permission.decision(DECISION.cancelled))
-
-    local picker = future.picker
-
-    if type(picker) == 'table' and picker.close then pcall(picker.close, picker) end
-  end
-
-  return future
 end
 
 local Grants = {}

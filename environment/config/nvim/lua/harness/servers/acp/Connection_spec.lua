@@ -64,6 +64,21 @@ describe('harness.servers.acp.Connection:', function()
     eq({ 'commands' }, seen)
   end)
 
+  it('stops keeping updates for a session it has let go of', function()
+    local conn, agent = connected()
+    local seen = {}
+
+    agent:push(fake_agent.chunk('s9', 'held'))
+    conn:detach('s9')
+    agent:push(fake_agent.chunk('s9', 'late'))
+
+    eq(nil, conn._early['s9'])
+
+    conn:attach('s9', listener(seen))
+
+    eq({}, seen)
+  end)
+
   it('creates and prompts a session', function()
     local conn, agent = connected()
 
@@ -226,6 +241,68 @@ describe('harness.servers.acp.Connection:', function()
 
     eq(nil, ok)
     assert.is_truthy(tostring(err):find('not logged in', 1, true))
+  end)
+
+  it('fails a request the agent never answers', function()
+    local conn = connected({
+      ['session/new'] = function()
+        return {}
+      end,
+    })
+
+    conn.REQUEST_TIMEOUT_MS = 50
+
+    local ok, err = run(function()
+      return conn:new_session({ cwd = '/w' })
+    end)
+
+    eq(nil, ok)
+    assert.is_truthy(tostring(err):find('session/new', 1, true))
+  end)
+
+  it('lets a prompt run past the request timeout', function()
+    local conn, agent = connected({
+      ['session/prompt'] = function(message, agent)
+        vim.defer_fn(function()
+          agent:push(jsonrpc.result(message.id, { stopReason = 'end_turn' }))
+        end, 60)
+
+        return {}
+      end,
+    })
+
+    conn.REQUEST_TIMEOUT_MS = 20
+
+    local reason = run(function()
+      return conn:prompt('s1', {})
+    end)
+
+    eq('end_turn', reason)
+  end)
+
+  it('ends a turn whose agent ignores the cancel', function()
+    local conn, agent = connected({
+      ['session/prompt'] = function()
+        return {}
+      end,
+    })
+
+    conn.CANCEL_GRACE_MS = 50
+
+    local task = async.run(function()
+      return conn:prompt('s1', {})
+    end)
+
+    vim.wait(100, function()
+      return agent:sent_method('session/prompt') ~= nil
+    end)
+    conn:cancel('s1')
+
+    local ok, err = task:wait()
+
+    eq(nil, ok)
+    assert.is_truthy(tostring(err):find('cancel', 1, true))
+    assert.is_truthy(agent:sent_method('session/cancel'))
   end)
 
   it('introduces itself, and says how to sign in when the agent needs it', function()
