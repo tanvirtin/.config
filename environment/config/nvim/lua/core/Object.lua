@@ -1,7 +1,17 @@
 local Object = {}
 
+local READONLY = setmetatable({}, {
+  __index = function(names, key)
+    local name = '$' .. key
+
+    names[key] = name
+
+    return name
+  end,
+})
+
 function Object:__index(key)
-  local value = rawget(self, '$' .. key)
+  local value = rawget(self, READONLY[key])
   if value ~= nil then return value end
 
   local class = getmetatable(self)
@@ -10,7 +20,7 @@ function Object:__index(key)
 end
 
 function Object:__newindex(key, value)
-  if rawget(self, '$' .. key) ~= nil then error(string.format('Property \'%s\' is read-only.', tostring(key)), 2) end
+  if rawget(self, READONLY[key]) ~= nil then error(string.format('Property \'%s\' is read-only.', tostring(key)), 2) end
 
   rawset(self, key, value)
 end

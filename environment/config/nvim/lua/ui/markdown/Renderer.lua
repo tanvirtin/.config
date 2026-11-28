@@ -336,6 +336,27 @@ function Renderer:annotate(lines, offset, from)
   return kept
 end
 
+Renderer.WARM_SAMPLE = {
+  '# a',
+  '> [!note]',
+  '> b',
+  '',
+  '- c `d` [e](f)',
+  '',
+  '```lua',
+  'local x = 1',
+  '```',
+  '',
+  '| a |',
+  '| - |',
+}
+
+function Renderer.warm()
+  pcall(function()
+    Renderer(0, { resolve = function() end }):annotate(Renderer.WARM_SAMPLE, 0)
+  end)
+end
+
 function Renderer:inline_at(row, col)
   local line = self.buffer:get_lines(row, row + 1)[1]
 
@@ -387,13 +408,39 @@ function Renderer:apply(marks)
   MarkSpec.apply(self.buffer, Renderer.NAMESPACE, marks)
 end
 
+function Renderer:source_lines(from_row, to_row, context_row)
+  local buffer = self.buffer
+
+  if context_row < from_row - 1 then
+    local lines = buffer:get_lines(from_row - 1, to_row)
+
+    if lines[1] and lines[1]:find('^[%s>]*$') then
+      table.insert(lines, 1, buffer:get_lines(context_row, context_row + 1)[1] or '')
+
+      return lines, from_row - 2
+    end
+  end
+
+  return buffer:get_lines(context_row, to_row), context_row
+end
+
 function Renderer:render(from_row, to_row, context_row)
   if not self.buffer:is_valid() then return end
 
   to_row = to_row or self.buffer:get_line_count()
   context_row = math.min(context_row or from_row, from_row)
   self:clear(from_row, to_row)
-  self:apply(self:annotate(self.buffer:get_lines(context_row, to_row), context_row, from_row))
+
+  local lines, offset = self:source_lines(from_row, to_row, context_row)
+  local marks = self:annotate(lines, offset, from_row)
+
+  if offset ~= context_row then
+    for _, mark in ipairs(marks) do
+      if mark.row == offset then mark.row = context_row end
+    end
+  end
+
+  self:apply(marks)
 end
 
 return Renderer

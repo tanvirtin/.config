@@ -405,4 +405,13 @@ describe('ui.markdown.Renderer:', function()
     eq(0, found.col)
     eq(5, found.opts.end_col)
   end)
+
+  it('warms its parsers without a buffer, leaving every buffer untouched', function()
+    local before = vim.api.nvim_buf_get_extmarks(buf, Renderer.NAMESPACE, 0, -1, {})
+
+    Renderer.warm()
+
+    eq(before, vim.api.nvim_buf_get_extmarks(buf, Renderer.NAMESPACE, 0, -1, {}))
+    assert.truthy(#Renderer(0, { resolve = function() end }):annotate(Renderer.WARM_SAMPLE, 0) > 0)
+  end)
 end)

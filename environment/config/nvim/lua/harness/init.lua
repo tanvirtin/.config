@@ -1,12 +1,14 @@
 local lazy = require('core.lazy')
 
 local hl = lazy('ui.hl')
+local Timer = lazy('core.Timer')
 local tools = lazy('harness.tools')
 local hub = lazy('harness.session.hub')
 local router = lazy('harness.cli.router')
 local settings = lazy('harness.settings')
 local composer = lazy('harness.composer')
 local actions = lazy('harness.ui.actions')
+local Renderer = lazy('ui.markdown.Renderer')
 local transcript = lazy('harness.transcript.view')
 local SkillSync = lazy('harness.features.SkillSync')
 local instructions = lazy('harness.types.instructions')
@@ -46,6 +48,8 @@ for _, name in ipairs(harness.VERBS) do
   end
 end
 
+harness.WARM_MS = 1000
+
 local features = {}
 
 local function ask(request)
@@ -82,6 +86,9 @@ function harness.setup(opts)
   configure_settings(opts)
   register_modules()
   register_events()
+  Timer.defer(harness.WARM_MS, function()
+    Renderer.warm()
+  end)
 end
 
 return harness

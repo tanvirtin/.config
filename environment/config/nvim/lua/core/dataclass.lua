@@ -1,17 +1,15 @@
 local dataclass = {}
 
-local function type_ok(spec, value)
-  if spec.type == nil or spec.type == 'any' then return true end
+local function allowed_types(spec)
+  if spec.type == nil or spec.type == 'any' then return false end
 
-  if type(spec.type) == 'table' then
-    for _, allowed in ipairs(spec.type) do
-      if type(value) == allowed then return true end
-    end
+  local allowed = {}
 
-    return false
+  for _, name in ipairs(type(spec.type) == 'table' and spec.type or { spec.type }) do
+    allowed[name] = true
   end
 
-  return type(value) == spec.type
+  return allowed
 end
 
 local function describe(spec)
@@ -38,11 +36,13 @@ end
 
 function dataclass.define(name, schema)
   local class = { __name = name, schema = schema }
-  local required, defaults = {}, {}
+  local required, defaults, types = {}, {}, {}
 
   for key, spec in pairs(schema) do
     if spec.required then required[#required + 1] = key end
     if spec.default ~= nil then defaults[#defaults + 1] = key end
+
+    types[key] = allowed_types(spec)
   end
 
   class.__index = class
@@ -51,11 +51,13 @@ function dataclass.define(name, schema)
     local instance = {}
 
     for key, value in pairs(fields or {}) do
+      local allowed = types[key]
+
+      if allowed == nil then error(string.format('%s: unknown field "%s"', name, tostring(key)), 3) end
+
       local spec = schema[key]
 
-      if spec == nil then error(string.format('%s: unknown field "%s"', name, tostring(key)), 3) end
-
-      if not type_ok(spec, value) then
+      if allowed and not allowed[type(value)] then
         error(string.format('%s.%s: expected %s, got %s', name, key, describe(spec), type(value)), 3)
       end
 

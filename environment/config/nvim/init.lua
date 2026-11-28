@@ -1,5 +1,6 @@
 if vim.async == nil then error('tin neovim is outdated') end
 
+require('config.jit')
 require('config.options')
 require('config.lazy')
 require('config.keymaps')

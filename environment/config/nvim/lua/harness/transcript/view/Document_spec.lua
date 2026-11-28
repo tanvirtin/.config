@@ -387,6 +387,44 @@ describe('harness.transcript.view.Document:', function()
       eq({ { 'Thought', 'UiMuted' } }, header())
     end)
 
+    it('keeps a settled thought\'s markdown as drawn, and redraws only its decorations', function()
+      local running = { running = true }
+      local Renderer = require('ui.markdown.Renderer')
+
+      events.append(history, events.prompt('hi'))
+      events.append(history, { kind = 'thought', text = 'thinking **hard**\n\nabout `it`' })
+      document:write(blocks.build(history, nil, running), running)
+      document:decorate_visible()
+
+      local thought = document.blocks[#document.blocks]
+      local function ids()
+        local out = {}
+
+        for _, mark in
+          ipairs(
+            vim.api.nvim_buf_get_extmarks(buf, Renderer.NAMESPACE, { thought.start, 0 }, { thought.finish - 1, -1 }, {})
+          )
+        do
+          out[#out + 1] = mark[1]
+        end
+
+        return out
+      end
+
+      local drawn = ids()
+
+      assert.truthy(#drawn > 0)
+
+      events.append(history, { kind = 'message', text = 'done' })
+      document:write(blocks.build(history, nil, running), running)
+      document:decorate_visible()
+
+      eq(drawn, ids())
+      assert.truthy(vim.iter(marks(buf, Document.NAMESPACE)):find(function(mark)
+        return mark[2] == thought.start and vim.deep_equal(mark[4].virt_text, { { 'Thought', 'UiMuted' } })
+      end))
+    end)
+
     it('shows a live thought\'s body once it is revealed, and hides it again', function()
       local running = { running = true }
 

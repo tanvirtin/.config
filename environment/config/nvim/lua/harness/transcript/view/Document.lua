@@ -294,17 +294,18 @@ function Document:write(list, state)
     list[i].start, list[i].finish = old[i].start, old[i].finish
   end
 
-  local pending, partial, deferred = {}, {}, {}
+  local pending, partial, deferred, restyle = {}, {}, {}, {}
 
   for i = 1, keep do
     local same = list[i] == old[i] or Layout.signature(list[i]) == Layout.signature(old[i])
 
-    if resized or not same or self:_live(list[i]) then
+    if resized then
       pending[i] = true
     elseif self.pending[i] then
       pending[i], partial[i] = true, self.partial[i]
-    elseif self.deferred[i] then
-      deferred[i] = true
+    else
+      if self.deferred[i] then deferred[i] = true end
+      if self.decorated[i] and (not same or self:_live(list[i])) then restyle[#restyle + 1] = list[i] end
     end
   end
 
@@ -359,7 +360,18 @@ function Document:write(list, state)
   self.partial = partial
   self.deferred = deferred
   self:decorate_visible()
+  self:_restyle(restyle)
   self:_status()
+end
+
+function Document:_restyle(blocks)
+  if #blocks == 0 then return end
+
+  local ctx = self:_context()
+
+  for _, block in ipairs(blocks) do
+    if self.decorated[block.index] then self:_decorate(block, ctx) end
+  end
 end
 
 function Document.growing(list, i)
