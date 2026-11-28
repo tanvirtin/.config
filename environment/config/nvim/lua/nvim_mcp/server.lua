@@ -87,7 +87,21 @@ function server.tool_definition(entry)
   }
 end
 
-function server.new(entries, call_editor)
+server.RETRY = '_retry_ms'
+
+local function retry_of(value)
+  local ms = type(value) == 'table' and value[server.RETRY]
+
+  return type(ms) == 'number' and ms > 0 and ms or nil
+end
+
+function server.new(entries, call_editor, opts)
+  opts = opts or {}
+
+  local now = opts.now or vim.uv.now
+  local sleep = opts.sleep or function(ms)
+    vim.wait(ms)
+  end
   local by_name = {}
 
   for _, entry in ipairs(entries) do
@@ -99,11 +113,19 @@ function server.new(entries, call_editor)
 
     if not entry then return text_result('unknown tool: ' .. tostring(name), true) end
 
-    local ok, value = pcall(call_editor, name, arguments)
+    local started = now()
 
-    if not ok then return text_result(server.error_text(value), true) end
+    while true do
+      local ok, value = pcall(call_editor, name, arguments, now() - started)
 
-    return text_result(value, false)
+      if not ok then return text_result(server.error_text(value), true) end
+
+      local retry = retry_of(value)
+
+      if not retry then return text_result(value, false) end
+
+      sleep(retry)
+    end
   end
 
   local handlers = {
@@ -168,10 +190,15 @@ function server.connect(addr)
   local editor = vim.rpcrequest(chan, 'nvim_exec_lua', 'return require(\'nvim_mcp.tools\').definitions()', {})
   local caller = vim.env.HARNESS_SESSION or ''
 
-  local function call_editor(name, args)
+  local function call_editor(name, args, waited)
     if next(args) == nil then args = vim.empty_dict() end
 
-    return vim.rpcrequest(chan, 'nvim_exec_lua', 'return require(\'nvim_mcp.tools\').run(...)', { name, args, caller })
+    return vim.rpcrequest(
+      chan,
+      'nvim_exec_lua',
+      'return require(\'nvim_mcp.tools\').run(...)',
+      { name, args, caller, waited or 0 }
+    )
   end
 
   return editor, call_editor

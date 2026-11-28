@@ -9,9 +9,14 @@ local display = lazy('harness.ui.display')
 local store = lazy('harness.session.store')
 local tool_util = lazy('nvim_mcp.tools.util')
 local mascot = lazy('harness.transcript.mascot')
+local FleetMember = lazy('harness.transcript.model.FleetMember')
 local text_renderer = lazy('harness.transcript.model.text_renderer')
 
 local session_tools = {}
+
+session_tools.WAIT = { default_ms = 120000, max_ms = 600000, retry_ms = 500 }
+
+local prompting = {}
 
 local function fail(message)
   error(message, 0)
@@ -27,14 +32,28 @@ local function scope(ctx)
   return caller and caller.dir or hub.dir()
 end
 
+local function model_of(session)
+  local choice = session:choice('model')
+
+  return choice and (choice.name or choice.value) or nil
+end
+
+local function cost_of(session)
+  local usage = session:usage()
+
+  return usage and usage.cost or nil
+end
+
 local function describe(session, ctx)
   return {
     session = session.key,
     agent = session.agent.name,
+    model = model_of(session),
     title = session.title,
     state = session.state,
     parent = session.parent,
     depth = session.depth,
+    cost = cost_of(session),
     you = session.key == ctx.caller or nil,
   }
 end
@@ -80,12 +99,16 @@ local function session_new(args, ctx)
     fail(string.format('sessions may only nest %d deep; do this work yourself', hub.config.max_depth))
   end
 
-  local task = hub.start({ dir = scope(ctx), agent = args.agent, parent = ctx.caller })
+  local task = hub.start({ dir = scope(ctx), agent = args.agent, model = args.model, parent = ctx.caller })
+
+  if args.prompt then prompting[task.key] = true end
 
   task:on_complete(function(err, session)
-    if err then return end
+    prompting[task.key] = nil
 
-    if args.prompt then prompt(session, args.prompt) end
+    if err or not args.prompt then return end
+
+    pcall(prompt, session, args.prompt)
   end)
 
   return { session = task.key, state = 'starting' }
@@ -117,6 +140,61 @@ local function session_read(args, ctx)
     title = session.title,
     next = #session.history,
     transcript = table.concat(lines, '\n', 3),
+  }
+end
+
+local function settled(key, ctx, waiting)
+  local starting = hub.starting(key)
+
+  if starting == true or prompting[key] then return nil end
+
+  local session = target(key, ctx)
+  local member = FleetMember.of(session)
+
+  if member.state == FleetMember.STATE.waiting then
+    waiting[#waiting + 1] = { session = key, ask = member.ask }
+    return nil
+  end
+
+  if member.state == FleetMember.STATE.working then return nil end
+
+  return {
+    session = key,
+    state = member.state,
+    model = member.model,
+    cost = member.cost,
+    ask = member.ask,
+    result = member.result,
+  }
+end
+
+local function session_wait(args, ctx)
+  local WAIT = session_tools.WAIT
+  local timeout = math.min(args.timeout_ms or WAIT.default_ms, WAIT.max_ms)
+  local any = args.until_any == true
+  local ready, pending, waiting = {}, {}, {}
+
+  if #args.sessions == 0 then fail('pass at least one session key') end
+
+  for _, key in ipairs(args.sessions) do
+    local done = settled(key, ctx, waiting)
+
+    if done then
+      ready[#ready + 1] = done
+    else
+      pending[#pending + 1] = key
+    end
+  end
+
+  local finished = #pending == 0 or (any and #ready > 0)
+
+  if not finished and (ctx.waited or 0) < timeout then return { _retry_ms = WAIT.retry_ms } end
+
+  return {
+    sessions = ready,
+    running = #pending > 0 and pending or nil,
+    waiting_on_user = #waiting > 0 and waiting or nil,
+    timed_out = not finished or nil,
   }
 end
 
@@ -154,6 +232,13 @@ session_tools.TOOLS = {
         type = schema.str({ description = 'Agent name (default: the configured one).' }),
         optional = true,
       },
+      {
+        name = 'model',
+        type = schema.str({
+          description = 'Model to run it on, as the agent names it (such as haiku). Pick the cheapest model that can do the work.',
+        }),
+        optional = true,
+      },
     },
     fn = session_new,
   },
@@ -170,6 +255,17 @@ session_tools.TOOLS = {
     summary = 'A session\'s state and its transcript as text. Pass the returned "next" as since to read only what is new.',
     params = { KEY, { name = 'since', type = schema.int(), optional = true } },
     fn = session_read,
+  },
+  {
+    name = 'session_wait',
+    risk = 'read',
+    summary = 'Wait until sessions finish their turn, instead of reading them in a loop. A session waiting on the user keeps the wait going, since only the user can answer it. Returns each settled session\'s state, result, ask, model and cost; keys still running come back under running. Waits up to timeout_ms (default 120000, at most 600000).',
+    params = {
+      { name = 'sessions', type = schema.list(schema.str({ description = 'Session keys, such as h3.' })) },
+      { name = 'until_any', type = schema.bool(), optional = true },
+      { name = 'timeout_ms', type = schema.int(), optional = true },
+    },
+    fn = session_wait,
   },
   {
     name = 'session_cancel',

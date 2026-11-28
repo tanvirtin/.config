@@ -2,10 +2,10 @@ local server = require('nvim_mcp.server')
 
 local eq = assert.are.same
 
-local function protocol(call_editor)
+local function protocol(call_editor, opts)
   return server.new(require('nvim_mcp.tools').definitions(), call_editor or function()
     return 'called'
-  end)
+  end, opts)
 end
 
 local function tools(handler)
@@ -169,6 +169,85 @@ describe('nvim_mcp.server:', function()
 
       eq(true, result.isError)
       eq('unknown tool: nope', result.content[1].text)
+    end)
+
+    it('sleeps and calls the editor again while it asks to retry, passing the elapsed time', function()
+      local clock = 0
+      local slept = {}
+      local waits = {}
+      local result = call(
+        protocol(function(_, _, waited)
+          waits[#waits + 1] = waited
+
+          if #waits < 3 then return { _retry_ms = 40 } end
+
+          return { done = true }
+        end, {
+          now = function()
+            return clock
+          end,
+          sleep = function(ms)
+            slept[#slept + 1] = ms
+            clock = clock + ms
+          end,
+        }),
+        'buffer_read',
+        {}
+      )
+
+      eq({ 40, 40 }, slept)
+      eq({ 0, 40, 80 }, waits)
+      eq(false, result.isError)
+      eq('{"done":true}', result.content[1].text)
+    end)
+
+    it('reports an error raised on a retry as an error result', function()
+      local attempts = 0
+      local result = call(
+        protocol(function()
+          attempts = attempts + 1
+
+          if attempts == 1 then return { _retry_ms = 10 } end
+
+          error('editor went away', 0)
+        end, {
+          now = function()
+            return 0
+          end,
+          sleep = function() end,
+        }),
+        'buffer_read',
+        {}
+      )
+
+      eq(2, attempts)
+      eq(true, result.isError)
+      eq('editor went away', result.content[1].text)
+    end)
+
+    it('calls the editor once for a plain result, without sleeping', function()
+      local waits = {}
+      local slept = {}
+      local result = call(
+        protocol(function(_, _, waited)
+          waits[#waits + 1] = waited
+
+          return { replacements = 1 }
+        end, {
+          now = function()
+            return 0
+          end,
+          sleep = function(ms)
+            slept[#slept + 1] = ms
+          end,
+        }),
+        'buffer_edit',
+        {}
+      )
+
+      eq({ 0 }, waits)
+      eq({}, slept)
+      eq('{"replacements":1}', result.content[1].text)
     end)
   end)
 

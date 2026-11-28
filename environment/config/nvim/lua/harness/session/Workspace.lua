@@ -38,8 +38,10 @@ function Workspace:connection(agent)
   return connection
 end
 
-function Workspace:_use_model(connection, agent, id)
-  return agent.model and connection:use_model(id, agent.model) or nil
+function Workspace:_use_model(connection, agent, id, model)
+  model = model or agent.model
+
+  return model and connection:use_model(id, model) or nil
 end
 
 function Workspace:_configure(session, opened, options)
@@ -66,7 +68,7 @@ function Workspace:new_session(agent, opts)
 
   if open_err then return nil, open_err end
 
-  local model = self:_use_model(connection, agent, opened.id)
+  local model = self:_use_model(connection, agent, opened.id, opts.model)
   local session = Session(vim.tbl_extend('force', opts, {
     id = opened.id,
     agent = agent,

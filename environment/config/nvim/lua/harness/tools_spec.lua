@@ -4,13 +4,14 @@ local hub = require('harness.session.hub')
 local jsonrpc = require('harness.servers.acp.jsonrpc')
 local permissions = require('harness.permissions')
 local tools = require('nvim_mcp.tools')
+local acp_config = require('harness.servers.acp.config')
 
 local eq = assert.are.same
 
 local defaults = vim.deepcopy(hub.config)
 
-local function run(name, args, caller)
-  return tools.run(name, args or {}, caller)
+local function run(name, args, caller, waited)
+  return tools.run(name, args or {}, caller, waited)
 end
 
 local function settle(predicate)
@@ -186,5 +187,162 @@ describe('harness.tools:', function()
     eq('exec', permissions.tier('mcp__nvim__session_prompt'))
     eq('read', permissions.tier('mcp__nvim__session_read'))
     eq('write', permissions.tier('mcp__nvim__session_close'))
+  end)
+
+  it('asks to be called again while a listed session is still running', function()
+    local me = hub.start({ dir = '/w' }):wait()
+    local busy = hub.start({ dir = '/w' }):wait()
+
+    busy:_to('running')
+
+    eq({ _retry_ms = 500 }, run('session_wait', { sessions = { busy.key } }, me.key, 0))
+  end)
+
+  it('returns once every listed session has settled, with each state and result', function()
+    local me = hub.start({ dir = '/w' }):wait()
+    local idle = hub.start({ dir = '/w' }):wait()
+    local done = hub.start({ dir = '/w' }):wait()
+
+    hub.prompt(done, 'go'):wait()
+
+    local waited = run('session_wait', { sessions = { idle.key, done.key } }, me.key, 0)
+
+    eq({
+      { session = idle.key, state = 'idle' },
+      { session = done.key, state = 'done', result = 'did go' },
+    }, waited.sessions)
+    eq(nil, waited.running)
+    eq(nil, waited.timed_out)
+  end)
+
+  it('reports the model and cost of a settled session', function()
+    local me = hub.start({ dir = '/w' }):wait()
+    local done = hub.start({ dir = '/w' }):wait()
+
+    done:configure(acp_config.options({
+      {
+        id = 'model',
+        category = 'model',
+        type = 'select',
+        currentValue = 'haiku',
+        options = { { value = 'haiku', name = 'Haiku' } },
+      },
+    }))
+    done:_emit({ kind = 'usage', used = 1, size = 100, cost = 0.25 })
+    hub.prompt(done, 'go'):wait()
+
+    local waited = run('session_wait', { sessions = { done.key } }, me.key, 0)
+
+    eq('Haiku', waited.sessions[1].model)
+    eq(0.25, waited.sessions[1].cost)
+  end)
+
+  it('returns as soon as one listed session settles when until_any is set, listing the rest as running', function()
+    local me = hub.start({ dir = '/w' }):wait()
+    local busy = hub.start({ dir = '/w' }):wait()
+    local idle = hub.start({ dir = '/w' }):wait()
+
+    busy:_to('running')
+
+    local waited = run('session_wait', { sessions = { busy.key, idle.key }, until_any = true }, me.key, 0)
+
+    eq({ { session = idle.key, state = 'idle' } }, waited.sessions)
+    eq({ busy.key }, waited.running)
+    eq(nil, waited.timed_out)
+  end)
+
+  it('gives up at the timeout and lists the sessions still running', function()
+    local me = hub.start({ dir = '/w' }):wait()
+    local busy = hub.start({ dir = '/w' }):wait()
+
+    busy:_to('running')
+
+    local waited = run('session_wait', { sessions = { busy.key }, timeout_ms = 1000 }, me.key, 1000)
+
+    eq(true, waited.timed_out)
+    eq({ busy.key }, waited.running)
+    eq({}, waited.sessions)
+  end)
+
+  it('keeps waiting on a session that is waiting on the user, and reports its ask at the timeout', function()
+    local asked = {}
+
+    hub.config.auto_allow = false
+    hub.config.ask = function(request)
+      asked[#asked + 1] = request
+      return async.Future.new()
+    end
+    hub.config.spawn = function()
+      local fake = fake_agent.new({
+        ['session/prompt'] = function()
+          return { fake_agent.permission('s1', 'Edit') }
+        end,
+      })
+      fakes[#fakes + 1] = fake
+      return fake
+    end
+
+    local asker = hub.start({ dir = '/w' }):wait()
+    local me = hub.start({ dir = '/w' }):wait()
+
+    asker:prompt('edit')
+    vim.wait(1000, function()
+      return #asker:waiting() == 1
+    end)
+
+    eq({ _retry_ms = 500 }, run('session_wait', { sessions = { asker.key } }, me.key, 0))
+
+    local waited = run('session_wait', { sessions = { asker.key }, timeout_ms = 1000 }, me.key, 1000)
+
+    eq(true, waited.timed_out)
+    eq({ { session = asker.key, ask = 'Edit' } }, waited.waiting_on_user)
+    eq({}, waited.sessions)
+  end)
+
+  it('refuses to wait on no sessions', function()
+    local me = hub.start({ dir = '/w' }):wait()
+
+    local ok, err = pcall(run, 'session_wait', { sessions = {} }, me.key, 0)
+
+    eq(false, ok)
+    eq('pass at least one session key', err)
+  end)
+
+  it('starts a child on the model it was asked for', function()
+    local me = hub.start({ dir = '/w' }):wait()
+    local started = run('session_new', { model = 'haiku' }, me.key)
+
+    settle(function()
+      return hub.session(started.session) ~= nil
+    end)
+
+    local set = fakes[1]:find(function(message)
+      return message.method == 'session/set_config_option' and message.params.value == 'haiku'
+    end)
+
+    eq({ sessionId = hub.session(started.session).id, configId = 'model', value = 'haiku' }, set.params)
+  end)
+
+  it('lists each session with its model and cost', function()
+    local me = hub.start({ dir = '/w' }):wait()
+    local other = hub.start({ dir = '/w' }):wait()
+
+    other:configure(acp_config.options({
+      {
+        id = 'model',
+        category = 'model',
+        type = 'select',
+        currentValue = 'haiku',
+        options = { { value = 'haiku', name = 'Haiku' } },
+      },
+    }))
+    other:_emit({ kind = 'usage', used = 1, size = 100, cost = 0.5 })
+
+    local listed = run('session_list', {}, me.key)
+
+    eq('Haiku', listed[2].model)
+    eq(0.5, listed[2].cost)
+    eq(nil, listed[1].model)
+    eq(nil, listed[1].cost)
   end)
 end)

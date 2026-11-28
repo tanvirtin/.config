@@ -137,7 +137,7 @@ function tools.risk(name)
   return entry and entry.risk
 end
 
-function tools.run(name, args, caller)
+function tools.run(name, args, caller, waited)
   local entry = index()[name]
 
   if not entry then util.fail('unknown editor tool: ' .. tostring(name)) end
@@ -148,7 +148,7 @@ function tools.run(name, args, caller)
 
   caller = caller ~= '' and caller or nil
 
-  return entry.fn(coerced, { caller = caller, edited = edited(caller) })
+  return entry.fn(coerced, { caller = caller, edited = edited(caller), waited = waited or 0 })
 end
 
 return tools

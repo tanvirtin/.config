@@ -169,7 +169,13 @@ function SessionHub:_open(key, opts)
     a,
     self:_session_opts(
       a,
-      { key = key, parent = parent and parent.key, depth = depth, grants = self:_fleet_grants(parent) }
+      {
+        key = key,
+        parent = parent and parent.key,
+        depth = depth,
+        grants = self:_fleet_grants(parent),
+        model = opts.model,
+      }
     )
   )
 
