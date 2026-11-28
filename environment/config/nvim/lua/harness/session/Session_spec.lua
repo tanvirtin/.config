@@ -1046,6 +1046,38 @@ describe('harness.session.Session:', function()
       assert.is_truthy(events.KIND)
     end)
   end)
+
+  it('reports no usage before the agent has sent any', function()
+    local session = session_with()
+
+    assert.is_nil(session:usage())
+  end)
+
+  it('reports the latest usage event of the session itself', function()
+    local session = session_with()
+
+    session:_emit({ kind = 'usage', used = 1, size = 100 })
+    session:_emit({ kind = 'usage', used = 2, size = 100 })
+
+    eq(2, session:usage().used)
+  end)
+
+  it('skips usage events that came from a sub-agent', function()
+    local session = session_with()
+
+    session:_emit({ kind = 'usage', used = 1, size = 100 })
+    session.history[#session.history + 1] = { kind = 'usage', used = 9, size = 100, parent = 's1' }
+
+    eq(1, session:usage().used)
+  end)
+
+  it('reports nothing when only sub-agents have reported usage', function()
+    local session = session_with()
+
+    session.history[#session.history + 1] = { kind = 'usage', used = 9, size = 100, parent = 's1' }
+
+    assert.is_nil(session:usage())
+  end)
 end)
 
 describe('harness.session.Session revert of a relative diff path:', function()

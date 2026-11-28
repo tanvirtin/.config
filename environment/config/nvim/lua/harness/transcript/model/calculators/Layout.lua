@@ -137,6 +137,7 @@ function Layout.signature(block)
     tostring(block.open_parent),
     tostring(block.sibling),
     tostring(block.siblings),
+    tostring(block.digest),
   }, ':')
 end
 

@@ -6,6 +6,7 @@ local glyph = require('ui.design.glyph')
 local theme = require('harness.transcript.theme')
 local keymaps = require('harness.settings.keymaps')
 local Block = require('harness.transcript.model.Block')
+local fleet = require('harness.transcript.model.fleet')
 local TurnBuilder = require('harness.transcript.model.TurnBuilder')
 
 local BlockBuilder = Object:extend()
@@ -27,7 +28,7 @@ BlockBuilder.GROUPABLE = { [Block.CATEGORY.read] = 'file', [Block.CATEGORY.searc
 
 BlockBuilder.GROUP_VERB = { [Block.CATEGORY.read] = 'Read', [Block.CATEGORY.search] = 'Searched' }
 
-BlockBuilder.ROW = { [Block.KIND.tool] = true, [Block.KIND.diff] = true }
+BlockBuilder.ROW = { [Block.KIND.tool] = true, [Block.KIND.diff] = true, [Block.KIND.fleet] = true }
 
 BlockBuilder.SUBAGENT_TAIL = 4
 
@@ -303,6 +304,7 @@ function BlockBuilder:run(history, title)
       local range = { from = from, to = to, last_turn = last_turn, updates = updates }
 
       turn = BlockBuilder.nest(TurnBuilder(history, range, opts):build(), opts.times or {})
+      turn = fleet.gather(turn)
 
       if opts.groups then turn = BlockBuilder.group(turn, last_turn and opts.running) end
       if cache and not last_turn then cache[from] = { to = to, blocks = turn } end

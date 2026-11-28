@@ -15,6 +15,7 @@ decorators.KIND = {
   [Block.KIND.stop] = require('harness.transcript.decorators.stop'),
   [Block.KIND.note] = require('harness.transcript.decorators.note'),
   [Block.KIND.plan] = require('harness.transcript.decorators.plan'),
+  [Block.KIND.fleet] = require('harness.transcript.decorators.fleet'),
 }
 
 decorators.nesting = require('harness.transcript.decorators.nesting')

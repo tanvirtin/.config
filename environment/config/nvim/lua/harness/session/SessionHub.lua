@@ -10,6 +10,7 @@ local permissions = lazy('harness.permissions')
 local Workspace = lazy('harness.session.Workspace')
 local Admission = lazy('harness.session.Admission')
 local session_store = require('harness.session.store')
+local PermissionState = lazy('harness.session.PermissionState')
 
 local SessionHub = Object:extend()
 
@@ -37,6 +38,7 @@ function SessionHub:constructor(store)
     store = store or session_store,
     workspaces = {},
     _starting = {},
+    _fleets = {},
     _next_key = 0,
   }
 
@@ -123,6 +125,14 @@ function SessionHub:_session_opts(a, extra)
   }, extra)
 end
 
+function SessionHub:_fleet_grants(parent)
+  if not parent then return nil end
+
+  self._fleets[parent.key] = self._fleets[parent.key] or PermissionState()
+
+  return self._fleets[parent.key]
+end
+
 function SessionHub:_resolve_agent(name)
   local found = agent.get(name or self.config.agent)
 
@@ -157,7 +167,10 @@ function SessionHub:_open(key, opts)
 
   local session, start_err = self:workspace(dir):new_session(
     a,
-    self:_session_opts(a, { key = key, parent = parent and parent.key, depth = depth })
+    self:_session_opts(
+      a,
+      { key = key, parent = parent and parent.key, depth = depth, grants = self:_fleet_grants(parent) }
+    )
   )
 
   if start_err then return nil, start_err end
@@ -312,7 +325,7 @@ function SessionHub:shutdown()
   end
 
   self.store.clear()
-  self.workspaces, self._starting = {}, {}
+  self.workspaces, self._starting, self._fleets = {}, {}, {}
 
   return self
 end

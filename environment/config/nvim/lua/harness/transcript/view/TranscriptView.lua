@@ -20,6 +20,7 @@ local session_types = lazy('harness.types.session')
 local Elicitation = lazy('harness.asks.Elicitation')
 local links = require('harness.transcript.view.links')
 local Block = require('harness.transcript.model.Block')
+local fleet = require('harness.transcript.model.fleet')
 local winbar = require('harness.transcript.view.winbar')
 local commands = lazy('harness.transcript.view.commands')
 local bindings = lazy('harness.transcript.view.bindings')
@@ -29,6 +30,7 @@ local FoldText = require('harness.transcript.view.FoldText')
 local PlanPanel = require('harness.transcript.view.PlanPanel')
 local Following = require('harness.transcript.view.Following')
 local Animator = require('harness.transcript.effects.Animator')
+local FleetMember = require('harness.transcript.model.FleetMember')
 local BlockBuilder = require('harness.transcript.model.BlockBuilder')
 local Layout = require('harness.transcript.model.calculators.Layout')
 local sticky_bottom = require('harness.transcript.view.sticky_bottom')
@@ -105,6 +107,7 @@ function TranscriptView:constructor(session, opts)
     notice = WaitingNotice(session, buffer.bufnr),
     frame = 1,
     cache = {},
+    fleet_folds = {},
     layout = nil,
     edits = session.edits,
     dirty = true,
@@ -196,6 +199,54 @@ function TranscriptView.active_subagents(session)
   return active
 end
 
+function TranscriptView.fleet_of(session, blocks, now)
+  local snapshot = {}
+
+  for _, child in ipairs(client.sessions(session.dir)) do
+    if child.parent == session.key and child ~= session then snapshot[child.key] = FleetMember.of(child, now) end
+  end
+
+  for _, block in ipairs(blocks or {}) do
+    if block.kind == Block.KIND.fleet then
+      for _, member in ipairs(block.members or {}) do
+        if not snapshot[member.key] then
+          local child = client.session(member.key)
+
+          if child then
+            snapshot[member.key] = FleetMember.of(child, now)
+          elseif client.starting(member.key) == true then
+            snapshot[member.key] = FleetMember.starting(member.key)
+          end
+        end
+      end
+    end
+  end
+
+  return snapshot
+end
+
+function TranscriptView.fleet_active(blocks, snapshot, active)
+  for _, block in ipairs(blocks or {}) do
+    if block.kind == Block.KIND.fleet then
+      for _, member in ipairs(block.members or {}) do
+        if FleetMember.live(snapshot[member.key]) then
+          active[block.id] = true
+          break
+        end
+      end
+    end
+  end
+
+  return active
+end
+
+function TranscriptView:active_now()
+  local blocks = self.document.blocks
+  local snapshot = TranscriptView.fleet_of(self.session, blocks, Timer.now())
+
+  return TranscriptView.fleet_active(blocks, snapshot, TranscriptView.active_subagents(self.session)), snapshot
+end
+
 function TranscriptView.recently_failed(blocks, now)
   local window = theme.beat()
 
@@ -216,8 +267,11 @@ end
 
 function TranscriptView:state()
   local session = self.session
+  local active, snapshot = self:active_now()
 
   return {
+    key = session.key,
+    fleet = snapshot,
     running = session:running(),
     loading = session:loading(),
     frame = self.frame,
@@ -227,7 +281,7 @@ function TranscriptView:state()
     asks = asks.asks_of(session),
     width = self.document:text_width(),
     held = session:idle() and #session.queue > 0,
-    active = TranscriptView.active_subagents(session),
+    active = active,
     owner = self.document,
     failed = TranscriptView.recently_failed(self.document.blocks, Timer.now()),
   }
@@ -316,21 +370,62 @@ function TranscriptView:write(history, state)
     self.layout = layout
   end
 
-  self.document:write(
-    BlockBuilder.build(history, session.title, {
-      times = session.times,
-      dir = session.dir,
-      running = state.running,
-      waiting = state.waiting,
-      cache = self.cache,
-      index = session.log and session.log.turns,
-      edits = self.edits,
-      groups = true,
-      live_turns = not self.expanded and settings.transcript:get('live_turns') or nil,
-      width = self.document:text_width(),
-    }),
-    state
-  )
+  local list = BlockBuilder.build(history, session.title, {
+    times = session.times,
+    dir = session.dir,
+    running = state.running,
+    waiting = state.waiting,
+    cache = self.cache,
+    index = session.log and session.log.turns,
+    edits = self.edits,
+    groups = true,
+    live_turns = not self.expanded and settings.transcript:get('live_turns') or nil,
+    width = self.document:text_width(),
+  })
+
+  for i, block in ipairs(list) do
+    if block.kind == Block.KIND.fleet then
+      local copy = Block.make(block.kind, block.lines, {})
+
+      for key, value in pairs(block) do
+        copy[key] = value
+      end
+
+      copy.digest = fleet.digest(block, state.fleet)
+      list[i] = copy
+    end
+  end
+
+  self.document:write(list, state)
+  self:fold_fleets(state)
+end
+
+function TranscriptView:touch_fleet(id)
+  self.fleet_folds[id] = 'user'
+end
+
+function TranscriptView:fold_fleets(state)
+  local folds = self.fleet_folds
+  local windows
+
+  for _, block in ipairs(self.document.blocks) do
+    local fold = block.kind == Block.KIND.fleet and block.folds and block.folds[1]
+
+    if fold and folds[block.id] ~= 'user' then
+      local wanted = state.active and state.active[block.id] and 'open' or 'closed'
+      local seen = folds[block.id]
+
+      folds[block.id] = wanted
+
+      if seen ~= wanted and (seen ~= nil or wanted == 'open') then
+        windows = windows or self:windows()
+
+        for _, window in ipairs(windows) do
+          window:set_fold(block.start + fold[1] + 1, wanted == 'closed')
+        end
+      end
+    end
+  end
 end
 
 function TranscriptView:reserve(window)
@@ -359,7 +454,7 @@ end
 function TranscriptView:_step()
   if not self.buffer:is_valid() then return self.timer:stop() end
 
-  local active = TranscriptView.active_subagents(self.session)
+  local active = self:active_now()
 
   if
     not self.session:running()
@@ -659,6 +754,11 @@ function TranscriptView:mount(callbacks)
   self.unsubscribe = self.session:subscribe(function(update)
     self:on_event(update)
   end)
+  self.unfleet = client.on({ 'start', 'event', 'close' }, function(session)
+    if not self.disposed and session and session ~= self.session and session.parent == self.session.key then
+      self:schedule()
+    end
+  end)
   self.unwatch = settings.composer:on_change(function()
     if not self.disposed then self:sync() end
   end)
@@ -728,6 +828,7 @@ function TranscriptView:dispose()
   self.disposed = true
 
   if self.unsubscribe then self.unsubscribe() end
+  if self.unfleet then self.unfleet() end
   if self.unwatch then self.unwatch() end
 
   client.unfollow(self.session)

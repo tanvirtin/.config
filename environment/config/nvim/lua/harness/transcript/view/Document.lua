@@ -79,6 +79,7 @@ function Document:_context()
     frame = state.frame,
     waiting = state.waiting,
     active = state.active,
+    fleet = state.fleet,
     plan_open = state.plan_open,
     width = self.width,
     revealed = self.revealed,

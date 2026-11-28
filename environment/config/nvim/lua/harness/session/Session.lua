@@ -79,7 +79,7 @@ function Session:constructor(opts)
   session.log = History()
   session.history = session.log.events
   session.times = session.log.times
-  session.permissions = PermissionGate(session)
+  session.permissions = PermissionGate(session, opts.grants)
   session._pending = session.permissions.pending
   session.elicitations = ElicitationGate(session)
   session.prompts = PromptQueue(session)
@@ -387,6 +387,16 @@ end
 
 function Session:waiting()
   return vim.list_extend(self.permissions:waiting(), self.elicitations:waiting())
+end
+
+function Session:usage()
+  local history = self.history
+
+  for i = #history, 1, -1 do
+    local event = history[i]
+
+    if event.kind == K.usage and not event.parent then return event end
+  end
 end
 
 function Session:begin_load()

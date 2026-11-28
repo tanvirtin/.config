@@ -2,9 +2,11 @@ local lazy = require('core.lazy')
 
 local Object = require('core.Object')
 local Toast = lazy('harness.ui.Toast')
+local display = lazy('harness.ui.display')
 local Window = require('core.editor.Window')
 local theme = lazy('harness.transcript.theme')
 local ASK = require('harness.types.events').ASK
+local presenter = lazy('harness.asks.presenter')
 
 local WaitingNotice = Object:extend()
 
@@ -13,8 +15,16 @@ function WaitingNotice:constructor(session, bufnr)
 end
 
 function WaitingNotice:shown()
+  local buffers = { [self.bufnr] = true }
+
+  for _, holder in ipairs(presenter.holders(self.session)) do
+    local bufnr = display.buffer_of(holder)
+
+    if bufnr then buffers[bufnr] = true end
+  end
+
   for _, window in ipairs(Window.list_tab()) do
-    if window:get_buffer().bufnr == self.bufnr then return true end
+    if buffers[window:get_buffer().bufnr] then return true end
   end
 
   return false

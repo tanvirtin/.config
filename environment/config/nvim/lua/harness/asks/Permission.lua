@@ -13,6 +13,21 @@ function Permission.ask(request)
   return presenter.present(request.session, Permission(request))
 end
 
+Permission.FLEET_ALWAYS = 'Allow always (whole fleet)'
+
+function Permission.choices_for(request)
+  local choices = client.permission_choices(request)
+  local session = request.session
+
+  if not (session and session.parent) then return choices end
+
+  return vim.tbl_map(function(choice)
+    if choice.kind ~= permission.DECISION.allow_always or choice.option then return choice end
+
+    return vim.tbl_extend('force', choice, { label = Permission.FLEET_ALWAYS })
+  end, choices)
+end
+
 function Permission:constructor(request)
   return {
     kind = ASK.permission,
@@ -20,7 +35,7 @@ function Permission:constructor(request)
     future = async.Future(),
     text = client.describe_permission(request),
     tool = request.tool,
-    choices = client.permission_choices(request),
+    choices = Permission.choices_for(request),
   }
 end
 

@@ -276,6 +276,8 @@ function TurnBuilder:on_tool_call(event)
   local tool = self:_add(Block.KIND.tool, lines, {
     id = event.id,
     name = name,
+    tool = state.name,
+    input = state.input,
     argument = argument,
     status = state.status,
     category = category,

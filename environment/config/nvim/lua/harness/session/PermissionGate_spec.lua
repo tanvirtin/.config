@@ -3,6 +3,7 @@ local async = require('harness.async')
 local events = require('harness.types.events')
 local fake = require('harness.session.fake_session')
 local permission = require('harness.types.permission')
+local PermissionState = require('harness.session.PermissionState')
 
 local eq = assert.are.same
 
@@ -139,5 +140,32 @@ describe('harness.session.PermissionGate:', function()
     })
 
     eq('reject_once', PermissionGate(session):request(PARAMS).result.kind)
+  end)
+
+  it('keeps the permission state it is given', function()
+    local state = PermissionState()
+    local gate = PermissionGate(fake.session(), state)
+
+    eq(state, gate.state)
+  end)
+
+  it('shares grants with every gate built on the same permission state', function()
+    local state = PermissionState()
+    local first = PermissionGate(fake.session(), state)
+    local second = PermissionGate(fake.session(), state)
+
+    first.state:grant('mcp__nvim__lua')
+
+    assert.is_true(second.state:granted('mcp__nvim__lua'))
+  end)
+
+  it('builds its own permission state when none is given, not sharing grants', function()
+    local first = PermissionGate(fake.session())
+    local second = PermissionGate(fake.session())
+
+    first.state:grant('mcp__nvim__lua')
+
+    assert.is_false(second.state:granted('mcp__nvim__lua'))
+    assert.is_true(first.state ~= second.state)
   end)
 end)

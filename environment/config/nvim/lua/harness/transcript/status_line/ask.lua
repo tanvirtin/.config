@@ -19,11 +19,20 @@ local function fit(state, text, used)
   return compact.line(text, math.max(width - used, 10))
 end
 
+local function asker(state, request)
+  local session = request.session
+
+  if not (session and state.key and session.key ~= state.key) then return { '' } end
+
+  return { session.key .. ' ', 'UiAccent' }
+end
+
 local function permission_rows(state, request)
   local keys = keymaps:get('transcript')
   local rows = {
     {
       theme.WAITING_ICON,
+      asker(state, request),
       { 'Allow ', 'UiWarn' },
       { fit(state, request.text, 12), 'UiPromptBar' },
       { '?', 'UiWarn' },
@@ -43,7 +52,7 @@ end
 local function elicitation_rows(state, request)
   local view = request:view()
   local keys = keymaps:get('transcript')
-  local question = { theme.WAITING_ICON, { fit(state, view.message, 12), 'UiPromptBar' } }
+  local question = { theme.WAITING_ICON, asker(state, request), { fit(state, view.message, 12), 'UiPromptBar' } }
 
   if view.count > 1 then
     question[#question + 1] = { string.format('  %d/%d', view.step, view.count), 'UiMuted' }

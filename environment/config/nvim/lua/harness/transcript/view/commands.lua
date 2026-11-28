@@ -6,6 +6,7 @@ local fences = lazy('core.fences')
 local async = lazy('harness.async')
 local Timer = require('core.Timer')
 local console = lazy('core.console')
+local notice = lazy('harness.ui.notice')
 local client = require('harness.client')
 local Window = require('core.editor.Window')
 local register = lazy('core.editor.register')
@@ -94,9 +95,31 @@ function commands.toggle_at(view, window, fold_row, row)
   return view
 end
 
+function commands.open_member(view, member)
+  local session = member and client.session(member.key)
+
+  if not session then
+    notice.info('Harness: ' .. (member and member.key or 'that agent') .. ' has ended')
+    return true
+  end
+
+  if view.display then view.display.open(session) end
+
+  return true
+end
+
 function commands.activate(view)
   local window = Window.get_current()
   local row = window:get_cursor()[1]
+  local at = view.document:block_at(row - 1)
+
+  if at and at.kind == Block.KIND.fleet then
+    if row > at.start + 1 and not window:fold_closed(row) then
+      return commands.open_member(view, at.members[row - at.start - 1])
+    end
+
+    view:touch_fleet(at.id)
+  end
 
   if window:fold_closed(row) then
     window:normal('zo')

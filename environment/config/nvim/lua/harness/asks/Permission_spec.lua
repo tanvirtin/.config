@@ -74,4 +74,33 @@ describe('harness.asks.Permission:', function()
     assert.truthy(require('harness.ui.display').buffer_of(session))
     eq(1, #vim.api.nvim_tabpage_list_wins(0))
   end)
+
+  local function labels(choices)
+    return vim.tbl_map(function(choice)
+      return choice.label
+    end, choices)
+  end
+
+  it('relabels the always choice to cover the whole fleet for a sub-agent', function()
+    local choices = Permission.choices_for({ tool = 'mcp__nvim__lua', session = { parent = 'h1' } })
+
+    eq({ 'Allow once', Permission.FLEET_ALWAYS, 'Reject' }, labels(choices))
+  end)
+
+  it('keeps the usual always label for a session without a parent', function()
+    local choices = Permission.choices_for({ tool = 'mcp__nvim__lua', session = {} })
+
+    eq({ 'Allow once', 'Allow always (this session)', 'Reject' }, labels(choices))
+  end)
+
+  it('keeps an always choice the agent provided with its own option and label', function()
+    local choices = Permission.choices_for({
+      tool = 'mcp__nvim__lua',
+      session = { parent = 'h1' },
+      choices = { { kind = 'allow_always', label = 'Always here', option = 'all' } },
+    })
+
+    eq({ 'Always here' }, labels(choices))
+    eq('all', choices[1].option)
+  end)
 end)

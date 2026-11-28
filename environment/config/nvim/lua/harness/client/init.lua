@@ -52,6 +52,10 @@ function client.sessions(dir)
   return hub.sessions(dir)
 end
 
+function client.starting(key)
+  return hub.starting(key)
+end
+
 function client.notify(session, update)
   return session:_notify(update)
 end

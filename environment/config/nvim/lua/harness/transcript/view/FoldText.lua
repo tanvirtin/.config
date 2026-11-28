@@ -65,7 +65,37 @@ function FoldText:_line_summary(first, last)
   )
 end
 
+FoldText.FLEET_MARKS = {
+  working = glyph.STATUS.running,
+  starting = glyph.STATUS.running,
+  waiting = glyph.STATUS.attention,
+  done = glyph.STATUS.done,
+  failed = glyph.STATUS.failed,
+  cancelled = glyph.STATUS.failed,
+}
+
+function FoldText:_fleet(first)
+  local block = self.document:block_at(first - 1)
+
+  if not (block and block.kind == Block.KIND.fleet) then return nil end
+
+  local snapshot = self.document.state and self.document.state.fleet or {}
+  local parts = {}
+
+  for _, member in ipairs(block.members or {}) do
+    local live = snapshot[member.key]
+
+    parts[#parts + 1] = member.key .. ' ' .. (live and FoldText.FLEET_MARKS[live.state] or glyph.DOT)
+  end
+
+  return glyph.join(parts)
+end
+
 function FoldText:text(first, last)
+  local fleet = self:_fleet(first)
+
+  if fleet then return { { self:_rails(first - 1, last - 1), 'UiMuted' }, { fleet, 'UiMuted' } } end
+
   local children = self:_children_in(first - 1, last)
   local text = glyph.STATUS.more .. ' ' .. (children or self:_line_summary(first, last))
 

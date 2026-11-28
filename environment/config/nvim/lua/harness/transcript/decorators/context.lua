@@ -5,6 +5,7 @@ local context = {}
 context.FINISHED = { [Block.STATUS.completed] = true, [Block.STATUS.failed] = true }
 
 function context.live_tool(block, ctx)
+  if block.kind == Block.KIND.fleet then return ctx.active ~= nil and ctx.active[block.id] == true end
   if block.kind ~= Block.KIND.tool then return false end
   if ctx.active and block.id and ctx.active[block.id] then return true end
   if block.settled or context.FINISHED[block.status] then return false end

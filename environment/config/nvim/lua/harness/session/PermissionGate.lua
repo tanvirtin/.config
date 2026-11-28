@@ -10,8 +10,8 @@ local DECISION = permission.DECISION
 
 local PermissionGate = Object:extend()
 
-function PermissionGate:constructor(session)
-  return { session = session, pending = {}, state = PermissionState() }
+function PermissionGate:constructor(session, grants)
+  return { session = session, pending = {}, state = grants or PermissionState() }
 end
 
 function PermissionGate:_label_of(choices, decision)
