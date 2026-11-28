@@ -21,9 +21,14 @@ function EditLog:_none()
 end
 
 function EditLog:constructor(file_lines)
-  return { file_lines = file_lines or function()
-    return self:_none()
-  end, entries = {}, primed = nil }
+  return {
+    file_lines = file_lines or function()
+      return self:_none()
+    end,
+    entries = {},
+    scanned = nil,
+    status = {},
+  }
 end
 
 function EditLog.tools(history, from, to)
@@ -92,15 +97,46 @@ end
 
 function EditLog:reset()
   self.entries = {}
-  self.primed = nil
+  self.scanned = nil
+  self.status = {}
 
   return self
 end
 
-function EditLog:prime(history)
-  if self.primed == #history then return self end
+function EditLog:_changed(history)
+  local scanned = self.scanned
+  local changed = scanned == nil or #history < scanned
 
-  self.primed = #history
+  if changed then
+    self.status, scanned = {}, 0
+  end
+
+  local status = self.status
+
+  for i = scanned + 1, #history do
+    local event = history[i]
+    local id = event.id
+
+    if EditLog.TOOL[event.kind] and id then
+      local now = event.status
+
+      if
+        (event.diffs and #event.diffs > 0) or (now and (now == EditLog.COMPLETED or status[id] == EditLog.COMPLETED))
+      then
+        changed = true
+      end
+
+      if now then status[id] = now end
+    end
+  end
+
+  self.scanned = #history
+
+  return changed
+end
+
+function EditLog:prime(history)
+  if not self:_changed(history) then return self end
 
   local files = {}
   local tools = EditLog.tools(history)

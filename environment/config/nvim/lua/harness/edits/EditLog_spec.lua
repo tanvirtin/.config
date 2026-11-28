@@ -93,6 +93,72 @@ describe('harness.edits.EditLog:', function()
     end)
   end)
 
+  describe('priming as a history grows', function()
+    local scans, tools
+
+    before_each(function()
+      scans, tools = 0, EditLog.tools
+
+      EditLog.tools = function(...)
+        scans = scans + 1
+
+        return tools(...)
+      end
+    end)
+
+    after_each(function()
+      EditLog.tools = tools
+    end)
+
+    local function edits()
+      return EditLog(function()
+        return { 'x = 2' }
+      end)
+    end
+
+    it('leaves the history alone while a tool only streams output', function()
+      local log, history = edits(), { { kind = 'tool_call', id = 't1', status = 'pending' } }
+
+      log:prime(history)
+      eq(1, scans)
+
+      for _ = 1, 5 do
+        history[#history + 1] = { kind = 'tool_update', id = 't1', status = 'in_progress' }
+        history[#history + 1] = { kind = 'message', text = 'hi' }
+        log:prime(history)
+      end
+
+      eq(1, scans)
+    end)
+
+    it('reads the history again once a tool brings a diff or completes', function()
+      local log, history = edits(), { { kind = 'tool_call', id = 't1', status = 'in_progress' } }
+
+      log:prime(history)
+      history[#history + 1] = { kind = 'tool_update', id = 't1', status = 'completed', diffs = { diff } }
+      log:prime(history)
+      eq(2, scans)
+      eq('applied', log:get(diff, 't1:1', true).resolved.kind)
+
+      history[#history + 1] = { kind = 'tool_update', id = 't2', status = 'completed' }
+      log:prime(history)
+      eq(3, scans)
+    end)
+
+    it('reads the history again when a finished tool starts running again, or the history shrinks', function()
+      local log = edits()
+      local history = { { kind = 'tool_update', id = 't1', status = 'completed', diffs = { diff } } }
+
+      log:prime(history)
+      history[#history + 1] = { kind = 'tool_update', id = 't1', status = 'in_progress' }
+      log:prime(history)
+      eq(2, scans)
+
+      log:prime({})
+      eq(3, scans)
+    end)
+  end)
+
   it('highlights syntax on demand exactly as vgit would, mapped onto the patch rows', function()
     local file = { 'local a = 0', 'local x = 2', 'return x' }
     local edit = EditLog(function()
